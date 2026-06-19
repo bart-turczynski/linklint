@@ -1,0 +1,119 @@
+import type { Layer } from "./types.js";
+
+/**
+ * Reason-code registry — the single source of truth for every code linklint can
+ * emit. Detectors reference codes from here; the core attaches the `weight` from
+ * this table (detectors never supply their own weight). See docs/reason-codes.md.
+ *
+ * Informational codes (`scoring: false`) always carry weight 0 and never move
+ * the score (FR-D-15/16). They annotate; they do not flag.
+ */
+export interface ReasonCodeMeta {
+  /** Inspection layer the code belongs to. v1 codes are all `lexical`. */
+  layer: Layer;
+  /** Whether the code contributes to the risk score. */
+  scoring: boolean;
+  /** Version-pinned weight in [0,1]. Always 0 for informational codes. */
+  weight: number;
+  /** One-line summary for docs and UI surfaces. */
+  summary: string;
+}
+
+export const REASON_CODES = {
+  // ── Informational (weight 0) ────────────────────────────────────────────
+  normalization_delta: {
+    layer: "lexical",
+    scoring: false,
+    weight: 0,
+    summary: "Host differs from its normalized/ACE form (any IDN triggers this).",
+  },
+  confusable_char: {
+    layer: "lexical",
+    scoring: false,
+    weight: 0,
+    summary: "One or more host characters are confusable with another script.",
+  },
+  confusable_in_path: {
+    layer: "lexical",
+    scoring: false,
+    weight: 0,
+    summary: "One or more path/query characters are confusable with another script.",
+  },
+
+  // ── Scoring ─────────────────────────────────────────────────────────────
+  mixed_script: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.4,
+    summary: "A single host label mixes characters from multiple scripts.",
+  },
+  invisible_char: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.5,
+    summary: "Invisible, zero-width, or control characters appear in the URL.",
+  },
+  bidi_override: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.6,
+    summary: "Bidirectional/RTL override characters appear in the URL.",
+  },
+  userinfo_present: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.5,
+    summary: "Authority is hidden behind userinfo (e.g. paypal.com@evil.com).",
+  },
+  ip_obfuscation: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.4,
+    summary: "Host is an obfuscated IP (decimal/octal/hex/dotless).",
+  },
+  embedded_domain_in_subdomain: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.5,
+    summary: "A domain-looking label sequence sits left of the real registrable domain.",
+  },
+  risky_tld: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.15,
+    summary: "Registrable domain uses a high-abuse or extension-confusable TLD.",
+  },
+  encoding_obfuscation: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.35,
+    summary: "Percent-encoding hides structural characters or is multiply nested.",
+  },
+  dangerous_scheme: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.9,
+    summary: "Scheme can execute or embed content (javascript:, data:, etc.).",
+  },
+
+  // ── Meta ────────────────────────────────────────────────────────────────
+  parse_error: {
+    layer: "lexical",
+    scoring: false,
+    weight: 0,
+    summary: "Input is not a parseable URL or hostname.",
+  },
+} as const satisfies Record<string, ReasonCodeMeta>;
+
+/** Union of every valid reason code. */
+export type ReasonCode = keyof typeof REASON_CODES;
+
+/** Look up registry metadata for a code. */
+export function reasonMeta(code: ReasonCode): ReasonCodeMeta {
+  return REASON_CODES[code];
+}
+
+/** The weight the core attaches for a given code. */
+export function weightFor(code: ReasonCode): number {
+  return REASON_CODES[code].weight;
+}

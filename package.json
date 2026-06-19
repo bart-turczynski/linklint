@@ -9,14 +9,18 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "features": "cucumber-js",
-    "check": "pnpm typecheck && pnpm features"
+    "build": "pnpm -r --filter \"./packages/*\" build",
+    "check": "pnpm typecheck && pnpm test && pnpm features"
   },
   "dependencies": {},
   "devDependencies": {
     "@cucumber/cucumber": "^12.0.0",
     "@types/node": "^24.0.0",
     "tsx": "^4.20.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "vitest": "^4.1.0"
   }
 }

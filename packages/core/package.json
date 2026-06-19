@@ -1,7 +1,7 @@
 {
   "name": "linklint",
-  "version": "0.0.2",
-  "description": "Explainable, offline-first URL inspector — detects deceptive links (homographs, confusables, userinfo spoofs, IP obfuscation) with named reason codes and no network. Placeholder release; implementation in progress.",
+  "version": "0.1.0-dev.0",
+  "description": "Explainable, offline-first URL inspector — detects deceptive links (homographs, confusables, userinfo spoofs, IP obfuscation) with named reason codes and no network.",
   "keywords": [
     "url",
     "security",
@@ -14,16 +14,28 @@
     "offline"
   ],
   "license": "MIT",
-  "type": "commonjs",
-  "main": "index.js",
-  "types": "index.d.ts",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "files": [
-    "index.js",
-    "index.d.ts",
+    "dist",
     "README.md"
   ],
   "engines": {
     "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "tldts": "^7.0.0",
+    "tr46": "^6.0.0"
   },
   "publishConfig": {
     "access": "public"
