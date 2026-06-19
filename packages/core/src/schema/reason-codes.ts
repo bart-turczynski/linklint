@@ -108,6 +108,13 @@ export const REASON_CODES = {
     summary:
       "Authority is structurally ambiguous (multi-@, #@, whitespace, multi-port, backslash, extra-slash, protocol-relative) so parsers disagree on the host.",
   },
+  separator_lookalike: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.5,
+    summary:
+      "Authority uses a delimiter look-alike (fullwidth/ideographic dot or slash) that normalizes to an ASCII separator, hiding the real host.",
+  },
 
   // ── Meta ────────────────────────────────────────────────────────────────
   parse_error: {

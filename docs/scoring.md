@@ -3,7 +3,7 @@
 > Version-pinned (`dataVersions.weights`). Source of truth:
 > `packages/core/src/schema/reason-codes.ts` (weights) and
 > `packages/core/src/scoring/` (aggregation + bands). Current weights version:
-> **1.1**.
+> **1.2**.
 
 ## Aggregation — probabilistic OR (FR-SCORE-1a)
 
@@ -53,6 +53,7 @@ explainable. Reliability is encoded in the weight itself — there is no separat
 | `ambiguous_authority`          | 0.65   | yes      |
 | `bidi_override`                | 0.60   | yes      |
 | `invisible_char`               | 0.50   | yes      |
+| `separator_lookalike`          | 0.50   | yes      |
 | `userinfo_present`             | 0.50   | yes      |
 | `embedded_domain_in_subdomain` | 0.50   | yes      |
 | `mixed_script`                 | 0.40   | yes      |

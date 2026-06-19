@@ -161,6 +161,25 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   yet now carries this reason instead of a bare `parse_error`.
 - **Scoring:** scoring, weight 0.65.
 
+### `separator_lookalike` — Epic J (J2) · weight 0.5
+
+- **Meaning:** the authority contains a character that a downstream layer
+  (browser, IDNA/NFKC normalization) maps to a **structural ASCII delimiter** — a
+  dot or a slash — so the real host hides from a parser that does not normalize.
+- **Why it's a signal:** `evil。com` (ideographic full stop, U+3002) resolves to
+  `evil.com` in a browser but reads as one opaque label to a naive validator;
+  `github.com／x@evil.zip` (fullwidth solidus) fakes a path boundary while the
+  real host is `evil.zip`. Distinct from `confusable_char` (visual similarity) —
+  this is about a character that becomes a *delimiter*.
+- **Detected look-alikes:** dot → `.` (U+3002, U+FF0E, U+FF61, U+2024);
+  slash → `/` (U+FF0F, U+2215).
+- **Scope & precision (SC-2):** scanned in the **authority only** — an ideographic
+  full stop is ordinary CJK punctuation inside a path (`/記事。html`) and is not
+  flagged. The authority must also contain an ASCII alphanumeric, so a Latin brand
+  glued by a look-alike dot fires while a pure-CJK host typed with an ideographic
+  dot (normal domain entry) does not.
+- **Scoring:** scoring, weight 0.5.
+
 ## Meta
 
 ### `parse_error`

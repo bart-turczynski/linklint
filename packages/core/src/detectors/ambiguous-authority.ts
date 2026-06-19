@@ -1,4 +1,5 @@
 import type { DetectorFinding } from "./types.js";
+import { authorityRegion } from "../parse/authority-region.js";
 
 /**
  * J1 — `ambiguous_authority` (Epic J, FR parser-differential). SCORING.
@@ -23,40 +24,6 @@ import type { DetectorFinding } from "./types.js";
  * over-trigger on benign typos (SC-2).
  */
 
-// Mirrors parse.ts — a scheme is `name:`; reused here to find the authority.
-const SCHEME_RE = /^([a-zA-Z][a-zA-Z0-9+.\-]*):/;
-
-/** Schemes recognized without a following `//`, so `paypal.com:8080` is not one. */
-const KNOWN_SCHEMES = new Set([
-  "http",
-  "https",
-  "ftp",
-  "ftps",
-  "ws",
-  "wss",
-  "file",
-  "mailto",
-  "tel",
-  "about",
-  "chrome",
-  "view-source",
-  "javascript",
-  "data",
-  "vbscript",
-  "blob",
-]);
-
-/** Opaque schemes have no authority to analyze (`javascript:`, `data:`, …). */
-const OPAQUE_SCHEMES = new Set([
-  "javascript",
-  "data",
-  "vbscript",
-  "blob",
-  "mailto",
-  "tel",
-  "about",
-]);
-
 /** Human-readable gloss per sub-signal, for the reason `detail`. */
 const SIGNAL_DETAIL: Record<string, string> = {
   multiple_userinfo: "more than one '@' in the authority",
@@ -75,52 +42,14 @@ const SIGNAL_DETAIL: Record<string, string> = {
 export function scanAmbiguousAuthority(prepared: string): DetectorFinding[] {
   if (prepared === "") return [];
 
-  // ── Scheme (same lenient rule as parse.ts) ────────────────────────────────
-  let scheme: string | null = null;
-  let rest = prepared;
-  const m = SCHEME_RE.exec(prepared);
-  if (m) {
-    const candidate = m[1]!.toLowerCase();
-    const after = prepared.slice(m[0].length);
-    const looksLikeHostPort =
-      (candidate.includes(".") || /^\d+([/?#]|$)/.test(after)) && !KNOWN_SCHEMES.has(candidate);
-    if (!looksLikeHostPort) {
-      scheme = candidate;
-      rest = after;
-    }
-  }
+  const region = authorityRegion(prepared);
 
-  const protocolRelative = scheme === null && /^[/\\]{2}/.test(prepared);
+  // Gate: only inspect inputs that declare themselves a URL with an authority.
+  if (region.opaque) return [];
+  if (region.scheme === null && !region.protocolRelative) return [];
 
-  // Gate: only inspect inputs that declare themselves a URL.
-  if (scheme === null && !protocolRelative) return [];
+  const { separator, authority, path, fragment, protocolRelative } = region;
 
-  // Opaque schemes carry no authority (unless written with a `//` form).
-  if (scheme !== null && OPAQUE_SCHEMES.has(scheme) && !/^[/\\]{2}/.test(rest)) return [];
-
-  // ── Separator: the leading run of '/' and '\' that introduces the authority.
-  let sepEnd = 0;
-  while (sepEnd < rest.length && (rest[sepEnd] === "/" || rest[sepEnd] === "\\")) sepEnd++;
-  const separator = rest.slice(0, sepEnd);
-  const afterSep = rest.slice(sepEnd);
-
-  // ── Authority token: up to the first structural '/' '?' or '#'. ───────────
-  const delim = firstIndexOf(afterSep, "/?#");
-  const authority = delim === -1 ? afterSep : afterSep.slice(0, delim);
-  const remainder = delim === -1 ? "" : afterSep.slice(delim);
-
-  // ── Fragment / path from the remainder (for #@ and network-path reference).
-  let fragment: string | null = null;
-  let pathAndQuery = remainder;
-  const hashIdx = remainder.indexOf("#");
-  if (hashIdx !== -1) {
-    fragment = remainder.slice(hashIdx + 1);
-    pathAndQuery = remainder.slice(0, hashIdx);
-  }
-  const qIdx = pathAndQuery.indexOf("?");
-  const path = qIdx === -1 ? pathAndQuery : pathAndQuery.slice(0, qIdx);
-
-  // ── Sub-signals ───────────────────────────────────────────────────────────
   const signals: string[] = [];
 
   const atCount = countChar(authority, "@");
@@ -167,12 +96,4 @@ function countChar(s: string, ch: string): number {
   let n = 0;
   for (let i = 0; i < s.length; i++) if (s[i] === ch) n++;
   return n;
-}
-
-/** Index of the first occurrence of any character in `chars`, or -1. */
-function firstIndexOf(s: string, chars: string): number {
-  for (let i = 0; i < s.length; i++) {
-    if (chars.includes(s[i]!)) return i;
-  }
-  return -1;
 }
