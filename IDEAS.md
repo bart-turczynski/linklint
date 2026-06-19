@@ -1,4 +1,4 @@
-# urlic — project brief
+# linklint — project brief
 
 ## Origin
 

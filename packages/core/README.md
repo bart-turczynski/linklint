@@ -1,9 +1,9 @@
-# urlic
+# linklint
 
-> ⚠️ **Placeholder release (`0.0.1`).** This reserves the `urlic` name on npm. The
-> implementation is in progress — `inspect()` currently throws. Watch this space.
+> ⚠️ **Placeholder release (`0.0.1`).** The implementation is in progress —
+> `inspect()` currently throws. Watch this space.
 
-**urlic** is an explainable, offline-first **URL inspector**. Hand it a single URL —
+**linklint** is an explainable, offline-first **URL inspector**. Hand it a single URL —
 from an email, a chat message, or an LLM agent's tool call — and it tells you whether
 the URL is *deceptive*, and **explains exactly why**, with no network and no data
 leaving the machine.
@@ -30,7 +30,7 @@ schemes. Resolution (redirects) and reputation (feeds) are roadmap.
 ## Planned API
 
 ```ts
-import { inspect } from 'urlic';
+import { inspect } from 'linklint';
 
 const result = inspect('https://paypal.com@xn--pypal-4ve.ru/login');
 // → { status: 'ok', score: 0.7, severity: 'high', reasons: [...], ... }

@@ -1,11 +1,11 @@
-# urlic architecture
+# linklint architecture
 
 > Status: draft v1 architecture
 > Source: [PRD.md](../PRD.md), [IDEAS.md](../IDEAS.md), [IDEAS-ADDENDUM.md](../IDEAS-ADDENDUM.md)
 
 ## 1. Architectural intent
 
-urlic is an offline-first URL inspection engine with multiple delivery channels. The core product
+linklint is an offline-first URL inspection engine with multiple delivery channels. The core product
 constraint is that every channel must return the same explainable verdict for the same input.
 
 The architecture therefore separates:
@@ -61,7 +61,7 @@ core contract rather than become the primary implementation prematurely.
 The project should be organized as a monorepo with a small core and thin channel packages:
 
 ```text
-urlic/
+linklint/
   docs/
     architecture.md
     reason-codes.md
@@ -312,8 +312,8 @@ not perform outbound network I/O, telemetry, or hosted lookups in v1.
 
 The CLI is roadmap, but the architecture should reserve it as a direct core wrapper:
 
-- `urlic check <url>`
-- `urlic batch <file>`
+- `linklint check <url>`
+- `linklint batch <file>`
 - `--json`
 - `--offline`
 - configurable non-zero exit threshold, defaulting to `severity >= high`
@@ -356,7 +356,7 @@ emit hosts/AdBlock-compatible formats.
 
 ## 8. Layer boundaries
 
-urlic has three conceptual layers.
+linklint has three conceptual layers.
 
 ### 8.1 Layer 1: lexical
 
