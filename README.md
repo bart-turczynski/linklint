@@ -39,7 +39,7 @@ This is a pnpm monorepo.
 
 | Path | What |
 |------|------|
-| `packages/core` | The `linklint` npm package — the source of truth (`inspect()`, 12 lexical detectors, scoring, schema). |
+| `packages/core` | The `linklint` npm package — the source of truth (`inspect()`, 13 lexical detectors, scoring, schema). |
 | `packages/mcp` | `@linklint/mcp` — a thin, local-only MCP server (`check_url` / `check_domain`). |
 | `docs/architecture.md` | System architecture (channels, pipeline, result contract, layers). |
 | `docs/reason-codes.md`, `docs/scoring.md` | Reason-code registry and version-pinned scoring. |
@@ -63,7 +63,7 @@ pre-commit install && pre-commit install --hook-type pre-push
 ## Status
 
 v1 is implemented: lexical (Layer 1) detection only — offline, deterministic,
-< 5 ms per call. Twelve detectors, probabilistic-OR scoring, a stable versioned
+< 5 ms per call. Thirteen detectors, probabilistic-OR scoring, a stable versioned
 schema, and a local MCP server. Resolution (redirects/shorteners) and reputation
 (feeds) are roadmap. See `docs/architecture.md`.
 
