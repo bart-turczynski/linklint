@@ -37,5 +37,24 @@ export { WEIGHTS, WEIGHTS_VERSION, severityForScore } from "./scoring/weights.js
 export { DATA_VERSIONS } from "./data/versions.js";
 
 // Detector internals (advanced consumers)
-export { DETECTORS } from "./detectors/registry.js";
+export {
+  DETECTORS,
+  normalizationDelta,
+  confusableChar,
+  mixedScript,
+  invisibleChar,
+  bidiOverride,
+  userinfoPresent,
+  ipObfuscation,
+  embeddedDomain,
+  riskyTld,
+  encodingObfuscation,
+  dangerousScheme,
+  confusableInPath,
+} from "./detectors/registry.js";
 export type { Detector, DetectorFinding, InspectionContext } from "./detectors/types.js";
+
+// Parsing / reference-data helpers (advanced consumers)
+export { parse } from "./parse/parse.js";
+export { findConfusables } from "./unicode/confusables.js";
+export { RISKY_TLDS } from "./data/risky-tlds.js";
