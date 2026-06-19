@@ -437,6 +437,11 @@ Channel tests should verify adapter behavior only:
 Performance tests should assert the v1 synchronous `inspect()` path stays below the PRD target on a
 representative corpus.
 
+The test runner is **Cucumber** (`@cucumber/cucumber`) executed through **tsx**, with feature specs in
+`features/` and the corpus-backed groups above implemented as unit tests under `tests/`. The
+workspace verify gate is `pnpm check` (`tsc --noEmit` typecheck + `cucumber-js`), which is also what
+the pre-push hook and CI run.
+
 ## 11. Implementation sequence
 
 1. Create the TypeScript workspace and `packages/core`.
