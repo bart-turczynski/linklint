@@ -5,6 +5,10 @@ import type { InspectResult } from "../../packages/core/src/index.js";
 export class LinklintWorld extends World {
   input = "";
   result!: InspectResult;
+  /** Verdict obtained via the MCP tool (SC-3 scenarios). */
+  mcpVerdict!: InspectResult;
+  /** The agent's fetch decision derived from the MCP verdict. */
+  willFetch = false;
 }
 
 setWorldConstructor(LinklintWorld);
