@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { analyzeLabelScripts, scriptOf } from "../src/unicode/scripts.js";
 import { findConfusables } from "../src/unicode/confusables.js";
+import { CONFUSABLES, CONFUSABLES_VERSION } from "../src/data/confusables.js";
 import { boundedDecode, decodeOnce } from "../src/parse/decode.js";
 import {
   hasMalformedPunycode,
@@ -47,6 +48,29 @@ describe("findConfusables", () => {
 
   it("returns nothing for pure ASCII", () => {
     expect(findConfusables("paypal", "host")).toHaveLength(0);
+  });
+
+  it("supports multi-codepoint UTS#39 targets (E1)", () => {
+    // æ (U+00E6) is confusable with the two-char ASCII sequence "ae".
+    const c = findConfusables("æ", "host");
+    expect(c).toHaveLength(1);
+    expect(c[0]!.codepoint).toBe("U+00E6");
+    expect(c[0]!.confusableWith).toContain("ae");
+  });
+});
+
+describe("confusables data (E1 — UTS#39)", () => {
+  it("is the generated, version-pinned official table", () => {
+    expect(CONFUSABLES_VERSION).toBe("uts39-16.0.0-curated");
+    // Much larger than the old ~50-entry hand-curated subset.
+    expect(CONFUSABLES.size).toBeGreaterThan(500);
+  });
+
+  it("describes targets with codepoint + official name", () => {
+    const cyrA = CONFUSABLES.get(String.fromCodePoint(0x0430))!; // Cyrillic а
+    expect(cyrA.target).toBe("a");
+    expect(cyrA.confusableWith).toContain("U+0061");
+    expect(cyrA.confusableWith).toContain("LATIN SMALL LETTER A");
   });
 });
 

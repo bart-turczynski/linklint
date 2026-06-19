@@ -222,13 +222,13 @@ Reference schema (deceptive input):
     { "code": "normalization_delta", "layer": "lexical", "detail": "host differs from its ACE form",         "weight": 0 }
   ],
   "confusables": [
-    { "char": "а", "codepoint": "U+0430", "confusableWith": "a (U+0061)", "component": "host", "position": 1 }
+    { "char": "а", "codepoint": "U+0430", "confusableWith": "a (U+0061, LATIN SMALL LETTER A)", "component": "host", "position": 1 }
   ],
   "checksRun": ["lexical"],
   "checksSkipped": ["resolution", "reputation"],
   "dataVersions": {
     "publicSuffixList": "snapshot-2026-06-19",
-    "unicodeConfusables": "curated-v1",
+    "unicodeConfusables": "uts39-16.0.0-curated",
     "riskyTlds": "2026-06-19",
     "weights": "1.0"
   }
@@ -254,7 +254,7 @@ Reference schema (invalid input — `status: "invalid"`, must not be read as ben
   "checksSkipped": ["lexical", "resolution", "reputation"],
   "dataVersions": {
     "publicSuffixList": "snapshot-2026-06-19",
-    "unicodeConfusables": "curated-v1",
+    "unicodeConfusables": "uts39-16.0.0-curated",
     "riskyTlds": "2026-06-19",
     "weights": "1.0"
   }

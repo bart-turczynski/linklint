@@ -1,5 +1,6 @@
 import type { DataVersions } from "../schema/types.js";
 import { WEIGHTS_VERSION } from "../scoring/weights.js";
+import { CONFUSABLES_VERSION } from "./confusables.js";
 
 /**
  * Version stamps for every reproducibility-relevant data/algorithm source used
@@ -11,8 +12,8 @@ import { WEIGHTS_VERSION } from "../scoring/weights.js";
 export const DATA_VERSIONS: DataVersions = {
   // Public Suffix List ships inside tldts; we pin the tldts release.
   publicSuffixList: "tldts@7.4.3",
-  // Curated high-risk confusables subset (OQ-1 / NFR-DATA-2).
-  unicodeConfusables: "curated-v1",
+  // Confusables generated from the official UTS#39 list (OQ-1 / NFR-DATA-2).
+  unicodeConfusables: CONFUSABLES_VERSION,
   // Script detection uses the runtime's Unicode property data (\p{Script=...}).
   unicodeScripts: "ecma-unicode-property-escapes",
   // UTS-46 / IDNA normalization library.
