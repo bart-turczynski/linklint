@@ -39,6 +39,13 @@ export const REASON_CODES = {
     weight: 0,
     summary: "One or more path/query characters are confusable with another script.",
   },
+  idna_mapping_ambiguity: {
+    layer: "lexical",
+    scoring: false,
+    weight: 0,
+    summary:
+      "Host maps to a different ASCII domain under IDNA2003 vs UTS-46/IDNA2008 (or folds to ASCII) — resolver disagreement. Scoring escalation lands with the Epic G brand list.",
+  },
 
   // ── Scoring ─────────────────────────────────────────────────────────────
   mixed_script: {

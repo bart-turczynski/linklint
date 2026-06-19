@@ -16,6 +16,22 @@ export function toAscii(host: string): string {
   }
 }
 
+/**
+ * ASCII (ACE) form of a host under a specific IDNA standard, or `null` if that
+ * standard rejects it. `transitional: true` approximates IDNA2003 (the deviation
+ * characters ß→ss, ς→σ, ZWJ/ZWNJ removed); `transitional: false` is UTS-46 /
+ * IDNA2008. Comparing the two surfaces resolver disagreement (J9). Unlike
+ * `toAscii` this does NOT fall back to the input — a `null` is a meaningful
+ * "this standard rejects the host" signal.
+ */
+export function toAsciiUnder(host: string, transitional: boolean): string | null {
+  try {
+    return tr46.toASCII(host, { transitionalProcessing: transitional }) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Unicode (U-label) form of a host — decodes `xn--` labels. Falls back to input. */
 export function toUnicode(host: string): string {
   try {
