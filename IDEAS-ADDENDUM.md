@@ -1,4 +1,4 @@
-# urlic — feature addendum
+# linklint — feature addendum
 
 > Companion to [IDEAS.md](./IDEAS.md). That brief nails the homograph/IDN insight and the
 > distribution surfaces. This addendum expands the *detection surface* outward from "the
@@ -235,7 +235,7 @@ answers the brief's open question on update cadence.
 The brief covers extension, MCP, filter list, and npm/WASM. Rounding out the coverage:
 
 ### Surface 5: CLI
-The natural home for batch and CI use. `urlic check <url>`, `urlic batch urls.csv`,
+The natural home for batch and CI use. `linklint check <url>`, `linklint batch urls.csv`,
 `--offline`, `--json`, non-zero exit on `severity >= high`. This is what `dnstwist` users already
 reach for, and the brief notes there's no clean equivalent with batch support.
 

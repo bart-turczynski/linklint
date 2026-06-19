@@ -1,4 +1,4 @@
-# urlic — Product Requirements Document
+# linklint — Product Requirements Document
 
 > **Status:** Draft v1 · **Date:** 2026-06-19
 > **Source material:** [IDEAS.md](./IDEAS.md), [IDEAS-ADDENDUM.md](./IDEAS-ADDENDUM.md), and the
@@ -8,12 +8,12 @@
 
 ## 1. Overview
 
-**urlic is a URL inspector.** Hand it a single, arbitrary URL — from an email, a chat message,
+**linklint is a URL inspector.** Hand it a single, arbitrary URL — from an email, a chat message,
 an LLM agent's tool call — and it tells you whether the URL is *deceptive*, and **explains exactly
 why**, with no network and no data leaving the machine.
 
 It grows out of the hostname transformer in `punycoder-online` and its founding insight: **if
-`normalize(input) !== input`, something is hiding in the domain.** urlic generalizes that from
+`normalize(input) !== input`, something is hiding in the domain.** linklint generalizes that from
 the hostname to the whole URL string.
 
 ### 1.1 The one-line positioning
@@ -24,7 +24,7 @@ Competitive research this session established that the inbound, single-URL, *exp
 is underserved:
 
 - **dnstwist** is **generative/outbound** — it takes a domain *you own* and enumerates impostors. It
-  explicitly does **not** inspect an arbitrary given URL. (Opposite direction from urlic.)
+  explicitly does **not** inspect an arbitrary given URL. (Opposite direction from linklint.)
 - **Homograph browser extensions** are inbound but emit a **binary** "Unicode present!" alert — they
   false-positive on every legitimate IDN and never explain *which* character is the problem.
 - **urlscan.io / CheckPhish / ScamAdviser** are **network-only, dynamic, public-by-default** sandboxes
@@ -32,11 +32,11 @@ is underserved:
 - **Aikido safe-chain** proves the *interception* model (wrap the moment of action, block before harm,
   free/no-token/local-first feeds) — but operates on **package names, not URLs.**
 
-urlic occupies the empty quadrant: **inbound + explainable + offline-first + embeddable.**
+linklint occupies the empty quadrant: **inbound + explainable + offline-first + embeddable.**
 
 ### 1.3 Non-goals (explicit)
 - **Not a domain-permutation / brand-monitoring engine.** Typosquat *generation* is dnstwist's job;
-  urlic **delegates** to it rather than reimplementing (see FR-DELEGATE).
+  linklint **delegates** to it rather than reimplementing (see FR-DELEGATE).
 - **Not a dynamic sandbox / page scanner.** No screenshotting, no content execution in v1 (urlscan's
   job).
 - **Not a reputation/blocklist service** in v1. No phone-home threat-intel lookups in v1.
@@ -81,7 +81,7 @@ These are binding constraints, not aspirations. Every requirement below must hon
 
 ## 4. The three-layer model & v1 boundary
 
-urlic reasons about a URL in three layers. **v1 implements Layer 1 only.** Layers 2–3 are roadmap
+linklint reasons about a URL in three layers. **v1 implements Layer 1 only.** Layers 2–3 are roadmap
 (§8) and are named here so the architecture leaves room for them.
 
 | Layer | Question | Network? | v1? |
@@ -263,7 +263,7 @@ Reference schema (invalid input — `status: "invalid"`, must not be read as ben
 
 ### 5.4 Delegation (not reimplementation)
 
-- **FR-DELEGATE-1** urlic does **not** implement domain-permutation generation. Where a "show me the
+- **FR-DELEGATE-1** linklint does **not** implement domain-permutation generation. Where a "show me the
   known siblings of this domain" capability is wanted, it is provided as an **optional integration that
   shells out to / wraps dnstwist** — and is **roadmap, not v1**.
 
@@ -345,7 +345,7 @@ it unlocks.
 ### Phase 3 — Reputation (Layer 3), privacy-preserving + CLI
 - Blocklist/feed lookups (Safe Browsing, URLhaus, PhishTank/OpenPhish) via **k-anonymity hash-prefix**
   queries — full URL never sent.
-- **CLI** surface: `urlic check` / `batch`, `--offline`, `--json`, non-zero exit on `severity >= high`.
+- **CLI** surface: `linklint check` / `batch`, `--offline`, `--json`, non-zero exit on `severity >= high`.
 
 ### Phase 4 — Interception model (safe-chain–inspired)
 - **Agent egress proxy** — transparently intercept and block deceptive URLs before an agent's fetch

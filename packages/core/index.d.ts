@@ -1,5 +1,5 @@
 /**
- * urlic — explainable, offline-first URL inspector.
+ * linklint — explainable, offline-first URL inspector.
  *
  * Placeholder release (0.0.1). The full result schema (`InspectResult`) and
  * options type land with the implementation; see docs/architecture.md §6.

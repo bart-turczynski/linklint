@@ -1,8 +1,8 @@
-# urlic
+# linklint
 
 > An explainable, offline-first, agent-native **URL inspector** — "safe-chain for links."
 
-Hand **urlic** a single URL — from an email, a chat message, or an LLM agent's tool
+Hand **linklint** a single URL — from an email, a chat message, or an LLM agent's tool
 call — and it tells you whether the URL is *deceptive*, and **explains exactly why**,
 with no network and no data leaving the machine.
 
@@ -23,7 +23,7 @@ This is a pnpm monorepo.
 
 | Path | What |
 |------|------|
-| `packages/core` | The `urlic` npm package — the source of truth (`inspect()`). *Placeholder release; implementation in progress.* |
+| `packages/core` | The `linklint` npm package — the source of truth (`inspect()`). *Placeholder release; implementation in progress.* |
 | `docs/architecture.md` | System architecture (channels, pipeline, result contract, layers). |
 | `PRD.md` | Product requirements. |
 | `IDEAS.md`, `IDEAS-ADDENDUM.md` | Source material. |
