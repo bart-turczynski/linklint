@@ -72,6 +72,24 @@ export const CORPUS: CorpusRow[] = [
     notes: "real registrable domain is spoof.info",
   },
   {
+    input: "https://paypal.com.login.evil.com/",
+    label: "deceptive",
+    expectReasons: ["embedded_domain_in_subdomain"],
+    notes: "E4: brand domain mid-subdomain (filler label after it); real domain evil.com",
+  },
+  {
+    input: "https://login.paypal.com.account.evil.com/",
+    label: "deceptive",
+    expectReasons: ["embedded_domain_in_subdomain"],
+    notes: "E4: brand domain wrapped by filler labels on both sides",
+  },
+  {
+    input: "https://secure-paypal.com.cdn.evil.com/",
+    label: "deceptive",
+    expectReasons: ["embedded_domain_in_subdomain"],
+    notes: "E4: brand-ish domain mid-subdomain (hyphenated label)",
+  },
+  {
     input: `https://example.com/${RLO}fdp.exe`,
     label: "deceptive",
     expectReasons: ["bidi_override"],
@@ -112,6 +130,7 @@ export const CORPUS: CorpusRow[] = [
   { input: "https://www.example.com/path?q=1#x", label: "benign" },
   { input: "https://github.com/anthropics/claude-code", label: "benign" },
   { input: "https://sub.domain.example.co.uk/a/b", label: "benign", forbidReasons: ["embedded_domain_in_subdomain"], notes: "deep subdomain, multi-level suffix" },
+  { input: "https://cdn.assets.eu-west-1.example.com/", label: "benign", forbidReasons: ["embedded_domain_in_subdomain"], notes: "E4 guard: 3-label subdomain, no mid-window is a registrable domain" },
   { input: "https://mail.google.com/", label: "benign" },
   { input: "https://amazon.co.jp/", label: "benign" },
   { input: "192.168.1.1", label: "benign", forbidReasons: ["ip_obfuscation"], notes: "canonical IP is not obfuscation" },

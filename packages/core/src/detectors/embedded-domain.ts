@@ -13,16 +13,24 @@ export const embeddedDomain: Detector = {
   run(ctx) {
     if (!ctx.registrableDomain || !ctx.subdomain) return [];
     const labels = ctx.subdomain.split(".");
-    // Longest -> shortest suffix; report the most-specific registrable domain.
-    for (let i = 0; i <= labels.length - 2; i++) {
-      const candidate = labels.slice(i).join(".");
-      if (looksLikeRegistrableDomain(candidate)) {
-        return [
-          {
-            code: "embedded_domain_in_subdomain",
-            detail: `'${candidate}' appears in the subdomain; the real registrable domain is '${ctx.registrableDomain}'`,
-          },
-        ];
+    const n = labels.length;
+    // Scan ALL contiguous windows of subdomain labels — not just suffixes — so a
+    // brand domain with filler labels between it and the real eTLD+1 is still
+    // caught (e.g. `paypal.com.login.evil.com`). Report the longest /
+    // most-specific window that is itself a registrable domain; the ICANN-suffix
+    // gate in looksLikeRegistrableDomain keeps deep legitimate subdomains
+    // (`sub.domain.example.co.uk`) from flagging.
+    for (let len = n; len >= 2; len--) {
+      for (let start = 0; start + len <= n; start++) {
+        const candidate = labels.slice(start, start + len).join(".");
+        if (looksLikeRegistrableDomain(candidate)) {
+          return [
+            {
+              code: "embedded_domain_in_subdomain",
+              detail: `'${candidate}' appears in the subdomain; the real registrable domain is '${ctx.registrableDomain}'`,
+            },
+          ];
+        }
       }
     }
     return [];

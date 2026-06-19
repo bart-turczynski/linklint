@@ -48,6 +48,21 @@ describe("scoring detectors reach >= medium on their own (SC-1)", () => {
     expect(["medium", "high", "critical"]).toContain(r.severity);
   });
 
+  it("embedded_domain_in_subdomain — mid-subdomain window, not just suffix (E4)", () => {
+    // The brand domain sits between filler labels and the real eTLD+1.
+    for (const url of [
+      "https://paypal.com.login.evil.com/",
+      "https://login.paypal.com.account.evil.com/",
+      "https://secure-paypal.com.cdn.evil.com/",
+    ]) {
+      const r = inspect(url);
+      const reason = r.reasons.find((x) => x.code === "embedded_domain_in_subdomain");
+      expect(reason, url).toBeDefined();
+      expect(reason?.detail, url).toContain("evil.com");
+      expect(["medium", "high", "critical"], url).toContain(r.severity);
+    }
+  });
+
   it("dangerous_scheme (javascript: and data:)", () => {
     expect(inspect("javascript:alert(1)").severity).toBe("critical");
     expect(inspect("data:text/html,<script>").severity).toBe("critical");
