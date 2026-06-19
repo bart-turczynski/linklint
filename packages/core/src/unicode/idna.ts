@@ -26,6 +26,26 @@ export function toUnicode(host: string): string {
   }
 }
 
+/**
+ * True if `host` has an `xn--` (ACE) label that fails UTS-46/Punycode decoding —
+ * i.e. it does not decode to a valid U-label (FR-D / E5). `tr46.toUnicode`
+ * surfaces this via its `error` flag, which `toUnicode` above discards. Scoped
+ * strictly to ACE labels: a non-ASCII host that merely contains other issues is
+ * out of scope here. An uppercase ACE label (e.g. `XN--CAF-DMA`) round-trips
+ * after UTS-46 case-folding and is NOT malformed.
+ */
+export function hasMalformedPunycode(host: string): boolean {
+  if (host === "") return false;
+  if (!/(^|\.)xn--/i.test(host)) return false;
+  try {
+    return tr46.toUnicode(host, { transitionalProcessing: false }).error === true;
+  } catch {
+    // tr46 is total in practice; treat an unexpected throw as non-malformed
+    // rather than risk a false positive.
+    return false;
+  }
+}
+
 /** True if the host has a normalization delta: it is an IDN (non-ASCII or ACE). */
 export function hasNormalizationDelta(host: string): boolean {
   if (host === "") return false;

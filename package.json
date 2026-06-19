@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "features": "cucumber-js",
     "build": "pnpm -r --filter \"./packages/*\" build",
+    "data:confusables": "node tools/build-confusables.mjs",
     "check": "pnpm build && pnpm typecheck && pnpm test && pnpm features"
   },
   "dependencies": {},

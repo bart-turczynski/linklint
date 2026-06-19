@@ -11,6 +11,7 @@ import { riskyTld } from "./risky-tld.js";
 import { encodingObfuscation } from "./encoding-obfuscation.js";
 import { dangerousScheme } from "./dangerous-scheme.js";
 import { confusableInPath } from "./confusable-in-path.js";
+import { punycodeMalformed } from "./punycode-malformed.js";
 
 /**
  * Ordered list of lexical detectors run by the default `inspect()` path,
@@ -30,6 +31,7 @@ export const DETECTORS: Detector[] = [
   encodingObfuscation, // FR-D-10 (scoring)
   dangerousScheme, // FR-D-11 (scoring)
   confusableInPath, // FR-D-12 (info)
+  punycodeMalformed, // E5      (scoring, low)
 ];
 
 export {
@@ -45,4 +47,5 @@ export {
   encodingObfuscation,
   dangerousScheme,
   confusableInPath,
+  punycodeMalformed,
 };

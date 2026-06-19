@@ -89,8 +89,11 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   registrable domain.
 - **Why it's a signal:** `paypal.com.spoof.info` puts `paypal.com` in the
   subdomain; the real registrable domain is `spoof.info`. Purely lexical in v1
-  (no DNS resolution of the embedded domain — FR-D-14).
-- **Example:** `https://paypal.com.spoof.info/` → real domain `spoof.info`.
+  (no DNS resolution of the embedded domain — FR-D-14). All contiguous windows
+  of the subdomain labels are scanned (not just suffixes), so a brand domain with
+  filler labels after it — `paypal.com.login.evil.com` — is still caught.
+- **Example:** `https://paypal.com.spoof.info/` → real domain `spoof.info`;
+  `https://paypal.com.login.evil.com/` → real domain `evil.com`.
 
 ### `risky_tld` — FR-D-9 · weight 0.15
 
@@ -116,6 +119,17 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 - **Why it's a signal:** these schemes are almost never legitimate in a link an
   agent or user is about to follow; highest single weight.
 - **Example:** `javascript:fetch('//evil')`.
+
+### `punycode_malformed` — E5 · weight 0.2
+
+- **Meaning:** the host has an `xn--` (ACE) label that does not decode to a valid
+  U-label under UTS-46 / Punycode.
+- **Why it's a signal:** a low-weight lexical anomaly — such a host is not a
+  registrable IDN and never appears in legitimate links, but it is not inherently
+  an attack on its own, so it flags only at `low`. Valid IDNs are unaffected,
+  including uppercase ACE (`XN--CAF-DMA` → `café`), which round-trips after
+  UTS-46 case-folding.
+- **Example:** `https://xn--abc.com/` or `https://xn--.com/` (undecodable ACE).
 
 ## Meta
 

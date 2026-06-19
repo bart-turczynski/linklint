@@ -1,4 +1,5 @@
 import type { Severity } from "../../src/index.js";
+import { VECTORS } from "./vectors.js";
 
 /**
  * Labeled test corpus (NFR-TEST-1). The single shared fixture consumed by the
@@ -72,6 +73,24 @@ export const CORPUS: CorpusRow[] = [
     notes: "real registrable domain is spoof.info",
   },
   {
+    input: "https://paypal.com.login.evil.com/",
+    label: "deceptive",
+    expectReasons: ["embedded_domain_in_subdomain"],
+    notes: "E4: brand domain mid-subdomain (filler label after it); real domain evil.com",
+  },
+  {
+    input: "https://login.paypal.com.account.evil.com/",
+    label: "deceptive",
+    expectReasons: ["embedded_domain_in_subdomain"],
+    notes: "E4: brand domain wrapped by filler labels on both sides",
+  },
+  {
+    input: "https://secure-paypal.com.cdn.evil.com/",
+    label: "deceptive",
+    expectReasons: ["embedded_domain_in_subdomain"],
+    notes: "E4: brand-ish domain mid-subdomain (hyphenated label)",
+  },
+  {
     input: `https://example.com/${RLO}fdp.exe`,
     label: "deceptive",
     expectReasons: ["bidi_override"],
@@ -107,11 +126,26 @@ export const CORPUS: CorpusRow[] = [
     expectReasons: ["encoding_obfuscation"],
     notes: "encoded traversal",
   },
+  {
+    input: "https://xn--abc.com/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["punycode_malformed"],
+    notes: "E5: undecodable ACE label (tr46 error)",
+  },
+  {
+    input: "https://xn--.com/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["punycode_malformed"],
+    notes: "E5: empty ACE payload",
+  },
 
   // ── Benign (SC-2): must be score 0 / info ───────────────────────────────
   { input: "https://www.example.com/path?q=1#x", label: "benign" },
   { input: "https://github.com/anthropics/claude-code", label: "benign" },
   { input: "https://sub.domain.example.co.uk/a/b", label: "benign", forbidReasons: ["embedded_domain_in_subdomain"], notes: "deep subdomain, multi-level suffix" },
+  { input: "https://cdn.assets.eu-west-1.example.com/", label: "benign", forbidReasons: ["embedded_domain_in_subdomain"], notes: "E4 guard: 3-label subdomain, no mid-window is a registrable domain" },
   { input: "https://mail.google.com/", label: "benign" },
   { input: "https://amazon.co.jp/", label: "benign" },
   { input: "192.168.1.1", label: "benign", forbidReasons: ["ip_obfuscation"], notes: "canonical IP is not obfuscation" },
@@ -120,7 +154,8 @@ export const CORPUS: CorpusRow[] = [
   { input: "https://example.com/?redirect=https%3A%2F%2Fok.com%2Fp", label: "benign", forbidReasons: ["encoding_obfuscation"], notes: "legitimate encoded query value" },
 
   // ── Informational-only (SC-1a): annotate, weight 0, benign ──────────────
-  { input: "https://xn--bcher-kva.de/", label: "info", expectReasons: ["normalization_delta"], forbidReasons: ["mixed_script"], notes: "bücher.de ACE form" },
+  { input: "https://xn--bcher-kva.de/", label: "info", expectReasons: ["normalization_delta"], forbidReasons: ["mixed_script", "punycode_malformed"], notes: "bücher.de ACE form" },
+  { input: "https://XN--CAF-DMA.com/", label: "info", expectReasons: ["normalization_delta"], forbidReasons: ["punycode_malformed"], notes: "E5 guard: uppercase ACE round-trips to café — NOT malformed" },
   { input: "https://müller.de/", label: "info", expectReasons: ["normalization_delta"], forbidReasons: ["mixed_script"], notes: "legitimate German IDN" },
   { input: "https://пример.com", label: "info", expectReasons: ["confusable_char", "normalization_delta"], forbidReasons: ["mixed_script"], notes: "single-script Cyrillic label + ASCII TLD" },
   { input: "https://日本語.jp/", label: "info", expectReasons: ["normalization_delta"], forbidReasons: ["mixed_script"], notes: "Japanese IDN" },
@@ -133,4 +168,7 @@ export const CORPUS: CorpusRow[] = [
   { input: "http://", label: "invalid" },
   { input: "http://exa mple.com", label: "invalid", notes: "space in host" },
   { input: "@@@@@", label: "invalid" },
+
+  // ── Imported IDN / PSL / host test vectors (E6) ─────────────────────────
+  ...VECTORS,
 ];

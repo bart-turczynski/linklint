@@ -57,6 +57,7 @@ explainable. Reliability is encoded in the weight itself — there is no separat
 | `mixed_script`                 | 0.40   | yes      |
 | `ip_obfuscation`               | 0.40   | yes      |
 | `encoding_obfuscation`         | 0.35   | yes      |
+| `punycode_malformed`           | 0.20   | yes      |
 | `risky_tld`                    | 0.15   | yes      |
 | `normalization_delta`          | 0.00   | info     |
 | `confusable_char`              | 0.00   | info     |
@@ -64,8 +65,9 @@ explainable. Reliability is encoded in the weight itself — there is no separat
 | `parse_error`                  | 0.00   | meta     |
 
 Each scoring detector lands at `severity ≥ medium` on its own, satisfying SC-1
-for the canonical attack set; `risky_tld` is intentionally `low` alone so it only
-matters in combination.
+for the canonical attack set; `risky_tld` and `punycode_malformed` are
+intentionally `low` alone (anomalous/contextual signals) so they mainly matter in
+combination.
 
 ## Skipped detectors are a lower bound (FR-SCORE-3a)
 

@@ -48,6 +48,21 @@ describe("scoring detectors reach >= medium on their own (SC-1)", () => {
     expect(["medium", "high", "critical"]).toContain(r.severity);
   });
 
+  it("embedded_domain_in_subdomain — mid-subdomain window, not just suffix (E4)", () => {
+    // The brand domain sits between filler labels and the real eTLD+1.
+    for (const url of [
+      "https://paypal.com.login.evil.com/",
+      "https://login.paypal.com.account.evil.com/",
+      "https://secure-paypal.com.cdn.evil.com/",
+    ]) {
+      const r = inspect(url);
+      const reason = r.reasons.find((x) => x.code === "embedded_domain_in_subdomain");
+      expect(reason, url).toBeDefined();
+      expect(reason?.detail, url).toContain("evil.com");
+      expect(["medium", "high", "critical"], url).toContain(r.severity);
+    }
+  });
+
   it("dangerous_scheme (javascript: and data:)", () => {
     expect(inspect("javascript:alert(1)").severity).toBe("critical");
     expect(inspect("data:text/html,<script>").severity).toBe("critical");
@@ -112,6 +127,26 @@ describe("embedded_domain does not over-flag deep legitimate subdomains", () => 
     const r = inspect("https://sub.domain.example.co.uk/path?a=1#x");
     expect(r.score).toBe(0);
     expect(r.reasons.map((x) => x.code)).not.toContain("embedded_domain_in_subdomain");
+  });
+});
+
+describe("punycode_malformed (E5)", () => {
+  it("flags an undecodable xn-- label at low severity", () => {
+    for (const url of ["https://xn--abc.com/", "https://xn--.com/"]) {
+      const r = inspect(url);
+      expect(r.reasons.map((x) => x.code), url).toContain("punycode_malformed");
+      expect(r.severity, url).toBe("low");
+    }
+  });
+
+  it("does NOT flag a valid IDN, including uppercase ACE", () => {
+    for (const url of [
+      "https://xn--bcher-kva.de/", // bücher.de
+      "https://XN--CAF-DMA.com/", // café.com — round-trips after case-folding
+      "https://example.com/",
+    ]) {
+      expect(codes(url), url).not.toContain("punycode_malformed");
+    }
   });
 });
 
