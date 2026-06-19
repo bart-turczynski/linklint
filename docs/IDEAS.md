@@ -2,7 +2,7 @@
 
 ## Origin
 
-This project grows out of the hostname transformer in [punycoder-online](../punycoder-online).
+This project grows out of the hostname transformer in [punycoder-online](../../punycoder-online).
 That tool encodes/decodes punycode (A-label ↔ U-label) and normalizes hostnames.
 The insight that kicked this off: if `normalize(input) !== input`, something is hiding in the domain.
 
