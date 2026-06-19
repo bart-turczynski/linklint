@@ -1,0 +1,128 @@
+# Reason codes
+
+> Version-pinned with the weights table (`docs/scoring.md`). Every verdict from
+> `inspect()` carries reason codes from this registry — never a bare boolean
+> (PRD Principle 1). The registry source of truth is
+> `packages/core/src/schema/reason-codes.ts`.
+
+Each reason is `{ code, layer, detail, weight }`. The `weight` is attached by the
+core from the version-pinned table; detectors never supply their own weight.
+
+## Informational codes (weight 0)
+
+These **annotate** but never raise severity. They exist so legitimate IDNs are
+explained, not flagged (PRD Principle 5, FR-D-15/16, SC-1a/SC-2). A result whose
+only reasons are informational is **benign** (`score: 0`, `severity: "info"`).
+
+### `normalization_delta` — FR-D-1
+
+- **Meaning:** the host differs from its normalized / ACE (punycode) form.
+- **Why it's a signal:** any internationalized domain triggers it by definition,
+  so on its own it means only "this host uses non-ASCII." It becomes meaningful
+  **in combination** with a scoring detector (e.g. `mixed_script`).
+- **Example:** `bücher.de` → host differs from `xn--bcher-kva.de`. Benign alone.
+- **Scoring:** informational, weight 0.
+
+### `confusable_char` — FR-D-2
+
+- **Meaning:** one or more characters in the **host** are confusable with
+  characters from another script (per the curated confusables set).
+- **Why it's a signal:** annotation only. Scoring a single-script whole-label
+  homograph needs a brand/skeleton index (roadmap), so raw confusable annotation
+  must not score or legitimate IDNs would be penalized.
+- **Example:** Cyrillic `а` (U+0430) where Latin `a` (U+0061) is expected.
+- **Scoring:** informational, weight 0. Expanded per-character in `confusables[]`.
+
+### `confusable_in_path` — FR-D-12
+
+- **Meaning:** as `confusable_char`, but for the **path / query** components.
+- **Why it's a signal:** annotation only, same reasoning as `confusable_char`.
+- **Example:** a Cyrillic letter inside `/раy/`.
+- **Scoring:** informational, weight 0. Expanded per-character in `confusables[]`.
+
+## Scoring codes
+
+These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
+
+### `mixed_script` — FR-D-3 · weight 0.4
+
+- **Meaning:** a single host label mixes characters from more than one script
+  (e.g. Latin + Cyrillic in one label).
+- **Why it's a signal:** the cross-script de-noiser. Legitimate IDNs are
+  single-script; mixing scripts within a label is the hallmark of a homograph
+  attack. This is the code that actually scores confusable-based deception.
+- **Example:** `pаypal.com` where `а` is Cyrillic (label mixes Latin + Cyrillic).
+
+### `invisible_char` — FR-D-4 · weight 0.5
+
+- **Meaning:** invisible, zero-width, or control characters appear anywhere in
+  the URL (excluding bidi controls, which are reported as `bidi_override`).
+- **Why it's a signal:** invisible characters hide differences between a
+  deceptive host and a legitimate one.
+- **Example:** `exa​mple.com` (zero-width space inside the host).
+
+### `bidi_override` — FR-D-5 · weight 0.6
+
+- **Meaning:** bidirectional / RTL override characters (U+202A–U+202E,
+  U+2066–U+2069, U+061C, U+200E/U+200F) appear in the URL.
+- **Why it's a signal:** bidi overrides visually reorder text — e.g. making a
+  path appear to end in a safe extension.
+- **Example:** a filename containing U+202E to flip `gpj.exe` to `exe.jpg`.
+
+### `userinfo_present` — FR-D-6 · weight 0.5
+
+- **Meaning:** the authority is hidden behind a userinfo segment (`user@host`).
+- **Why it's a signal:** `https://paypal.com@evil.com` reads as PayPal but
+  resolves to `evil.com`. The real host is surfaced in `parsed.effectiveHost`.
+- **Example:** `https://paypal.com@evil.com/login` → real host `evil.com`.
+
+### `ip_obfuscation` — FR-D-7 · weight 0.4
+
+- **Meaning:** the host is an obfuscated IP address — decimal, octal, hex, or
+  dotless form.
+- **Why it's a signal:** obfuscated IPs evade human and naive string checks.
+- **Example:** `http://2130706433/` (decimal for `127.0.0.1`).
+
+### `embedded_domain_in_subdomain` — FR-D-8 · weight 0.5
+
+- **Meaning:** a domain-looking label sequence appears left of the real
+  registrable domain.
+- **Why it's a signal:** `paypal.com.spoof.info` puts `paypal.com` in the
+  subdomain; the real registrable domain is `spoof.info`. Purely lexical in v1
+  (no DNS resolution of the embedded domain — FR-D-14).
+- **Example:** `https://paypal.com.spoof.info/` → real domain `spoof.info`.
+
+### `risky_tld` — FR-D-9 · weight 0.15
+
+- **Meaning:** the registrable domain uses a high-abuse or extension-confusable
+  TLD (e.g. `.zip`, `.mov`).
+- **Why it's a signal:** a low-weight contextual signal — risky TLDs correlate
+  with abuse and can be confused with file extensions. Low weight so it never
+  flags on its own.
+- **Example:** `https://invoice.zip/` (looks like a file, is a domain).
+
+### `encoding_obfuscation` — FR-D-10 · weight 0.35
+
+- **Meaning:** percent-encoding hides structural characters or is multiply
+  nested (double-encoding).
+- **Why it's a signal:** encoded `/`, `@`, `:` or repeated `%25` chains hide the
+  true structure of a URL. Recursive decoding is bounded (no decode-bomb).
+- **Example:** `https://example.com%2F@evil.com` or `%252e%252e`.
+
+### `dangerous_scheme` — FR-D-11 · weight 0.9
+
+- **Meaning:** the scheme can execute or embed content: `javascript:`, `data:`,
+  `blob:`, `file:`, `vbscript:`.
+- **Why it's a signal:** these schemes are almost never legitimate in a link an
+  agent or user is about to follow; highest single weight.
+- **Example:** `javascript:fetch('//evil')`.
+
+## Meta
+
+### `parse_error`
+
+- **Meaning:** the input is not a parseable URL or hostname.
+- **Result shape:** `status: "invalid"`, `parsed/score/severity: null`. An
+  invalid result is **not benign** — a fail-closed consumer must reject it
+  (FR-IN-4, SC-2a).
+- **Scoring:** weight 0.

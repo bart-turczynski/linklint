@@ -7,16 +7,12 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "skipLibCheck": true,
-    "types": ["node"],
-    "resolveJsonModule": true,
     "verbatimModuleSyntax": true,
-    "noEmit": true
+    "resolveJsonModule": true,
+    "declaration": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "noEmit": false
   },
-  "include": [
-    "packages/*/src/**/*.ts",
-    "packages/*/test/**/*.ts",
-    "tests/**/*.ts",
-    "features/**/*.ts",
-    "vitest.config.ts"
-  ]
+  "include": ["src/**/*.ts"]
 }
