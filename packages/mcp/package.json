@@ -1,0 +1,34 @@
+{
+  "name": "@linklint/mcp",
+  "version": "0.1.0-dev.0",
+  "description": "Local-only MCP server for linklint — check a URL before an agent fetches it (offline, explainable).",
+  "keywords": ["mcp", "url", "security", "phishing", "agent", "linklint"],
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "linklint-mcp": "./dist/server.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "linklint": "workspace:*",
+    "zod": "^4.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
