@@ -1,4 +1,5 @@
 import type { Severity } from "../../src/index.js";
+import { VECTORS } from "./vectors.js";
 
 /**
  * Labeled test corpus (NFR-TEST-1). The single shared fixture consumed by the
@@ -167,4 +168,7 @@ export const CORPUS: CorpusRow[] = [
   { input: "http://", label: "invalid" },
   { input: "http://exa mple.com", label: "invalid", notes: "space in host" },
   { input: "@@@@@", label: "invalid" },
+
+  // ── Imported IDN / PSL / host test vectors (E6) ─────────────────────────
+  ...VECTORS,
 ];
