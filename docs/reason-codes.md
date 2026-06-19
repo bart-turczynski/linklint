@@ -20,7 +20,8 @@ only reasons are informational is **benign** (`score: 0`, `severity: "info"`).
 - **Why it's a signal:** any internationalized domain triggers it by definition,
   so on its own it means only "this host uses non-ASCII." It becomes meaningful
   **in combination** with a scoring detector (e.g. `mixed_script`).
-- **Example:** `bücher.de` → host differs from `xn--bcher-kva.de`. Benign alone.
+- **Example:** `bücher.de` is an IDN; its ASCII/punycode form is `xn--bcher-kva.de`.
+  Benign alone — every IDN trips this, so it carries no suspicion by itself.
 - **Scoring:** informational, weight 0.
 
 ### `confusable_char` — FR-D-2
