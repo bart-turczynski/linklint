@@ -1,7 +1,7 @@
 # linklint architecture
 
 > Status: draft v1 architecture
-> Source: [PRD.md](../PRD.md), [IDEAS.md](../IDEAS.md), [IDEAS-ADDENDUM.md](../IDEAS-ADDENDUM.md)
+> Source: [PRD.md](./PRD.md), [IDEAS.md](./IDEAS.md), [IDEAS-ADDENDUM.md](./IDEAS-ADDENDUM.md)
 
 ## 1. Architectural intent
 
@@ -63,6 +63,9 @@ The project should be organized as a monorepo with a small core and thin channel
 ```text
 linklint/
   docs/
+    PRD.md
+    IDEAS.md
+    IDEAS-ADDENDUM.md
     architecture.md
     reason-codes.md
     scoring.md

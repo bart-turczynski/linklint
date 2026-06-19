@@ -25,8 +25,8 @@ This is a pnpm monorepo.
 |------|------|
 | `packages/core` | The `linklint` npm package — the source of truth (`inspect()`). *Placeholder release; implementation in progress.* |
 | `docs/architecture.md` | System architecture (channels, pipeline, result contract, layers). |
-| `PRD.md` | Product requirements. |
-| `IDEAS.md`, `IDEAS-ADDENDUM.md` | Source material. |
+| `docs/PRD.md` | Product requirements. |
+| `docs/IDEAS.md`, `docs/IDEAS-ADDENDUM.md` | Source material. |
 | `src/`, `features/` | Workspace-root scaffold smoke test (typecheck + cucumber). |
 
 ## Development
