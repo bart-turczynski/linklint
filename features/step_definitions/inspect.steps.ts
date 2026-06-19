@@ -40,6 +40,26 @@ Then("the reasons contain {string}", function (this: LinklintWorld, code: string
   assert.ok(this.result.reasons.some((r) => r.code === code), `expected reason ${code}`);
 });
 
+Then("the reasons do not contain {string}", function (this: LinklintWorld, code: string) {
+  assert.ok(!this.result.reasons.some((r) => r.code === code), `unexpected reason ${code}`);
+});
+
+const SEVERITY_RANK = ["info", "low", "medium", "high", "critical"];
+Then("the severity is at least {string}", function (this: LinklintWorld, min: string) {
+  const actual = this.result.severity;
+  assert.ok(actual, "severity is null");
+  assert.ok(
+    SEVERITY_RANK.indexOf(actual) >= SEVERITY_RANK.indexOf(min),
+    `severity ${actual} is below ${min}`,
+  );
+});
+
+Then("the reason {string} has weight {int}", function (this: LinklintWorld, code: string, w: number) {
+  const reason = this.result.reasons.find((r) => r.code === code);
+  assert.ok(reason, `missing reason ${code}`);
+  assert.equal(reason.weight, w);
+});
+
 Then("checksRun is {string}", function (this: LinklintWorld, csv: string) {
   assert.deepEqual(this.result.checksRun, csv.split(","));
 });
