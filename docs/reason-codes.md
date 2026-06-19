@@ -41,6 +41,25 @@ only reasons are informational is **benign** (`score: 0`, `severity: "info"`).
 - **Example:** a Cyrillic letter inside `/раy/`.
 - **Scoring:** informational, weight 0. Expanded per-character in `confusables[]`.
 
+### `idna_mapping_ambiguity` — Epic J (J9)
+
+- **Meaning:** the host maps to a **different ASCII domain depending on the IDNA
+  standard** applied — so the component that validates the URL and the one that
+  resolves it can reach different sites (Tsai, _Abusing IDNA Standard_). Distinct
+  from `confusable_char` (visual similarity): this is **resolver disagreement**.
+- **Detection:** the host is run through `tr46` in both modes — transitional
+  (≈ IDNA2003) and non-transitional (UTS-46/IDNA2008). Two groups fire:
+  - **Group A — deviation chars** (ß, ς, ZWJ, ZWNJ): the two ASCII forms differ.
+    `wordpreß.com` → `wordpress.com` (IDNA2003) vs `xn--wordpre-6va.com` (UTS-46).
+  - **Group B — compatibility folds** (fullwidth / circled Latin): the host folds
+    entirely to ASCII with no punycode. `ｇｏｏｇｌｅ.com` → `google.com`.
+- **Why informational (weight 0):** a lone ß is a legitimate German IDN (`baß.de`
+  is registrable), so the base signal must not raise severity (SC-2). **Epic G**
+  adds the scoring escalation: when the alternate IDNA2003 mapping equals a known
+  brand (`wordpreß` → `wordpress`), it becomes an impersonation signal. (Decision
+  on the brainstorm's OQ-J9b: informational until the brand list lands.)
+- **Scoring:** informational, weight 0.
+
 ## Scoring codes
 
 These contribute to the risk score via probabilistic OR (`docs/scoring.md`).

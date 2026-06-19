@@ -4,6 +4,7 @@ import { prepare } from "./parse/prepare.js";
 import { DETECTORS } from "./detectors/registry.js";
 import { scanAmbiguousAuthority } from "./detectors/ambiguous-authority.js";
 import { scanSeparatorLookalike } from "./detectors/separator-lookalike.js";
+import { scanIdnaMappingAmbiguity } from "./detectors/idna-mapping-ambiguity.js";
 import {
   buildInvalidResult,
   buildOkResult,
@@ -22,7 +23,7 @@ export function inspect(input: string, _options?: InspectOptions): InspectResult
   // signal to `invalid`.
   const structural: CollectedFinding[] = [];
   const prepared = prepare(input);
-  for (const scan of [scanAmbiguousAuthority, scanSeparatorLookalike]) {
+  for (const scan of [scanAmbiguousAuthority, scanSeparatorLookalike, scanIdnaMappingAmbiguity]) {
     try {
       structural.push(...scan(prepared));
     } catch {
