@@ -199,6 +199,35 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   dot (normal domain entry) does not.
 - **Scoring:** scoring, weight 0.5.
 
+### `control_char` — Epic J (J3) · weight 0.6
+
+- **Meaning:** the URL carries ASCII control or whitespace characters — **raw or
+  percent-encoded** — positioned to **smuggle a protocol** or **terminate the
+  host** (Orange Tsai, _A New Era of SSRF_, protocol-smuggling + glibc-NSS).
+- **Why it's a signal:** a CR/LF lets the component that fires the request speak a
+  second protocol on the wire (Redis `SLAVEOF`, SMTP `HELO`, Memcached `set`); a
+  TAB or whitespace truncates the host so the validator and `getaddrinfo()` reach
+  different destinations. A flagship MCP pre-fetch signal — the payload attacks a
+  service sitting behind the server that fires the request.
+- **Sub-signals** (named in `detail`; one reason code regardless of how many fire):
+  `crlf` (CR/LF), `tab` (TAB), `null` (NUL), `control` (other C0/DEL), and
+  `whitespace_in_host` (bare space inside a host-shaped authority). The `detail`
+  also tags the encoding form: `[raw]`, `[percent-encoded]`, `[double-encoded]`.
+- **Relationship to `invisible_char` (FR-D-4):** `invisible_char` already catches
+  **raw** control characters (they are Unicode `Cc`) — the two co-fire there. The
+  non-overlapping value of `control_char` is the **percent-encoded** (`%0D%0A`,
+  `%09`) and **double-encoded** (`%250D%250A`, `%2509`) forms, which are plain
+  ASCII text that `invisible_char` never sees, plus bare whitespace inside the
+  authority (`Zs`, not `Cc`). Double-decoding reuses the bounded recursive decoder
+  (no decode-bomb).
+- **Scope & precision (SC-2):** an encoded **space** (`%20`) is not a control
+  character and never flags; `whitespace_in_host` is scoped to host-shaped
+  authorities (a dot plus an alphanumeric) so a space in a path or in non-URL
+  prose does not flag.
+- **Example:** `http://127.0.0.1:6379/%0D%0ASLAVEOF` (Redis smuggling),
+  `http://127.0.0.1%09foo.google.com` (TAB host terminator).
+- **Scoring:** scoring, weight 0.6.
+
 ## Meta
 
 ### `parse_error`
