@@ -52,6 +52,7 @@ explainable. Reliability is encoded in the weight itself — there is no separat
 | `dangerous_scheme`             | 0.90   | yes      |
 | `ambiguous_authority`          | 0.65   | yes      |
 | `bidi_override`                | 0.60   | yes      |
+| `control_char`                 | 0.60   | yes      |
 | `invisible_char`               | 0.50   | yes      |
 | `separator_lookalike`          | 0.50   | yes      |
 | `userinfo_present`             | 0.50   | yes      |

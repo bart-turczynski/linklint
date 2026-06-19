@@ -122,6 +122,13 @@ export const REASON_CODES = {
     summary:
       "Authority uses a delimiter look-alike (fullwidth/ideographic dot or slash) that normalizes to an ASCII separator, hiding the real host.",
   },
+  control_char: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.6,
+    summary:
+      "URL carries ASCII control/whitespace characters (raw or percent-encoded CR/LF/TAB/NUL) used to smuggle a protocol or terminate the host.",
+  },
 
   // ── Meta ────────────────────────────────────────────────────────────────
   parse_error: {

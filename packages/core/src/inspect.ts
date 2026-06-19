@@ -5,6 +5,7 @@ import { DETECTORS } from "./detectors/registry.js";
 import { scanAmbiguousAuthority } from "./detectors/ambiguous-authority.js";
 import { scanSeparatorLookalike } from "./detectors/separator-lookalike.js";
 import { scanIdnaMappingAmbiguity } from "./detectors/idna-mapping-ambiguity.js";
+import { scanControlChar } from "./detectors/control-char.js";
 import {
   buildInvalidResult,
   buildOkResult,
@@ -17,13 +18,18 @@ import {
  * input — `status: "ok"` for anything parseable, `status: "invalid"` otherwise.
  */
 export function inspect(input: string, _options?: InspectOptions): InspectResult {
-  // J1/J2 — structural scans over the raw input. They run independently of
+  // J1/J2/J3/J9 — structural scans over the raw input. They run independently of
   // parse() so they can flag the very inputs parse() discards (backslash, empty
-  // authority, multi-colon host, delimiter look-alikes) instead of losing the
-  // signal to `invalid`.
+  // authority, multi-colon host, delimiter look-alikes, encoded control chars)
+  // instead of losing the signal to `invalid`.
   const structural: CollectedFinding[] = [];
   const prepared = prepare(input);
-  for (const scan of [scanAmbiguousAuthority, scanSeparatorLookalike, scanIdnaMappingAmbiguity]) {
+  for (const scan of [
+    scanAmbiguousAuthority,
+    scanSeparatorLookalike,
+    scanIdnaMappingAmbiguity,
+    scanControlChar,
+  ]) {
     try {
       structural.push(...scan(prepared));
     } catch {
