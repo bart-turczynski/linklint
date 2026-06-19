@@ -95,6 +95,12 @@ export const REASON_CODES = {
     weight: 0.9,
     summary: "Scheme can execute or embed content (javascript:, data:, etc.).",
   },
+  punycode_malformed: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.2,
+    summary: "Host has an xn-- label that does not decode to a valid IDN.",
+  },
 
   // ── Meta ────────────────────────────────────────────────────────────────
   parse_error: {

@@ -125,6 +125,20 @@ export const CORPUS: CorpusRow[] = [
     expectReasons: ["encoding_obfuscation"],
     notes: "encoded traversal",
   },
+  {
+    input: "https://xn--abc.com/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["punycode_malformed"],
+    notes: "E5: undecodable ACE label (tr46 error)",
+  },
+  {
+    input: "https://xn--.com/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["punycode_malformed"],
+    notes: "E5: empty ACE payload",
+  },
 
   // ── Benign (SC-2): must be score 0 / info ───────────────────────────────
   { input: "https://www.example.com/path?q=1#x", label: "benign" },
@@ -139,7 +153,8 @@ export const CORPUS: CorpusRow[] = [
   { input: "https://example.com/?redirect=https%3A%2F%2Fok.com%2Fp", label: "benign", forbidReasons: ["encoding_obfuscation"], notes: "legitimate encoded query value" },
 
   // ── Informational-only (SC-1a): annotate, weight 0, benign ──────────────
-  { input: "https://xn--bcher-kva.de/", label: "info", expectReasons: ["normalization_delta"], forbidReasons: ["mixed_script"], notes: "bücher.de ACE form" },
+  { input: "https://xn--bcher-kva.de/", label: "info", expectReasons: ["normalization_delta"], forbidReasons: ["mixed_script", "punycode_malformed"], notes: "bücher.de ACE form" },
+  { input: "https://XN--CAF-DMA.com/", label: "info", expectReasons: ["normalization_delta"], forbidReasons: ["punycode_malformed"], notes: "E5 guard: uppercase ACE round-trips to café — NOT malformed" },
   { input: "https://müller.de/", label: "info", expectReasons: ["normalization_delta"], forbidReasons: ["mixed_script"], notes: "legitimate German IDN" },
   { input: "https://пример.com", label: "info", expectReasons: ["confusable_char", "normalization_delta"], forbidReasons: ["mixed_script"], notes: "single-script Cyrillic label + ASCII TLD" },
   { input: "https://日本語.jp/", label: "info", expectReasons: ["normalization_delta"], forbidReasons: ["mixed_script"], notes: "Japanese IDN" },

@@ -120,6 +120,17 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   agent or user is about to follow; highest single weight.
 - **Example:** `javascript:fetch('//evil')`.
 
+### `punycode_malformed` — E5 · weight 0.2
+
+- **Meaning:** the host has an `xn--` (ACE) label that does not decode to a valid
+  U-label under UTS-46 / Punycode.
+- **Why it's a signal:** a low-weight lexical anomaly — such a host is not a
+  registrable IDN and never appears in legitimate links, but it is not inherently
+  an attack on its own, so it flags only at `low`. Valid IDNs are unaffected,
+  including uppercase ACE (`XN--CAF-DMA` → `café`), which round-trips after
+  UTS-46 case-folding.
+- **Example:** `https://xn--abc.com/` or `https://xn--.com/` (undecodable ACE).
+
 ## Meta
 
 ### `parse_error`

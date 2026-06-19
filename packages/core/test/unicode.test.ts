@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { analyzeLabelScripts, scriptOf } from "../src/unicode/scripts.js";
 import { findConfusables } from "../src/unicode/confusables.js";
 import { boundedDecode, decodeOnce } from "../src/parse/decode.js";
-import { hasNormalizationDelta, toAscii, toUnicode } from "../src/unicode/idna.js";
+import {
+  hasMalformedPunycode,
+  hasNormalizationDelta,
+  toAscii,
+  toUnicode,
+} from "../src/unicode/idna.js";
 
 const CYR_A = String.fromCodePoint(0x0430); // а
 
@@ -76,5 +81,14 @@ describe("idna", () => {
     expect(hasNormalizationDelta("bücher.de")).toBe(true);
     expect(hasNormalizationDelta("xn--bcher-kva.de")).toBe(true);
     expect(hasNormalizationDelta("example.com")).toBe(false);
+  });
+
+  it("detects malformed xn-- labels, leaving valid IDNs alone (E5)", () => {
+    expect(hasMalformedPunycode("xn--abc.com")).toBe(true);
+    expect(hasMalformedPunycode("xn--.com")).toBe(true);
+    expect(hasMalformedPunycode("xn--bcher-kva.de")).toBe(false); // bücher.de
+    expect(hasMalformedPunycode("XN--CAF-DMA.com")).toBe(false); // uppercase ACE
+    expect(hasMalformedPunycode("example.com")).toBe(false);
+    expect(hasMalformedPunycode("bücher.de")).toBe(false); // non-ACE IDN, out of scope
   });
 });

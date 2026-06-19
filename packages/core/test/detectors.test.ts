@@ -130,6 +130,26 @@ describe("embedded_domain does not over-flag deep legitimate subdomains", () => 
   });
 });
 
+describe("punycode_malformed (E5)", () => {
+  it("flags an undecodable xn-- label at low severity", () => {
+    for (const url of ["https://xn--abc.com/", "https://xn--.com/"]) {
+      const r = inspect(url);
+      expect(r.reasons.map((x) => x.code), url).toContain("punycode_malformed");
+      expect(r.severity, url).toBe("low");
+    }
+  });
+
+  it("does NOT flag a valid IDN, including uppercase ACE", () => {
+    for (const url of [
+      "https://xn--bcher-kva.de/", // bücher.de
+      "https://XN--CAF-DMA.com/", // café.com — round-trips after case-folding
+      "https://example.com/",
+    ]) {
+      expect(codes(url), url).not.toContain("punycode_malformed");
+    }
+  });
+});
+
 describe("confusables[] / reason invariant (FR-SCORE-2a)", () => {
   it("non-empty confusables implies a confusable reason and vice versa", () => {
     const r = inspect(`https://p${CYR_A}ypal.com`);
