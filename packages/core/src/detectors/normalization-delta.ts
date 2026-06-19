@@ -15,7 +15,7 @@ export const normalizationDelta: Detector = {
     return [
       {
         code: "normalization_delta",
-        detail: `host '${uni}' differs from its ACE form '${ace}'`,
+        detail: `host is an internationalized domain (IDN); Unicode form '${uni}', ASCII/punycode form '${ace}'`,
       },
     ];
   },

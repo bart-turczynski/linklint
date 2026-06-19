@@ -219,7 +219,7 @@ Reference schema (deceptive input):
     { "code": "userinfo_present",    "layer": "lexical", "detail": "authority hidden behind 'paypal.com@'", "weight": 0.5 },
     { "code": "mixed_script",        "layer": "lexical", "detail": "Cyrillic U+0430 in Latin label",        "weight": 0.4 },
     { "code": "confusable_char",     "layer": "lexical", "detail": "1 confusable character in host",         "weight": 0 },
-    { "code": "normalization_delta", "layer": "lexical", "detail": "host differs from its ACE form",         "weight": 0 }
+    { "code": "normalization_delta", "layer": "lexical", "detail": "host is an internationalized domain (IDN)", "weight": 0 }
   ],
   "confusables": [
     { "char": "а", "codepoint": "U+0430", "confusableWith": "a (U+0061, LATIN SMALL LETTER A)", "component": "host", "position": 1 }
