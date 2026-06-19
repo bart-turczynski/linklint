@@ -101,6 +101,13 @@ export const REASON_CODES = {
     weight: 0.2,
     summary: "Host has an xn-- label that does not decode to a valid IDN.",
   },
+  ambiguous_authority: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.65,
+    summary:
+      "Authority is structurally ambiguous (multi-@, #@, whitespace, multi-port, backslash, extra-slash, protocol-relative) so parsers disagree on the host.",
+  },
 
   // ── Meta ────────────────────────────────────────────────────────────────
   parse_error: {

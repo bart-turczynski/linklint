@@ -1,6 +1,8 @@
 import type { InspectOptions, InspectResult } from "./schema/types.js";
 import { parse } from "./parse/parse.js";
+import { prepare } from "./parse/prepare.js";
 import { DETECTORS } from "./detectors/registry.js";
+import { scanAmbiguousAuthority } from "./detectors/ambiguous-authority.js";
 import {
   buildInvalidResult,
   buildOkResult,
@@ -13,16 +15,27 @@ import {
  * input — `status: "ok"` for anything parseable, `status: "invalid"` otherwise.
  */
 export function inspect(input: string, _options?: InspectOptions): InspectResult {
+  // J1 — structural authority scan over the raw input. Runs independently of
+  // parse() so it can flag the very inputs parse() discards (backslash, empty
+  // authority, multi-colon host) instead of losing the signal to `invalid`.
+  let structural: CollectedFinding[] = [];
+  try {
+    structural = scanAmbiguousAuthority(prepare(input));
+  } catch {
+    // The scan must never abort inspection (FR-D-13).
+  }
+
   let ctx;
   try {
     ctx = parse(input);
   } catch {
     // Parsing must be total — any unexpected failure is treated as invalid input.
-    return buildInvalidResult(input);
+    return buildInvalidResult(input, structural);
   }
-  if (ctx === null) return buildInvalidResult(input);
+  // Unparseable input: still explain itself if the authority was ambiguous.
+  if (ctx === null) return buildInvalidResult(input, structural);
 
-  const findings: CollectedFinding[] = [];
+  const findings: CollectedFinding[] = [...structural];
   const skippedDetectors: string[] = [];
 
   for (const detector of DETECTORS) {
