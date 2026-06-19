@@ -3,6 +3,7 @@ import { parse } from "./parse/parse.js";
 import { prepare } from "./parse/prepare.js";
 import { DETECTORS } from "./detectors/registry.js";
 import { scanAmbiguousAuthority } from "./detectors/ambiguous-authority.js";
+import { scanSeparatorLookalike } from "./detectors/separator-lookalike.js";
 import {
   buildInvalidResult,
   buildOkResult,
@@ -15,14 +16,18 @@ import {
  * input — `status: "ok"` for anything parseable, `status: "invalid"` otherwise.
  */
 export function inspect(input: string, _options?: InspectOptions): InspectResult {
-  // J1 — structural authority scan over the raw input. Runs independently of
-  // parse() so it can flag the very inputs parse() discards (backslash, empty
-  // authority, multi-colon host) instead of losing the signal to `invalid`.
-  let structural: CollectedFinding[] = [];
-  try {
-    structural = scanAmbiguousAuthority(prepare(input));
-  } catch {
-    // The scan must never abort inspection (FR-D-13).
+  // J1/J2 — structural scans over the raw input. They run independently of
+  // parse() so they can flag the very inputs parse() discards (backslash, empty
+  // authority, multi-colon host, delimiter look-alikes) instead of losing the
+  // signal to `invalid`.
+  const structural: CollectedFinding[] = [];
+  const prepared = prepare(input);
+  for (const scan of [scanAmbiguousAuthority, scanSeparatorLookalike]) {
+    try {
+      structural.push(...scan(prepared));
+    } catch {
+      // A scan must never abort inspection (FR-D-13).
+    }
   }
 
   let ctx;

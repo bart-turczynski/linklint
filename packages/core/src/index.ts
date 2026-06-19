@@ -53,6 +53,7 @@ export {
   confusableInPath,
 } from "./detectors/registry.js";
 export { scanAmbiguousAuthority } from "./detectors/ambiguous-authority.js";
+export { scanSeparatorLookalike } from "./detectors/separator-lookalike.js";
 export type { Detector, DetectorFinding, InspectionContext } from "./detectors/types.js";
 
 // Parsing / reference-data helpers (advanced consumers)
