@@ -1,0 +1,13 @@
+{
+  "default": {
+    "requireModule": ["tsx"],
+    "require": ["features/**/*.ts"],
+    "format": ["progress"]
+  },
+  "manual": {
+    "requireModule": ["tsx"],
+    "require": ["features/**/*.ts"],
+    "format": ["summary"]
+  }
+}
+

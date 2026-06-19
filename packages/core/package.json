@@ -1,0 +1,31 @@
+{
+  "name": "urlic",
+  "version": "0.0.1",
+  "description": "Explainable, offline-first URL inspector — detects deceptive links (homographs, confusables, userinfo spoofs, IP obfuscation) with named reason codes and no network. Placeholder release; implementation in progress.",
+  "keywords": [
+    "url",
+    "security",
+    "phishing",
+    "homograph",
+    "confusable",
+    "punycode",
+    "idn",
+    "url-inspection",
+    "offline"
+  ],
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

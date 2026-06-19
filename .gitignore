@@ -1,0 +1,26 @@
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+
+.fp/
+_scratch/
+
+# Heavy artifacts — never commit (a big blob bloats .git history even after deletion).
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.faiss
+*.npy
+*.npz
+vectors/
+
+node_modules/
+dist/
+coverage/
+
+# Fiberplane local issue tracking
+.fp/
