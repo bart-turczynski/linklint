@@ -1,6 +1,6 @@
 # linklint
 
-> ⚠️ **Placeholder release (`0.0.1`).** The implementation is in progress —
+> ⚠️ **Placeholder release (`0.0.2`).** The implementation is in progress —
 > `inspect()` currently throws. Watch this space.
 
 **linklint** is an explainable, offline-first **URL inspector**. Hand it a single URL —

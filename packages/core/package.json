@@ -1,6 +1,6 @@
 {
   "name": "linklint",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Explainable, offline-first URL inspector — detects deceptive links (homographs, confusables, userinfo spoofs, IP obfuscation) with named reason codes and no network. Placeholder release; implementation in progress.",
   "keywords": [
     "url",

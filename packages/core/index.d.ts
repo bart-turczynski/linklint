@@ -1,7 +1,7 @@
 /**
  * linklint — explainable, offline-first URL inspector.
  *
- * Placeholder release (0.0.1). The full result schema (`InspectResult`) and
+ * Placeholder release (0.0.2). The full result schema (`InspectResult`) and
  * options type land with the implementation; see docs/architecture.md §6.
  */
 export interface InspectOptions {}
