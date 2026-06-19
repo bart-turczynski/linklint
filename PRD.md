@@ -308,7 +308,7 @@ Reference schema (invalid input — `status: "invalid"`, must not be read as ben
 - **NFR-TEST-1** Maintain a labeled **test corpus** of known-deceptive and known-benign URLs
   (incl. legitimate IDNs that must *not* over-flag) and measure precision/recall as detectors evolve.
 - **NFR-DOC-1** Every reason code is documented (what it means, why it's a signal, example).
-- **NFR-LICENSE-1** Open-source (license TBD — OQ-4). Free, no token, no account.
+- **NFR-LICENSE-1** Open-source under the **MIT license** (resolves OQ-4). Free, no token, no account.
 
 ---
 
@@ -375,7 +375,8 @@ it unlocks.
   the *bands* are set (FR-SCORE-1b); what remains open is how the per-detector **weight values** are
   chosen — hand-tuned & transparent (on-thesis, but arbitrary) vs. learned from the labeled corpus
   (better-calibrated, but a black box that undercuts "explainable"). v1 assumes hand-tuned.
-- **OQ-4** License choice (MIT / Apache-2.0 / other).
+- **OQ-4** ~~License choice (MIT / Apache-2.0 / other).~~ **Resolved: MIT** — permissive,
+  conventional default for npm/OSS; see `LICENSE` and `packages/core/package.json`.
 - **OQ-5** How much resolution (Phase 2) should ever be automatic? Following redirects *fetches*
   attacker-controlled URLs — in an agent context that may be the opposite of what you want. Likely
   explicit-opt-in, never default.
