@@ -36,5 +36,8 @@ export function analyzeHost(host: string): PslResult {
  */
 export function looksLikeRegistrableDomain(candidate: string): boolean {
   const r = tldtsParse(candidate, { allowPrivateDomains: false });
-  return r.domain === candidate && !r.isIp;
+  // Require a real ICANN-listed suffix: otherwise tldts's implicit wildcard rule
+  // makes any two-label string (e.g. "sub.domain") look like a registrable
+  // domain, producing embedded-domain false positives.
+  return r.domain === candidate && r.isIcann === true && !r.isIp;
 }

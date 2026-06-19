@@ -16,6 +16,9 @@ export interface InspectionContext {
   rawHost: string;
   /** Visual host: `rawHost` with invisible/format characters removed. */
   host: string;
+  /** Unicode (U-label) form of `host`: `xn--` labels decoded. For confusable/
+   *  script analysis, which must see through punycode. */
+  hostUnicode: string;
   isIp: boolean;
   /** Visual host split into labels (left-to-right). */
   hostLabels: string[];

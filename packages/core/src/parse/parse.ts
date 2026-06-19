@@ -1,7 +1,9 @@
 import type { ParsedUrl } from "../schema/types.js";
 import type { InspectionContext } from "../detectors/types.js";
 import { stripInvisible } from "../unicode/format-chars.js";
-import { analyzeHost } from "./psl.js";
+import { toUnicode } from "../unicode/idna.js";
+import { analyzeHost, type PslResult } from "./psl.js";
+import { analyzeIpv4 } from "./ip.js";
 import { prepare } from "./prepare.js";
 
 /**
@@ -163,7 +165,12 @@ interface RawParts {
 
 function buildContext(input: string, raw: RawParts): InspectionContext {
   const host = stripInvisible(raw.rawHost);
-  const psl = host === "" ? emptyPsl() : analyzeHost(host);
+  // An IPv4 host (canonical or obfuscated) is never a registrable domain — null
+  // the PSL fields so domain-based detectors (embedded_domain, risky_tld) skip it.
+  const isIpv4 = host !== "" && analyzeIpv4(host) !== null;
+  const psl: PslResult =
+    host === "" || isIpv4 ? emptyPsl(isIpv4) : analyzeHost(host);
+  const hostUnicode = host === "" ? "" : toUnicode(host);
   const hostLabels = host === "" ? [] : host.replace(/\.$/, "").split(".");
 
   const parsed: ParsedUrl = {
@@ -187,6 +194,7 @@ function buildContext(input: string, raw: RawParts): InspectionContext {
     userinfo: raw.userinfo,
     rawHost: raw.rawHost,
     host,
+    hostUnicode,
     isIp: psl.isIp,
     hostLabels,
     registrableDomain: psl.registrableDomain,
@@ -200,8 +208,8 @@ function buildContext(input: string, raw: RawParts): InspectionContext {
   };
 }
 
-function emptyPsl() {
-  return { registrableDomain: null, publicSuffix: null, subdomain: null, isIp: false };
+function emptyPsl(isIp = false): PslResult {
+  return { registrableDomain: null, publicSuffix: null, subdomain: null, isIp };
 }
 
 /** Index of the first occurrence of any character in `chars`, or -1. */
