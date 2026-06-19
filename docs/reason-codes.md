@@ -132,6 +132,35 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   UTS-46 case-folding.
 - **Example:** `https://xn--abc.com/` or `https://xn--.com/` (undecodable ACE).
 
+### `ambiguous_authority` — Epic J (J1) · weight 0.65
+
+- **Meaning:** the authority is structurally ambiguous enough that two URL
+  parsers would resolve it to a **different host or port** — the parser-vs-
+  requester disagreement class (Orange Tsai, _A New Era of SSRF_; Snyk/Claroty,
+  _Exploiting URL Parsing Confusion_).
+- **Why it's a signal:** deception by construction, not a soft heuristic — a high
+  weight. A flagship fit for the MCP "check before you fetch" surface: an agent
+  is warned the string is ambiguous _before_ the request fires.
+- **Sub-signals** (named in `detail`; one reason code regardless of how many fire):
+  - `multiple_userinfo` — more than one `@` (`foo@evil.com:80@google.com`).
+  - `fragment_in_authority` — a `#@…` tail (`google.com#@evil.com`).
+  - `whitespace_in_authority` — whitespace inside the authority
+    (`foo@127.0.0.1 @google.com` — the "curl won't fix it" bypass).
+  - `multiple_port` — more than one `:` port separator (`127.0.0.1:11211:80`);
+    IPv6 `[::1]:8080` is unaffected.
+  - `backslash` — a `\` browsers fold to `/` (`http:\\google.com`, `https:/\…`).
+  - `slash_confusion` — empty authority / 3+ slashes after the scheme
+    (`http:///`, `http://///`) or a network-path reference in the path
+    (`http://target.com/////evil.com`, CVE-2021-23435).
+  - `protocol_relative` — a scheme-relative `//` authority (`//evil.com`).
+- **Scope:** fires only when the input declares itself a URL (explicit scheme or
+  `//` form). Bare scheme-less input (`google.com/abc`) is out of scope — it
+  would over-trigger on benign typos (SC-2).
+- **Result shape:** a parseable-but-ambiguous URL stays `status: "ok"` and adds
+  this scoring reason; an unresolvable-but-ambiguous one is `status: "invalid"`
+  yet now carries this reason instead of a bare `parse_error`.
+- **Scoring:** scoring, weight 0.65.
+
 ## Meta
 
 ### `parse_error`
@@ -139,5 +168,7 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 - **Meaning:** the input is not a parseable URL or hostname.
 - **Result shape:** `status: "invalid"`, `parsed/score/severity: null`. An
   invalid result is **not benign** — a fail-closed consumer must reject it
-  (FR-IN-4, SC-2a).
+  (FR-IN-4, SC-2a). An invalid result may instead carry an `ambiguous_authority`
+  reason when the input is structurally ambiguous (see above); `parse_error` is
+  the fallback when no detector explains the failure.
 - **Scoring:** weight 0.

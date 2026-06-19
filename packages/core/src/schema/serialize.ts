@@ -16,8 +16,37 @@ export interface CollectedFinding {
   confusables?: Confusable[];
 }
 
-/** Build a `status: "invalid"` result for unparseable input (FR-IN-4). */
-export function buildInvalidResult(input: string): InspectResult {
+/**
+ * Build a `status: "invalid"` result for unparseable input (FR-IN-4).
+ *
+ * Invalid stays "not benign" (`score: null`, fail-closed), but it can now carry
+ * reasons: a structurally-ambiguous-yet-unresolvable URL (Epic J `ambiguous_
+ * authority`) returns `invalid` *with* an explanation instead of a bare
+ * `parse_error`. When `findings` is empty we fall back to `parse_error`.
+ */
+export function buildInvalidResult(
+  input: string,
+  findings: CollectedFinding[] = [],
+): InspectResult {
+  const hasFindings = findings.length > 0;
+  const reasons: Reason[] = hasFindings
+    ? findings
+        .map((f) => ({
+          code: f.code,
+          layer: reasonMeta(f.code).layer,
+          detail: f.detail,
+          weight: weightFor(f.code),
+        }))
+        .sort((a, b) => b.weight - a.weight || a.code.localeCompare(b.code))
+    : [
+        {
+          code: "parse_error",
+          layer: "lexical",
+          detail: "input is not a parseable URL or hostname",
+          weight: 0,
+        },
+      ];
+
   return {
     schemaVersion: SCHEMA_VERSION,
     status: "invalid",
@@ -25,17 +54,12 @@ export function buildInvalidResult(input: string): InspectResult {
     parsed: null,
     score: null,
     severity: null,
-    reasons: [
-      {
-        code: "parse_error",
-        layer: "lexical",
-        detail: "input is not a parseable URL or hostname",
-        weight: 0,
-      },
-    ],
-    confusables: [],
-    checksRun: [],
-    checksSkipped: ["lexical", "resolution", "reputation"],
+    reasons,
+    confusables: hasFindings ? findings.flatMap((f) => f.confusables ?? []) : [],
+    checksRun: hasFindings ? ["lexical"] : [],
+    checksSkipped: hasFindings
+      ? ["resolution", "reputation"]
+      : ["lexical", "resolution", "reputation"],
     dataVersions: DATA_VERSIONS,
   };
 }
