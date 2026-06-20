@@ -6,6 +6,7 @@ import { analyzeHost, type PslResult } from "./psl.js";
 import { analyzeIpv4, analyzeIpv6 } from "./ip.js";
 import { prepare } from "./prepare.js";
 import { SCHEME_RE, firstIndexOf, isOpaqueScheme, looksLikeHostPort } from "./syntax.js";
+import { normalizeOptions, type RuntimeConfig } from "./runtime.js";
 
 const ILLEGAL_HOST_RE = /[\s<>"{}|\\^`]/;
 const HOST_CHARS_RE = /^[\p{L}\p{M}\p{N}._%\-]+$/u;
@@ -16,7 +17,10 @@ const HOST_CHARS_RE = /^[\p{L}\p{M}\p{N}._%\-]+$/u;
  * identified — the caller turns that into a `status: "invalid"` result (never
  * throws). See FR-IN-1..4 and architecture §4.1.
  */
-export function parse(input: string): InspectionContext | null {
+export function parse(
+  input: string,
+  runtime: RuntimeConfig = normalizeOptions({}),
+): InspectionContext | null {
   const prepared = prepare(input);
   if (prepared === "") return null;
 
@@ -39,15 +43,19 @@ export function parse(input: string): InspectionContext | null {
 
   // ── Opaque scheme (no authority): javascript:, data:, mailto:, … ───────────
   if (scheme && isOpaqueScheme(scheme) && !rest.startsWith("//")) {
-    return buildContext(input, {
-      scheme,
-      userinfo: null,
-      rawHost: "",
-      port: null,
-      path: rest,
-      query: null,
-      fragment: null,
-    });
+    return buildContext(
+      input,
+      {
+        scheme,
+        userinfo: null,
+        rawHost: "",
+        port: null,
+        path: rest,
+        query: null,
+        fragment: null,
+      },
+      runtime,
+    );
   }
 
   // ── Authority + path/query/fragment ─────────────────────────────────────────
@@ -129,7 +137,11 @@ export function parse(input: string): InspectionContext | null {
     path = work;
   }
 
-  return buildContext(input, { scheme, userinfo, rawHost, port, path, query, fragment });
+  return buildContext(
+    input,
+    { scheme, userinfo, rawHost, port, path, query, fragment },
+    runtime,
+  );
 }
 
 interface RawParts {
@@ -142,7 +154,7 @@ interface RawParts {
   fragment: string | null;
 }
 
-function buildContext(input: string, raw: RawParts): InspectionContext {
+function buildContext(input: string, raw: RawParts, runtime: RuntimeConfig): InspectionContext {
   const host = stripInvisible(raw.rawHost);
   // An IP host (IPv4 canonical/obfuscated, or an IPv6 literal) is never a
   // registrable domain — null the PSL fields so domain-based detectors
@@ -186,6 +198,7 @@ function buildContext(input: string, raw: RawParts): InspectionContext {
     query: raw.query,
     fragment: raw.fragment,
     parsed,
+    runtime,
   };
 }
 

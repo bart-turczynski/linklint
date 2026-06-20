@@ -1,5 +1,6 @@
 import type { Confusable, Layer, ParsedUrl } from "../schema/types.js";
 import type { ReasonCode } from "../schema/reason-codes.js";
+import type { RuntimeConfig } from "../parse/runtime.js";
 
 /**
  * Everything a detector needs about a parsed input. Built once by the pipeline
@@ -34,6 +35,8 @@ export interface InspectionContext {
   fragment: string | null;
   /** The serialized parsed view (what appears on the result). */
   parsed: ParsedUrl;
+  /** Normalized per-inspection tuning knobs (e.g. `maxDecodeDepth`). */
+  runtime: RuntimeConfig;
 }
 
 /**
