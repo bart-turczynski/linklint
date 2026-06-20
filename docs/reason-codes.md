@@ -73,6 +73,30 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   attack. This is the code that actually scores confusable-based deception.
 - **Example:** `pаypal.com` where `а` is Cyrillic (label mixes Latin + Cyrillic).
 
+### `ascii_homoglyph` — Epic J (J4) · weight 0.2
+
+- **Meaning:** a host label uses **same-script (ASCII) digit look-alikes for
+  letters** — `g00gle`, `paypa1`, `micr0soft`. The general, brand-free counterpart
+  to `mixed_script` / `confusable_char`, which only fire when two *different*
+  scripts mix and so never see an all-ASCII disguise.
+- **Why it's a signal:** a low-weight structural anomaly. A digit standing in for
+  the letter it resembles, inside an otherwise alphabetic word, is rare in
+  legitimate hosts.
+- **Detection & precision (SC-2):** a label flags only when it is pure ASCII
+  alphanumeric (length ≥ 5), its first character is a letter (a leading digit
+  reads as an obvious number — `1password`, `0day`), every digit is one of the
+  unambiguous letter-shaped digits `0`→o / `1`→l / `5`→s (any other digit
+  disqualifies the whole label, so `s3`, `web3`, `route53`, `i18n`, `bet365`,
+  `blink182` never flag), and letters outnumber those digits. The detail surfaces
+  the readable skeleton (`g00gle` → `google`).
+- **Out of scope:** letter-multigraph confusions (`rn`→m, `vv`→w) are **not**
+  handled here — generically they fire on ordinary words (`modern`, `return`,
+  `savvy`) and can only be told apart from an attack by distance to a known brand.
+  That, and the scoring escalation when a skeleton equals a real brand, belong to
+  the brand-aware layer (Epic G). This base signal stays `low` so a lone
+  digit-in-word matters only in combination.
+- **Example:** `https://g00gle.com` (reads as `google`); `https://paypa1.com`.
+
 ### `invisible_char` — FR-D-4 · weight 0.5
 
 - **Meaning:** invisible, zero-width, or control characters appear anywhere in

@@ -42,6 +42,7 @@ export {
   normalizationDelta,
   confusableChar,
   mixedScript,
+  asciiHomoglyph,
   invisibleChar,
   bidiOverride,
   userinfoPresent,
