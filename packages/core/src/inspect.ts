@@ -24,6 +24,10 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRes
   // instead of losing the signal to `invalid`.
   const runtime = normalizeOptions(options);
   const structural: CollectedFinding[] = [];
+  // Structural scans run before parse, so this skip list must exist ahead of the
+  // parse branch and feed both result paths. A failed scan is recorded with the
+  // same `lexical:<id>` shape the parsed-detector loop uses below (FR-D-13).
+  const structuralSkipped: string[] = [];
   const prepared = prepare(input);
   // Every structural scan needs the authority region — compute it once and share.
   const scanCtx = { input, prepared, runtime, authority: authorityRegion(prepared) };
@@ -31,7 +35,9 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRes
     try {
       structural.push(...scan.run(scanCtx));
     } catch {
-      // A scan must never abort inspection (FR-D-13).
+      // A scan must never abort inspection (FR-D-13). Record the skip so the
+      // score is reported as a lower bound rather than silently swallowing it.
+      structuralSkipped.push(`lexical:${scan.id}`);
     }
   }
 
@@ -40,13 +46,18 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRes
     ctx = parse(input, runtime);
   } catch {
     // Parsing must be total — any unexpected failure is treated as invalid input.
+    // The invalid path's bare `"lexical"` checksSkipped entry already states that
+    // the entire lexical layer (structural scans included) was not fully applied,
+    // so per-scan `lexical:<id>` skips are deliberately not threaded here — doing
+    // so would change the cucumber-pinned invalid CSV value. (LINK-hastsuzd)
     return buildInvalidResult(input, structural);
   }
   // Unparseable input: still explain itself if the authority was ambiguous.
   if (ctx === null) return buildInvalidResult(input, structural);
 
   const findings: CollectedFinding[] = [...structural];
-  const skippedDetectors: string[] = [];
+  // Seed with any structural-scan skips so they reach checksSkipped on the OK path.
+  const skippedDetectors: string[] = [...structuralSkipped];
 
   for (const detector of DETECTORS) {
     try {
