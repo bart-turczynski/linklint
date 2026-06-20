@@ -9,7 +9,7 @@
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fbart-turczynski%2Flinklint.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fbart-turczynski%2Flinklint?ref=badge_shield)
 [![minzipped size](https://img.shields.io/bundlephobia/minzip/linklint)](https://bundlephobia.com/package/linklint)
 [![node](https://img.shields.io/badge/node-%3E%3D24-3c873a.svg)](./packages/core/package.json)
-[![types](https://img.shields.io/badge/types-included-3178c6.svg?logo=typescript&logoColor=white)](./packages/core/dist/index.d.ts)
+[![types](https://img.shields.io/badge/types-included-3178c6.svg?logo=typescript&logoColor=white)](./packages/core/src/index.ts)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
 Hand **linklint** a single URL — from an email, a chat message, or an LLM agent's
@@ -47,7 +47,7 @@ inspect('javascript:fetch("//evil.example")');
 - **Agent-native** — built for _"check a link before you fetch it,"_ and exposed over
   [MCP](#mcp-server-check-before-you-fetch) so an LLM agent can vet a URL before opening it.
 - **Embeddable** — a clean, synchronous, dependency-light library first; every other
-  surface (MCP server, future CLI) consumes it.
+  surface (MCP server, CLI) consumes it.
 - **`inspect()` never throws** — unparseable input returns `status: "invalid"`
   (which is _not_ benign), so it is safe to call on fully untrusted strings.
 
@@ -251,6 +251,36 @@ It exposes two tools, both delegating to the same offline `inspect()`:
 
 No network, no API keys — the server runs entirely on the local machine.
 
+## CLI — check a URL from the shell
+
+linklint ships a thin, offline command-line wrapper around the same `inspect()`.
+
+```sh
+npm install -g @linklint/cli   # or: npx @linklint/cli check <url>
+```
+
+```sh
+linklint check https://раypal.com          # inspect one or more URLs
+linklint check                              # read URLs from stdin (one per line) when piped
+linklint batch urls.txt                     # inspect URLs from a file (one per line)
+```
+
+Files and stdin skip blank lines and lines starting with `#`.
+
+| Flag | Effect |
+|------|--------|
+| `--json` | Emit a JSON array of full `InspectResult` objects (no human text) |
+| `--fail-on <severity>` | Exit non-zero at/above this severity (`info`\|`low`\|`medium`\|`high`\|`critical`; default `high`) |
+| `--allow-invalid` | Treat unparseable URLs as a pass (default: fail) |
+| `--quiet` | One line per URL |
+| `--no-color` | Disable ANSI color |
+| `--help` / `--version` | Print help / version and exit |
+
+Exit codes: `0` all URLs below the `--fail-on` threshold and none invalid (or allowed),
+`1` any URL at/above the threshold or any invalid URL (unless `--allow-invalid`), `2` usage error.
+
+No network, no API keys — the CLI runs entirely on the local machine.
+
 ## Privacy & guarantees
 
 - **No network** — nothing about the URL is ever transmitted.
@@ -266,6 +296,7 @@ This is a pnpm monorepo.
 | Path | What |
 |------|------|
 | `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 29 detectors, scoring, policy, schema). |
+| `packages/cli` | `@linklint/cli` — the offline `linklint` command-line wrapper (`check` / `batch`). |
 | `packages/mcp` | `@linklint/mcp` — the local-only MCP server (`check_url` / `check_domain`). |
 | `docs/architecture.md` | System architecture (channels, pipeline, result contract, layers). |
 | `docs/reason-codes.md` | The full reason-code registry, with explanations. |

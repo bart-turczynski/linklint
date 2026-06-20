@@ -4,6 +4,11 @@
 > **Source material:** [IDEAS.md](./IDEAS.md), [IDEAS-ADDENDUM.md](./IDEAS-ADDENDUM.md), and the
 > competitive research from this session (dnstwist, urlscan.io, homograph extensions, Aikido safe-chain).
 
+> **Historical note (read first):** This PRD captures the original product intent and is *not* a
+> current implementation-status report. Some items it lists as roadmap have since shipped — notably
+> the **CLI** (`@linklint/cli`), which is now an implemented surface. For the current architecture
+> and what is actually built, see [`architecture.md`](./architecture.md) and the project README.
+
 ---
 
 ## 1. Overview
