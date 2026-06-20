@@ -194,6 +194,17 @@ Feature: Success criteria — core lexical (PRD §7)
     And the severity is at least "low"
     And the reasons contain "bait_tokens"
 
+  Scenario Outline: Epic G (T2) — phonetic homophones of a brand score >= medium with brand_soundsquat
+    When I inspect "<input>"
+    Then the status is "ok"
+    And the severity is at least "medium"
+    And the reasons contain "brand_soundsquat"
+
+    Examples:
+      | input                  |
+      | https://netflicks.com  |
+      | https://dropboks.com   |
+
   Scenario Outline: Epic E3 — single-script whole-label homographs score >= medium with homograph_skeleton_collision
     When I inspect "<input>"
     Then the status is "ok"
@@ -221,5 +232,7 @@ Feature: Success criteria — core lexical (PRD §7)
       | https://login.microsoftonline.com  | bait_tokens                   |
       | https://amazonaws.com              | brand_combosquat              |
       | https://example.com/account/login  | bait_tokens                   |
+      | https://netflix.com                | brand_soundsquat              |
+      | https://ups.com                    | brand_soundsquat              |
       | https://chase.com                  | homograph_skeleton_collision  |
       | https://пример.com                 | homograph_skeleton_collision  |

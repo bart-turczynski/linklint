@@ -64,6 +64,7 @@ explainable. Reliability is encoded in the weight itself — there is no separat
 | `file_extension_tld`           | 0.40   | yes      |
 | `open_redirect_param`          | 0.40   | yes      |
 | `encoding_obfuscation`         | 0.35   | yes      |
+| `brand_soundsquat`             | 0.30   | yes      |
 | `punycode_malformed`           | 0.20   | yes      |
 | `ascii_homoglyph`              | 0.20   | yes      |
 | `brand_in_path`                | 0.20   | yes      |

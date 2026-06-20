@@ -477,6 +477,24 @@ export const CORPUS: CorpusRow[] = [
     notes: "G3 combosquat — additive token glued before the brand keyword",
   },
 
+  // Deceptive — brand_soundsquat (T2, weight 0.3 → medium): phonetic homophone of
+  // a brand, INVISIBLE to the edit-distance / digit-fold siblings (these flag
+  // nothing else, so soundsquat alone is the recall).
+  {
+    input: "https://netflicks.com",
+    label: "deceptive",
+    expectReasons: ["brand_soundsquat"],
+    forbidReasons: ["brand_lookalike", "brand_homoglyph"],
+    notes: "T2 soundsquat — netflicks sounds like netflix (ck->k, x->ks); below G2's edit-distance gate",
+  },
+  {
+    input: "https://dropboks.com",
+    label: "deceptive",
+    expectReasons: ["brand_soundsquat"],
+    forbidReasons: ["brand_lookalike", "brand_homoglyph"],
+    notes: "T2 soundsquat — dropboks sounds like dropbox (x->ks); invisible to edit distance",
+  },
+
   // Deceptive — bait_tokens (G4, weight 0.15 → LOW alone): set minSeverity low.
   {
     input: "https://secure-account-verify-login.com",
@@ -513,8 +531,11 @@ export const CORPUS: CorpusRow[] = [
   { input: "https://microsoft.com", label: "benign", forbidReasons: ["brand_lookalike", "brand_homoglyph"], notes: "G2 guard: exact brand domain" },
   { input: "https://accounts.google.com", label: "benign", forbidReasons: ["brand_combosquat", "bait_tokens"], notes: "G3/G4 guard: legit brand subdomain, single bait token, registrable domain is the brand" },
   { input: "https://login.microsoftonline.com", label: "benign", forbidReasons: ["brand_combosquat", "bait_tokens", "brand_lookalike"], notes: "G3/G4 guard: legit MS login host — single bait token, no hyphen-combo" },
-  { input: "https://amazonaws.com", label: "benign", forbidReasons: ["brand_combosquat", "brand_lookalike"], notes: "G3 guard: 'amazonaws' is a single concatenated token (no hyphen), not a combosquat" },
+  { input: "https://amazonaws.com", label: "benign", forbidReasons: ["brand_combosquat", "brand_lookalike", "brand_soundsquat"], notes: "G3 guard: 'amazonaws' is a single concatenated token (no hyphen), not a combosquat" },
   { input: "https://example.com/account/login", label: "benign", forbidReasons: ["bait_tokens"], notes: "G4 guard: 2 path-only bait tokens stays UNDER the host>=2 / total>=3 threshold" },
+  { input: "https://netflix.com", label: "benign", forbidReasons: ["brand_soundsquat", "brand_lookalike"], notes: "T2 guard: exact brand domain is the brand, never a homophone of itself" },
+  { input: "https://dropbox.com", label: "benign", forbidReasons: ["brand_soundsquat", "brand_lookalike"], notes: "T2 guard: exact brand domain" },
+  { input: "https://ups.com", label: "benign", forbidReasons: ["brand_soundsquat"], notes: "T2 short-label guard: 3-char brand label cannot soundsquat-collide" },
 
   // ── Imported IDN / PSL / host test vectors (E6) ─────────────────────────
   ...VECTORS,

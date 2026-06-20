@@ -269,6 +269,49 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   `https://secure-paypal-login.net`; `https://paypal-verify.evil.com`.
 - **Scoring:** scoring, weight 0.4 (provisional — G5 re-tunes).
 
+### `brand_soundsquat` — Epic G (T2, Addendum §4) · weight 0.3
+
+- **Meaning:** the **registrable label is a phonetic homophone of a watchlist
+  brand** — it *sounds* like the brand read aloud, even though it is neither an
+  edit-distance near-miss nor a digit/confusable fold. `netflicks.com`
+  (→ netflix), `dropboks.com` (→ dropbox), `spotifi.com` (→ spotify).
+- **Why it's a signal:** soundsquatting (IDEAS-ADDENDUM §4) trades on the *sound*
+  of a brand. `netflicks` and `dropboks` read as the brand to a human but are
+  **invisible to edit distance** — `ck`→`k` plus `x`→`ks` is two raw edits over a
+  7-character label, below G2's distance-2 length gate, so `brand_lookalike` /
+  `brand_homoglyph` flag nothing. This detector fills exactly that recall hole.
+- **Detection & precision (SC-2):** both the input label and each brand label are
+  normalized to a small **phonetic key** via an ordered, static substitution map
+  of homophone digraphs/phonemes (`ph`→`f`, `ck`→`k`, `x`→`ks`, `oo`→`u`,
+  `y`→`i`, `z`→`s`, hard `c`/`ch`→`k`, silent `gh`→``, …) followed by collapsing
+  runs of a repeated letter (`paypall`→`paypal`). It fires only on **whole-label
+  phonetic-key equality** against a brand — never a loose substring.
+  - **Pure-ASCII registrable label only** — non-ASCII hosts belong to the
+    confusable / `homograph_skeleton_collision` (E3) detectors.
+  - **Exact brand never fires** — a watchlist brand domain (or a label equal to a
+    brand label) is the brand, not a homophone of it.
+  - **Short-label guard** — the input label, the matched brand label, **and** the
+    resulting phonetic key must each be ≥ 5 characters. Short, key-degenerate
+    brands (`x`, `ups`, `dhl`, `ibm`, `n26`, `hsbc`, `dpd`, `wise`, `box`,
+    `meta`, `visa`, `cash`) can never collide — short keys are where phonetic
+    folding manufactures spurious matches. Phonetic matching is FP-prone, so this
+    detector is deliberately conservative.
+  - IP hosts and inputs with no registrable domain are skipped.
+  The detail names the matched brand and the shared sound key.
+- **Lexicon:** a small static homophone-substitution map inline in the detector —
+  an intrinsic micro-lexicon (same judgment as the ASCII-confusables table and
+  the `bait_tokens` word list), **not** version-pinned via `dataVersions`.
+- **See also:** `brand_lookalike` (G2) — the edit-distance sibling this
+  complements (soundsquats slip past it); `brand_homoglyph` (G2) — the
+  digit-fold sibling. All carry distinct codes and may stack when both apply.
+- **Example:** `https://netflicks.com` (→ `netflix.com`); `https://dropboks.com`
+  (→ `dropbox.com`).
+- **Scoring:** scoring, weight 0.3 — below `brand_lookalike` (0.4) because
+  phonetic-key matching is lossier than bounded edit distance, above the low
+  band (a whole-label sound-key match against a real brand is a deliberate
+  soundsquat far more often than chance). Provisional — re-tuned with the brand
+  family.
+
 ### `bait_tokens` — Epic G (G4) · weight 0.15
 
 - **Meaning:** the host and path **stack multiple distinct phishing-bait

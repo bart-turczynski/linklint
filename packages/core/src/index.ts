@@ -57,6 +57,7 @@ export {
   brandLookalike,
   skeletonCollision,
   combosquatting,
+  soundsquatting,
   baitTokens,
   openRedirectParam,
   suspiciousExtension,
