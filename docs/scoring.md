@@ -69,6 +69,7 @@ explainable. Reliability is encoded in the weight itself — there is no separat
 | `ascii_homoglyph`              | 0.20   | yes      |
 | `brand_in_path`                | 0.20   | yes      |
 | `risky_tld`                    | 0.15   | yes      |
+| `brand_bitsquat`               | 0.15   | yes      |
 | `excessive_subdomain_depth`    | 0.15   | yes      |
 | `normalization_delta`          | 0.00   | info     |
 | `confusable_char`              | 0.00   | info     |

@@ -58,6 +58,7 @@ export {
   skeletonCollision,
   combosquatting,
   soundsquatting,
+  bitsquatting,
   baitTokens,
   openRedirectParam,
   suspiciousExtension,

@@ -218,6 +218,21 @@ export const REASON_CODES = {
     summary:
       "Registrable label is a phonetic homophone of a known brand (netflicks->netflix, dropboks->dropbox) — a soundsquat invisible to edit-distance and digit-fold checks.",
   },
+  brand_bitsquat: {
+    layer: "lexical",
+    scoring: true,
+    // T3 (Addendum §4) — the registrable label is a single-bit-flip neighbor of a
+    // watchlist brand (netfliz -> netflix, amazgn -> amazon): the memory/
+    // transmission-error attack class. A bit-flip is by construction also an
+    // edit-distance-1 neighbor, so this usually STACKS with brand_lookalike
+    // (distinct code naming the specific attack). It is a real but NICHE,
+    // combination-only signal — never decisive standalone — so it is weighted LOW,
+    // in the risky_tld / bait_tokens / excessive_subdomain_depth (0.15) band.
+    // Provisional — re-tuned with the brand family against the full corpus.
+    weight: 0.15,
+    summary:
+      "Registrable label is a single-bit-flip neighbor of a known brand (netfliz->netflix, amazgn->amazon) — a bitsquat (memory/transmission-error attack class), low-weight combination signal.",
+  },
   bait_tokens: {
     layer: "lexical",
     scoring: true,

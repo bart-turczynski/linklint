@@ -312,6 +312,52 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   soundsquat far more often than chance). Provisional — re-tuned with the brand
   family.
 
+### `brand_bitsquat` — Epic G (T3, Addendum §4) · weight 0.15
+
+- **Meaning:** the **registrable label is a single-bit-flip neighbor of a
+  watchlist brand label** — the bitsquatting / memory-error attack class.
+  Flipping one bit of one ASCII byte of a brand label yields the input label.
+  `netfliz.com` (netfli**x** → netfli**z**: the byte `x`=0x78 with bit 1 flipped
+  is `z`=0x7a), `amazgn.com` (amaz**o**n → amaz**g**n) of `amazon`.
+- **Why it's a signal:** bitsquatting (IDEAS-ADDENDUM §4) exploits hardware/
+  transmission bit-errors — a flaky DIMM, a cosmic ray, a bad hop flips one bit of
+  a brand domain a client meant to resolve, and an attacker who registered that
+  one-bit-off domain silently receives the traffic. It is a real but **niche**
+  attack: an offline completeness item that **names the specific attack class**
+  (and the exact byte/bit) the fuzzy edit-distance check cannot.
+- **Detection & precision (SC-2):** every valid single-bit-flip neighbor of every
+  watchlist brand label is **precomputed once** at module load into a
+  neighbor→brand map; only neighbors whose flipped byte is still a valid DNS
+  label character (`a-z`, `0-9`, `-`) are kept. At runtime the input label is an
+  O(1) membership test — neighbors of the input are never generated.
+  - **Pure-ASCII registrable label only** — non-ASCII hosts belong to the
+    confusable / `homograph_skeleton_collision` (E3) detectors.
+  - **Exact brand never fires** — a watchlist brand domain (or a label equal to a
+    brand label) is the brand, not a bitsquat of it.
+  - **Whole-label equality only** — the input label must equal a precomputed
+    neighbor exactly; no substring matching.
+  - **Short-label guard** — a brand label shorter than 5 characters contributes
+    **no** neighbors and a short input label is rejected; short brands (`ups`,
+    `dhl`, `box`, `ibm`, `n26`, `dpd`, `x`, `meta`, `visa`, `wise`, `cash`,
+    `hsbc`) manufacture spurious 1-bit collisions.
+  - **No-op flips excluded**, and a flip that lands on **another** real watchlist
+    brand label is dropped (we never fire when the bit-flip is itself a different
+    genuine brand). IP / host-less inputs are skipped.
+- **Stacking:** a single bit flip is by construction also an edit-distance-1
+  neighbor, so this code usually **stacks with `brand_lookalike`** (distinct
+  codes); `brand_bitsquat` adds the named attack class and the byte/bit detail.
+- **Lexicon:** the bit-flip enumeration is an **intrinsic algorithm** over the
+  already-pinned brand watchlist (same judgment as the ASCII-confusables fold or
+  the soundsquat key), **not** version-pinned via `dataVersions`.
+- **See also:** `brand_lookalike` (G2) — the edit-distance sibling it stacks with;
+  `brand_soundsquat` (T2) — the phonetic sibling. All carry distinct codes.
+- **Example:** `https://netfliz.com` (→ `netflix.com`); `https://amazgn.com`
+  (→ `amazon.com`).
+- **Scoring:** scoring, weight 0.15 — intentionally LOW (the `risky_tld` /
+  `bait_tokens` / `excessive_subdomain_depth` band): a bit-flip neighbor is a real
+  but niche attack and is combination-only, never decisive standalone. Provisional
+  — re-tuned with the brand family.
+
 ### `bait_tokens` — Epic G (G4) · weight 0.15
 
 - **Meaning:** the host and path **stack multiple distinct phishing-bait

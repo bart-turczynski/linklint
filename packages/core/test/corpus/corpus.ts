@@ -495,6 +495,28 @@ export const CORPUS: CorpusRow[] = [
     notes: "T2 soundsquat — dropboks sounds like dropbox (x->ks); invisible to edit distance",
   },
 
+  // Deceptive — brand_bitsquat (T3, weight 0.15 → LOW alone): a single-bit-flip
+  // neighbor of a brand label (memory/transmission-error attack class). A bit
+  // flip is by construction also edit-distance 1, so brand_lookalike STACKS and
+  // lifts the aggregate — but brand_bitsquat alone is LOW, hence minSeverity low.
+  // netfliz <- netflix: byte 'x'=0x78, flip bit 1 (XOR 0x02) -> 'z'=0x7a.
+  {
+    input: "https://netfliz.com",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["brand_bitsquat"],
+    forbidReasons: ["brand_homoglyph", "brand_soundsquat"],
+    notes: "T3 bitsquat — netfliz is netflix with byte 'x'=0x78 bit 1 flipped to 'z' (also brand_lookalike, distance 1)",
+  },
+  {
+    input: "https://amazgn.com",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["brand_bitsquat"],
+    forbidReasons: ["brand_homoglyph", "brand_soundsquat"],
+    notes: "T3 bitsquat — amazgn is amazon with byte 'o'=0x6f bit 3 flipped to 'g'=0x67",
+  },
+
   // Deceptive — bait_tokens (G4, weight 0.15 → LOW alone): set minSeverity low.
   {
     input: "https://secure-account-verify-login.com",
@@ -533,9 +555,11 @@ export const CORPUS: CorpusRow[] = [
   { input: "https://login.microsoftonline.com", label: "benign", forbidReasons: ["brand_combosquat", "bait_tokens", "brand_lookalike"], notes: "G3/G4 guard: legit MS login host — single bait token, no hyphen-combo" },
   { input: "https://amazonaws.com", label: "benign", forbidReasons: ["brand_combosquat", "brand_lookalike", "brand_soundsquat"], notes: "G3 guard: 'amazonaws' is a single concatenated token (no hyphen), not a combosquat" },
   { input: "https://example.com/account/login", label: "benign", forbidReasons: ["bait_tokens"], notes: "G4 guard: 2 path-only bait tokens stays UNDER the host>=2 / total>=3 threshold" },
-  { input: "https://netflix.com", label: "benign", forbidReasons: ["brand_soundsquat", "brand_lookalike"], notes: "T2 guard: exact brand domain is the brand, never a homophone of itself" },
+  { input: "https://netflix.com", label: "benign", forbidReasons: ["brand_soundsquat", "brand_lookalike", "brand_bitsquat"], notes: "T2/T3 guard: exact brand domain is the brand, never a homophone or bit-flip of itself" },
   { input: "https://dropbox.com", label: "benign", forbidReasons: ["brand_soundsquat", "brand_lookalike"], notes: "T2 guard: exact brand domain" },
-  { input: "https://ups.com", label: "benign", forbidReasons: ["brand_soundsquat"], notes: "T2 short-label guard: 3-char brand label cannot soundsquat-collide" },
+  { input: "https://ups.com", label: "benign", forbidReasons: ["brand_soundsquat", "brand_bitsquat"], notes: "T2/T3 short-label guard: 3-char brand label cannot soundsquat/bitsquat-collide" },
+  { input: "https://amazon.com", label: "benign", forbidReasons: ["brand_bitsquat", "brand_lookalike"], notes: "T3 guard: exact brand domain is the brand, never a bit-flip of itself" },
+  { input: "https://oetfliz.com", label: "benign", forbidReasons: ["brand_bitsquat"], notes: "T3 guard: a 2-bit-away label (n->o AND x->z off netflix) is NOT a single-bit neighbor" },
 
   // ── Imported IDN / PSL / host test vectors (E6) ─────────────────────────
   ...VECTORS,

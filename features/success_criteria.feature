@@ -205,6 +205,17 @@ Feature: Success criteria — core lexical (PRD §7)
       | https://netflicks.com  |
       | https://dropboks.com   |
 
+  Scenario Outline: Epic G (T3) — single-bit-flip neighbors of a brand carry brand_bitsquat (low weight)
+    When I inspect "<input>"
+    Then the status is "ok"
+    And the severity is at least "low"
+    And the reasons contain "brand_bitsquat"
+
+    Examples:
+      | input                |
+      | https://netfliz.com  |
+      | https://amazgn.com   |
+
   Scenario Outline: Epic E3 — single-script whole-label homographs score >= medium with homograph_skeleton_collision
     When I inspect "<input>"
     Then the status is "ok"
@@ -234,5 +245,7 @@ Feature: Success criteria — core lexical (PRD §7)
       | https://example.com/account/login  | bait_tokens                   |
       | https://netflix.com                | brand_soundsquat              |
       | https://ups.com                    | brand_soundsquat              |
+      | https://amazon.com                 | brand_bitsquat                |
+      | https://oetfliz.com                | brand_bitsquat                |
       | https://chase.com                  | homograph_skeleton_collision  |
       | https://пример.com                 | homograph_skeleton_collision  |
