@@ -174,6 +174,19 @@ export const REASON_CODES = {
     summary:
       "Registrable domain is a transposition-aware edit-distance near-miss (1–2) of a known brand domain — a typosquat (gogole.com, microsoftt.com, paypal.co).",
   },
+  brand_combosquat: {
+    layer: "lexical",
+    scoring: true,
+    // Combosquatting (a brand keyword hyphen-glued to an additive token in the
+    // host: paypal-secure.com, login-paypal.com) is a common, deliberate
+    // phishing structure that edit distance cannot see. Tuned into the
+    // brand_lookalike band (0.4): a strong-but-not-decisive standalone signal —
+    // host-keyword matching carries some FP risk, so it sits below the
+    // exact-fold brand_homoglyph. Provisional — G5 re-tunes against the corpus.
+    weight: 0.4,
+    summary:
+      "A watchlist brand keyword is glued to an additive token in the host (paypal-secure.com, login-paypal.com) — a combosquat invisible to edit-distance look-alike checks.",
+  },
   open_redirect_param: {
     layer: "lexical",
     scoring: true,

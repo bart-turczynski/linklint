@@ -190,6 +190,45 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   `https://microsoftt.com`; `https://paypal.co`.
 - **Scoring:** scoring, weight 0.4 (provisional — G5 re-tunes).
 
+### `brand_combosquat` — Epic G (G3) · weight 0.4
+
+- **Meaning:** a **watchlist brand keyword is glued to an additive (non-brand)
+  token inside a single host label** — `paypal-secure.com`, `login-paypal.com`,
+  `secure-paypal-login.net`, `paypal-verify.evil.com`. The host is not a typo of
+  the brand domain; it pairs the brand name with a reassuring extra word.
+- **Why it's a signal:** combosquatting is *more* common than character
+  typosquatting and is **invisible to edit distance** — the string is not a
+  near-miss of the brand domain, so the G2 look-alike checks never see it. This
+  detector complements them with pure string operations over the host.
+- **Detection & precision (SC-2):**
+  - **Token boundary is the key precision lever** — a brand keyword counts only
+    when it is a **separator-delimited token**. Host labels are split on `-` and
+    the `.` label boundary; `paypal-secure` → `[paypal, secure]`. This is *not*
+    bare substring matching, which is what keeps `amazonaws.com` (the single
+    concatenated token `amazonaws`, legitimate AWS) quiet.
+  - **A genuine combination is required** — within one hyphenated label, a brand
+    keyword token **plus** at least one additive non-brand token. A lone label
+    that is exactly a brand keyword (e.g. `paypal` as a subdomain of `evil.com`)
+    is *not* a combosquat; that is `embedded_domain_in_subdomain` /
+    `brand_in_path` territory. The hyphen-glued case is the unambiguous,
+    high-precision combosquat — that is the documented boundary choice.
+  - Both the registrable label and subdomain labels are inspected, so
+    `paypal-secure.com` and `paypal-verify.evil.com` both fire.
+  - **The real brand never fires** — if the input's registrable domain is itself
+    a watchlist brand domain (`paypal.com`, and its own subdomains like
+    `login.paypal.com`), the brand legitimately uses its own keyword and is
+    skipped. IP hosts and host-less inputs are skipped.
+- **Brand list:** the authoritative Epic G watchlist keywords (`BRAND_KEYWORDS`),
+  version-pinned via `dataVersions.brands`.
+- **See also:** `brand_lookalike` (G2) — the edit-distance sibling that
+  combosquats slip past, and `brand_in_path` (J7) — the same brand-keyword idea
+  in the *path/query* rather than the host. All three are complementary, with
+  distinct codes; stacking with `embedded_domain_in_subdomain` is acceptable when
+  both genuinely apply.
+- **Example:** `https://paypal-secure.com`; `https://login-paypal.com`;
+  `https://secure-paypal-login.net`; `https://paypal-verify.evil.com`.
+- **Scoring:** scoring, weight 0.4 (provisional — G5 re-tunes).
+
 ### `suspicious_extension` — Epic I (I1) · weight 0.5
 
 - **Meaning:** the URL **path** ends in a **dangerous executable file extension**,

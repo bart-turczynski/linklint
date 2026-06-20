@@ -55,6 +55,7 @@ export {
   confusableInPath,
   brandInPath,
   brandLookalike,
+  combosquatting,
   openRedirectParam,
   suspiciousExtension,
   excessiveSubdomainDepth,
