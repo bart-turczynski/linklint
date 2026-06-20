@@ -71,3 +71,114 @@ export function analyzeIpv4(host: string): Ipv4Analysis | null {
   const obfuscated = nonDecimal || vals.length !== 4;
   return { obfuscated, canonical };
 }
+
+/**
+ * J5 — obfuscated-IPv6 recognition. Extends FR-D-7 to IPv6 literals (the inner
+ * text of `[...]`, brackets already stripped). Returns null if the string is not
+ * a valid IPv6 address at all; otherwise renders the RFC 5952 canonical form and
+ * flags non-canonical / IPv4-embedding forms as obfuscated.
+ */
+export interface Ipv6Analysis {
+  /** True if the literal is a non-canonical (obfuscated) IPv6 form. */
+  obfuscated: boolean;
+  /** RFC 5952 canonical form (lowercase, `::` for the longest zero run). */
+  canonical: string;
+  /** Dotted-decimal IPv4 embedded in the low 32 bits (`::ffff:127.0.0.1`), else null. */
+  embeddedIpv4: string | null;
+}
+
+/** Parse a strict canonical dotted-decimal IPv4 (no octal/hex/leading-zero). */
+function parseStrictDottedQuad(s: string): number | null {
+  const parts = s.split(".");
+  if (parts.length !== 4) return null;
+  let value = 0;
+  for (const part of parts) {
+    if (!/^\d{1,3}$/.test(part)) return null;
+    if (part.length > 1 && part[0] === "0") return null; // no leading zeros
+    const n = Number(part);
+    if (n > 255) return null;
+    value = value * 256 + n;
+  }
+  return value >>> 0;
+}
+
+/** Parse a colon-separated run of IPv6 hextets, with an optional trailing IPv4. */
+function parseHextets(s: string): { groups: number[]; embeddedIpv4: string | null } | null {
+  if (s === "") return { groups: [], embeddedIpv4: null };
+  const parts = s.split(":");
+  const groups: number[] = [];
+  let embeddedIpv4: string | null = null;
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i]!;
+    if (p.includes(".")) {
+      if (i !== parts.length - 1) return null; // dotted-quad only in the final position
+      const v4 = parseStrictDottedQuad(p);
+      if (v4 === null) return null;
+      embeddedIpv4 = toDotted(v4);
+      groups.push((v4 >>> 16) & 0xffff, v4 & 0xffff);
+    } else {
+      if (!/^[0-9a-fA-F]{1,4}$/.test(p)) return null;
+      groups.push(parseInt(p, 16));
+    }
+  }
+  return { groups, embeddedIpv4 };
+}
+
+/** Render 8 hextets as the RFC 5952 canonical string (longest zero run → `::`). */
+function canonicalizeIpv6(groups: number[]): string {
+  let bestStart = -1;
+  let bestLen = 0;
+  let curStart = -1;
+  let curLen = 0;
+  for (let i = 0; i < 8; i++) {
+    if (groups[i] === 0) {
+      if (curStart === -1) curStart = i;
+      curLen++;
+      if (curLen > bestLen) {
+        bestLen = curLen;
+        bestStart = curStart;
+      }
+    } else {
+      curStart = -1;
+      curLen = 0;
+    }
+  }
+  const hex = groups.map((g) => g.toString(16));
+  if (bestLen < 2) return hex.join(":");
+  const head = hex.slice(0, bestStart).join(":");
+  const tail = hex.slice(bestStart + bestLen).join(":");
+  return `${head}::${tail}`;
+}
+
+/** Analyze a host as a possible IPv6 literal. Returns null if it is not one. */
+export function analyzeIpv6(host: string): Ipv6Analysis | null {
+  // Must look like IPv6; reject zone IDs (`fe80::1%eth0`) — keep them invalid.
+  if (host === "" || !host.includes(":") || host.includes("%")) return null;
+  if ((host.match(/::/g) ?? []).length > 1) return null; // at most one `::`
+
+  let groups: number[];
+  let embeddedIpv4: string | null;
+  const dbl = host.indexOf("::");
+  if (dbl !== -1) {
+    const left = parseHextets(host.slice(0, dbl));
+    const right = parseHextets(host.slice(dbl + 2));
+    if (!left || !right) return null;
+    const missing = 8 - (left.groups.length + right.groups.length);
+    if (missing < 1) return null; // `::` must elide at least one zero group
+    groups = [...left.groups, ...new Array<number>(missing).fill(0), ...right.groups];
+    embeddedIpv4 = left.embeddedIpv4 ?? right.embeddedIpv4;
+  } else {
+    const all = parseHextets(host);
+    if (!all) return null;
+    groups = all.groups;
+    embeddedIpv4 = all.embeddedIpv4;
+  }
+  if (groups.length !== 8) return null;
+
+  const canonical = canonicalizeIpv6(groups);
+  // Obfuscated when an IPv4 is embedded (the SSRF masquerade), or when the input
+  // as written is not already the canonical form (uppercase, leading zeros,
+  // unnecessary/uncompressed zero groups).
+  const obfuscated = embeddedIpv4 !== null || host.toLowerCase() !== canonical;
+  return { obfuscated, canonical, embeddedIpv4 };
+}

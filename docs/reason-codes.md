@@ -96,12 +96,21 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   resolves to `evil.com`. The real host is surfaced in `parsed.effectiveHost`.
 - **Example:** `https://paypal.com@evil.com/login` → real host `evil.com`.
 
-### `ip_obfuscation` — FR-D-7 · weight 0.4
+### `ip_obfuscation` — FR-D-7 (+ J5) · weight 0.4
 
-- **Meaning:** the host is an obfuscated IP address — decimal, octal, hex, or
-  dotless form.
+- **Meaning:** the host is an obfuscated IP address.
+  - **IPv4** — decimal, octal, hex, or dotless form.
+  - **IPv6 (J5)** — a non-canonical literal (leading zeros, uncompressed zero
+    runs like `0::1` / `2001:db8:0:0:0:0:0:1`) or an **IPv4-embedding** form
+    (`[::ffff:127.0.0.1]`): the validator sees an IPv6 address while the resolver
+    reaches the embedded IPv4 — an SSRF masquerade. Pure case differences
+    (`2001:DB8::1`) are tolerated (not a deception vector).
 - **Why it's a signal:** obfuscated IPs evade human and naive string checks.
-- **Example:** `http://2130706433/` (decimal for `127.0.0.1`).
+- **Detail:** renders the canonical form so the real destination is explained;
+  for an IPv4-embedding IPv6 literal it also names the embedded IPv4. Canonical
+  dotted-decimal IPv4 and canonical IPv6 literals (`[::1]`) are **not** flagged.
+- **Example:** `http://2130706433/` (decimal for `127.0.0.1`);
+  `https://[::ffff:127.0.0.1]/` (IPv6 literal embedding `127.0.0.1`).
 
 ### `embedded_domain_in_subdomain` — FR-D-8 · weight 0.5
 
