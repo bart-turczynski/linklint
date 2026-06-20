@@ -229,6 +229,40 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   `https://secure-paypal-login.net`; `https://paypal-verify.evil.com`.
 - **Scoring:** scoring, weight 0.4 (provisional — G5 re-tunes).
 
+### `bait_tokens` — Epic G (G4) · weight 0.15
+
+- **Meaning:** the host and path **stack multiple distinct phishing-bait
+  keywords** — `secure`, `verify`, `account`, `update`, `signin`, `login`,
+  `wallet`, `confirm`, `password`, `billing`, `suspended`, `unlock`,
+  `authenticate`, `recover` and similar — e.g.
+  `secure-account-verify-login.com`, `update-billing.example.tk/confirm/password`.
+- **Why it's a signal:** phishing lures pile up reassuring/urgent credential
+  words to look official. On its own this is **weak** — a deliberately
+  **low-weight** corroborating signal that complements the G2/G3 brand-
+  impersonation checks; it is never decisive alone.
+- **Detection & precision (SC-2):**
+  - Host labels are tokenized (split on `-` and the `.` label boundary) and the
+    path/query is tokenized on common separators (`/ - _ .` …); the count of
+    **distinct** bait keywords in each region is taken.
+  - **A single bait token never fires.** Legitimate login/account pages carry
+    one or two of these words routinely (`accounts.google.com/signin`, a bank's
+    `/account/login`), so the bar is a **high density**, with host-side bait
+    weighted more heavily than path-side (legit sites stack bait words in the
+    PATH — `/account/security/signin` — but rarely in the HOST):
+    - **≥ 2 distinct bait tokens in the HOST labels**, OR
+    - **≥ 3 distinct bait tokens across host + path/query combined**.
+  - IP hosts and host-less inputs are skipped. The detail reports the count and
+    which bait tokens were found and where, so the score is explainable.
+- **Lexicon:** a small static, hand-curated bait-keyword set inline in the
+  detector — an intrinsic micro-lexicon (same judgment as the ASCII-confusables
+  table), **not** version-pinned via `dataVersions`.
+- **See also:** `brand_lookalike` / `brand_homoglyph` / `brand_combosquat`
+  (G2/G3) — the brand-impersonation checks this density signal corroborates.
+- **Example:** `https://secure-account-verify-login.com`;
+  `https://update-billing.example.tk/confirm/password`.
+- **Scoring:** scoring, weight 0.15 (intentionally low — a weak corroborating
+  signal; provisional — G5 re-tunes).
+
 ### `suspicious_extension` — Epic I (I1) · weight 0.5
 
 - **Meaning:** the URL **path** ends in a **dangerous executable file extension**,

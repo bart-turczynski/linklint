@@ -56,6 +56,7 @@ export {
   brandInPath,
   brandLookalike,
   combosquatting,
+  baitTokens,
   openRedirectParam,
   suspiciousExtension,
   excessiveSubdomainDepth,

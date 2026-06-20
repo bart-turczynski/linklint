@@ -187,6 +187,18 @@ export const REASON_CODES = {
     summary:
       "A watchlist brand keyword is glued to an additive token in the host (paypal-secure.com, login-paypal.com) — a combosquat invisible to edit-distance look-alike checks.",
   },
+  bait_tokens: {
+    layer: "lexical",
+    scoring: true,
+    // G4 — phishing-bait keyword density in host/path. A weak corroborating
+    // signal, never decisive on its own: legit login/account pages carry these
+    // words routinely, so this is weighted LOW (the risky_tld / excessive_
+    // subdomain_depth 0.15 band) and only fires on a HIGH density. It complements
+    // the G2/G3 brand checks. Provisional — G5 re-tunes against the full corpus.
+    weight: 0.15,
+    summary:
+      "Host/path stacks multiple distinct phishing-bait keywords (secure, verify, account, login…) — a low-weight density signal that corroborates the brand-impersonation checks.",
+  },
   open_redirect_param: {
     layer: "lexical",
     scoring: true,
