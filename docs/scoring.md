@@ -63,6 +63,7 @@ explainable. Reliability is encoded in the weight itself — there is no separat
 | `encoding_obfuscation`         | 0.35   | yes      |
 | `punycode_malformed`           | 0.20   | yes      |
 | `ascii_homoglyph`              | 0.20   | yes      |
+| `brand_in_path`                | 0.20   | yes      |
 | `risky_tld`                    | 0.15   | yes      |
 | `normalization_delta`          | 0.00   | info     |
 | `confusable_char`              | 0.00   | info     |

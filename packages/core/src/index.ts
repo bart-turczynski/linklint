@@ -53,6 +53,7 @@ export {
   encodingObfuscation,
   dangerousScheme,
   confusableInPath,
+  brandInPath,
 } from "./detectors/registry.js";
 export { scanAmbiguousAuthority } from "./detectors/ambiguous-authority.js";
 export { scanSeparatorLookalike } from "./detectors/separator-lookalike.js";
@@ -64,3 +65,4 @@ export type { Detector, DetectorFinding, InspectionContext } from "./detectors/t
 export { parse } from "./parse/parse.js";
 export { findConfusables } from "./unicode/confusables.js";
 export { RISKY_TLDS, FILE_EXTENSION_TLDS } from "./data/risky-tlds.js";
+export { BRAND_KEYWORDS } from "./data/brands.js";

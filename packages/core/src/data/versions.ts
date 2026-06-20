@@ -19,5 +19,7 @@ export const DATA_VERSIONS: DataVersions = {
   // UTS-46 / IDNA normalization library.
   idna: "tr46@6.0.0",
   riskyTlds: "2026-06-19",
+  // Seed brand-keyword list (J7); Epic G replaces it with the authoritative set.
+  brands: "2026-06-20-seed",
   weights: WEIGHTS_VERSION,
 };

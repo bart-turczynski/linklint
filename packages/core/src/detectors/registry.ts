@@ -13,6 +13,7 @@ import { fileExtensionTld } from "./file-extension-tld.js";
 import { encodingObfuscation } from "./encoding-obfuscation.js";
 import { dangerousScheme } from "./dangerous-scheme.js";
 import { confusableInPath } from "./confusable-in-path.js";
+import { brandInPath } from "./brand-in-path.js";
 import { punycodeMalformed } from "./punycode-malformed.js";
 
 /**
@@ -35,6 +36,7 @@ export const DETECTORS: Detector[] = [
   encodingObfuscation, // FR-D-10 (scoring)
   dangerousScheme, // FR-D-11 (scoring)
   confusableInPath, // FR-D-12 (info)
+  brandInPath, // J7      (scoring, low)
   punycodeMalformed, // E5      (scoring, low)
 ];
 
@@ -53,5 +55,6 @@ export {
   encodingObfuscation,
   dangerousScheme,
   confusableInPath,
+  brandInPath,
   punycodeMalformed,
 };
