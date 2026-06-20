@@ -159,3 +159,53 @@ Feature: Success criteria — core lexical (PRD §7)
       | https://files.example.com/report.pdf               | suspicious_extension      |
       | https://example.com/login?next=/dashboard          | open_redirect_param       |
       | https://cdn.assets.eu-west-1.svc.example.com/      | excessive_subdomain_depth |
+
+  # ── Epic G — brand-proximity family (homoglyph / lookalike / combosquat / bait) ──
+
+  Scenario Outline: Epic G — exact-fold brand homoglyphs score >= high with brand_homoglyph
+    When I inspect "<input>"
+    Then the status is "ok"
+    And the severity is at least "high"
+    And the reasons contain "brand_homoglyph"
+
+    Examples:
+      | input                |
+      | https://paypa1.com   |
+      | https://g00gle.com   |
+      | https://revo1ut.com  |
+
+  Scenario Outline: Epic G — fuzzy look-alikes & combosquats score >= medium with the right reason
+    When I inspect "<input>"
+    Then the status is "ok"
+    And the severity is at least "medium"
+    And the reasons contain "<reason>"
+
+    Examples:
+      | input                       | reason            |
+      | https://gogole.com          | brand_lookalike   |
+      | https://microsoftt.com      | brand_lookalike   |
+      | https://paypal.co           | brand_lookalike   |
+      | https://paypal-secure.com   | brand_combosquat  |
+      | https://login-paypal.com    | brand_combosquat  |
+
+  Scenario: Epic G — a bait-stacked host scores >= low with bait_tokens (corroborating, low weight)
+    When I inspect "https://secure-account-verify-login.com"
+    Then the status is "ok"
+    And the severity is at least "low"
+    And the reasons contain "bait_tokens"
+
+  Scenario Outline: Epic G — must not over-flag legitimate brand domains (SC-2)
+    When I inspect "<input>"
+    Then the status is "ok"
+    And the score is 0
+    And the severity is "info"
+    And the reasons do not contain "<forbidden>"
+
+    Examples:
+      | input                              | forbidden        |
+      | https://paypal.com                 | brand_lookalike  |
+      | https://google.com                 | brand_homoglyph  |
+      | https://accounts.google.com        | brand_combosquat |
+      | https://login.microsoftonline.com  | bait_tokens      |
+      | https://amazonaws.com              | brand_combosquat |
+      | https://example.com/account/login  | bait_tokens      |

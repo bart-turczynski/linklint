@@ -408,6 +408,87 @@ export const CORPUS: CorpusRow[] = [
   { input: "https://files.example.com/archive.zip", label: "benign", forbidReasons: ["suspicious_extension"], notes: "I1 guard: .zip archive is deliberately excluded from the dangerous set" },
   { input: "https://files.example.com/photo.png", label: "benign", forbidReasons: ["suspicious_extension"], notes: "I1 guard: image download is ordinary" },
 
+  // ── Epic G: brand-proximity family (G2 homoglyph/lookalike, G3 combosquat, G4 bait) ──
+  // Deceptive — brand_homoglyph (G2, weight 0.5): registrable domain folds via
+  // ASCII digit look-alikes to EXACTLY a watchlist brand → stacks with the J4
+  // ascii_homoglyph signal → high.
+  {
+    input: "https://paypa1.com",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["brand_homoglyph"],
+    notes: "G2 one-for-l folds paypa1.com -> paypal.com (exact brand) — also J4 ascii_homoglyph",
+  },
+  {
+    input: "https://g00gle.com",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["brand_homoglyph"],
+    forbidReasons: ["mixed_script"],
+    notes: "G2 zeros-for-o folds g00gle.com -> google.com (exact brand) — same-script",
+  },
+  {
+    input: "https://revo1ut.com",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["brand_homoglyph"],
+    notes: "G2 one-for-l folds revo1ut.com -> revolut.com (exact brand)",
+  },
+
+  // Deceptive — brand_lookalike (G2, weight 0.4 → medium): edit-distance / TLD-swap near-miss.
+  {
+    input: "https://gogole.com",
+    label: "deceptive",
+    expectReasons: ["brand_lookalike"],
+    forbidReasons: ["brand_homoglyph"],
+    notes: "G2 transposition typosquat of google.com (distance 1)",
+  },
+  {
+    input: "https://microsoftt.com",
+    label: "deceptive",
+    expectReasons: ["brand_lookalike"],
+    notes: "G2 doubled-letter typosquat of microsoft.com (distance 1)",
+  },
+  {
+    input: "https://paypal.co",
+    label: "deceptive",
+    expectReasons: ["brand_lookalike"],
+    notes: "G2 TLD-swap near-miss of paypal.com (.co for .com) — visible only on full registrable domain",
+  },
+
+  // Deceptive — brand_combosquat (G3, weight 0.4 → medium): brand keyword hyphen-glued to additive token.
+  {
+    input: "https://paypal-secure.com",
+    label: "deceptive",
+    expectReasons: ["brand_combosquat"],
+    forbidReasons: ["brand_lookalike", "brand_homoglyph"],
+    notes: "G3 combosquat — registrable label 'paypal-secure' (brand + additive token)",
+  },
+  {
+    input: "https://login-paypal.com",
+    label: "deceptive",
+    expectReasons: ["brand_combosquat"],
+    notes: "G3 combosquat — additive token glued before the brand keyword",
+  },
+
+  // Deceptive — bait_tokens (G4, weight 0.15 → LOW alone): set minSeverity low.
+  {
+    input: "https://secure-account-verify-login.com",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["bait_tokens"],
+    notes: "G4 bait-stacked host (4 distinct bait tokens) — low weight alone, so minSeverity low",
+  },
+
+  // Benign (SC-2): the G family must NOT over-flag these.
+  { input: "https://paypal.com", label: "benign", forbidReasons: ["brand_lookalike", "brand_homoglyph", "brand_combosquat"], notes: "G2/G3 guard: exact brand domain is the brand, never fires" },
+  { input: "https://google.com", label: "benign", forbidReasons: ["brand_lookalike", "brand_homoglyph"], notes: "G2 guard: exact brand domain" },
+  { input: "https://microsoft.com", label: "benign", forbidReasons: ["brand_lookalike", "brand_homoglyph"], notes: "G2 guard: exact brand domain" },
+  { input: "https://accounts.google.com", label: "benign", forbidReasons: ["brand_combosquat", "bait_tokens"], notes: "G3/G4 guard: legit brand subdomain, single bait token, registrable domain is the brand" },
+  { input: "https://login.microsoftonline.com", label: "benign", forbidReasons: ["brand_combosquat", "bait_tokens", "brand_lookalike"], notes: "G3/G4 guard: legit MS login host — single bait token, no hyphen-combo" },
+  { input: "https://amazonaws.com", label: "benign", forbidReasons: ["brand_combosquat", "brand_lookalike"], notes: "G3 guard: 'amazonaws' is a single concatenated token (no hyphen), not a combosquat" },
+  { input: "https://example.com/account/login", label: "benign", forbidReasons: ["bait_tokens"], notes: "G4 guard: 2 path-only bait tokens stays UNDER the host>=2 / total>=3 threshold" },
+
   // ── Imported IDN / PSL / host test vectors (E6) ─────────────────────────
   ...VECTORS,
 ];

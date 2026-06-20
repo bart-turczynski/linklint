@@ -14,6 +14,9 @@ import { encodingObfuscation } from "./encoding-obfuscation.js";
 import { dangerousScheme } from "./dangerous-scheme.js";
 import { confusableInPath } from "./confusable-in-path.js";
 import { brandInPath } from "./brand-in-path.js";
+import { brandLookalike } from "./brand-lookalike.js";
+import { combosquatting } from "./combosquatting.js";
+import { baitTokens } from "./bait-tokens.js";
 import { openRedirectParam } from "./open-redirect-param.js";
 import { suspiciousExtension } from "./suspicious-extension.js";
 import { punycodeMalformed } from "./punycode-malformed.js";
@@ -40,6 +43,9 @@ export const DETECTORS: Detector[] = [
   dangerousScheme, // FR-D-11 (scoring)
   confusableInPath, // FR-D-12 (info)
   brandInPath, // J7      (scoring, low)
+  brandLookalike, // G2      (scoring)
+  combosquatting, // G3      (scoring)
+  baitTokens, // G4      (scoring, low)
   openRedirectParam, // I2      (scoring)
   suspiciousExtension, // I1      (scoring)
   punycodeMalformed, // E5      (scoring, low)
@@ -62,6 +68,9 @@ export {
   dangerousScheme,
   confusableInPath,
   brandInPath,
+  brandLookalike,
+  combosquatting,
+  baitTokens,
   openRedirectParam,
   suspiciousExtension,
   punycodeMalformed,

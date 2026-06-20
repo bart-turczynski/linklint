@@ -121,6 +121,148 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 - **Example:** `https://evil.com/paypal.com/login`; `https://phish.io/google/signin`.
 - **Scoring:** scoring, weight 0.2.
 
+### `brand_homoglyph` — Epic G (G2) · weight 0.5
+
+- **Meaning:** the **registrable domain folds, via ASCII digit look-alikes, to
+  exactly a known brand domain.** Folding `0`→o, `1`→l, `5`→s turns `paypa1.com`
+  into `paypal.com` and `g00gle.com` into `google.com`. The folded skeleton
+  matches a watchlist brand **byte-for-byte**, which makes this the
+  highest-confidence brand-impersonation signal linklint emits.
+- **Why it's a signal:** this is the **brand-aware escalation** that the J4
+  `ascii_homoglyph` layer anticipates. `ascii_homoglyph` is the general,
+  brand-free structural anomaly (a digit standing in for a letter, low weight);
+  when that same skeleton resolves to an actual brand, the input is almost
+  certainly a deliberate impersonation, so it escalates here at a higher weight.
+  An input firing both `ascii_homoglyph` and `brand_homoglyph` (e.g. `g00gle.com`)
+  is the canonical high-severity look-alike.
+- **Detection & precision (SC-2):** the **full registrable domain string** is
+  folded with the shared `ASCII_DIGIT_HOMOGLYPHS` map (`data/ascii-confusables.ts`,
+  the single source of truth J4 also consumes). Fires only when at least one digit
+  is actually folded, the skeleton is alphabetic, and the skeleton equals a
+  watchlist brand domain exactly. The exact-match requirement is itself the
+  precision backstop — a degenerate mostly-digit string cannot fold into a brand,
+  and only `0/1/5` fold (so `s3`, `bet365`, `route53` never reach a brand). The
+  real brand itself never fires.
+- **Brand list:** the authoritative Epic G watchlist (`BRAND_DOMAINS`),
+  version-pinned via `dataVersions.brands`.
+- **See also:** `ascii_homoglyph` (J4) — the low-weight, brand-free counterpart;
+  `brand_homoglyph` is its brand-confirmed escalation.
+- **Example:** `https://paypa1.com` (→ `paypal.com`); `https://g00gle.com`
+  (→ `google.com`); `https://revo1ut.com` (→ `revolut.com`).
+- **Scoring:** scoring, weight 0.5 (provisional — G5 re-tunes).
+
+### `brand_lookalike` — Epic G (G2) · weight 0.4
+
+- **Meaning:** the **registrable domain is a fuzzy near-miss of a known brand
+  domain** — one (occasionally two) transposition-aware edit operations away,
+  where the difference is *not* a clean digit fold. This is dnstwist's permutation
+  logic run in reverse: rather than generating typo variants of a brand and
+  checking the registry, we take the input and ask whether it is a typosquat of a
+  watchlisted brand.
+- **Why it's a signal:** `gogole.com`, `microsoftt.com`, `paypal.co` (TLD swap)
+  all read as a trusted brand at a glance but resolve to an attacker-controlled
+  domain. A domain landing one edit away from a major brand is a deliberate
+  look-alike far more often than chance.
+- **Detection & precision (SC-2):** the **full registrable domain string**
+  (label + public suffix) is compared with a bounded Damerau-Levenshtein (OSA)
+  distance against each brand domain in the watchlist (`data/brands.ts`).
+  Comparing the full string — not the bare label — is deliberate: TLD-swap
+  typosquats (`paypal.co` for `paypal.com`) are real positives only visible with
+  the suffix included.
+  - A clean digit fold to a real brand is reported as `brand_homoglyph`
+    instead (the two codes are mutually exclusive per input).
+  - **Exact match never fires** — distance 0 is the real brand.
+  - A length guard contains short-domain collisions: distance 1 fires only when
+    the matched brand's significant (registrable) label is ≥ 5 characters;
+    distance 2 only when it is ≥ 8. So `visa.com`↔`vista.com` and
+    `ups.com`↔`usp.com` stay clean here, while `paypal`/`microsoft`-scale brands
+    flag.
+  - **Non-ASCII (IDN) hosts are skipped** — they belong to the confusable /
+    `idna_mapping_ambiguity` detectors, and the all-ASCII watchlist cannot be a
+    genuine near-miss of a Unicode domain.
+  - IP hosts and inputs with no registrable domain are skipped.
+  The detail names the **nearest** brand and the exact distance.
+- **Brand list:** the authoritative Epic G watchlist (`BRAND_DOMAINS`),
+  version-pinned via `dataVersions.brands`.
+- **See also:** `brand_homoglyph` (G2) — the exact-skeleton-fold sibling, higher
+  confidence and higher weight.
+- **Example:** `https://gogole.com` (distance 1 from `google.com`);
+  `https://microsoftt.com`; `https://paypal.co`.
+- **Scoring:** scoring, weight 0.4 (provisional — G5 re-tunes).
+
+### `brand_combosquat` — Epic G (G3) · weight 0.4
+
+- **Meaning:** a **watchlist brand keyword is glued to an additive (non-brand)
+  token inside a single host label** — `paypal-secure.com`, `login-paypal.com`,
+  `secure-paypal-login.net`, `paypal-verify.evil.com`. The host is not a typo of
+  the brand domain; it pairs the brand name with a reassuring extra word.
+- **Why it's a signal:** combosquatting is *more* common than character
+  typosquatting and is **invisible to edit distance** — the string is not a
+  near-miss of the brand domain, so the G2 look-alike checks never see it. This
+  detector complements them with pure string operations over the host.
+- **Detection & precision (SC-2):**
+  - **Token boundary is the key precision lever** — a brand keyword counts only
+    when it is a **separator-delimited token**. Host labels are split on `-` and
+    the `.` label boundary; `paypal-secure` → `[paypal, secure]`. This is *not*
+    bare substring matching, which is what keeps `amazonaws.com` (the single
+    concatenated token `amazonaws`, legitimate AWS) quiet.
+  - **A genuine combination is required** — within one hyphenated label, a brand
+    keyword token **plus** at least one additive non-brand token. A lone label
+    that is exactly a brand keyword (e.g. `paypal` as a subdomain of `evil.com`)
+    is *not* a combosquat; that is `embedded_domain_in_subdomain` /
+    `brand_in_path` territory. The hyphen-glued case is the unambiguous,
+    high-precision combosquat — that is the documented boundary choice.
+  - Both the registrable label and subdomain labels are inspected, so
+    `paypal-secure.com` and `paypal-verify.evil.com` both fire.
+  - **The real brand never fires** — if the input's registrable domain is itself
+    a watchlist brand domain (`paypal.com`, and its own subdomains like
+    `login.paypal.com`), the brand legitimately uses its own keyword and is
+    skipped. IP hosts and host-less inputs are skipped.
+- **Brand list:** the authoritative Epic G watchlist keywords (`BRAND_KEYWORDS`),
+  version-pinned via `dataVersions.brands`.
+- **See also:** `brand_lookalike` (G2) — the edit-distance sibling that
+  combosquats slip past, and `brand_in_path` (J7) — the same brand-keyword idea
+  in the *path/query* rather than the host. All three are complementary, with
+  distinct codes; stacking with `embedded_domain_in_subdomain` is acceptable when
+  both genuinely apply.
+- **Example:** `https://paypal-secure.com`; `https://login-paypal.com`;
+  `https://secure-paypal-login.net`; `https://paypal-verify.evil.com`.
+- **Scoring:** scoring, weight 0.4 (provisional — G5 re-tunes).
+
+### `bait_tokens` — Epic G (G4) · weight 0.15
+
+- **Meaning:** the host and path **stack multiple distinct phishing-bait
+  keywords** — `secure`, `verify`, `account`, `update`, `signin`, `login`,
+  `wallet`, `confirm`, `password`, `billing`, `suspended`, `unlock`,
+  `authenticate`, `recover` and similar — e.g.
+  `secure-account-verify-login.com`, `update-billing.example.tk/confirm/password`.
+- **Why it's a signal:** phishing lures pile up reassuring/urgent credential
+  words to look official. On its own this is **weak** — a deliberately
+  **low-weight** corroborating signal that complements the G2/G3 brand-
+  impersonation checks; it is never decisive alone.
+- **Detection & precision (SC-2):**
+  - Host labels are tokenized (split on `-` and the `.` label boundary) and the
+    path/query is tokenized on common separators (`/ - _ .` …); the count of
+    **distinct** bait keywords in each region is taken.
+  - **A single bait token never fires.** Legitimate login/account pages carry
+    one or two of these words routinely (`accounts.google.com/signin`, a bank's
+    `/account/login`), so the bar is a **high density**, with host-side bait
+    weighted more heavily than path-side (legit sites stack bait words in the
+    PATH — `/account/security/signin` — but rarely in the HOST):
+    - **≥ 2 distinct bait tokens in the HOST labels**, OR
+    - **≥ 3 distinct bait tokens across host + path/query combined**.
+  - IP hosts and host-less inputs are skipped. The detail reports the count and
+    which bait tokens were found and where, so the score is explainable.
+- **Lexicon:** a small static, hand-curated bait-keyword set inline in the
+  detector — an intrinsic micro-lexicon (same judgment as the ASCII-confusables
+  table), **not** version-pinned via `dataVersions`.
+- **See also:** `brand_lookalike` / `brand_homoglyph` / `brand_combosquat`
+  (G2/G3) — the brand-impersonation checks this density signal corroborates.
+- **Example:** `https://secure-account-verify-login.com`;
+  `https://update-billing.example.tk/confirm/password`.
+- **Scoring:** scoring, weight 0.15 (intentionally low — a weak corroborating
+  signal; provisional — G5 re-tunes).
+
 ### `suspicious_extension` — Epic I (I1) · weight 0.5
 
 - **Meaning:** the URL **path** ends in a **dangerous executable file extension**,

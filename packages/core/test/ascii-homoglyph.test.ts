@@ -31,9 +31,24 @@ describe("J4 ascii_homoglyph — same-script digit look-alikes", () => {
   });
 
   it("is low-weight on its own (0.2) — meaningful only in combination", () => {
-    const r = inspect("https://g00gle.com");
+    // Use a digit-homoglyph host whose skeleton is a real word (`cookie`) but NOT
+    // a watchlist brand, so it exercises J4's standalone-low contract WITHOUT
+    // triggering the Epic-G brand-aware escalation.
+    expect(codes("https://c00kie.com")).toContain("ascii_homoglyph");
+    expect(codes("https://c00kie.com")).not.toContain("brand_homoglyph");
+    const r = inspect("https://c00kie.com");
     expect(r.severity).toBe("low");
     expect(r.score).toBeCloseTo(0.2, 5);
+  });
+
+  it("g00gle.com now escalates to the Epic-G brand-aware layer (J4 doc anticipated this)", () => {
+    // Its ASCII skeleton (`google.com`) equals a watchlist brand, so it fires
+    // BOTH the J4 ascii_homoglyph signal AND the high-confidence brand_homoglyph
+    // escalation — the brand-confirmed escalation J4's doc comment anticipates.
+    const found = codes("https://g00gle.com");
+    expect(found).toContain("ascii_homoglyph");
+    expect(found).toContain("brand_homoglyph");
+    expect(inspect("https://g00gle.com").severity).toBe("high");
   });
 });
 
