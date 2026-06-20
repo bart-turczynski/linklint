@@ -143,6 +143,13 @@ export const REASON_CODES = {
     summary:
       "Host label uses ASCII digit look-alikes for letters (g00gle, paypa1) — a same-script disguise the cross-script checks miss.",
   },
+  brand_in_path: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.2,
+    summary:
+      "A brand reference is planted in the path/query of an unrelated host (evil.com/paypal.com/login).",
+  },
 
   // ── Meta ────────────────────────────────────────────────────────────────
   parse_error: {

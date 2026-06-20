@@ -40,6 +40,8 @@ only reasons are informational is **benign** (`score: 0`, `severity: "info"`).
 - **Why it's a signal:** annotation only, same reasoning as `confusable_char`.
 - **Example:** a Cyrillic letter inside `/раy/`.
 - **Scoring:** informational, weight 0. Expanded per-character in `confusables[]`.
+- **See also:** `brand_in_path` (J7) — the scoring counterpart for a brand
+  *keyword* in the path (vs. confusable *characters* here).
 
 ### `idna_mapping_ambiguity` — Epic J (J9)
 
@@ -96,6 +98,28 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   the brand-aware layer (Epic G). This base signal stays `low` so a lone
   digit-in-word matters only in combination.
 - **Example:** `https://g00gle.com` (reads as `google`); `https://paypa1.com`.
+
+### `brand_in_path` — Epic J (J7) · weight 0.2
+
+- **Meaning:** a **brand reference is planted in the path/query** of an unrelated
+  host. The scoring counterpart to the info-only `confusable_in_path`: that flags
+  confusable *characters* in the path, this flags a brand *keyword*.
+- **Why it's a signal:** `https://evil.com/paypal.com/login` resolves to
+  `evil.com`, but a skimming user sees `paypal.com` in the URL and trusts it.
+- **Detection & precision (SC-2):** fires only on two phishing-shaped patterns,
+  and only when the brand does **not** appear in the host:
+  - **domain-shaped** — a path/query token `<brand>.<tld>` (`/paypal.com/`,
+    `?next=paypal.com`);
+  - **credential flow** — a bare `<brand>` path segment together with a
+    credential-flow word (`login`, `signin`, `verify`, …): `/paypal/login`.
+  So a brand's own site (`paypal.com/login`), a brand word in prose
+  (`/blog/netflix-review`), and a bare brand path without credential context
+  (`github.com/paypal/repo`) all stay clean.
+- **Brand list:** a small **seed** set (`data/brands.ts`, version-pinned via
+  `dataVersions.brands`). Epic G replaces it with the authoritative, expandable
+  list and adds the host-side brand escalations.
+- **Example:** `https://evil.com/paypal.com/login`; `https://phish.io/google/signin`.
+- **Scoring:** scoring, weight 0.2.
 
 ### `invisible_char` — FR-D-4 · weight 0.5
 

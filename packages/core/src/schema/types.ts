@@ -87,6 +87,7 @@ export interface DataVersions {
   unicodeScripts: string;
   idna: string;
   riskyTlds: string;
+  brands: string;
   weights: string;
 }
 
