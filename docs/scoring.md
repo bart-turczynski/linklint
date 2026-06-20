@@ -54,6 +54,7 @@ explainable. Reliability is encoded in the weight itself — there is no separat
 | `bidi_override`                | 0.60   | yes      |
 | `control_char`                 | 0.60   | yes      |
 | `invisible_char`               | 0.50   | yes      |
+| `suspicious_extension`         | 0.50   | yes      |
 | `separator_lookalike`          | 0.50   | yes      |
 | `userinfo_present`             | 0.50   | yes      |
 | `embedded_domain_in_subdomain` | 0.50   | yes      |

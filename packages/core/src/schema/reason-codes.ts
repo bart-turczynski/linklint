@@ -150,6 +150,13 @@ export const REASON_CODES = {
     summary:
       "A brand reference is planted in the path/query of an unrelated host (evil.com/paypal.com/login).",
   },
+  suspicious_extension: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.5,
+    summary:
+      "URL path ends in a dangerous executable extension (.exe/.scr/.msi…) or a deceptive double-extension (.pdf.exe).",
+  },
 
   // ── Meta ────────────────────────────────────────────────────────────────
   parse_error: {

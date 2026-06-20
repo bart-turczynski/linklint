@@ -121,6 +121,33 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 - **Example:** `https://evil.com/paypal.com/login`; `https://phish.io/google/signin`.
 - **Scoring:** scoring, weight 0.2.
 
+### `suspicious_extension` — Epic I (I1) · weight 0.5
+
+- **Meaning:** the URL **path** ends in a **dangerous executable file extension**,
+  or in a **deceptive double-extension** — the high-signal shape of a
+  direct-download malware link.
+- **Why it's a signal:** a link that ends in `setup.exe` or `update.apk` is a
+  direct request to download and run an executable; a double-extension like
+  `invoice.pdf.exe` shows a safe-looking `.pdf` to a skimming user while the real,
+  trailing extension is the executable.
+- **Detection & precision (SC-2):** only the **last path segment** (the filename
+  after the final `/`) is inspected, and query/fragment are ignored. Two shapes
+  fire:
+  - **double extension** — ≥2 dot-separated extension parts after a non-empty
+    stem and the LAST part is dangerous (`invoice.pdf.exe`, `report.doc.scr`);
+  - **single dangerous extension** — the filename ends in one dangerous extension
+    (`setup.exe`, `screensaver.scr`).
+  A trailing-dot or extensionless segment, an empty path, or a bare `/` never
+  fire, and an extension mid-path is ignored.
+- **Dangerous set (case-insensitive):** the named class
+  `.exe/.scr/.apk/.iso/.bat/.msi` plus conservative same-class additions
+  (`cmd`, `com`, `vbs`, `jar`, `dmg`, `pkg`, `dll`, `msix`, `ps1`, `deb`). A
+  `.zip` archive is **not** in the set — an archive download is ordinary and would
+  over-flag.
+- **Example:** `https://files.example.com/setup.exe`;
+  `https://cdn.evil.io/invoice.pdf.exe`.
+- **Scoring:** scoring, weight 0.5.
+
 ### `invisible_char` — FR-D-4 · weight 0.5
 
 - **Meaning:** invisible, zero-width, or control characters appear anywhere in
