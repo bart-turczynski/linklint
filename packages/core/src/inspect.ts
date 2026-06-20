@@ -11,13 +11,14 @@ import {
   buildOkResult,
   type CollectedFinding,
 } from "./schema/serialize.js";
+import { policyConfigured, runPolicy } from "./policy/policy.js";
 
 /**
  * Inspect a single URL or bare hostname. Synchronous, zero-network, never throws
  * (FR-LIB-2, FR-IN-4, NFR-PERF-1). Returns the stable versioned schema for every
  * input — `status: "ok"` for anything parseable, `status: "invalid"` otherwise.
  */
-export function inspect(input: string, _options?: InspectOptions): InspectResult {
+export function inspect(input: string, options: InspectOptions = {}): InspectResult {
   // J1/J2/J3/J9 — structural scans over the raw input. They run independently of
   // parse() so they can flag the very inputs parse() discards (backslash, empty
   // authority, multi-colon host, delimiter look-alikes, encoded control chars)
@@ -62,5 +63,20 @@ export function inspect(input: string, _options?: InspectOptions): InspectResult
     }
   }
 
-  return buildOkResult(ctx, findings, skippedDetectors);
+  // Policy channel (FR-POLICY-*): a separate, caller-configured set of axes that
+  // annotate without scoring (layer "policy", weight 0). It runs only when the
+  // caller configured a policy field — otherwise the result is byte-identical to
+  // today (no `policy` in checksRun, no policy reasons).
+  const policyRan = policyConfigured(options);
+  let policyFindings: CollectedFinding[] = [];
+  if (policyRan) {
+    try {
+      policyFindings = runPolicy(ctx, options);
+    } catch {
+      // A policy failure must never abort inspection (FR-D-13).
+      skippedDetectors.push("policy");
+    }
+  }
+
+  return buildOkResult(ctx, findings, skippedDetectors, policyFindings, policyRan);
 }

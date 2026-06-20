@@ -8,8 +8,14 @@
 /** Current schema version. Bumped only on a breaking change to this contract. */
 export const SCHEMA_VERSION = "1.0" as const;
 
-/** Conceptual inspection layers. v1 implements `lexical` only. */
-export type Layer = "lexical" | "resolution" | "reputation";
+/**
+ * Conceptual inspection layers. v1 implements `lexical` only.
+ *
+ * `policy` is a separate, caller-configured channel: policy reasons appear in
+ * `reasons[]` but always carry `weight: 0`, so they annotate without moving the
+ * deception score or severity (see {@link InspectOptions}).
+ */
+export type Layer = "lexical" | "resolution" | "reputation" | "policy";
 
 /** Top-level disposition of an inspection. */
 export type Status = "ok" | "invalid";
@@ -91,7 +97,20 @@ export interface DataVersions {
   weights: string;
 }
 
-/** Options accepted by `inspect()`. Reserved for v1; no behavior toggles yet. */
+/**
+ * Options accepted by `inspect()`.
+ *
+ * Beyond the inspection tuning knobs, this object configures the **policy
+ * channel** — a separate, caller-owned set of allow/deny axes (TLD, host,
+ * scheme, port, …) layered on top of the built-in deception analysis. Policy
+ * hits surface in `reasons[]` with `layer: "policy"` and `weight: 0`, so they
+ * are advisory only: they never change the deception `score` or `severity`.
+ * When no policy field is set, inspection is byte-identical to passing no
+ * options at all (no `policy` entry in `checksRun`, no policy reasons).
+ *
+ * Policy fields are flat and additive — each axis (H2–H4) contributes its own
+ * optional field here; {@link InspectOptions} stays a single grouping.
+ */
 export interface InspectOptions {
   /**
    * Maximum number of recursive percent-decode passes. Bounded to keep

@@ -68,13 +68,21 @@ export function buildInvalidResult(
  * Build a `status: "ok"` result from a parsed context and the collected
  * findings. Attaches weights from the registry, aggregates the score, orders
  * reasons (weight desc, then code), and assembles the confusables expansion.
+ *
+ * `policyFindings` is the separate policy channel (layer `policy`, weight 0):
+ * its reasons go through the same map and sort but contribute nothing to the
+ * score. `policyRan` records whether the policy channel was configured/ran — it
+ * gates the `policy` entry in `checksRun` so that, with no policy configured,
+ * `checksRun` stays exactly `["lexical"]`.
  */
 export function buildOkResult(
   ctx: InspectionContext,
   findings: CollectedFinding[],
   skippedDetectors: string[],
+  policyFindings: CollectedFinding[] = [],
+  policyRan = false,
 ): InspectResult {
-  const reasons: Reason[] = findings.map((f) => ({
+  const reasons: Reason[] = [...findings, ...policyFindings].map((f) => ({
     code: f.code,
     layer: reasonMeta(f.code).layer,
     detail: f.detail,
@@ -98,7 +106,7 @@ export function buildOkResult(
     severity,
     reasons,
     confusables,
-    checksRun: ["lexical"],
+    checksRun: policyRan ? ["lexical", "policy"] : ["lexical"],
     checksSkipped,
     dataVersions: DATA_VERSIONS,
   };
