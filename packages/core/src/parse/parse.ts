@@ -5,35 +5,8 @@ import { toUnicode } from "../unicode/idna.js";
 import { analyzeHost, type PslResult } from "./psl.js";
 import { analyzeIpv4, analyzeIpv6 } from "./ip.js";
 import { prepare } from "./prepare.js";
+import { SCHEME_RE, firstIndexOf, isOpaqueScheme, looksLikeHostPort } from "./syntax.js";
 
-/**
- * Schemes that linklint recognizes even without a following `//` authority, so
- * that a missing-scheme bare host (`paypal.com:8080`) is not mistaken for one.
- * Includes the dangerous opaque schemes FR-D-11 cares about.
- */
-const KNOWN_SCHEMES = new Set([
-  "http",
-  "https",
-  "ftp",
-  "ftps",
-  "ws",
-  "wss",
-  "file",
-  "mailto",
-  "tel",
-  "about",
-  "chrome",
-  "view-source",
-  "javascript",
-  "data",
-  "vbscript",
-  "blob",
-]);
-
-/** Schemes whose body is opaque (no host/authority to parse). */
-const OPAQUE_SCHEMES = new Set(["javascript", "data", "vbscript", "blob", "mailto", "tel", "about"]);
-
-const SCHEME_RE = /^([a-zA-Z][a-zA-Z0-9+.\-]*):/;
 const ILLEGAL_HOST_RE = /[\s<>"{}|\\^`]/;
 const HOST_CHARS_RE = /^[\p{L}\p{M}\p{N}._%\-]+$/u;
 
@@ -54,9 +27,7 @@ export function parse(input: string): InspectionContext | null {
   if (m) {
     const candidate = m[1]!.toLowerCase();
     const after = prepared.slice(m[0].length);
-    const looksLikeHostPort =
-      (candidate.includes(".") || /^\d+([/?#]|$)/.test(after)) && !KNOWN_SCHEMES.has(candidate);
-    if (looksLikeHostPort) {
+    if (looksLikeHostPort(candidate, after)) {
       // e.g. "paypal.com:8080" or "localhost:8080" — missing scheme, not opaque.
       scheme = null;
       rest = prepared;
@@ -67,7 +38,7 @@ export function parse(input: string): InspectionContext | null {
   }
 
   // ── Opaque scheme (no authority): javascript:, data:, mailto:, … ───────────
-  if (scheme && OPAQUE_SCHEMES.has(scheme) && !rest.startsWith("//")) {
+  if (scheme && isOpaqueScheme(scheme) && !rest.startsWith("//")) {
     return buildContext(input, {
       scheme,
       userinfo: null,
@@ -220,14 +191,6 @@ function buildContext(input: string, raw: RawParts): InspectionContext {
 
 function emptyPsl(isIp = false): PslResult {
   return { registrableDomain: null, publicSuffix: null, subdomain: null, isIp };
-}
-
-/** Index of the first occurrence of any character in `chars`, or -1. */
-function firstIndexOf(s: string, chars: string): number {
-  for (let i = 0; i < s.length; i++) {
-    if (chars.includes(s[i]!)) return i;
-  }
-  return -1;
 }
 
 /**

@@ -9,38 +9,7 @@
  * slashes, and delimiter look-alikes survive to be inspected.
  */
 
-const SCHEME_RE = /^([a-zA-Z][a-zA-Z0-9+.\-]*):/;
-
-/** Schemes recognized without a following `//`, so `paypal.com:8080` is not one. */
-const KNOWN_SCHEMES = new Set([
-  "http",
-  "https",
-  "ftp",
-  "ftps",
-  "ws",
-  "wss",
-  "file",
-  "mailto",
-  "tel",
-  "about",
-  "chrome",
-  "view-source",
-  "javascript",
-  "data",
-  "vbscript",
-  "blob",
-]);
-
-/** Opaque schemes have no authority to analyze (`javascript:`, `data:`, …). */
-const OPAQUE_SCHEMES = new Set([
-  "javascript",
-  "data",
-  "vbscript",
-  "blob",
-  "mailto",
-  "tel",
-  "about",
-]);
+import { SCHEME_RE, firstIndexOf, isOpaqueScheme, looksLikeHostPort } from "./syntax.js";
 
 export interface AuthorityRegion {
   scheme: string | null;
@@ -58,14 +27,6 @@ export interface AuthorityRegion {
   opaque: boolean;
 }
 
-/** Index of the first occurrence of any character in `chars`, or -1. */
-export function firstIndexOf(s: string, chars: string): number {
-  for (let i = 0; i < s.length; i++) {
-    if (chars.includes(s[i]!)) return i;
-  }
-  return -1;
-}
-
 /** Split a prepared input into its raw authority region and surrounding parts. */
 export function authorityRegion(prepared: string): AuthorityRegion {
   let scheme: string | null = null;
@@ -74,16 +35,14 @@ export function authorityRegion(prepared: string): AuthorityRegion {
   if (m) {
     const candidate = m[1]!.toLowerCase();
     const after = prepared.slice(m[0].length);
-    const looksLikeHostPort =
-      (candidate.includes(".") || /^\d+([/?#]|$)/.test(after)) && !KNOWN_SCHEMES.has(candidate);
-    if (!looksLikeHostPort) {
+    if (!looksLikeHostPort(candidate, after)) {
       scheme = candidate;
       rest = after;
     }
   }
 
   const protocolRelative = scheme === null && /^[/\\]{2}/.test(prepared);
-  const opaque = scheme !== null && OPAQUE_SCHEMES.has(scheme) && !/^[/\\]{2}/.test(rest);
+  const opaque = scheme !== null && isOpaqueScheme(scheme) && !/^[/\\]{2}/.test(rest);
 
   if (opaque) {
     return { scheme, protocolRelative, separator: "", authority: "", path: rest, fragment: null, opaque };
