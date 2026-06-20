@@ -12,6 +12,7 @@ import {
   type CollectedFinding,
 } from "./schema/serialize.js";
 import { policyConfigured, runPolicy } from "./policy/policy.js";
+import { normalizeOptions } from "./parse/runtime.js";
 
 /**
  * Inspect a single URL or bare hostname. Synchronous, zero-network, never throws
@@ -23,14 +24,18 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRes
   // parse() so they can flag the very inputs parse() discards (backslash, empty
   // authority, multi-colon host, delimiter look-alikes, encoded control chars)
   // instead of losing the signal to `invalid`.
+  const runtime = normalizeOptions(options);
   const structural: CollectedFinding[] = [];
   const prepared = prepare(input);
-  for (const scan of [
+  // scanControlChar is the only scan that decodes, so only it takes `runtime`
+  // (the depth knob); the others are pure string scans.
+  const scans: Array<(prepared: string) => CollectedFinding[]> = [
     scanAmbiguousAuthority,
     scanSeparatorLookalike,
     scanIdnaMappingAmbiguity,
-    scanControlChar,
-  ]) {
+    (p) => scanControlChar(p, runtime),
+  ];
+  for (const scan of scans) {
     try {
       structural.push(...scan(prepared));
     } catch {
@@ -40,7 +45,7 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRes
 
   let ctx;
   try {
-    ctx = parse(input);
+    ctx = parse(input, runtime);
   } catch {
     // Parsing must be total — any unexpected failure is treated as invalid input.
     return buildInvalidResult(input, structural);

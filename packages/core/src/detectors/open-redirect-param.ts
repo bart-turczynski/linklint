@@ -99,7 +99,7 @@ export const openRedirectParam: Detector = {
       // Decode the name for the match (defensive: a malformed key is just skipped).
       let key: string;
       try {
-        key = boundedDecode(rawKey).decoded.toLowerCase();
+        key = boundedDecode(rawKey, ctx.runtime.maxDecodeDepth).decoded.toLowerCase();
       } catch {
         continue;
       }
@@ -109,7 +109,7 @@ export const openRedirectParam: Detector = {
       // Decode the value through single/double percent-encoding.
       let value: string;
       try {
-        value = boundedDecode(rawValue).decoded;
+        value = boundedDecode(rawValue, ctx.runtime.maxDecodeDepth).decoded;
       } catch {
         continue;
       }

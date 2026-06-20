@@ -1,6 +1,7 @@
 import type { DetectorFinding } from "./types.js";
 import { authorityRegion } from "../parse/authority-region.js";
 import { boundedDecode } from "../parse/decode.js";
+import { normalizeOptions, type RuntimeConfig } from "../parse/runtime.js";
 
 /**
  * J3 — `control_char` (Epic J, FR parser-differential). SCORING.
@@ -52,7 +53,10 @@ const SIGNAL_DETAIL: Record<string, string> = {
  * Scan the prepared input for control / whitespace smuggling characters. Returns
  * a single `control_char` finding naming every sub-signal that fired, or `[]`.
  */
-export function scanControlChar(prepared: string): DetectorFinding[] {
+export function scanControlChar(
+  prepared: string,
+  runtime: RuntimeConfig = normalizeOptions({}),
+): DetectorFinding[] {
   if (prepared === "") return [];
 
   const signals = new Set<string>();
@@ -72,7 +76,7 @@ export function scanControlChar(prepared: string): DetectorFinding[] {
   // 2. Percent-encoded (and multiply-encoded) control characters. A legitimate
   //    URL never encodes CR/LF/TAB/NUL, so any decoded control byte is a signal.
   if (prepared.includes("%")) {
-    const { decoded, passes } = boundedDecode(prepared);
+    const { decoded, passes } = boundedDecode(prepared, runtime.maxDecodeDepth);
     if (decoded !== prepared) {
       for (const ch of decoded) {
         const sig = classify(ch.codePointAt(0)!);
