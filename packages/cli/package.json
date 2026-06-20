@@ -1,0 +1,32 @@
+{
+  "name": "@linklint/cli",
+  "version": "0.1.0-dev.0",
+  "description": "Offline CLI for linklint — check a URL for deception before you fetch it (explainable, deterministic).",
+  "keywords": ["cli", "url", "security", "phishing", "linklint"],
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "linklint": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "linklint": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
