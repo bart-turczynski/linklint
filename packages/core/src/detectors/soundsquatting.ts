@@ -1,5 +1,10 @@
 import type { Detector, DetectorFinding } from "./types.js";
 import { BRAND_DOMAINS } from "../data/brands.js";
+import {
+  BRAND_LABEL_SET,
+  significantLabel,
+  asciiRegistrableBrandCandidate,
+} from "./brand-utils.js";
 
 /**
  * T2 — `brand_soundsquat` (Epic G, IDEAS-ADDENDUM §4). SCORING, weight 0.3.
@@ -97,20 +102,6 @@ function phoneticKey(label: string): string {
   return key;
 }
 
-/** Brand registrable domains as a Set for O(1) "is this the real brand" check. */
-const BRAND_DOMAIN_SET: ReadonlySet<string> = new Set(BRAND_DOMAINS);
-
-/** The brand's significant (registrable) label, left of the public suffix. */
-function significantLabel(brandDomain: string): string {
-  const dot = brandDomain.indexOf(".");
-  return dot === -1 ? brandDomain : brandDomain.slice(0, dot);
-}
-
-/** Set of brand significant labels (lowercase) for exact-label skip. */
-const BRAND_LABEL_SET: ReadonlySet<string> = new Set(
-  BRAND_DOMAINS.map((d) => significantLabel(d)),
-);
-
 /**
  * Phonetic key → brand label, for labels and keys long enough to be safe. Built
  * once. Only the FIRST brand for a given key is kept (deterministic by list
@@ -133,16 +124,11 @@ export const soundsquatting: Detector = {
   id: "brand_soundsquat",
   layer: "lexical",
   run(ctx): DetectorFinding[] {
-    const input = ctx.registrableDomain;
-    if (!input || ctx.isIp) return [];
-    // Pure-ASCII only: non-ASCII (IDN) hosts belong to the confusable / E3
-    // detectors, and the all-ASCII watchlist cannot be a genuine homophone of a
-    // Unicode label.
-    if (!/^[\x00-\x7f]+$/.test(input)) return [];
-
-    const raw = input.toLowerCase();
-    // The real brand itself: never fire — it IS the brand.
-    if (BRAND_DOMAIN_SET.has(raw)) return [];
+    // Pure-ASCII, non-IP registrable domain that is not itself a brand. Non-ASCII
+    // (IDN) hosts belong to the confusable / E3 detectors; the real brand never
+    // fires — it IS the brand.
+    const raw = asciiRegistrableBrandCandidate(ctx);
+    if (raw === null) return [];
 
     const label = significantLabel(raw);
     if (label.length < MIN_LABEL_LEN) return [];

@@ -1,5 +1,6 @@
 import type { Detector, DetectorFinding } from "./types.js";
-import { isBrandKeyword, BRAND_DOMAINS } from "../data/brands.js";
+import { isBrandKeyword } from "../data/brands.js";
+import { isExactBrandDomain } from "./brand-utils.js";
 
 /**
  * G3 — `brand_combosquat` (Epic G). SCORING, weight 0.4.
@@ -49,9 +50,6 @@ import { isBrandKeyword, BRAND_DOMAINS } from "../data/brands.js";
  *   genuinely apply (distinct codes, distinct structures).
  */
 
-/** Brand registrable domains as a Set for O(1) "is this the real brand" check. */
-const BRAND_DOMAIN_SET: ReadonlySet<string> = new Set(BRAND_DOMAINS);
-
 export const combosquatting: Detector = {
   id: "brand_combosquat",
   layer: "lexical",
@@ -61,8 +59,8 @@ export const combosquatting: Detector = {
 
     // Never fire on the legitimate brand: the brand owns its own keyword on its
     // own registrable domain (covers `paypal.com` and `login.paypal.com`).
-    const registrable = ctx.registrableDomain?.toLowerCase() ?? null;
-    if (registrable && BRAND_DOMAIN_SET.has(registrable)) return [];
+    const registrable = ctx.registrableDomainLower;
+    if (registrable && isExactBrandDomain(registrable)) return [];
 
     for (const label of ctx.hostLabels) {
       const lower = label.toLowerCase();

@@ -1,6 +1,11 @@
 import type { Detector, DetectorFinding } from "./types.js";
 import { BRAND_DOMAINS } from "../data/brands.js";
 import { foldAsciiDigitHomoglyphs } from "../data/ascii-confusables.js";
+import {
+  BRAND_DOMAIN_SET,
+  significantLabelLength,
+  asciiRegistrableBrandCandidate,
+} from "./brand-utils.js";
 
 /**
  * G2 — brand-proximity detection (Epic G). A SINGLE detector emitting TWO codes,
@@ -63,9 +68,6 @@ const MIN_LABEL_FOR_DISTANCE_1 = 5;
 /** Min brand-label length to allow a distance-2 `brand_lookalike` hit (stricter). */
 const MIN_LABEL_FOR_DISTANCE_2 = 8;
 
-/** Brand domains as a Set for O(1) exact-match membership. */
-const BRAND_DOMAIN_SET: ReadonlySet<string> = new Set(BRAND_DOMAINS);
-
 /**
  * Optimal String Alignment distance (Damerau-Levenshtein with adjacent
  * transpositions), bounded by `max`. Returns a value > `max` (specifically
@@ -110,27 +112,15 @@ function boundedOsaDistance(a: string, b: string, max: number): number {
   return prev[lb]!;
 }
 
-/** The brand's significant (registrable) label, left of the public suffix. */
-function significantLabelLength(brandDomain: string): number {
-  const dot = brandDomain.indexOf(".");
-  return dot === -1 ? brandDomain.length : dot;
-}
-
 export const brandLookalike: Detector = {
   id: "brand_lookalike",
   layer: "lexical",
   run(ctx): DetectorFinding[] {
-    const input = ctx.registrableDomain;
-    if (!input || ctx.isIp) return [];
-    // Pure-ASCII only: non-ASCII (IDN) hosts belong to the confusable / IDNA
-    // detectors, and the all-ASCII brand watchlist cannot be a genuine near-miss
-    // of a Unicode domain.
-    if (!/^[\x00-\x7f]+$/.test(input)) return [];
-
-    const raw = input.toLowerCase();
-
-    // (1) The real brand itself: never fire — it IS the brand.
-    if (BRAND_DOMAIN_SET.has(raw)) return [];
+    // Pure-ASCII, non-IP registrable domain that is not itself a brand. The real
+    // brand never fires — it IS the brand; non-ASCII (IDN) hosts belong to the
+    // confusable / IDNA detectors.
+    const raw = asciiRegistrableBrandCandidate(ctx);
+    if (raw === null) return [];
 
     // (2) brand_homoglyph — fold ASCII digit look-alikes; if the skeleton is
     // EXACTLY a watchlist brand, that is the highest-confidence impersonation.

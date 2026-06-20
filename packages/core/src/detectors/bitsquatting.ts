@@ -1,5 +1,10 @@
 import type { Detector, DetectorFinding } from "./types.js";
 import { BRAND_DOMAINS } from "../data/brands.js";
+import {
+  BRAND_LABEL_SET,
+  significantLabel,
+  asciiRegistrableBrandCandidate,
+} from "./brand-utils.js";
 
 /**
  * T3 — `brand_bitsquat` (Epic G, IDEAS-ADDENDUM §4). SCORING, weight 0.15 (LOW).
@@ -52,20 +57,6 @@ const MIN_LABEL_LEN = 5;
 /** Valid DNS label characters a flipped byte must remain within. */
 const isLabelChar = (ch: string): boolean => /^[a-z0-9-]$/.test(ch);
 
-/** The brand's significant (registrable) label, left of the public suffix. */
-function significantLabel(brandDomain: string): string {
-  const dot = brandDomain.indexOf(".");
-  return dot === -1 ? brandDomain : brandDomain.slice(0, dot);
-}
-
-/** Brand registrable domains as a Set for O(1) "is this the real brand" check. */
-const BRAND_DOMAIN_SET: ReadonlySet<string> = new Set(BRAND_DOMAINS);
-
-/** Set of brand significant labels (lowercase) for exact-label skip + collision drop. */
-const BRAND_LABEL_SET: ReadonlySet<string> = new Set(
-  BRAND_DOMAINS.map((d) => significantLabel(d)),
-);
-
 /**
  * neighbor label → brand label. Built once: every valid single-bit-flip neighbor
  * of every watchlist brand label long enough to be safe, excluding no-op flips
@@ -99,16 +90,11 @@ export const bitsquatting: Detector = {
   id: "brand_bitsquat",
   layer: "lexical",
   run(ctx): DetectorFinding[] {
-    const input = ctx.registrableDomain;
-    if (!input || ctx.isIp) return [];
-    // Pure-ASCII only: non-ASCII (IDN) hosts belong to the confusable / E3
-    // detectors; the all-ASCII watchlist cannot be a byte-level bit-flip of a
-    // Unicode label.
-    if (!/^[\x00-\x7f]+$/.test(input)) return [];
-
-    const raw = input.toLowerCase();
-    // The real brand itself: never fire — it IS the brand.
-    if (BRAND_DOMAIN_SET.has(raw)) return [];
+    // Pure-ASCII, non-IP registrable domain that is not itself a brand. Non-ASCII
+    // (IDN) hosts belong to the confusable / E3 detectors; the real brand never
+    // fires — it IS the brand.
+    const raw = asciiRegistrableBrandCandidate(ctx);
+    if (raw === null) return [];
 
     const label = significantLabel(raw);
     if (label.length < MIN_LABEL_LEN) return [];
