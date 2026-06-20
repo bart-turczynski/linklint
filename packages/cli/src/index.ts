@@ -12,6 +12,7 @@ export {
   type ParsedCli,
   type CheckOptions,
 } from "./args.js";
+export { parseUrlLines } from "./lines.js";
 export {
   renderResults,
   renderJson,

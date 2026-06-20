@@ -32,12 +32,17 @@ export interface CheckOptions {
 export type ParsedCli =
   | { kind: "help" }
   | { kind: "version" }
-  | { kind: "check"; urls: string[]; options: CheckOptions };
+  | { kind: "check"; urls: string[]; stdin: boolean; options: CheckOptions }
+  | { kind: "batch"; file: string; options: CheckOptions };
 
 /**
  * Parse a raw argv tail (everything after `node script`). Throws
- * {@link UsageError} on any usage problem (unknown flag, bad `--fail-on`, no
- * URLs given). `--help` / `--version` short-circuit any subcommand.
+ * {@link UsageError} on any usage problem (unknown flag, bad `--fail-on`,
+ * missing batch file). `--help` / `--version` short-circuit any subcommand.
+ *
+ * Stays synchronous and pure: it never reads stdin or the filesystem. A `check`
+ * with no URLs (or the single positional `-`) is parsed with `stdin: true`, and
+ * the caller (`run`) resolves the actual input.
  */
 export function parseCli(argv: readonly string[]): ParsedCli {
   let parsed;
@@ -68,10 +73,10 @@ export function parseCli(argv: readonly string[]): ParsedCli {
 
   const [command, ...rest] = positionals;
   if (command === undefined) {
-    throw new UsageError("no command given (expected: check <url...>)");
+    throw new UsageError("no command given (expected: check <url...> | batch <file>)");
   }
-  if (command !== "check") {
-    throw new UsageError(`unknown command: ${command} (expected: check)`);
+  if (command !== "check" && command !== "batch") {
+    throw new UsageError(`unknown command: ${command} (expected: check | batch)`);
   }
 
   const failOn = values["fail-on"] ?? "high";
@@ -81,20 +86,30 @@ export function parseCli(argv: readonly string[]): ParsedCli {
     );
   }
 
-  if (rest.length === 0) {
-    throw new UsageError("no URLs given to check");
+  const options: CheckOptions = {
+    json: values.json,
+    offline: values.offline,
+    failOn,
+    allowInvalid: values["allow-invalid"],
+    quiet: values.quiet,
+    noColor: values["no-color"],
+  };
+
+  if (command === "batch") {
+    if (rest.length === 0) {
+      throw new UsageError("no file given to batch (expected: batch <file>)");
+    }
+    if (rest.length > 1) {
+      throw new UsageError("batch takes exactly one file argument");
+    }
+    const file = rest[0];
+    if (file === undefined || file === "") {
+      throw new UsageError("no file given to batch (expected: batch <file>)");
+    }
+    return { kind: "batch", file, options };
   }
 
-  return {
-    kind: "check",
-    urls: rest,
-    options: {
-      json: values.json,
-      offline: values.offline,
-      failOn,
-      allowInvalid: values["allow-invalid"],
-      quiet: values.quiet,
-      noColor: values["no-color"],
-    },
-  };
+  // command === "check": with no URLs, or a single `-`, read from stdin.
+  const stdin = rest.length === 0 || (rest.length === 1 && rest[0] === "-");
+  return { kind: "check", urls: stdin ? [] : rest, stdin, options };
 }

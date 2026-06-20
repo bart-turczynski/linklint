@@ -1,6 +1,8 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import { inspect, type InspectResult } from "linklint";
-import { parseCli, UsageError } from "./args.js";
+import { parseCli, UsageError, type CheckOptions } from "./args.js";
+import { parseUrlLines } from "./lines.js";
 import { renderJson, renderResults } from "./render.js";
 import { resolveExitCode } from "./policy.js";
 
@@ -12,7 +14,11 @@ export const USAGE = `linklint — offline URL deception check
 
 Usage:
   linklint check <url...>          inspect one or more URLs
+  linklint check                   read URLs from stdin (one per line) when piped
   linklint check --json <url...>   emit a JSON array of full InspectResult objects
+  linklint batch <file>            inspect URLs from a file (one per line)
+
+Files and stdin skip blank lines and lines starting with '#'.
 
 Flags:
   --json                emit machine-readable JSON (no human text)
@@ -62,22 +68,79 @@ export function run(
     return 0;
   }
 
-  const results: InspectResult[] = cli.urls.map((url) => inspect(url));
+  let urls: string[];
+  if (cli.kind === "batch") {
+    let text: string;
+    try {
+      text = readFileSync(cli.file, "utf8");
+    } catch (e) {
+      err(`error: cannot read file: ${cli.file}`);
+      err(`  ${e instanceof Error ? e.message : String(e)}`);
+      err("");
+      err(USAGE);
+      return 2;
+    }
+    urls = parseUrlLines(text);
+  } else if (cli.stdin) {
+    // `check` with no URLs (or `-`): read stdin only when piped.
+    if (process.stdin.isTTY) {
+      err("error: no URLs given to check");
+      err("");
+      err(USAGE);
+      return 2;
+    }
+    let text: string;
+    try {
+      text = readFileSync(0, "utf8");
+    } catch (e) {
+      err(`error: cannot read stdin`);
+      err(`  ${e instanceof Error ? e.message : String(e)}`);
+      err("");
+      err(USAGE);
+      return 2;
+    }
+    urls = parseUrlLines(text);
+  } else {
+    urls = cli.urls;
+  }
 
-  if (cli.options.json) {
+  return runInspections(urls, cli.options, out);
+}
+
+/**
+ * Inspect each URL and emit output. In `--json` mode all results are collected
+ * and emitted as one JSON array. Otherwise verdicts are streamed one line (or
+ * one block) at a time via `out`, so output appears as the run progresses and a
+ * single bad/invalid URL never aborts the run. Returns the aggregate exit code.
+ */
+function runInspections(
+  urls: readonly string[],
+  options: CheckOptions,
+  out: (line: string) => void,
+): 0 | 1 {
+  const results: InspectResult[] = [];
+
+  if (options.json) {
+    for (const url of urls) {
+      results.push(inspect(url));
+    }
     out(renderJson(results));
   } else {
-    out(
-      renderResults(results, {
-        quiet: cli.options.quiet,
-        noColor: cli.options.noColor,
-      }),
-    );
+    for (const url of urls) {
+      const result = inspect(url);
+      results.push(result);
+      out(
+        renderResults([result], {
+          quiet: options.quiet,
+          noColor: options.noColor,
+        }),
+      );
+    }
   }
 
   return resolveExitCode(results, {
-    failOn: cli.options.failOn,
-    allowInvalid: cli.options.allowInvalid,
+    failOn: options.failOn,
+    allowInvalid: options.allowInvalid,
   });
 }
 
