@@ -194,6 +194,18 @@ Feature: Success criteria — core lexical (PRD §7)
     And the severity is at least "low"
     And the reasons contain "bait_tokens"
 
+  Scenario Outline: Epic E3 — single-script whole-label homographs score >= medium with homograph_skeleton_collision
+    When I inspect "<input>"
+    Then the status is "ok"
+    And the severity is at least "medium"
+    And the reasons contain "homograph_skeleton_collision"
+    And the reasons do not contain "mixed_script"
+
+    Examples:
+      | input                  |
+      | https://сһаѕе.com      |
+      | https://ехреԁіа.com    |
+
   Scenario Outline: Epic G — must not over-flag legitimate brand domains (SC-2)
     When I inspect "<input>"
     Then the status is "ok"
@@ -202,10 +214,12 @@ Feature: Success criteria — core lexical (PRD §7)
     And the reasons do not contain "<forbidden>"
 
     Examples:
-      | input                              | forbidden        |
-      | https://paypal.com                 | brand_lookalike  |
-      | https://google.com                 | brand_homoglyph  |
-      | https://accounts.google.com        | brand_combosquat |
-      | https://login.microsoftonline.com  | bait_tokens      |
-      | https://amazonaws.com              | brand_combosquat |
-      | https://example.com/account/login  | bait_tokens      |
+      | input                              | forbidden                     |
+      | https://paypal.com                 | brand_lookalike               |
+      | https://google.com                 | brand_homoglyph               |
+      | https://accounts.google.com        | brand_combosquat              |
+      | https://login.microsoftonline.com  | bait_tokens                   |
+      | https://amazonaws.com              | brand_combosquat              |
+      | https://example.com/account/login  | bait_tokens                   |
+      | https://chase.com                  | homograph_skeleton_collision  |
+      | https://пример.com                 | homograph_skeleton_collision  |

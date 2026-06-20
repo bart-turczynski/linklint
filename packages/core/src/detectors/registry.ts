@@ -15,6 +15,7 @@ import { dangerousScheme } from "./dangerous-scheme.js";
 import { confusableInPath } from "./confusable-in-path.js";
 import { brandInPath } from "./brand-in-path.js";
 import { brandLookalike } from "./brand-lookalike.js";
+import { skeletonCollision } from "./skeleton-collision.js";
 import { combosquatting } from "./combosquatting.js";
 import { baitTokens } from "./bait-tokens.js";
 import { openRedirectParam } from "./open-redirect-param.js";
@@ -44,6 +45,7 @@ export const DETECTORS: Detector[] = [
   confusableInPath, // FR-D-12 (info)
   brandInPath, // J7      (scoring, low)
   brandLookalike, // G2      (scoring)
+  skeletonCollision, // E3   (scoring) — non-ASCII whole-label homograph
   combosquatting, // G3      (scoring)
   baitTokens, // G4      (scoring, low)
   openRedirectParam, // I2      (scoring)
@@ -69,6 +71,7 @@ export {
   confusableInPath,
   brandInPath,
   brandLookalike,
+  skeletonCollision,
   combosquatting,
   baitTokens,
   openRedirectParam,

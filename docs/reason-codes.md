@@ -190,6 +190,46 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   `https://microsoftt.com`; `https://paypal.co`.
 - **Scoring:** scoring, weight 0.4 (provisional — G5 re-tunes).
 
+### `homograph_skeleton_collision` — Epic E (E3) · weight 0.5
+
+- **Meaning:** the **registrable domain's UTS#39 confusable skeleton equals a
+  known brand domain exactly.** An all-Cyrillic `сһаѕе.com` — where every letter
+  is a Cyrillic homoglyph of the Latin one — reads as `chase.com` to a human but
+  is a different, attacker-controlled domain. Its `skeleton()` (each codepoint
+  mapped through the confusables table, NFD-normalized) collapses to `chase.com`,
+  colliding with a watchlist brand.
+- **Why it's a signal:** this is the one documented v1 *detection* hole
+  (FR-D-16). A single-script, all-confusable look-alike has **no script mixing**,
+  so `mixed_script` never fires, and confusable annotation (`confusable_char`) is
+  weight-0 — the homograph would otherwise score nothing. FR-D-16 deferred
+  scoring it because penalizing raw confusables would flag every legitimate IDN
+  (the SC-2 failure mode); scoring only an **exact skeleton collision against the
+  brand watchlist** is the precise signal that became possible once the Epic G
+  watchlist existed.
+- **Detection & precision (SC-2):** the **full registrable domain string** is run
+  through the UTS#39 `skeleton()` helper (`unicode/skeleton.ts`, built from the
+  already-pinned confusables table) and tested for an exact match against the
+  precomputed skeleton of each `BRAND_DOMAINS` entry.
+  - **Non-ASCII only** — the detector runs solely when the registrable domain
+    carries a non-ASCII codepoint. The pure-ASCII digit-fold case (`paypa1.com`)
+    is owned by `brand_homoglyph`; this guard makes the two **mutually exclusive
+    by construction**, so they never double-fire.
+  - **Exact brand never fires** — a real brand domain is all-ASCII and is guarded
+    out before any collision test.
+  - **Legitimate single-script IDNs** (`пример.com`, `münchen.de`) skeletonize to
+    a non-brand string and do not collide — SC-2 holds.
+  - IP hosts and inputs with no registrable domain are skipped.
+  The detail names the matched brand and the colliding skeleton.
+- **Brand list:** the authoritative Epic G watchlist (`BRAND_DOMAINS`),
+  version-pinned via `dataVersions.brands`. The skeleton algorithm's only data
+  source is the confusables table, pinned via `dataVersions.unicodeConfusables`.
+- **See also:** `brand_homoglyph` (G2) — the pure-ASCII digit-fold sibling, same
+  weight; `confusable_char` (FR-D-2) — the weight-0 annotation this escalates
+  when the skeleton lands on a brand.
+- **Example:** `https://сһаѕе.com` (→ `chase.com`); `https://ехреԁіа.com`
+  (→ `expedia.com`).
+- **Scoring:** scoring, weight 0.5 (provisional — re-tuned with the brand family).
+
 ### `brand_combosquat` — Epic G (G3) · weight 0.4
 
 - **Meaning:** a **watchlist brand keyword is glued to an additive (non-brand)

@@ -187,6 +187,22 @@ export const REASON_CODES = {
     summary:
       "A watchlist brand keyword is glued to an additive token in the host (paypal-secure.com, login-paypal.com) — a combosquat invisible to edit-distance look-alike checks.",
   },
+  homograph_skeleton_collision: {
+    layer: "lexical",
+    scoring: true,
+    // E3 (FR-D-16 follow-up) — the registrable domain's UTS#39 confusable
+    // skeleton equals a watchlist brand domain exactly: a single-script,
+    // all-confusable look-alike (e.g. an all-Cyrillic `сһаѕе.com`) that
+    // `mixed_script` cannot see (no script mixing) and confusable annotation
+    // only flags at weight 0. An exact skeleton == brand collision is
+    // decisive, so it sits in the same band as brand_homoglyph (0.5).
+    // Mutually exclusive with brand_homoglyph by construction (that owns the
+    // pure-ASCII digit-fold case; this runs only on non-ASCII hosts).
+    // Provisional — re-tuned with the brand family against the full corpus.
+    weight: 0.5,
+    summary:
+      "Registrable domain's UTS#39 confusable skeleton equals a known brand domain exactly — a single-script whole-label homograph (an all-Cyrillic look-alike of a brand) that script-mixing checks cannot see.",
+  },
   bait_tokens: {
     layer: "lexical",
     scoring: true,

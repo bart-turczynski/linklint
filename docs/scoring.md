@@ -58,6 +58,7 @@ explainable. Reliability is encoded in the weight itself — there is no separat
 | `separator_lookalike`          | 0.50   | yes      |
 | `userinfo_present`             | 0.50   | yes      |
 | `embedded_domain_in_subdomain` | 0.50   | yes      |
+| `homograph_skeleton_collision` | 0.50   | yes      |
 | `mixed_script`                 | 0.40   | yes      |
 | `ip_obfuscation`               | 0.40   | yes      |
 | `file_extension_tld`           | 0.40   | yes      |
