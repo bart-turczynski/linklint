@@ -64,6 +64,9 @@ export { scanIdnaMappingAmbiguity } from "./detectors/idna-mapping-ambiguity.js"
 export { scanControlChar } from "./detectors/control-char.js";
 export type { Detector, DetectorFinding, InspectionContext } from "./detectors/types.js";
 
+// Policy channel (advanced consumers)
+export { runPolicy, policyConfigured } from "./policy/policy.js";
+
 // Parsing / reference-data helpers (advanced consumers)
 export { parse } from "./parse/parse.js";
 export { findConfusables } from "./unicode/confusables.js";

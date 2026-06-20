@@ -390,6 +390,139 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   `http://127.0.0.1%09foo.google.com` (TAB host terminator).
 - **Scoring:** scoring, weight 0.6.
 
+## Policy codes (caller-configured, layer "policy", weight 0)
+
+These are **caller-configured** via `InspectOptions` — a separate channel from
+the built-in deception detectors. They surface in `reasons[]` with
+`layer: "policy"` and `weight: 0`, so they **never change the deception `score`
+or `severity`**: they annotate the result with a policy verdict and the consumer
+enforces it. When no policy field is set they do not fire and `checksRun` stays
+exactly `["lexical"]`.
+
+### `tld_denied` — policy (TLD deny-list)
+
+- **Meaning:** the host's **TLD** (the last label of the public suffix, e.g.
+  `co.uk` → `uk`) is on the caller's `denyTlds` list (default-allow: everything
+  not listed passes).
+- **Why it's surfaced:** a caller-owned policy decision, not a deception
+  heuristic — e.g. an organization that refuses links under `.ru` / `.cn`.
+  Distinct from the built-in `risky_tld`, which is a low-weight *scoring*
+  deception signal over a curated abuse-TLD set; `tld_denied` is whatever the
+  caller chose, advisory only.
+- **Matching:** TLD values are compared case-insensitively and bare (a leading
+  dot is tolerated and stripped). IP / hostless inputs have no public suffix and
+  never match.
+- **Example:** `inspect("https://promo.ru/", { denyTlds: ["ru", "cn"] })` →
+  `tld_denied` with detail `TLD '.ru' is on the caller deny-list`.
+- **Scoring:** policy, weight 0 (advisory; never moves the score).
+
+### `tld_not_allowlisted` — policy (TLD allow-list)
+
+- **Meaning:** the host's **TLD** is **not** on the caller's `allowTlds` list
+  (default-deny lockdown: only the listed TLDs pass).
+- **Why it's surfaced:** a caller-owned policy decision — e.g. an organization
+  that only permits links under `.com` / `.de`. Independent of the `denyTlds`
+  axis: when both are configured, a denied TLD emits `tld_denied` and the same
+  input also emits `tld_not_allowlisted` if its TLD is not in `allowTlds`.
+  Distinct from the built-in `risky_tld` deception heuristic.
+- **Matching:** TLD values are compared case-insensitively and bare (a leading
+  dot is tolerated and stripped). IP / hostless inputs have no public suffix and
+  never match.
+- **Example:** `inspect("https://example.org/", { allowTlds: ["com", "de"] })` →
+  `tld_not_allowlisted` with detail
+  `TLD '.org' is not on the caller allow-list ([com, de])`.
+- **Scoring:** policy, weight 0 (advisory; never moves the score).
+
+### `host_denied` — policy (host deny-list)
+
+- **Meaning:** the host's **registrable domain** (eTLD+1) is on the caller's
+  `denyHosts` list (default-allow: everything not listed passes).
+- **Why it's surfaced:** a caller-owned policy decision, not a deception
+  heuristic — e.g. an organization that refuses links to a known-bad vendor or
+  competitor domain. Advisory only; a separate channel from the deception
+  detectors.
+- **Matching:** entries are compared case-insensitively and bare (a leading dot
+  is tolerated and stripped) against the host's **registrable domain**. Because
+  the match key is the registrable domain, listing `example.com` covers
+  `example.com` **and every subdomain** (`sub.example.com` shares registrable
+  domain `example.com`). IP / hostless inputs have no registrable domain and
+  never match.
+- **Example:** `inspect("https://sub.evil.com/", { denyHosts: ["evil.com"] })` →
+  `host_denied` with detail
+  `Host 'sub.evil.com' (registrable domain 'evil.com') is on the caller deny-list`.
+- **Scoring:** policy, weight 0 (advisory; never moves the score).
+
+### `host_not_allowlisted` — policy (host allow-list)
+
+- **Meaning:** the host's **registrable domain** (eTLD+1) is **not** on the
+  caller's `allowHosts` list (default-deny corporate lockdown: only the listed
+  domains and their subdomains pass).
+- **Why it's surfaced:** a caller-owned policy decision — e.g. an organization
+  that only permits links to its own company and approved vendor domains.
+  Independent of the `denyHosts` axis: when both are configured, a denied
+  registrable domain emits `host_denied` and the same input also emits
+  `host_not_allowlisted` if its registrable domain is not in `allowHosts`.
+- **Matching:** entries are compared case-insensitively and bare (a leading dot
+  is tolerated and stripped) against the host's **registrable domain**. Listing
+  `mycompany.com` allows `mycompany.com` **and every** `*.mycompany.com`. IP /
+  hostless inputs have no registrable domain and never match (so they never pass
+  an allow-list).
+- **Example:**
+  `inspect("https://example.org/", { allowHosts: ["mycompany.com"] })` →
+  `host_not_allowlisted` with detail
+  `Host 'example.org' (registrable domain 'example.org') is not on the caller allow-list ([mycompany.com])`.
+- **Scoring:** policy, weight 0 (advisory; never moves the score).
+
+### `scheme_denied` — policy (scheme allow/deny)
+
+- **Meaning:** the input's **scheme** (lower-cased, no colon) is on the caller's
+  `denySchemes` list, **or** is **not** on the caller's `allowSchemes` list
+  (default-deny lockdown — e.g. `allowSchemes: ["https"]` for an https-only
+  policy). Both lists map to this single code; the detail string distinguishes a
+  deny-list hit from a not-allow-listed one.
+- **Why it's surfaced:** a caller-owned policy decision — e.g. an organization
+  that only permits `https` links, or that blocks `ftp`. **Distinct from the
+  built-in `dangerous_scheme`** deception detector, which is a high-weight
+  *scoring* heuristic over execute-or-embed schemes (`javascript:`, `data:`…);
+  `scheme_denied` is whatever the caller chose, advisory only, on a separate
+  channel.
+- **Matching:** scheme values are compared case-insensitively and bare (a
+  leading/trailing colon is tolerated and stripped) against the input's parsed
+  scheme. Opaque / hostless inputs still carry a scheme (e.g. `javascript`,
+  `data`), so scheme policy applies to them. Inputs with **no scheme** are exempt
+  — the axis is skipped, so a schemeless input never emits `scheme_denied` (an
+  allow-list cannot fire when there is no scheme to judge).
+- **Example:** `inspect("http://example.com/", { allowSchemes: ["https"] })` →
+  `scheme_denied` with detail
+  `scheme 'http' is not on the caller allow-list ([https])`. And
+  `inspect("ftp://example.com/", { denySchemes: ["ftp"] })` → `scheme_denied`
+  with detail `scheme 'ftp' is on the caller deny-list`.
+- **Scoring:** policy, weight 0 (advisory; never moves the score).
+
+### `port_denied` — policy (port deny / non-standard)
+
+- **Meaning:** the input's **explicit** port is on the caller's `denyPorts`
+  list, **or** — when `denyNonStandardPorts: true` — is not the standard default
+  for its scheme. Only an explicit port is evaluated; an input with no explicit
+  port never emits this code.
+- **Why it's surfaced:** a caller-owned policy decision — e.g. blocking known
+  exfil/phishing ports (`:8080`, `:31337`) by enumeration, or refusing any
+  non-standard port without listing them. Advisory only; a separate channel from
+  the deception detectors.
+- **Standard-port map (`denyNonStandardPorts`):** `http`→80, `https`→443,
+  `ftp`→21, `ws`→80, `wss`→443. A port equal to its scheme's default is
+  "standard"; any other explicit port — or any explicit port on a scheme not in
+  this map — is "non-standard".
+- **Dedup:** when both `denyPorts` and `denyNonStandardPorts` would flag the same
+  port, exactly one `port_denied` is emitted (the deny-list reason takes
+  precedence).
+- **Example:** `inspect("https://example.com:8080/", { denyPorts: [8080] })` →
+  `port_denied` with detail `port 8080 is on the caller deny-list`. And
+  `inspect("https://example.com:8080/", { denyNonStandardPorts: true })` →
+  `port_denied` with detail
+  `port 8080 is non-standard for scheme 'https' (expected 443)`.
+- **Scoring:** policy, weight 0 (advisory; never moves the score).
+
 ## Meta
 
 ### `parse_error`
