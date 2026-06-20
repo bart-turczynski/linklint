@@ -9,6 +9,12 @@ export class LinklintWorld extends World {
   mcpVerdict!: InspectResult;
   /** The agent's fetch decision derived from the MCP verdict. */
   willFetch = false;
+  /**
+   * No-policy baseline for the same input, captured by the policy steps so a
+   * scenario can assert that configuring policy left `score`/`severity`
+   * unchanged (the channel-separation invariant).
+   */
+  baseline?: InspectResult;
 }
 
 setWorldConstructor(LinklintWorld);

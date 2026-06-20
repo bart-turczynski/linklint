@@ -250,9 +250,12 @@ Top-level fields:
 
 `checksRun` and `checksSkipped` use explicit check IDs:
 
-- Whole-layer IDs: `lexical`, `resolution`, `reputation`.
+- Whole-layer IDs: `lexical`, `resolution`, `reputation`, `policy`.
 - Detector IDs when a layer partially ran but a detector did not complete:
   `lexical:<detector_id>`, for example `lexical:mixed_script`.
+
+`policy` is listed in `checksRun` only when the caller configured a policy axis
+(see §8.4); otherwise a v1 result's `checksRun` stays `["lexical"]`.
 
 For a normal parsed v1 result, `checksRun` is `["lexical"]` and `checksSkipped` is
 `["resolution", "reputation"]`. If the lexical layer ran but one detector failed, the layer remains
@@ -401,6 +404,32 @@ Capabilities:
 
 Layer 3 should prefer local mirrors, hash-prefix queries, or k-anonymity patterns so a checked URL is
 not exposed by default.
+
+### 8.4 Policy layer (caller-configured)
+
+A separate channel from deception detection, not a fourth conceptual layer of
+analysis. The three layers above answer "is this URL deceptive?"; the policy
+layer answers a different, caller-owned question: "does this URL satisfy my
+allow/deny rules?"
+
+It is offline and deterministic, configured entirely through `InspectOptions`,
+with one allow and/or deny axis each for TLD, host (registrable domain), scheme,
+and port. A configured axis whose rule the input violates emits a reason with
+`layer: "policy"` and `weight: 0`. Weight 0 is the contract that keeps the two
+channels separate: policy reasons annotate the result without ever changing
+`score` or `severity`. The policy channel runs only when the caller configures
+an axis, and only then does `policy` appear in `checksRun`.
+
+Policy is distinct from the built-in deception heuristics it superficially
+resembles. `risky_tld` is a low-weight scoring signal that a registrable domain
+uses a high-abuse TLD; `tld_denied`/`tld_not_allowlisted` are advisory policy
+verdicts on a caller's own TLD list. `dangerous_scheme` is a scoring signal that
+a scheme can execute or embed content; `scheme_denied` is a caller's allow/deny
+list. The deception heuristics decide a score; policy does not.
+
+Enforcement is the consumer's job, not the core's. linklint only reports the
+policy verdict — an MCP server, a CLI exit code, or an egress proxy decides what
+to do with it (warn, block, log).
 
 ## 9. Use-case mapping
 
