@@ -1,0 +1,6 @@
+# batch fixture: mix of benign, medium and high
+https://www.example.com/path
+
+# the line above is blank and skipped
+https://paypal.com@evil.example.com/login
+https://www.gооgle.com@bad.tk/login
