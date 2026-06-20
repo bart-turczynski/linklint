@@ -8,7 +8,7 @@
 [![Socket Badge](https://socket.dev/api/badge/npm/package/linklint)](https://socket.dev/npm/package/linklint)
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fbart-turczynski%2Flinklint.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fbart-turczynski%2Flinklint?ref=badge_shield)
 [![minzipped size](https://img.shields.io/bundlephobia/minzip/linklint)](https://bundlephobia.com/package/linklint)
-[![node](https://img.shields.io/badge/node-%3E%3D18-3c873a.svg)](./packages/core/package.json)
+[![node](https://img.shields.io/badge/node-%3E%3D24-3c873a.svg)](./packages/core/package.json)
 [![types](https://img.shields.io/badge/types-included-3178c6.svg?logo=typescript&logoColor=white)](./packages/core/dist/index.d.ts)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
@@ -57,7 +57,7 @@ inspect('javascript:fetch("//evil.example")');
 npm install linklint        # or: pnpm add linklint / yarn add linklint
 ```
 
-Requires Node ≥ 18. Ships with TypeScript types. Two runtime dependencies
+Requires Node ≥ 24. Ships with TypeScript types. Two runtime dependencies
 (`tldts` for the Public Suffix List, `tr46` for IDNA/UTS-46).
 
 ## Quick start
