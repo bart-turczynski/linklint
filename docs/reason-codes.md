@@ -390,6 +390,49 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   `http://127.0.0.1%09foo.google.com` (TAB host terminator).
 - **Scoring:** scoring, weight 0.6.
 
+## Policy codes (caller-configured, layer "policy", weight 0)
+
+These are **caller-configured** via `InspectOptions` — a separate channel from
+the built-in deception detectors. They surface in `reasons[]` with
+`layer: "policy"` and `weight: 0`, so they **never change the deception `score`
+or `severity`**: they annotate the result with a policy verdict and the consumer
+enforces it. When no policy field is set they do not fire and `checksRun` stays
+exactly `["lexical"]`.
+
+### `tld_denied` — policy (TLD deny-list)
+
+- **Meaning:** the host's **TLD** (the last label of the public suffix, e.g.
+  `co.uk` → `uk`) is on the caller's `denyTlds` list (default-allow: everything
+  not listed passes).
+- **Why it's surfaced:** a caller-owned policy decision, not a deception
+  heuristic — e.g. an organization that refuses links under `.ru` / `.cn`.
+  Distinct from the built-in `risky_tld`, which is a low-weight *scoring*
+  deception signal over a curated abuse-TLD set; `tld_denied` is whatever the
+  caller chose, advisory only.
+- **Matching:** TLD values are compared case-insensitively and bare (a leading
+  dot is tolerated and stripped). IP / hostless inputs have no public suffix and
+  never match.
+- **Example:** `inspect("https://promo.ru/", { denyTlds: ["ru", "cn"] })` →
+  `tld_denied` with detail `TLD '.ru' is on the caller deny-list`.
+- **Scoring:** policy, weight 0 (advisory; never moves the score).
+
+### `tld_not_allowlisted` — policy (TLD allow-list)
+
+- **Meaning:** the host's **TLD** is **not** on the caller's `allowTlds` list
+  (default-deny lockdown: only the listed TLDs pass).
+- **Why it's surfaced:** a caller-owned policy decision — e.g. an organization
+  that only permits links under `.com` / `.de`. Independent of the `denyTlds`
+  axis: when both are configured, a denied TLD emits `tld_denied` and the same
+  input also emits `tld_not_allowlisted` if its TLD is not in `allowTlds`.
+  Distinct from the built-in `risky_tld` deception heuristic.
+- **Matching:** TLD values are compared case-insensitively and bare (a leading
+  dot is tolerated and stripped). IP / hostless inputs have no public suffix and
+  never match.
+- **Example:** `inspect("https://example.org/", { allowTlds: ["com", "de"] })` →
+  `tld_not_allowlisted` with detail
+  `TLD '.org' is not on the caller allow-list ([com, de])`.
+- **Scoring:** policy, weight 0 (advisory; never moves the score).
+
 ## Meta
 
 ### `parse_error`

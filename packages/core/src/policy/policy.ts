@@ -23,7 +23,10 @@ import type { CollectedFinding } from "../schema/serialize.js";
  * Kept as a typed tuple of `keyof InspectOptions` so a typo or a removed field
  * is caught at compile time.
  */
-const POLICY_OPTION_KEYS = [] as const satisfies readonly (keyof InspectOptions)[];
+const POLICY_OPTION_KEYS = [
+  "denyTlds",
+  "allowTlds",
+] as const satisfies readonly (keyof InspectOptions)[];
 
 /**
  * Whether the caller has configured any policy axis. False in H1 (no policy
@@ -47,15 +50,43 @@ export function policyConfigured(options: InspectOptions): boolean {
  * `CollectedFinding`s with the axis's policy reason code.
  */
 export function runPolicy(
-  _ctx: InspectionContext,
-  _options: InspectOptions,
+  ctx: InspectionContext,
+  options: InspectOptions,
 ): CollectedFinding[] {
   const findings: CollectedFinding[] = [];
 
-  // H2–H4: each axis appends here, e.g.
-  //   findings.push(...checkDenyTlds(ctx, options));
-  // Axis checks read their field off `options`, are individually total, and
-  // emit policy reason codes (layer "policy", weight 0).
+  // ── TLD axis (H2) ─────────────────────────────────────────────────────────
+  // Caller-configured allow/deny on the TLD — the last label of the public
+  // suffix (e.g. `co.uk` → `uk`). IP / hostless inputs have no public suffix and
+  // are exempt. Both lists may fire independently when both are configured.
+  if (ctx.publicSuffix) {
+    const tld = ctx.publicSuffix.split(".").pop()!.toLowerCase();
+
+    if (options.denyTlds && normalizeTlds(options.denyTlds).includes(tld)) {
+      findings.push({
+        code: "tld_denied",
+        detail: `TLD '.${tld}' is on the caller deny-list`,
+      });
+    }
+
+    if (options.allowTlds) {
+      const allow = normalizeTlds(options.allowTlds);
+      if (!allow.includes(tld)) {
+        findings.push({
+          code: "tld_not_allowlisted",
+          detail: `TLD '.${tld}' is not on the caller allow-list ([${allow.join(", ")}])`,
+        });
+      }
+    }
+  }
 
   return findings;
+}
+
+/**
+ * Normalize a caller-supplied TLD list defensively: strip a leading dot and
+ * lower-case each entry so the comparison is bare and case-insensitive.
+ */
+function normalizeTlds(tlds: string[]): string[] {
+  return tlds.map((t) => t.replace(/^\./, "").toLowerCase());
 }

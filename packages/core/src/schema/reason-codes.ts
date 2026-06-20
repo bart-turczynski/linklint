@@ -172,6 +172,22 @@ export const REASON_CODES = {
       "Host has an abnormally large number of subdomain labels (≥5) — a low-weight combination signal for a buried registrable domain.",
   },
 
+  // ── Policy (caller-configured, weight 0) ─────────────────────────────────
+  tld_denied: {
+    layer: "policy",
+    scoring: false,
+    weight: 0,
+    summary:
+      "Caller-configured: the host's TLD is on the caller's deny-list. Advisory only (weight 0) — distinct from the built-in risky_tld deception heuristic.",
+  },
+  tld_not_allowlisted: {
+    layer: "policy",
+    scoring: false,
+    weight: 0,
+    summary:
+      "Caller-configured: the host's TLD is not on the caller's allow-list. Advisory only (weight 0) — distinct from the built-in risky_tld deception heuristic.",
+  },
+
   // ── Meta ────────────────────────────────────────────────────────────────
   parse_error: {
     layer: "lexical",

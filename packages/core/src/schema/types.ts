@@ -118,6 +118,37 @@ export interface InspectOptions {
    * safe internal value.
    */
   maxDecodeDepth?: number;
+
+  /**
+   * Policy: TLD deny-list (default-allow). When set, a host whose TLD is in this
+   * list emits the `tld_denied` policy reason. Everything else passes.
+   *
+   * Values are bare TLD labels (no leading dot) compared **case-insensitively**;
+   * a leading dot is tolerated and stripped. The comparison is against the
+   * **last label** of the host's public suffix (the TLD) — e.g. `co.uk` → `uk`.
+   * IP / hostless inputs have no public suffix and never match.
+   *
+   * @example denyTlds: ["ru", "cn"]
+   */
+  denyTlds?: string[];
+
+  /**
+   * Policy: TLD allow-list (default-deny lockdown). When set, a host whose TLD is
+   * **not** in this list emits the `tld_not_allowlisted` policy reason. Only the
+   * listed TLDs pass.
+   *
+   * Values are bare TLD labels (no leading dot) compared **case-insensitively**;
+   * a leading dot is tolerated and stripped. The comparison is against the
+   * **last label** of the host's public suffix (the TLD). IP / hostless inputs
+   * have no public suffix and never match.
+   *
+   * Precedence when both are set: the two axes are independent and either may
+   * fire. A TLD on `denyTlds` emits `tld_denied`; the same input also emits
+   * `tld_not_allowlisted` if `allowTlds` is set and the TLD is not in it.
+   *
+   * @example allowTlds: ["com", "de"]
+   */
+  allowTlds?: string[];
 }
 
 /** The full inspection result. */
