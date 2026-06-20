@@ -353,6 +353,61 @@ export const CORPUS: CorpusRow[] = [
   { input: "https://straße.de/", label: "info", expectReasons: ["idna_mapping_ambiguity"], forbidReasons: ["mixed_script"], notes: "J9: legit German ß IDN — info only, must not flag" },
   { input: "https://ολυμπιακός.gr/", label: "info", expectReasons: ["idna_mapping_ambiguity"], forbidReasons: ["mixed_script"], notes: "J9: legit Greek IDN with final sigma ς" },
 
+  // ── Epic I: download / redirect / subdomain-depth detectors (I1–I3) ──────
+  // Deceptive — suspicious executable extension (I1, weight 0.5 → medium)
+  {
+    input: "https://cdn.example.com/setup.exe",
+    label: "deceptive",
+    expectReasons: ["suspicious_extension"],
+    notes: "I1 direct executable download (.exe)",
+  },
+  {
+    input: "https://files.example.com/invoice.pdf.exe",
+    label: "deceptive",
+    expectReasons: ["suspicious_extension"],
+    notes: "I1 double-extension lure — visible .pdf, real .exe",
+  },
+
+  // Deceptive — open-redirect parameter (I2, weight 0.4 → medium): the cross-host (A→B) case
+  {
+    input: "https://example.com/login?next=https://evil.com/phish",
+    label: "deceptive",
+    expectReasons: ["open_redirect_param"],
+    notes: "I2 cross-host (A→B) redirect payload deferred from I2 — reads as example.com, lands on evil.com",
+  },
+  {
+    input: "https://example.com/login?next=https%253A%252F%252Fevil.com%252Fphish",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["open_redirect_param", "encoding_obfuscation"],
+    notes: "I2 double-encoded cross-host payload (stacks encoding_obfuscation → high)",
+  },
+
+  // Deceptive — excessive subdomain depth (I3, weight 0.15 → low alone)
+  {
+    input: "https://a.b.c.d.e.example.com/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["excessive_subdomain_depth"],
+    forbidReasons: ["embedded_domain_in_subdomain"],
+    notes: "I3 deep subdomain alone (5 labels) — low weight, no embedded registrable-domain window",
+  },
+  {
+    input: "https://a.b.c.d.paypal.com.evil-login.tk/",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["excessive_subdomain_depth"],
+    notes: "I3 deep-subdomain phish — stacks embedded_domain_in_subdomain + risky_tld → high",
+  },
+
+  // Benign (SC-2): the I detectors must NOT over-flag these
+  { input: "https://cdn.assets.eu-west-1.svc.example.com/", label: "benign", forbidReasons: ["excessive_subdomain_depth"], notes: "I3 guard: 4-label subdomain stays below the ≥5 threshold" },
+  { input: "https://example.com/login?next=/dashboard", label: "benign", forbidReasons: ["open_redirect_param"], notes: "I2 guard: relative same-host redirect value" },
+  { input: "https://app.example.com/?next=https://www.example.com/x", label: "benign", forbidReasons: ["open_redirect_param"], notes: "I2 guard: target is the same registrable domain (subdomain of example.com)" },
+  { input: "https://files.example.com/report.pdf", label: "benign", forbidReasons: ["suspicious_extension"], notes: "I1 guard: .pdf is not an executable extension" },
+  { input: "https://files.example.com/archive.zip", label: "benign", forbidReasons: ["suspicious_extension"], notes: "I1 guard: .zip archive is deliberately excluded from the dangerous set" },
+  { input: "https://files.example.com/photo.png", label: "benign", forbidReasons: ["suspicious_extension"], notes: "I1 guard: image download is ordinary" },
+
   // ── Imported IDN / PSL / host test vectors (E6) ─────────────────────────
   ...VECTORS,
 ];
