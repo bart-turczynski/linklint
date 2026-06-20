@@ -1,22 +1,11 @@
 import type { DetectorFinding } from "./types.js";
-import type { RuntimeConfig } from "../parse/runtime.js";
-import type { AuthorityRegion } from "../parse/authority-region.js";
-import { scanAmbiguousAuthority } from "./ambiguous-authority.js";
-import { scanSeparatorLookalike } from "./separator-lookalike.js";
-import { scanIdnaMappingAmbiguity } from "./idna-mapping-ambiguity.js";
-import { scanControlChar } from "./control-char.js";
+import type { ScanContext, StructuralCheckDescriptor } from "./descriptor.js";
+import { CHECKS } from "./checks.js";
 
-/**
- * Shared context handed to every structural scan. Built once per `inspect()`
- * call so scans don't each re-derive the prepared form, runtime knobs, or the
- * authority region (every scan needs the latter — compute it once).
- */
-export interface ScanContext {
-  input: string;
-  prepared: string;
-  runtime: RuntimeConfig;
-  authority: AuthorityRegion;
-}
+// `ScanContext` lives in descriptor.ts (so the descriptor union can reference it
+// without an import cycle); re-export it here to keep this module's surface
+// unchanged for existing importers.
+export type { ScanContext } from "./descriptor.js";
 
 /**
  * A structural scan over the raw/prepared input (J1/J2/J3/J9). Mirrors the
@@ -30,18 +19,11 @@ export interface StructuralScan {
 }
 
 /**
- * Ordered list of structural scans run by `inspect()` ahead of parse(). Same
- * order as the previous inline array (ambiguous-authority, separator-lookalike,
- * idna-mapping-ambiguity, control-char). Each scan receives the once-computed
- * authority region; scanControlChar additionally takes `runtime` (the decode
- * depth knob) — it is the only scan that decodes.
+ * Ordered list of structural scans run by `inspect()` ahead of parse(). DERIVED
+ * from the unified {@link CHECKS} registry: the structural-phase descriptors, in
+ * registry order (ambiguous-authority, separator-lookalike,
+ * idna-mapping-ambiguity, control-char), projected onto the `{id, run}` shape.
  */
-export const STRUCTURAL_SCANS: StructuralScan[] = [
-  { id: "ambiguous_authority", run: (ctx) => scanAmbiguousAuthority(ctx.prepared, ctx.authority) },
-  { id: "separator_lookalike", run: (ctx) => scanSeparatorLookalike(ctx.prepared, ctx.authority) },
-  {
-    id: "idna_mapping_ambiguity",
-    run: (ctx) => scanIdnaMappingAmbiguity(ctx.prepared, ctx.authority),
-  },
-  { id: "control_char", run: (ctx) => scanControlChar(ctx.prepared, ctx.runtime, ctx.authority) },
-];
+export const STRUCTURAL_SCANS: StructuralScan[] = CHECKS.filter(
+  (c): c is StructuralCheckDescriptor => c.phase === "structural",
+).map((c) => ({ id: c.id, run: c.run }));
