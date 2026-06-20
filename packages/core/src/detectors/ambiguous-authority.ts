@@ -2,7 +2,7 @@ import type { DetectorFinding } from "./types.js";
 import { authorityRegion, type AuthorityRegion } from "../parse/authority-region.js";
 
 /**
- * J1 — `ambiguous_authority` (Epic J, FR parser-differential). SCORING.
+ * `ambiguous_authority` (FR parser-differential). SCORING.
  *
  * Flags a URL whose authority is structurally ambiguous enough that two parsers
  * would resolve it to different host/port — the Orange Tsai "A New Era of SSRF"

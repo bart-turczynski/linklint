@@ -2,7 +2,7 @@ import type { Detector } from "./types.js";
 import { isFileExtensionTld } from "../data/risky-tlds.js";
 
 /**
- * J6 — `file_extension_tld` (Epic J). SCORING. Sharper successor to `risky_tld`
+ * `file_extension_tld`. SCORING. Sharper successor to `risky_tld`
  * for the extension-confusable TLDs `.zip` / `.mov`, which it owns exclusively
  * (those TLDs were removed from the `risky_tld` set so the two never double-count).
  *
@@ -12,12 +12,12 @@ import { isFileExtensionTld } from "../data/risky-tlds.js";
  *  - **bare filename** — the host is exactly `stem.zip` with no subdomain, so it
  *    reads as a filename rather than a website (`https://invoice.zip/`);
  *  - **hidden behind userinfo** — a `…@stem.zip` authority, the lure in
- *    `github.com∕x@update.zip` (a J2 slash-look-alike pushes the brand into
+ *    `github.com∕x@update.zip` (a slash-look-alike pushes the brand into
  *    userinfo and the real host is the file-looking `.zip`).
  *
  * A deep-subdomain `.zip` host with no userinfo (`cdn.assets.acme.zip`) reads as
  * an ordinary site, so it is left alone (SC-2). Weight 0.4 (medium) — higher than
- * `risky_tld` (0.15) and combines with J1/J2/`userinfo_present`.
+ * `risky_tld` (0.15) and combines with the structural detectors and `userinfo_present`.
  */
 export const fileExtensionTld: Detector = {
   id: "file_extension_tld",

@@ -20,7 +20,7 @@ export interface CollectedFinding {
  * Build a `status: "invalid"` result for unparseable input (FR-IN-4).
  *
  * Invalid stays "not benign" (`score: null`, fail-closed), but it can now carry
- * reasons: a structurally-ambiguous-yet-unresolvable URL (Epic J `ambiguous_
+ * reasons: a structurally-ambiguous-yet-unresolvable URL (`ambiguous_
  * authority`) returns `invalid` *with* an explanation instead of a bare
  * `parse_error`. When `findings` is empty we fall back to `parse_error`.
  */

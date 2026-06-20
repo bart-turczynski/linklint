@@ -3,7 +3,7 @@ import type { InspectionContext } from "../detectors/types.js";
 import type { CollectedFinding } from "../schema/serialize.js";
 
 /**
- * TLD axis (H2). Caller-configured allow/deny on the TLD — the last label of the
+ * TLD axis. Caller-configured allow/deny on the TLD — the last label of the
  * public suffix (e.g. `co.uk` → `uk`). IP / hostless inputs have no public
  * suffix and are exempt. Both lists may fire independently when both are
  * configured.

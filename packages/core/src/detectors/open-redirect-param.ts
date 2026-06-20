@@ -3,7 +3,7 @@ import { analyzeHost } from "../parse/psl.js";
 import { boundedDecode } from "../parse/decode.js";
 
 /**
- * I2 — `open_redirect_param` (Epic I). SCORING, weight 0.4.
+ * `open_redirect_param`. SCORING, weight 0.4.
  *
  * Flags a query parameter whose NAME is a known redirect parameter and whose
  * decoded VALUE is itself a URL pointing to a DIFFERENT registrable domain than

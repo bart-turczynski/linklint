@@ -1,8 +1,8 @@
 import { CONFUSABLES } from "../data/confusables.js";
 
 /**
- * UTS#39 §4 `skeleton(X)` — the confusable skeleton of a string (E3 / FR-D-16
- * follow-up). Two strings are *visually confusable* exactly when their
+ * UTS#39 §4 `skeleton(X)` — the confusable skeleton of a string (FR-D-16).
+ * Two strings are *visually confusable* exactly when their
  * skeletons are equal, so a skeleton collision against a known brand is a
  * whole-label homograph of that brand.
  *

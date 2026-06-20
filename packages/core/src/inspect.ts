@@ -18,7 +18,7 @@ import { authorityRegion } from "./parse/authority-region.js";
  * input — `status: "ok"` for anything parseable, `status: "invalid"` otherwise.
  */
 export function inspect(input: string, options: InspectOptions = {}): InspectResult {
-  // J1/J2/J3/J9 — structural scans over the raw input. They run independently of
+  // Structural scans over the raw input. They run independently of
   // parse() so they can flag the very inputs parse() discards (backslash, empty
   // authority, multi-colon host, delimiter look-alikes, encoded control chars)
   // instead of losing the signal to `invalid`.

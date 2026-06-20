@@ -1,7 +1,7 @@
 /**
- * Curated brand watchlist (Epic G). The shared, authoritative data source all
- * G-family brand detectors consume:
- *   - the **registrable brand domain** (`paypal.com`) feeds the G2
+ * Curated brand watchlist. The shared, authoritative data source all
+ * brand detectors consume:
+ *   - the **registrable brand domain** (`paypal.com`) feeds the
  *     `brand_lookalike` detector's Damerau-Levenshtein distance against an
  *     input's registrable domain, and
  *   - one or more **brand keyword(s)** (`paypal`) feed combosquatting /
@@ -13,7 +13,7 @@
  * `brand_in_path` can fire on, so precision comes first (SC-2).
  *
  * Entries are normalized: lowercase domain (registrable, no scheme/path/www),
- * lowercase keywords. `BRAND_KEYWORDS` (the J7 `brand_in_path` contract) is
+ * lowercase keywords. `BRAND_KEYWORDS` (the `brand_in_path` contract) is
  * DERIVED from this list — one source of truth.
  *
  * Version-pinned via dataVersions.brands. Plain module exports under src/data/,
@@ -29,7 +29,7 @@ export interface BrandEntry {
    * Brand keyword(s), lowercase, used for combosquatting / brand-in-path. May
    * be empty when the brand's only natural keyword is a generic English word
    * (e.g. `meta`, `box`, `target`) that would over-flag — the domain still
-   * participates in G2 lookalike matching via `BRAND_DOMAINS`.
+   * participates in lookalike matching via `BRAND_DOMAINS`.
    */
   readonly keywords: readonly string[];
 }
@@ -157,7 +157,7 @@ export const BRAND_WATCHLIST: readonly BrandEntry[] = [
 ];
 
 /**
- * All watchlist keywords, deduped. This IS the `brand_in_path` (J7) contract:
+ * All watchlist keywords, deduped. This IS the `brand_in_path` contract:
  * a `ReadonlySet<string>` of lowercase brand keywords. Derived from
  * `BRAND_WATCHLIST` so the watchlist is the single source of truth.
  */
@@ -171,7 +171,7 @@ export function isBrandKeyword(token: string): boolean {
 }
 
 /**
- * Registrable brand domains on the watchlist, deduped. Consumed by the G2
+ * Registrable brand domains on the watchlist, deduped. Consumed by the
  * `brand_lookalike` detector for edit-distance comparison.
  */
 export const BRAND_DOMAINS: readonly string[] = [

@@ -153,11 +153,11 @@ export const REASON_CODES = {
   brand_homoglyph: {
     layer: "lexical",
     scoring: true,
-    // Highest-confidence brand impersonation in Epic G: the registrable domain
+    // Highest-confidence brand impersonation: the registrable domain
     // folds via ASCII digit look-alikes (0->o, 1->l, 5->s) to EXACTLY a watchlist
     // brand domain (paypa1.com -> paypal.com, g00gle.com -> google.com). Weighted
     // above brand_lookalike — an exact skeleton match is more decisive than a
-    // fuzzy near-miss. Provisional — G5 re-tunes against the full corpus.
+    // fuzzy near-miss. Provisional — re-tuned against the full corpus.
     weight: 0.5,
     summary:
       "Registrable domain folds via ASCII digit look-alikes (0->o, 1->l, 5->s) to exactly a known brand domain — a high-confidence brand impersonation (paypa1.com, g00gle.com).",
@@ -169,7 +169,7 @@ export const REASON_CODES = {
     // strong-but-not-decisive standalone signal; a fuzzy near-miss of a known
     // brand domain is a deliberate typosquat far more often than chance. Kept
     // below brand_homoglyph (an exact skeleton match is higher confidence).
-    // Provisional — G5 re-tunes against the full corpus.
+    // Provisional — re-tuned against the full corpus.
     weight: 0.4,
     summary:
       "Registrable domain is a transposition-aware edit-distance near-miss (1–2) of a known brand domain — a typosquat (gogole.com, microsoftt.com, paypal.co).",
@@ -182,7 +182,7 @@ export const REASON_CODES = {
     // phishing structure that edit distance cannot see. Tuned into the
     // brand_lookalike band (0.4): a strong-but-not-decisive standalone signal —
     // host-keyword matching carries some FP risk, so it sits below the
-    // exact-fold brand_homoglyph. Provisional — G5 re-tunes against the corpus.
+    // exact-fold brand_homoglyph. Provisional — re-tuned against the corpus.
     weight: 0.4,
     summary:
       "A watchlist brand keyword is glued to an additive token in the host (paypal-secure.com, login-paypal.com) — a combosquat invisible to edit-distance look-alike checks.",
@@ -190,7 +190,7 @@ export const REASON_CODES = {
   homograph_skeleton_collision: {
     layer: "lexical",
     scoring: true,
-    // E3 (FR-D-16 follow-up) — the registrable domain's UTS#39 confusable
+    // The registrable domain's UTS#39 confusable
     // skeleton equals a watchlist brand domain exactly: a single-script,
     // all-confusable look-alike (e.g. an all-Cyrillic `сһаѕе.com`) that
     // `mixed_script` cannot see (no script mixing) and confusable annotation
@@ -206,7 +206,7 @@ export const REASON_CODES = {
   brand_soundsquat: {
     layer: "lexical",
     scoring: true,
-    // T2 (Addendum §4) — the registrable label is a PHONETIC homophone of a
+    // The registrable label is a PHONETIC homophone of a
     // watchlist brand (netflicks → netflix, dropboks → dropbox): same sound,
     // but invisible to edit-distance / digit-fold checks. Provisional weight
     // 0.3 — BELOW brand_lookalike (0.4) because phonetic-key matching is lossier
@@ -221,7 +221,7 @@ export const REASON_CODES = {
   brand_bitsquat: {
     layer: "lexical",
     scoring: true,
-    // T3 (Addendum §4) — the registrable label is a single-bit-flip neighbor of a
+    // The registrable label is a single-bit-flip neighbor of a
     // watchlist brand (netfliz -> netflix, amazgn -> amazon): the memory/
     // transmission-error attack class. A bit-flip is by construction also an
     // edit-distance-1 neighbor, so this usually STACKS with brand_lookalike
@@ -236,11 +236,11 @@ export const REASON_CODES = {
   bait_tokens: {
     layer: "lexical",
     scoring: true,
-    // G4 — phishing-bait keyword density in host/path. A weak corroborating
+    // Phishing-bait keyword density in host/path. A weak corroborating
     // signal, never decisive on its own: legit login/account pages carry these
     // words routinely, so this is weighted LOW (the risky_tld / excessive_
     // subdomain_depth 0.15 band) and only fires on a HIGH density. It complements
-    // the G2/G3 brand checks. Provisional — G5 re-tunes against the full corpus.
+    // the brand-impersonation checks. Provisional — re-tuned against the full corpus.
     weight: 0.15,
     summary:
       "Host/path stacks multiple distinct phishing-bait keywords (secure, verify, account, login…) — a low-weight density signal that corroborates the brand-impersonation checks.",

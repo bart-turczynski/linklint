@@ -3,7 +3,7 @@ import { authorityRegion, type AuthorityRegion } from "../parse/authority-region
 import { toAsciiUnder } from "../unicode/idna.js";
 
 /**
- * J9 — `idna_mapping_ambiguity` (Epic J). Informational (weight 0) for now.
+ * `idna_mapping_ambiguity`. Informational (weight 0) for now.
  *
  * Flags the Tsai "Abusing IDNA Standard" class: a host whose characters are
  * mapped *differently by different IDNA standards*, so the component that
@@ -19,7 +19,7 @@ import { toAsciiUnder } from "../unicode/idna.js";
  *     IDNA mapping reads a different host than the browser. `ｇｏｏｇｌｅ.com` and
  *     `ⓖⓞⓞⓖⓛⓔ.com` → `google.com`.
  *
- * Runs as a raw scan (like J1/J2) rather than a context detector: circled
+ * Runs as a raw scan (like the other structural detectors) rather than a context detector: circled
  * letters and other compatibility characters are rejected by `parse()`'s
  * host-character rule, so a context detector would never see them. Scanning the
  * raw authority lets an `invalid` result carry the explanation, and a parseable
@@ -27,9 +27,8 @@ import { toAsciiUnder } from "../unicode/idna.js";
  *
  * Weight: informational (0). A lone ß is a legitimate German IDN (`baß.de` is a
  * real registrable domain), so the base signal must not raise severity (SC-2).
- * Epic G wires the SCORING escalation: when the alternate IDNA2003 mapping equals
+ * The brand-aware layer wires the SCORING escalation: when the alternate IDNA2003 mapping equals
  * a known brand (`wordpreß` → `wordpress`), it becomes an impersonation signal.
- * Decision recorded against the brainstorm's OQ-J9b.
  *
  * Implemented with the vetted `tr46` library in both processing modes
  * (FR-LIB-1: do not hand-roll IDNA).

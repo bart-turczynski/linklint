@@ -3,7 +3,7 @@ import { BRAND_DOMAINS } from "../data/brands.js";
 import { skeleton } from "../unicode/skeleton.js";
 
 /**
- * E3 — `homograph_skeleton_collision` (scoring). The single documented v1
+ * `homograph_skeleton_collision` (scoring). The single documented v1
  * *detection* hole that FR-D-16 deferred: a single-script, all-confusable
  * look-alike of a brand. An all-Cyrillic `сһаѕе.com` (every letter a Cyrillic
  * homoglyph of the Latin one) has NO script mixing, so `mixed_script` never
@@ -19,20 +19,20 @@ import { skeleton } from "../unicode/skeleton.js";
  * score raw confusables (the SC-2 failure mode that deferred FR-D-16); we only
  * fire when the skeleton lands on a brand byte-for-byte.
  *
- * ── No double-fire with G2 `brand_homoglyph` ───────────────────────────────
- * G2 owns the PURE-ASCII digit-fold case (`paypa1.com` → `paypal.com`) and
+ * ── No double-fire with `brand_homoglyph` ───────────────────────────────
+ * `brand_homoglyph` owns the PURE-ASCII digit-fold case (`paypa1.com` → `paypal.com`) and
  * bails on any non-ASCII registrable domain. This detector is its mirror: it
  * runs ONLY when the registrable domain is non-ASCII (carries a codepoint
  * > U+007F). That single guard makes the two mutually exclusive by
  * construction — an ASCII digit-fold input can never reach here, so it stays
- * G2's. (Conversely G2 already skips non-ASCII, so this fills exactly its gap.)
+ * `brand_homoglyph`'s. (Conversely `brand_homoglyph` already skips non-ASCII, so this fills exactly its gap.)
  *
- * ── No double-fire with J9 `idna_mapping_ambiguity` ────────────────────────
+ * ── No double-fire with `idna_mapping_ambiguity` ────────────────────────
  * A compatibility homograph — fullwidth Latin `ｇｏｏｇｌｅ.com` — NFKC-folds to
- * pure ASCII (`google.com`) and is already owned by the J9
+ * pure ASCII (`google.com`) and is already owned by the
  * `idna_mapping_ambiguity` annotation (resolver disagreement). This detector
  * therefore additionally requires the host to still carry a non-ASCII codepoint
- * AFTER NFKC: that excludes the compatibility-fold family and keeps E3 on its
+ * AFTER NFKC: that excludes the compatibility-fold family and keeps this detector on its
  * documented target — a genuine cross-script (e.g. all-Cyrillic) homograph.
  *
  * ── Precision (SC-2, precision=1 discipline) ───────────────────────────────
@@ -61,12 +61,12 @@ export const skeletonCollision: Detector = {
   run(ctx): DetectorFinding[] {
     const input = ctx.registrableDomain;
     if (!input || ctx.isIp) return [];
-    // Non-ASCII only: the pure-ASCII digit-fold case belongs to G2
+    // Non-ASCII only: the pure-ASCII digit-fold case belongs to
     // brand_homoglyph. This guard makes the two detectors mutually exclusive.
     if (!hasNonAscii(input)) return [];
     // Skip the compatibility-fold family (fullwidth/halfwidth Latin etc.): if the
     // host NFKC-folds to pure ASCII it is an IDNA-mapping homograph already owned
-    // by J9 idna_mapping_ambiguity, not the cross-script case E3 targets.
+    // by idna_mapping_ambiguity, not the cross-script case this detector targets.
     if (!hasNonAscii(input.normalize("NFKC"))) return [];
 
     const skel = skeleton(input.toLowerCase());

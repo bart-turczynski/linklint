@@ -7,15 +7,15 @@ import {
 } from "./brand-utils.js";
 
 /**
- * T2 — `brand_soundsquat` (Epic G, IDEAS-ADDENDUM §4). SCORING, weight 0.3.
+ * `brand_soundsquat` (IDEAS-ADDENDUM §4). SCORING, weight 0.3.
  *
  * Detects SOUNDSQUATTING: a host whose registrable label is a PHONETIC
  * homophone of a watchlist brand — it *sounds* like the brand when read aloud,
  * even though it is neither an edit-distance near-miss nor a digit/confusable
  * fold. `netflicks.com` (→ netflix), `dropboks.com` (→ dropbox),
  * `spotifi.com` (→ spotify). Per Addendum §4 these read as the brand to a human
- * ear/eye but are invisible to the G2 edit-distance and digit/skeleton folds:
- * `ck`→`k` plus `x`→`ks` is two raw edits over a 7-char label, below G2's
+ * ear/eye but are invisible to the edit-distance and digit/skeleton folds:
+ * `ck`→`k` plus `x`→`ks` is two raw edits over a 7-char label, below the
  * distance-2 length gate, so `netflicks` and `dropboks` currently flag NOTHING.
  * This detector fills exactly that recall hole.
  *
@@ -38,7 +38,7 @@ import {
  * ── Precision (SC-2, precision=1 discipline) — phonetic matching is FP-prone ─
  * Phonetic keys are lossy, so this detector is deliberately conservative:
  *  - **Pure-ASCII registrable label only.** A non-ASCII host belongs to the
- *    confusable / E3 `homograph_skeleton_collision` detectors; the all-ASCII
+ *    confusable / `homograph_skeleton_collision` detectors; the all-ASCII
  *    watchlist cannot be a genuine homophone of a Unicode label.
  *  - **Exact brand never fires.** If the input's registrable domain is itself a
  *    watchlist brand domain, it IS the brand — skip. An input label equal to a
@@ -125,7 +125,7 @@ export const soundsquatting: Detector = {
   layer: "lexical",
   run(ctx): DetectorFinding[] {
     // Pure-ASCII, non-IP registrable domain that is not itself a brand. Non-ASCII
-    // (IDN) hosts belong to the confusable / E3 detectors; the real brand never
+    // (IDN) hosts belong to the confusable detectors; the real brand never
     // fires — it IS the brand.
     const raw = asciiRegistrableBrandCandidate(ctx);
     if (raw === null) return [];
@@ -133,7 +133,7 @@ export const soundsquatting: Detector = {
     const label = significantLabel(raw);
     if (label.length < MIN_LABEL_LEN) return [];
     // An input label equal to a brand label is the brand spelling, not a
-    // homophone of it — skip (e.g. a brand on a different TLD is G2's job).
+    // homophone of it — skip (e.g. a brand on a different TLD is brand_lookalike's job).
     if (BRAND_LABEL_SET.has(label)) return [];
 
     const key = phoneticKey(label);

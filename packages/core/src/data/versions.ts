@@ -19,7 +19,7 @@ export const DATA_VERSIONS: DataVersions = {
   // UTS-46 / IDNA normalization library.
   idna: "tr46@6.0.0",
   riskyTlds: "2026-06-19",
-  // Curated brand watchlist (Epic G): registrable domains + keywords (G1).
+  // Curated brand watchlist: registrable domains + keywords.
   brands: "2026-06-20-watchlist",
   weights: WEIGHTS_VERSION,
 };

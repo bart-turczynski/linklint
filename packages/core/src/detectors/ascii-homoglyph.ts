@@ -2,7 +2,7 @@ import type { Detector } from "./types.js";
 import { ASCII_DIGIT_HOMOGLYPHS } from "../data/ascii-confusables.js";
 
 /**
- * J4 — `ascii_homoglyph` (Epic J). SCORING, low weight (0.2).
+ * `ascii_homoglyph`. SCORING, low weight (0.2).
  *
  * Flags SAME-SCRIPT (Latin/ASCII) look-alikes that the cross-script detectors
  * miss: `mixed_script` and `confusable_char` only fire when two *different*
@@ -28,14 +28,14 @@ import { ASCII_DIGIT_HOMOGLYPHS } from "../data/ascii-confusables.js";
  * LETTER-multigraph confusions (`rn`→m, `vv`→w) are intentionally NOT handled
  * here: generically they fire on ordinary words (`modern`, `return`, `savvy`)
  * and can only be told apart from an attack by distance to a known brand — that
- * belongs to the brand-aware layer (Epic G). Confirmed brand matches also escalate
+ * belongs to the brand-aware layer. Confirmed brand matches also escalate
  * there; this base signal stays low so a lone digit-in-word lands `low` and only
  * matters in combination.
  */
 
 // Letter-shaped digits and the letter each maps to for the readable skeleton
 // come from the shared `ASCII_DIGIT_HOMOGLYPHS` map (data/ascii-confusables.ts)
-// — the single source of truth this detector and G2 `brand_lookalike` share.
+// — the single source of truth this detector and `brand_lookalike` share.
 
 export const asciiHomoglyph: Detector = {
   id: "ascii_homoglyph",

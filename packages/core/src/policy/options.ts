@@ -16,9 +16,9 @@ export const POLICY_OPTION_KEYS: readonly (keyof InspectOptions)[] =
   POLICY_AXIS_DESCRIPTORS.flatMap((descriptor) => descriptor.optionKeys);
 
 /**
- * Whether the caller has configured any policy axis. False in H1 (no policy
- * fields exist yet); becomes `true` once a caller passes a recognized policy
- * field added in H2–H4. Drives whether `policy` appears in `checksRun`.
+ * Whether the caller has configured any policy axis. False when no policy
+ * fields exist; becomes `true` once a caller passes a recognized policy
+ * field. Drives whether `policy` appears in `checksRun`.
  */
 export function policyConfigured(options: InspectOptions): boolean {
   return POLICY_OPTION_KEYS.some(
