@@ -71,4 +71,4 @@ export { runPolicy, policyConfigured } from "./policy/policy.js";
 export { parse } from "./parse/parse.js";
 export { findConfusables } from "./unicode/confusables.js";
 export { RISKY_TLDS, FILE_EXTENSION_TLDS } from "./data/risky-tlds.js";
-export { BRAND_KEYWORDS } from "./data/brands.js";
+export { BRAND_KEYWORDS, BRAND_DOMAINS, BRAND_WATCHLIST, type BrandEntry } from "./data/brands.js";
