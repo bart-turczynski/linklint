@@ -2,6 +2,7 @@ import type { Detector } from "./types.js";
 import { normalizationDelta } from "./normalization-delta.js";
 import { confusableChar } from "./confusable-char.js";
 import { mixedScript } from "./mixed-script.js";
+import { asciiHomoglyph } from "./ascii-homoglyph.js";
 import { invisibleChar } from "./invisible-char.js";
 import { bidiOverride } from "./bidi-override.js";
 import { userinfoPresent } from "./userinfo-present.js";
@@ -23,6 +24,7 @@ export const DETECTORS: Detector[] = [
   normalizationDelta, // FR-D-1  (info)
   confusableChar, // FR-D-2  (info)
   mixedScript, // FR-D-3  (scoring)
+  asciiHomoglyph, // J4      (scoring, low)
   invisibleChar, // FR-D-4  (scoring)
   bidiOverride, // FR-D-5  (scoring)
   userinfoPresent, // FR-D-6  (scoring)
@@ -40,6 +42,7 @@ export {
   normalizationDelta,
   confusableChar,
   mixedScript,
+  asciiHomoglyph,
   invisibleChar,
   bidiOverride,
   userinfoPresent,

@@ -136,6 +136,13 @@ export const REASON_CODES = {
     summary:
       "URL carries ASCII control/whitespace characters (raw or percent-encoded CR/LF/TAB/NUL) used to smuggle a protocol or terminate the host.",
   },
+  ascii_homoglyph: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.2,
+    summary:
+      "Host label uses ASCII digit look-alikes for letters (g00gle, paypa1) — a same-script disguise the cross-script checks miss.",
+  },
 
   // ── Meta ────────────────────────────────────────────────────────────────
   parse_error: {
