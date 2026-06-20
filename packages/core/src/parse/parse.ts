@@ -3,7 +3,7 @@ import type { InspectionContext } from "../detectors/types.js";
 import { stripInvisible } from "../unicode/format-chars.js";
 import { toUnicode } from "../unicode/idna.js";
 import { analyzeHost, type PslResult } from "./psl.js";
-import { analyzeIpv4 } from "./ip.js";
+import { analyzeIpv4, analyzeIpv6 } from "./ip.js";
 import { prepare } from "./prepare.js";
 
 /**
@@ -107,7 +107,9 @@ export function parse(input: string): InspectionContext | null {
   // host + port
   let rawHost: string;
   let port: number | null = null;
+  let bracketed = false;
   if (hostport.startsWith("[")) {
+    bracketed = true;
     const close = hostport.indexOf("]");
     if (close === -1) return null;
     rawHost = hostport.slice(1, close);
@@ -129,7 +131,13 @@ export function parse(input: string): InspectionContext | null {
     }
   }
 
-  if (!hostIsValid(rawHost)) return null;
+  // A bracketed host must be a valid IPv6 literal; an unbracketed one a reg-name
+  // or IPv4. (Brackets carry the colons that hostIsValid would otherwise reject.)
+  if (bracketed) {
+    if (analyzeIpv6(rawHost) === null) return null;
+  } else if (!hostIsValid(rawHost)) {
+    return null;
+  }
 
   // path / query / fragment
   let path = "";
@@ -165,13 +173,15 @@ interface RawParts {
 
 function buildContext(input: string, raw: RawParts): InspectionContext {
   const host = stripInvisible(raw.rawHost);
-  // An IPv4 host (canonical or obfuscated) is never a registrable domain — null
-  // the PSL fields so domain-based detectors (embedded_domain, risky_tld) skip it.
+  // An IP host (IPv4 canonical/obfuscated, or an IPv6 literal) is never a
+  // registrable domain — null the PSL fields so domain-based detectors
+  // (embedded_domain, risky_tld) skip it. IPs also have no Unicode/IDN form.
   const isIpv4 = host !== "" && analyzeIpv4(host) !== null;
-  const psl: PslResult =
-    host === "" || isIpv4 ? emptyPsl(isIpv4) : analyzeHost(host);
-  const hostUnicode = host === "" ? "" : toUnicode(host);
-  const hostLabels = host === "" ? [] : host.replace(/\.$/, "").split(".");
+  const isIp = isIpv4 || (host !== "" && host.includes(":") && analyzeIpv6(host) !== null);
+  const psl: PslResult = host === "" || isIp ? emptyPsl(isIp) : analyzeHost(host);
+  const hostUnicode = host === "" || isIp ? host : toUnicode(host);
+  const hostLabels =
+    host === "" ? [] : isIp && host.includes(":") ? [host] : host.replace(/\.$/, "").split(".");
 
   const parsed: ParsedUrl = {
     scheme: raw.scheme,
