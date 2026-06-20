@@ -1,5 +1,5 @@
 import type { DetectorFinding } from "./types.js";
-import { authorityRegion } from "../parse/authority-region.js";
+import { authorityRegion, type AuthorityRegion } from "../parse/authority-region.js";
 
 /**
  * J2 — `separator_lookalike` (Epic J, FR parser-differential). SCORING.
@@ -46,10 +46,13 @@ const cp = (n: number): string => `U+${n.toString(16).toUpperCase().padStart(4, 
  * Scan the prepared input's authority for delimiter look-alikes. Returns a
  * single `separator_lookalike` finding listing every offending character, or `[]`.
  */
-export function scanSeparatorLookalike(prepared: string): DetectorFinding[] {
+export function scanSeparatorLookalike(
+  prepared: string,
+  region: AuthorityRegion = authorityRegion(prepared),
+): DetectorFinding[] {
   if (prepared === "") return [];
 
-  const { authority, opaque } = authorityRegion(prepared);
+  const { authority, opaque } = region;
   if (opaque || authority === "") return [];
 
   // Guard 2: only domain-shaped authorities (some ASCII alnum) — not CJK prose.

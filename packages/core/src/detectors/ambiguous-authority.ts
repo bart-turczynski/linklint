@@ -1,5 +1,5 @@
 import type { DetectorFinding } from "./types.js";
-import { authorityRegion } from "../parse/authority-region.js";
+import { authorityRegion, type AuthorityRegion } from "../parse/authority-region.js";
 
 /**
  * J1 — `ambiguous_authority` (Epic J, FR parser-differential). SCORING.
@@ -39,10 +39,12 @@ const SIGNAL_DETAIL: Record<string, string> = {
  * Scan the prepared input for authority ambiguity. Returns a single
  * `ambiguous_authority` finding listing every sub-signal that fired, or `[]`.
  */
-export function scanAmbiguousAuthority(prepared: string): DetectorFinding[] {
+export function scanAmbiguousAuthority(
+  prepared: string,
+  region: AuthorityRegion = authorityRegion(prepared),
+): DetectorFinding[] {
   if (prepared === "") return [];
 
-  const region = authorityRegion(prepared);
 
   // Gate: only inspect inputs that declare themselves a URL with an authority.
   if (region.opaque) return [];
