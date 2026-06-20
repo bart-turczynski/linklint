@@ -59,6 +59,7 @@ export {
   baitTokens,
   openRedirectParam,
   suspiciousExtension,
+  punycodeMalformed,
   excessiveSubdomainDepth,
 } from "./detectors/registry.js";
 export { scanAmbiguousAuthority } from "./detectors/ambiguous-authority.js";
