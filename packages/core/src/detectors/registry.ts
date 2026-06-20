@@ -8,6 +8,7 @@ import { userinfoPresent } from "./userinfo-present.js";
 import { ipObfuscation } from "./ip-obfuscation.js";
 import { embeddedDomain } from "./embedded-domain.js";
 import { riskyTld } from "./risky-tld.js";
+import { fileExtensionTld } from "./file-extension-tld.js";
 import { encodingObfuscation } from "./encoding-obfuscation.js";
 import { dangerousScheme } from "./dangerous-scheme.js";
 import { confusableInPath } from "./confusable-in-path.js";
@@ -28,6 +29,7 @@ export const DETECTORS: Detector[] = [
   ipObfuscation, // FR-D-7  (scoring)
   embeddedDomain, // FR-D-8  (scoring)
   riskyTld, // FR-D-9  (scoring, low)
+  fileExtensionTld, // J6      (scoring)
   encodingObfuscation, // FR-D-10 (scoring)
   dangerousScheme, // FR-D-11 (scoring)
   confusableInPath, // FR-D-12 (info)
@@ -44,6 +46,7 @@ export {
   ipObfuscation,
   embeddedDomain,
   riskyTld,
+  fileExtensionTld,
   encodingObfuscation,
   dangerousScheme,
   confusableInPath,

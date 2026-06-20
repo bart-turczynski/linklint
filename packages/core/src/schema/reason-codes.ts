@@ -88,7 +88,14 @@ export const REASON_CODES = {
     layer: "lexical",
     scoring: true,
     weight: 0.15,
-    summary: "Registrable domain uses a high-abuse or extension-confusable TLD.",
+    summary: "Registrable domain uses a high-abuse TLD (low-weight contextual signal).",
+  },
+  file_extension_tld: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.4,
+    summary:
+      "Registrable domain uses a file-extension TLD (.zip/.mov) and is structured to masquerade as a downloadable file.",
   },
   encoding_obfuscation: {
     layer: "lexical",

@@ -48,6 +48,7 @@ export {
   ipObfuscation,
   embeddedDomain,
   riskyTld,
+  fileExtensionTld,
   encodingObfuscation,
   dangerousScheme,
   confusableInPath,
@@ -61,4 +62,4 @@ export type { Detector, DetectorFinding, InspectionContext } from "./detectors/t
 // Parsing / reference-data helpers (advanced consumers)
 export { parse } from "./parse/parse.js";
 export { findConfusables } from "./unicode/confusables.js";
-export { RISKY_TLDS } from "./data/risky-tlds.js";
+export { RISKY_TLDS, FILE_EXTENSION_TLDS } from "./data/risky-tlds.js";
