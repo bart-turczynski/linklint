@@ -149,6 +149,47 @@ export interface InspectOptions {
    * @example allowTlds: ["com", "de"]
    */
   allowTlds?: string[];
+
+  /**
+   * Policy: host deny-list (default-allow). When set, a host whose **registrable
+   * domain** (eTLD+1) matches an entry emits the `host_denied` policy reason.
+   * Everything else passes.
+   *
+   * Values are host names (no leading dot) compared **case-insensitively**; a
+   * leading dot is tolerated and stripped. Matching is on the host's
+   * **registrable domain**: an entry matches when, after stripping its own
+   * leading public-suffix-agnostic dot and lower-casing, it equals the
+   * registrable domain — so listing `example.com` matches `example.com` and
+   * every subdomain (`sub.example.com`, both share registrable domain
+   * `example.com`). Matching is at registrable-domain granularity: a bare
+   * subdomain entry such as `sub.example.com` equals no registrable domain and
+   * therefore matches nothing — list the registrable domain (`example.com`)
+   * instead. IP / hostless inputs have no registrable domain and never match.
+   *
+   * @example denyHosts: ["evil.com", "phishy.io"]
+   */
+  denyHosts?: string[];
+
+  /**
+   * Policy: host allow-list (default-deny corporate lockdown — only company and
+   * vendor domains pass). When set, a host whose **registrable domain** (eTLD+1)
+   * is **not** matched by any entry emits the `host_not_allowlisted` policy
+   * reason. Only the listed domains (and their subdomains) pass.
+   *
+   * Values are host names (no leading dot) compared **case-insensitively**; a
+   * leading dot is tolerated and stripped. Matching is on the host's
+   * **registrable domain**: listing `example.com` allows `example.com` and every
+   * `*.example.com`. IP / hostless inputs have no registrable domain and never
+   * match (so they never pass an allow-list).
+   *
+   * Precedence when both are set: the two axes are independent and either may
+   * fire. A registrable domain on `denyHosts` emits `host_denied`; the same input
+   * also emits `host_not_allowlisted` if `allowHosts` is set and the registrable
+   * domain is not in it.
+   *
+   * @example allowHosts: ["mycompany.com", "vendor.io"]
+   */
+  allowHosts?: string[];
 }
 
 /** The full inspection result. */

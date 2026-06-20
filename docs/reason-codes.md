@@ -433,6 +433,46 @@ exactly `["lexical"]`.
   `TLD '.org' is not on the caller allow-list ([com, de])`.
 - **Scoring:** policy, weight 0 (advisory; never moves the score).
 
+### `host_denied` — policy (host deny-list)
+
+- **Meaning:** the host's **registrable domain** (eTLD+1) is on the caller's
+  `denyHosts` list (default-allow: everything not listed passes).
+- **Why it's surfaced:** a caller-owned policy decision, not a deception
+  heuristic — e.g. an organization that refuses links to a known-bad vendor or
+  competitor domain. Advisory only; a separate channel from the deception
+  detectors.
+- **Matching:** entries are compared case-insensitively and bare (a leading dot
+  is tolerated and stripped) against the host's **registrable domain**. Because
+  the match key is the registrable domain, listing `example.com` covers
+  `example.com` **and every subdomain** (`sub.example.com` shares registrable
+  domain `example.com`). IP / hostless inputs have no registrable domain and
+  never match.
+- **Example:** `inspect("https://sub.evil.com/", { denyHosts: ["evil.com"] })` →
+  `host_denied` with detail
+  `Host 'sub.evil.com' (registrable domain 'evil.com') is on the caller deny-list`.
+- **Scoring:** policy, weight 0 (advisory; never moves the score).
+
+### `host_not_allowlisted` — policy (host allow-list)
+
+- **Meaning:** the host's **registrable domain** (eTLD+1) is **not** on the
+  caller's `allowHosts` list (default-deny corporate lockdown: only the listed
+  domains and their subdomains pass).
+- **Why it's surfaced:** a caller-owned policy decision — e.g. an organization
+  that only permits links to its own company and approved vendor domains.
+  Independent of the `denyHosts` axis: when both are configured, a denied
+  registrable domain emits `host_denied` and the same input also emits
+  `host_not_allowlisted` if its registrable domain is not in `allowHosts`.
+- **Matching:** entries are compared case-insensitively and bare (a leading dot
+  is tolerated and stripped) against the host's **registrable domain**. Listing
+  `mycompany.com` allows `mycompany.com` **and every** `*.mycompany.com`. IP /
+  hostless inputs have no registrable domain and never match (so they never pass
+  an allow-list).
+- **Example:**
+  `inspect("https://example.org/", { allowHosts: ["mycompany.com"] })` →
+  `host_not_allowlisted` with detail
+  `Host 'example.org' (registrable domain 'example.org') is not on the caller allow-list ([mycompany.com])`.
+- **Scoring:** policy, weight 0 (advisory; never moves the score).
+
 ## Meta
 
 ### `parse_error`

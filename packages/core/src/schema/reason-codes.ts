@@ -187,6 +187,20 @@ export const REASON_CODES = {
     summary:
       "Caller-configured: the host's TLD is not on the caller's allow-list. Advisory only (weight 0) — distinct from the built-in risky_tld deception heuristic.",
   },
+  host_denied: {
+    layer: "policy",
+    scoring: false,
+    weight: 0,
+    summary:
+      "Caller-configured: the host's registrable domain is on the caller's deny-list (covers all its subdomains). Advisory only (weight 0) — a separate policy channel, not a deception signal.",
+  },
+  host_not_allowlisted: {
+    layer: "policy",
+    scoring: false,
+    weight: 0,
+    summary:
+      "Caller-configured: the host's registrable domain is not on the caller's allow-list (default-deny corporate lockdown). Advisory only (weight 0) — a separate policy channel, not a deception signal.",
+  },
 
   // ── Meta ────────────────────────────────────────────────────────────────
   parse_error: {
