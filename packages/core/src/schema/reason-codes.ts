@@ -201,6 +201,20 @@ export const REASON_CODES = {
     summary:
       "Caller-configured: the host's registrable domain is not on the caller's allow-list (default-deny corporate lockdown). Advisory only (weight 0) — a separate policy channel, not a deception signal.",
   },
+  scheme_denied: {
+    layer: "policy",
+    scoring: false,
+    weight: 0,
+    summary:
+      "Caller-configured: the input's scheme is on the caller's deny-list or not on the allow-list (e.g. https-only lockdown). Advisory only (weight 0) — a separate policy channel, distinct from the built-in dangerous_scheme deception detector.",
+  },
+  port_denied: {
+    layer: "policy",
+    scoring: false,
+    weight: 0,
+    summary:
+      "Caller-configured: the input's explicit port is on the caller's deny-list or is non-standard for its scheme. Advisory only (weight 0) — a separate policy channel, not a deception signal.",
+  },
 
   // ── Meta ────────────────────────────────────────────────────────────────
   parse_error: {

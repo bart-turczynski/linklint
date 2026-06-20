@@ -473,6 +473,56 @@ exactly `["lexical"]`.
   `Host 'example.org' (registrable domain 'example.org') is not on the caller allow-list ([mycompany.com])`.
 - **Scoring:** policy, weight 0 (advisory; never moves the score).
 
+### `scheme_denied` — policy (scheme allow/deny)
+
+- **Meaning:** the input's **scheme** (lower-cased, no colon) is on the caller's
+  `denySchemes` list, **or** is **not** on the caller's `allowSchemes` list
+  (default-deny lockdown — e.g. `allowSchemes: ["https"]` for an https-only
+  policy). Both lists map to this single code; the detail string distinguishes a
+  deny-list hit from a not-allow-listed one.
+- **Why it's surfaced:** a caller-owned policy decision — e.g. an organization
+  that only permits `https` links, or that blocks `ftp`. **Distinct from the
+  built-in `dangerous_scheme`** deception detector, which is a high-weight
+  *scoring* heuristic over execute-or-embed schemes (`javascript:`, `data:`…);
+  `scheme_denied` is whatever the caller chose, advisory only, on a separate
+  channel.
+- **Matching:** scheme values are compared case-insensitively and bare (a
+  leading/trailing colon is tolerated and stripped) against the input's parsed
+  scheme. Opaque / hostless inputs still carry a scheme (e.g. `javascript`,
+  `data`), so scheme policy applies to them. Inputs with **no scheme** are exempt
+  — the axis is skipped, so a schemeless input never emits `scheme_denied` (an
+  allow-list cannot fire when there is no scheme to judge).
+- **Example:** `inspect("http://example.com/", { allowSchemes: ["https"] })` →
+  `scheme_denied` with detail
+  `scheme 'http' is not on the caller allow-list ([https])`. And
+  `inspect("ftp://example.com/", { denySchemes: ["ftp"] })` → `scheme_denied`
+  with detail `scheme 'ftp' is on the caller deny-list`.
+- **Scoring:** policy, weight 0 (advisory; never moves the score).
+
+### `port_denied` — policy (port deny / non-standard)
+
+- **Meaning:** the input's **explicit** port is on the caller's `denyPorts`
+  list, **or** — when `denyNonStandardPorts: true` — is not the standard default
+  for its scheme. Only an explicit port is evaluated; an input with no explicit
+  port never emits this code.
+- **Why it's surfaced:** a caller-owned policy decision — e.g. blocking known
+  exfil/phishing ports (`:8080`, `:31337`) by enumeration, or refusing any
+  non-standard port without listing them. Advisory only; a separate channel from
+  the deception detectors.
+- **Standard-port map (`denyNonStandardPorts`):** `http`→80, `https`→443,
+  `ftp`→21, `ws`→80, `wss`→443. A port equal to its scheme's default is
+  "standard"; any other explicit port — or any explicit port on a scheme not in
+  this map — is "non-standard".
+- **Dedup:** when both `denyPorts` and `denyNonStandardPorts` would flag the same
+  port, exactly one `port_denied` is emitted (the deny-list reason takes
+  precedence).
+- **Example:** `inspect("https://example.com:8080/", { denyPorts: [8080] })` →
+  `port_denied` with detail `port 8080 is on the caller deny-list`. And
+  `inspect("https://example.com:8080/", { denyNonStandardPorts: true })` →
+  `port_denied` with detail
+  `port 8080 is non-standard for scheme 'https' (expected 443)`.
+- **Scoring:** policy, weight 0 (advisory; never moves the score).
+
 ## Meta
 
 ### `parse_error`

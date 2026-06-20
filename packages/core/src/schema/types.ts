@@ -190,6 +190,76 @@ export interface InspectOptions {
    * @example allowHosts: ["mycompany.com", "vendor.io"]
    */
   allowHosts?: string[];
+
+  /**
+   * Policy: scheme allow-list (default-deny lockdown). When set, an input whose
+   * scheme is **not** in this list emits the `scheme_denied` policy reason. Only
+   * the listed schemes pass — e.g. `["https"]` for an https-only policy.
+   *
+   * Values are bare scheme names compared **case-insensitively**; a trailing (or
+   * leading) colon is tolerated and stripped. The comparison is against the
+   * input's parsed scheme. Opaque / hostless inputs still carry a scheme (e.g.
+   * `javascript`, `data`), so scheme policy applies to them too. Inputs with **no
+   * scheme** (`ctx.scheme === null`) are exempt — the scheme axis is skipped
+   * entirely, so a schemeless input never emits `scheme_denied`.
+   *
+   * Distinct from the built-in `dangerous_scheme` deception detector: this is a
+   * caller-owned policy channel (weight 0), not a scoring heuristic.
+   *
+   * Precedence when both scheme lists are set: the two are independent and both
+   * map to the same `scheme_denied` code — the detail string distinguishes a
+   * deny-list hit from a not-allow-listed one.
+   *
+   * @example allowSchemes: ["https"]
+   */
+  allowSchemes?: string[];
+
+  /**
+   * Policy: scheme deny-list (default-allow). When set, an input whose scheme is
+   * in this list emits the `scheme_denied` policy reason. Everything else passes.
+   *
+   * Values are bare scheme names compared **case-insensitively**; a trailing (or
+   * leading) colon is tolerated and stripped. The comparison is against the
+   * input's parsed scheme. Opaque / hostless inputs still carry a scheme, so
+   * `denySchemes: ["javascript", "data"]` matches them. Inputs with **no scheme**
+   * are exempt (the scheme axis is skipped).
+   *
+   * Distinct from the built-in `dangerous_scheme` deception detector — advisory
+   * only (weight 0), a separate channel.
+   *
+   * @example denySchemes: ["javascript", "data", "ftp"]
+   */
+  denySchemes?: string[];
+
+  /**
+   * Policy: port deny-list (default-allow). When set, an input with an
+   * **explicit** port in this list emits the `port_denied` policy reason. Ports
+   * are only evaluated when a port is explicitly present in the URL
+   * (`ctx.port !== null`); inputs with no explicit port never emit a port
+   * finding.
+   *
+   * @example denyPorts: [8080, 31337]
+   */
+  denyPorts?: number[];
+
+  /**
+   * Policy: deny non-standard ports (default-allow). When `true`, an input with
+   * an **explicit** port that is not the standard default for its scheme emits
+   * the `port_denied` policy reason — catching `:8080` / `:31337` phishing/exfil
+   * ports without enumerating them.
+   *
+   * Standard defaults: `http`→80, `https`→443, `ftp`→21, `ws`→80, `wss`→443. A
+   * port equal to its scheme's default is "standard"; any other explicit port —
+   * or any explicit port on a scheme not in this map — is "non-standard". As with
+   * `denyPorts`, only an explicit port (`ctx.port !== null`) is evaluated; inputs
+   * with no explicit port never emit a port finding.
+   *
+   * When both `denyPorts` and `denyNonStandardPorts` flag the same port, at most
+   * one `port_denied` is emitted (deduped) with a detail explaining why.
+   *
+   * @example denyNonStandardPorts: true
+   */
+  denyNonStandardPorts?: boolean;
 }
 
 /** The full inspection result. */
