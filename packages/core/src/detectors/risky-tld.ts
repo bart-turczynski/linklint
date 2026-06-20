@@ -10,7 +10,7 @@ export const riskyTld: Detector = {
   layer: "lexical",
   run(ctx) {
     if (!ctx.publicSuffix) return [];
-    const tld = ctx.publicSuffix.split(".").pop()!;
+    const tld = ctx.publicSuffixTld!;
     if (!isRiskyTld(tld)) return [];
     return [
       {

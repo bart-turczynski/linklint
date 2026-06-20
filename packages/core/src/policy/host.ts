@@ -18,7 +18,7 @@ export function runHostAxis(
   const findings: CollectedFinding[] = [];
 
   if (ctx.registrableDomain) {
-    const registrable = ctx.registrableDomain.toLowerCase();
+    const registrable = ctx.registrableDomainLower!;
 
     if (options.denyHosts && normalizeHostList(options.denyHosts).includes(registrable)) {
       findings.push({

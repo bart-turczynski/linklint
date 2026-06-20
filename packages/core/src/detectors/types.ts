@@ -24,8 +24,17 @@ export interface InspectionContext {
   /** Visual host split into labels (left-to-right). */
   hostLabels: string[];
   registrableDomain: string | null;
+  /** `registrableDomain` lower-cased, or null. Hoisted from detectors/policy
+   *  that repeatedly recomputed `registrableDomain.toLowerCase()`. */
+  registrableDomainLower: string | null;
   publicSuffix: string | null;
+  /** Last label of `publicSuffix` (raw, NOT lower-cased), or null. Hoisted from
+   *  detectors/policy that recomputed `publicSuffix.split(".").pop()`. */
+  publicSuffixTld: string | null;
   subdomain: string | null;
+  /** `subdomain` split on `.` (raw, NOT filtered), or `[]` when no subdomain.
+   *  Hoisted from detectors that recomputed `subdomain.split(".")`. */
+  subdomainLabels: string[];
   port: number | null;
   /** Raw path (may be empty string). */
   path: string;

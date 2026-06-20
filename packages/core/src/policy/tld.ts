@@ -15,7 +15,7 @@ export function runTldAxis(
   const findings: CollectedFinding[] = [];
 
   if (ctx.publicSuffix) {
-    const tld = ctx.publicSuffix.split(".").pop()!.toLowerCase();
+    const tld = ctx.publicSuffixTld!.toLowerCase();
 
     if (options.denyTlds && normalizeTlds(options.denyTlds).includes(tld)) {
       findings.push({
