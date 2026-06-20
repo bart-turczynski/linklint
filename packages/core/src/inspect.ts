@@ -2,10 +2,7 @@ import type { InspectOptions, InspectResult } from "./schema/types.js";
 import { parse } from "./parse/parse.js";
 import { prepare } from "./parse/prepare.js";
 import { DETECTORS } from "./detectors/registry.js";
-import { scanAmbiguousAuthority } from "./detectors/ambiguous-authority.js";
-import { scanSeparatorLookalike } from "./detectors/separator-lookalike.js";
-import { scanIdnaMappingAmbiguity } from "./detectors/idna-mapping-ambiguity.js";
-import { scanControlChar } from "./detectors/control-char.js";
+import { STRUCTURAL_SCANS } from "./detectors/structural.js";
 import {
   buildInvalidResult,
   buildOkResult,
@@ -27,17 +24,10 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRes
   const runtime = normalizeOptions(options);
   const structural: CollectedFinding[] = [];
   const prepared = prepare(input);
-  // scanControlChar is the only scan that decodes, so only it takes `runtime`
-  // (the depth knob); the others are pure string scans.
-  const scans: Array<(prepared: string) => CollectedFinding[]> = [
-    scanAmbiguousAuthority,
-    scanSeparatorLookalike,
-    scanIdnaMappingAmbiguity,
-    (p) => scanControlChar(p, runtime),
-  ];
-  for (const scan of scans) {
+  const scanCtx = { input, prepared, runtime };
+  for (const scan of STRUCTURAL_SCANS) {
     try {
-      structural.push(...scan(prepared));
+      structural.push(...scan.run(scanCtx));
     } catch {
       // A scan must never abort inspection (FR-D-13).
     }
