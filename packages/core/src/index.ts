@@ -54,6 +54,7 @@ export {
   dangerousScheme,
   confusableInPath,
   brandInPath,
+  brandLookalike,
   openRedirectParam,
   suspiciousExtension,
   excessiveSubdomainDepth,

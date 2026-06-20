@@ -150,6 +150,30 @@ export const REASON_CODES = {
     summary:
       "A brand reference is planted in the path/query of an unrelated host (evil.com/paypal.com/login).",
   },
+  brand_homoglyph: {
+    layer: "lexical",
+    scoring: true,
+    // Highest-confidence brand impersonation in Epic G: the registrable domain
+    // folds via ASCII digit look-alikes (0->o, 1->l, 5->s) to EXACTLY a watchlist
+    // brand domain (paypa1.com -> paypal.com, g00gle.com -> google.com). Weighted
+    // above brand_lookalike — an exact skeleton match is more decisive than a
+    // fuzzy near-miss. Provisional — G5 re-tunes against the full corpus.
+    weight: 0.5,
+    summary:
+      "Registrable domain folds via ASCII digit look-alikes (0->o, 1->l, 5->s) to exactly a known brand domain — a high-confidence brand impersonation (paypa1.com, g00gle.com).",
+  },
+  brand_lookalike: {
+    layer: "lexical",
+    scoring: true,
+    // Tuned to the userinfo_present (0.5) / ip_obfuscation (0.4) band as a
+    // strong-but-not-decisive standalone signal; a fuzzy near-miss of a known
+    // brand domain is a deliberate typosquat far more often than chance. Kept
+    // below brand_homoglyph (an exact skeleton match is higher confidence).
+    // Provisional — G5 re-tunes against the full corpus.
+    weight: 0.4,
+    summary:
+      "Registrable domain is a transposition-aware edit-distance near-miss (1–2) of a known brand domain — a typosquat (gogole.com, microsoftt.com, paypal.co).",
+  },
   open_redirect_param: {
     layer: "lexical",
     scoring: true,

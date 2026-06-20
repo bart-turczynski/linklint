@@ -1,4 +1,5 @@
 import type { Detector } from "./types.js";
+import { ASCII_DIGIT_HOMOGLYPHS } from "../data/ascii-confusables.js";
 
 /**
  * J4 — `ascii_homoglyph` (Epic J). SCORING, low weight (0.2).
@@ -32,8 +33,9 @@ import type { Detector } from "./types.js";
  * matters in combination.
  */
 
-/** Letter-shaped digits and the letter each maps to for the readable skeleton. */
-const DIGIT_TO_LETTER: Record<string, string> = { "0": "o", "1": "l", "5": "s" };
+// Letter-shaped digits and the letter each maps to for the readable skeleton
+// come from the shared `ASCII_DIGIT_HOMOGLYPHS` map (data/ascii-confusables.ts)
+// — the single source of truth this detector and G2 `brand_lookalike` share.
 
 export const asciiHomoglyph: Detector = {
   id: "ascii_homoglyph",
@@ -58,7 +60,7 @@ export const asciiHomoglyph: Detector = {
           skeleton += ch;
         } else {
           // a digit
-          const mapped = DIGIT_TO_LETTER[ch];
+          const mapped = ASCII_DIGIT_HOMOGLYPHS[ch];
           if (mapped === undefined) {
             mappable = false;
             break;

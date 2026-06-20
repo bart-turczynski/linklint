@@ -121,6 +121,75 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 - **Example:** `https://evil.com/paypal.com/login`; `https://phish.io/google/signin`.
 - **Scoring:** scoring, weight 0.2.
 
+### `brand_homoglyph` — Epic G (G2) · weight 0.5
+
+- **Meaning:** the **registrable domain folds, via ASCII digit look-alikes, to
+  exactly a known brand domain.** Folding `0`→o, `1`→l, `5`→s turns `paypa1.com`
+  into `paypal.com` and `g00gle.com` into `google.com`. The folded skeleton
+  matches a watchlist brand **byte-for-byte**, which makes this the
+  highest-confidence brand-impersonation signal linklint emits.
+- **Why it's a signal:** this is the **brand-aware escalation** that the J4
+  `ascii_homoglyph` layer anticipates. `ascii_homoglyph` is the general,
+  brand-free structural anomaly (a digit standing in for a letter, low weight);
+  when that same skeleton resolves to an actual brand, the input is almost
+  certainly a deliberate impersonation, so it escalates here at a higher weight.
+  An input firing both `ascii_homoglyph` and `brand_homoglyph` (e.g. `g00gle.com`)
+  is the canonical high-severity look-alike.
+- **Detection & precision (SC-2):** the **full registrable domain string** is
+  folded with the shared `ASCII_DIGIT_HOMOGLYPHS` map (`data/ascii-confusables.ts`,
+  the single source of truth J4 also consumes). Fires only when at least one digit
+  is actually folded, the skeleton is alphabetic, and the skeleton equals a
+  watchlist brand domain exactly. The exact-match requirement is itself the
+  precision backstop — a degenerate mostly-digit string cannot fold into a brand,
+  and only `0/1/5` fold (so `s3`, `bet365`, `route53` never reach a brand). The
+  real brand itself never fires.
+- **Brand list:** the authoritative Epic G watchlist (`BRAND_DOMAINS`),
+  version-pinned via `dataVersions.brands`.
+- **See also:** `ascii_homoglyph` (J4) — the low-weight, brand-free counterpart;
+  `brand_homoglyph` is its brand-confirmed escalation.
+- **Example:** `https://paypa1.com` (→ `paypal.com`); `https://g00gle.com`
+  (→ `google.com`); `https://revo1ut.com` (→ `revolut.com`).
+- **Scoring:** scoring, weight 0.5 (provisional — G5 re-tunes).
+
+### `brand_lookalike` — Epic G (G2) · weight 0.4
+
+- **Meaning:** the **registrable domain is a fuzzy near-miss of a known brand
+  domain** — one (occasionally two) transposition-aware edit operations away,
+  where the difference is *not* a clean digit fold. This is dnstwist's permutation
+  logic run in reverse: rather than generating typo variants of a brand and
+  checking the registry, we take the input and ask whether it is a typosquat of a
+  watchlisted brand.
+- **Why it's a signal:** `gogole.com`, `microsoftt.com`, `paypal.co` (TLD swap)
+  all read as a trusted brand at a glance but resolve to an attacker-controlled
+  domain. A domain landing one edit away from a major brand is a deliberate
+  look-alike far more often than chance.
+- **Detection & precision (SC-2):** the **full registrable domain string**
+  (label + public suffix) is compared with a bounded Damerau-Levenshtein (OSA)
+  distance against each brand domain in the watchlist (`data/brands.ts`).
+  Comparing the full string — not the bare label — is deliberate: TLD-swap
+  typosquats (`paypal.co` for `paypal.com`) are real positives only visible with
+  the suffix included.
+  - A clean digit fold to a real brand is reported as `brand_homoglyph`
+    instead (the two codes are mutually exclusive per input).
+  - **Exact match never fires** — distance 0 is the real brand.
+  - A length guard contains short-domain collisions: distance 1 fires only when
+    the matched brand's significant (registrable) label is ≥ 5 characters;
+    distance 2 only when it is ≥ 8. So `visa.com`↔`vista.com` and
+    `ups.com`↔`usp.com` stay clean here, while `paypal`/`microsoft`-scale brands
+    flag.
+  - **Non-ASCII (IDN) hosts are skipped** — they belong to the confusable /
+    `idna_mapping_ambiguity` detectors, and the all-ASCII watchlist cannot be a
+    genuine near-miss of a Unicode domain.
+  - IP hosts and inputs with no registrable domain are skipped.
+  The detail names the **nearest** brand and the exact distance.
+- **Brand list:** the authoritative Epic G watchlist (`BRAND_DOMAINS`),
+  version-pinned via `dataVersions.brands`.
+- **See also:** `brand_homoglyph` (G2) — the exact-skeleton-fold sibling, higher
+  confidence and higher weight.
+- **Example:** `https://gogole.com` (distance 1 from `google.com`);
+  `https://microsoftt.com`; `https://paypal.co`.
+- **Scoring:** scoring, weight 0.4 (provisional — G5 re-tunes).
+
 ### `suspicious_extension` — Epic I (I1) · weight 0.5
 
 - **Meaning:** the URL **path** ends in a **dangerous executable file extension**,
