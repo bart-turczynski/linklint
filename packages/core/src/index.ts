@@ -54,6 +54,9 @@ export {
   dangerousScheme,
   confusableInPath,
   brandInPath,
+  openRedirectParam,
+  suspiciousExtension,
+  excessiveSubdomainDepth,
 } from "./detectors/registry.js";
 export { scanAmbiguousAuthority } from "./detectors/ambiguous-authority.js";
 export { scanSeparatorLookalike } from "./detectors/separator-lookalike.js";

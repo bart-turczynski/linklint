@@ -14,7 +14,10 @@ import { encodingObfuscation } from "./encoding-obfuscation.js";
 import { dangerousScheme } from "./dangerous-scheme.js";
 import { confusableInPath } from "./confusable-in-path.js";
 import { brandInPath } from "./brand-in-path.js";
+import { openRedirectParam } from "./open-redirect-param.js";
+import { suspiciousExtension } from "./suspicious-extension.js";
 import { punycodeMalformed } from "./punycode-malformed.js";
+import { excessiveSubdomainDepth } from "./excessive-subdomain-depth.js";
 
 /**
  * Ordered list of lexical detectors run by the default `inspect()` path,
@@ -37,7 +40,10 @@ export const DETECTORS: Detector[] = [
   dangerousScheme, // FR-D-11 (scoring)
   confusableInPath, // FR-D-12 (info)
   brandInPath, // J7      (scoring, low)
+  openRedirectParam, // I2      (scoring)
+  suspiciousExtension, // I1      (scoring)
   punycodeMalformed, // E5      (scoring, low)
+  excessiveSubdomainDepth, // I3 (scoring, low)
 ];
 
 export {
@@ -56,5 +62,8 @@ export {
   dangerousScheme,
   confusableInPath,
   brandInPath,
+  openRedirectParam,
+  suspiciousExtension,
   punycodeMalformed,
+  excessiveSubdomainDepth,
 };

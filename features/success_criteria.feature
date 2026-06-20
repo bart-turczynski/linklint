@@ -121,3 +121,41 @@ Feature: Success criteria — core lexical (PRD §7)
       | https://github.com/anthropics/repo/archive/main.zip | file_extension_tld |
       | https://paypal.com/login                           | brand_in_path      |
       | https://straße.de/                                 | mixed_script       |
+
+  # ── Epic I — download / redirect / subdomain-depth detectors ─────────────
+
+  Scenario Outline: Epic I — download & redirect lures score >= medium with the right reason
+    When I inspect "<input>"
+    Then the status is "ok"
+    And the severity is at least "medium"
+    And the reasons contain "<reason>"
+
+    Examples:
+      | input                                                 | reason               |
+      | https://cdn.example.com/setup.exe                     | suspicious_extension |
+      | https://files.example.com/invoice.pdf.exe             | suspicious_extension |
+      | https://example.com/login?next=https://evil.com/phish | open_redirect_param  |
+
+  Scenario Outline: Epic I — excessive subdomain depth scores >= low (meaningful in combination)
+    When I inspect "<input>"
+    Then the status is "ok"
+    And the severity is at least "low"
+    And the reasons contain "excessive_subdomain_depth"
+
+    Examples:
+      | input                                |
+      | https://a.b.c.d.e.example.com/       |
+      | https://a.b.c.d.paypal.com.evil-login.tk/ |
+
+  Scenario Outline: Epic I — must not over-flag legitimate links (SC-2)
+    When I inspect "<input>"
+    Then the status is "ok"
+    And the score is 0
+    And the severity is "info"
+    And the reasons do not contain "<forbidden>"
+
+    Examples:
+      | input                                              | forbidden                 |
+      | https://files.example.com/report.pdf               | suspicious_extension      |
+      | https://example.com/login?next=/dashboard          | open_redirect_param       |
+      | https://cdn.assets.eu-west-1.svc.example.com/      | excessive_subdomain_depth |

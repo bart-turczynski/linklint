@@ -150,6 +150,27 @@ export const REASON_CODES = {
     summary:
       "A brand reference is planted in the path/query of an unrelated host (evil.com/paypal.com/login).",
   },
+  open_redirect_param: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.4,
+    summary:
+      "A known redirect parameter (next/url/redirect…) carries a cross-host URL value, the lexical fingerprint of an open-redirect lure.",
+  },
+  suspicious_extension: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.5,
+    summary:
+      "URL path ends in a dangerous executable extension (.exe/.scr/.msi…) or a deceptive double-extension (.pdf.exe).",
+  },
+  excessive_subdomain_depth: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.15,
+    summary:
+      "Host has an abnormally large number of subdomain labels (≥5) — a low-weight combination signal for a buried registrable domain.",
+  },
 
   // ── Meta ────────────────────────────────────────────────────────────────
   parse_error: {

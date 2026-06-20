@@ -121,6 +121,68 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 - **Example:** `https://evil.com/paypal.com/login`; `https://phish.io/google/signin`.
 - **Scoring:** scoring, weight 0.2.
 
+### `suspicious_extension` — Epic I (I1) · weight 0.5
+
+- **Meaning:** the URL **path** ends in a **dangerous executable file extension**,
+  or in a **deceptive double-extension** — the high-signal shape of a
+  direct-download malware link.
+- **Why it's a signal:** a link that ends in `setup.exe` or `update.apk` is a
+  direct request to download and run an executable; a double-extension like
+  `invoice.pdf.exe` shows a safe-looking `.pdf` to a skimming user while the real,
+  trailing extension is the executable.
+- **Detection & precision (SC-2):** only the **last path segment** (the filename
+  after the final `/`) is inspected, and query/fragment are ignored. Two shapes
+  fire:
+  - **double extension** — ≥2 dot-separated extension parts after a non-empty
+    stem and the LAST part is dangerous (`invoice.pdf.exe`, `report.doc.scr`);
+  - **single dangerous extension** — the filename ends in one dangerous extension
+    (`setup.exe`, `screensaver.scr`).
+  A trailing-dot or extensionless segment, an empty path, or a bare `/` never
+  fire, and an extension mid-path is ignored.
+- **Dangerous set (case-insensitive):** the named class
+  `.exe/.scr/.apk/.iso/.bat/.msi` plus conservative same-class additions
+  (`cmd`, `com`, `vbs`, `jar`, `dmg`, `pkg`, `dll`, `msix`, `ps1`, `deb`). A
+  `.zip` archive is **not** in the set — an archive download is ordinary and would
+  over-flag.
+- **Example:** `https://files.example.com/setup.exe`;
+  `https://cdn.evil.io/invoice.pdf.exe`.
+- **Scoring:** scoring, weight 0.5.
+
+### `open_redirect_param` — Epic I (I2) · weight 0.4
+
+- **Meaning:** a query parameter whose **name** is a known redirect parameter
+  (`next`, `url`, `redirect`, `redirect_uri`, `redirect_url`, `dest`,
+  `destination`, `return`, `returnUrl`, `continue`, `u`, `goto`, `target`) carries
+  a **value that is itself a URL pointing to a different registrable domain** than
+  the link host.
+- **Why it's a signal:** `https://example.com/login?next=https://evil.com/phish`
+  reads as `example.com`, but when the redirect fires the user lands on
+  `evil.com`. The cross-host payload is the lexical fingerprint of an
+  open-redirect lure.
+- **Roadmap relocation (Phase 2 → Layer 1):** the PRD parks open-redirect under
+  **Phase 2 (resolution)** because *confirming* an open redirect requires
+  following it over the network. But the cross-host PAYLOAD inside the parameter
+  is visible **without any network access** — a purely lexical signal — so the
+  *detection* belongs in **Layer 1 (lexical)**. Phase 2 still owns the
+  resolution-time confirmation of whether the redirect actually fires; this
+  detector owns the offline payload detection.
+- **Detection & precision (SC-2):** the value is bounded-decoded (seeing through
+  single/double percent-encoding) and interpreted as a URL in two shapes:
+  - **absolute URL** — scheme + host (`https://evil.com/...`);
+  - **protocol-relative** — `//evil.com/...`, a classic payload that omits the
+    scheme.
+
+  Fires **only** when the decoded value resolves to a host whose registrable
+  domain is non-null and **differs** (case-insensitively) from the link host's.
+  A relative/same-host path (`?next=/dashboard`), a same-registrable-domain target
+  (`?next=https://app.example.com/home`), a non-redirect param carrying a URL
+  (`?ref=https://evil.com`), and a non-URL value (`?url=2`) all stay clean.
+  Parsing is fully defensive — a junk value yields no finding and the detector
+  never throws.
+- **Example:** `https://example.com/login?next=https://evil.com/phish`;
+  `https://example.com/?redirect=//evil.com`.
+- **Scoring:** scoring, weight 0.4.
+
 ### `invisible_char` — FR-D-4 · weight 0.5
 
 - **Meaning:** invisible, zero-width, or control characters appear anywhere in
@@ -171,6 +233,27 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   filler labels after it — `paypal.com.login.evil.com` — is still caught.
 - **Example:** `https://paypal.com.spoof.info/` → real domain `spoof.info`;
   `https://paypal.com.login.evil.com/` → real domain `evil.com`.
+
+### `excessive_subdomain_depth` — Epic I (I3) · weight 0.15
+
+- **Meaning:** the host has an abnormally large number of **subdomain labels**
+  (≥ 5 labels left of the registrable domain), e.g.
+  `a.b.c.d.paypal.com.evil.tk`.
+- **Why it's a signal:** stacking many subdomain labels buries the real
+  registrable domain far to the right of the visible host, a known phishing
+  structure. A low-weight contextual signal — it never flags on its own and only
+  matters in combination with other signals.
+- **Relationship to `embedded_domain_in_subdomain`:** that detector (FR-D-8)
+  fires only when a window of the subdomain is itself a registrable domain;
+  I3 fires on raw subdomain **depth** regardless of whether any window looks like
+  a registrable domain, catching deep-burial hosts the embedded check misses.
+- **Detection & precision (SC-2):** counts only the subdomain labels (everything
+  left of the registrable domain) — the registrable-domain and public-suffix
+  labels are excluded — and fires at the threshold of **5**. IP hosts and hosts
+  with no subdomain never fire. Legitimate deep-subdomain hosts
+  (`cdn.assets.eu-west-1.example.com`, 3 labels) stay clean.
+- **Example:** `https://a.b.c.d.paypal.com.evil.tk/` (5 subdomain labels).
+- **Scoring:** scoring, weight 0.15 (low-weight combination signal).
 
 ### `risky_tld` — FR-D-9 · weight 0.15
 
