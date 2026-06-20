@@ -126,12 +126,34 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 
 ### `risky_tld` — FR-D-9 · weight 0.15
 
-- **Meaning:** the registrable domain uses a high-abuse or extension-confusable
-  TLD (e.g. `.zip`, `.mov`).
-- **Why it's a signal:** a low-weight contextual signal — risky TLDs correlate
-  with abuse and can be confused with file extensions. Low weight so it never
-  flags on its own.
-- **Example:** `https://invoice.zip/` (looks like a file, is a domain).
+- **Meaning:** the registrable domain uses a high-abuse / free-registration TLD
+  (e.g. `.tk`, `.ml`, `.xyz`).
+- **Why it's a signal:** a low-weight contextual signal — these registries
+  correlate with abuse. Low weight so it never flags on its own.
+- **Relationship to `file_extension_tld`:** the extension-confusable TLDs
+  `.zip` / `.mov` are **owned by `file_extension_tld`** (J6) and were removed from
+  the `risky_tld` set, so the two never double-count.
+- **Example:** `https://promo.tk/` (free-registration abuse TLD).
+
+### `file_extension_tld` — Epic J (J6) · weight 0.4
+
+- **Meaning:** the registrable domain uses a **file-extension TLD** (`.zip`,
+  `.mov`) and is structured to masquerade as a downloadable file rather than a
+  website. A sharper, higher-weight successor to `risky_tld` for these TLDs.
+- **Why it's a signal:** `invoice.zip` reads as an archive and `setup.mov` as a
+  video, yet both are live domains — a lure that pairs naturally with the J1/J2
+  authority tricks and `userinfo_present`.
+- **Masquerade structure** (fires only on one of these, so a real site does not
+  flag — SC-2):
+  - **bare filename** — the host is exactly `stem.<ext>` with no subdomain
+    (`https://invoice.zip/`);
+  - **hidden behind userinfo** — a `…@stem.<ext>` authority (`github.com∕x@update.zip`,
+    where a J2 slash-look-alike pushes the brand into userinfo and the real host
+    is the file-looking `.zip`).
+- **Not flagged:** a `.zip` in the **path** (`/archive.zip` — a real file), or a
+  deep-subdomain `.zip` host with no userinfo (`cdn.assets.acme.zip`).
+- **Example:** `https://invoice.zip/`; `https://github.com∕x@evil.zip`.
+- **Scoring:** scoring, weight 0.4.
 
 ### `encoding_obfuscation` — FR-D-10 · weight 0.35
 
