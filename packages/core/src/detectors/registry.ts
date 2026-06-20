@@ -15,7 +15,10 @@ import { dangerousScheme } from "./dangerous-scheme.js";
 import { confusableInPath } from "./confusable-in-path.js";
 import { brandInPath } from "./brand-in-path.js";
 import { brandLookalike } from "./brand-lookalike.js";
+import { skeletonCollision } from "./skeleton-collision.js";
 import { combosquatting } from "./combosquatting.js";
+import { soundsquatting } from "./soundsquatting.js";
+import { bitsquatting } from "./bitsquatting.js";
 import { baitTokens } from "./bait-tokens.js";
 import { openRedirectParam } from "./open-redirect-param.js";
 import { suspiciousExtension } from "./suspicious-extension.js";
@@ -44,7 +47,10 @@ export const DETECTORS: Detector[] = [
   confusableInPath, // FR-D-12 (info)
   brandInPath, // J7      (scoring, low)
   brandLookalike, // G2      (scoring)
+  skeletonCollision, // E3   (scoring) — non-ASCII whole-label homograph
   combosquatting, // G3      (scoring)
+  soundsquatting, // T2      (scoring) — phonetic homophone of a brand
+  bitsquatting, // T3      (scoring, low) — single-bit-flip neighbor of a brand
   baitTokens, // G4      (scoring, low)
   openRedirectParam, // I2      (scoring)
   suspiciousExtension, // I1      (scoring)
@@ -69,7 +75,10 @@ export {
   confusableInPath,
   brandInPath,
   brandLookalike,
+  skeletonCollision,
   combosquatting,
+  soundsquatting,
+  bitsquatting,
   baitTokens,
   openRedirectParam,
   suspiciousExtension,

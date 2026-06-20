@@ -187,6 +187,52 @@ export const REASON_CODES = {
     summary:
       "A watchlist brand keyword is glued to an additive token in the host (paypal-secure.com, login-paypal.com) — a combosquat invisible to edit-distance look-alike checks.",
   },
+  homograph_skeleton_collision: {
+    layer: "lexical",
+    scoring: true,
+    // E3 (FR-D-16 follow-up) — the registrable domain's UTS#39 confusable
+    // skeleton equals a watchlist brand domain exactly: a single-script,
+    // all-confusable look-alike (e.g. an all-Cyrillic `сһаѕе.com`) that
+    // `mixed_script` cannot see (no script mixing) and confusable annotation
+    // only flags at weight 0. An exact skeleton == brand collision is
+    // decisive, so it sits in the same band as brand_homoglyph (0.5).
+    // Mutually exclusive with brand_homoglyph by construction (that owns the
+    // pure-ASCII digit-fold case; this runs only on non-ASCII hosts).
+    // Provisional — re-tuned with the brand family against the full corpus.
+    weight: 0.5,
+    summary:
+      "Registrable domain's UTS#39 confusable skeleton equals a known brand domain exactly — a single-script whole-label homograph (an all-Cyrillic look-alike of a brand) that script-mixing checks cannot see.",
+  },
+  brand_soundsquat: {
+    layer: "lexical",
+    scoring: true,
+    // T2 (Addendum §4) — the registrable label is a PHONETIC homophone of a
+    // watchlist brand (netflicks → netflix, dropboks → dropbox): same sound,
+    // but invisible to edit-distance / digit-fold checks. Provisional weight
+    // 0.3 — BELOW brand_lookalike (0.4) because phonetic-key matching is lossier
+    // and noisier than bounded edit distance, yet ABOVE the low band (a
+    // whole-label sound-key match against a real brand is a deliberate
+    // soundsquat far more often than chance). Re-tuned with the brand family
+    // against the full corpus.
+    weight: 0.3,
+    summary:
+      "Registrable label is a phonetic homophone of a known brand (netflicks->netflix, dropboks->dropbox) — a soundsquat invisible to edit-distance and digit-fold checks.",
+  },
+  brand_bitsquat: {
+    layer: "lexical",
+    scoring: true,
+    // T3 (Addendum §4) — the registrable label is a single-bit-flip neighbor of a
+    // watchlist brand (netfliz -> netflix, amazgn -> amazon): the memory/
+    // transmission-error attack class. A bit-flip is by construction also an
+    // edit-distance-1 neighbor, so this usually STACKS with brand_lookalike
+    // (distinct code naming the specific attack). It is a real but NICHE,
+    // combination-only signal — never decisive standalone — so it is weighted LOW,
+    // in the risky_tld / bait_tokens / excessive_subdomain_depth (0.15) band.
+    // Provisional — re-tuned with the brand family against the full corpus.
+    weight: 0.15,
+    summary:
+      "Registrable label is a single-bit-flip neighbor of a known brand (netfliz->netflix, amazgn->amazon) — a bitsquat (memory/transmission-error attack class), low-weight combination signal.",
+  },
   bait_tokens: {
     layer: "lexical",
     scoring: true,

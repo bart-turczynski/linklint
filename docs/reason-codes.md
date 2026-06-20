@@ -190,6 +190,46 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   `https://microsoftt.com`; `https://paypal.co`.
 - **Scoring:** scoring, weight 0.4 (provisional — G5 re-tunes).
 
+### `homograph_skeleton_collision` — Epic E (E3) · weight 0.5
+
+- **Meaning:** the **registrable domain's UTS#39 confusable skeleton equals a
+  known brand domain exactly.** An all-Cyrillic `сһаѕе.com` — where every letter
+  is a Cyrillic homoglyph of the Latin one — reads as `chase.com` to a human but
+  is a different, attacker-controlled domain. Its `skeleton()` (each codepoint
+  mapped through the confusables table, NFD-normalized) collapses to `chase.com`,
+  colliding with a watchlist brand.
+- **Why it's a signal:** this is the one documented v1 *detection* hole
+  (FR-D-16). A single-script, all-confusable look-alike has **no script mixing**,
+  so `mixed_script` never fires, and confusable annotation (`confusable_char`) is
+  weight-0 — the homograph would otherwise score nothing. FR-D-16 deferred
+  scoring it because penalizing raw confusables would flag every legitimate IDN
+  (the SC-2 failure mode); scoring only an **exact skeleton collision against the
+  brand watchlist** is the precise signal that became possible once the Epic G
+  watchlist existed.
+- **Detection & precision (SC-2):** the **full registrable domain string** is run
+  through the UTS#39 `skeleton()` helper (`unicode/skeleton.ts`, built from the
+  already-pinned confusables table) and tested for an exact match against the
+  precomputed skeleton of each `BRAND_DOMAINS` entry.
+  - **Non-ASCII only** — the detector runs solely when the registrable domain
+    carries a non-ASCII codepoint. The pure-ASCII digit-fold case (`paypa1.com`)
+    is owned by `brand_homoglyph`; this guard makes the two **mutually exclusive
+    by construction**, so they never double-fire.
+  - **Exact brand never fires** — a real brand domain is all-ASCII and is guarded
+    out before any collision test.
+  - **Legitimate single-script IDNs** (`пример.com`, `münchen.de`) skeletonize to
+    a non-brand string and do not collide — SC-2 holds.
+  - IP hosts and inputs with no registrable domain are skipped.
+  The detail names the matched brand and the colliding skeleton.
+- **Brand list:** the authoritative Epic G watchlist (`BRAND_DOMAINS`),
+  version-pinned via `dataVersions.brands`. The skeleton algorithm's only data
+  source is the confusables table, pinned via `dataVersions.unicodeConfusables`.
+- **See also:** `brand_homoglyph` (G2) — the pure-ASCII digit-fold sibling, same
+  weight; `confusable_char` (FR-D-2) — the weight-0 annotation this escalates
+  when the skeleton lands on a brand.
+- **Example:** `https://сһаѕе.com` (→ `chase.com`); `https://ехреԁіа.com`
+  (→ `expedia.com`).
+- **Scoring:** scoring, weight 0.5 (provisional — re-tuned with the brand family).
+
 ### `brand_combosquat` — Epic G (G3) · weight 0.4
 
 - **Meaning:** a **watchlist brand keyword is glued to an additive (non-brand)
@@ -228,6 +268,95 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 - **Example:** `https://paypal-secure.com`; `https://login-paypal.com`;
   `https://secure-paypal-login.net`; `https://paypal-verify.evil.com`.
 - **Scoring:** scoring, weight 0.4 (provisional — G5 re-tunes).
+
+### `brand_soundsquat` — Epic G (T2, Addendum §4) · weight 0.3
+
+- **Meaning:** the **registrable label is a phonetic homophone of a watchlist
+  brand** — it *sounds* like the brand read aloud, even though it is neither an
+  edit-distance near-miss nor a digit/confusable fold. `netflicks.com`
+  (→ netflix), `dropboks.com` (→ dropbox), `spotifi.com` (→ spotify).
+- **Why it's a signal:** soundsquatting (IDEAS-ADDENDUM §4) trades on the *sound*
+  of a brand. `netflicks` and `dropboks` read as the brand to a human but are
+  **invisible to edit distance** — `ck`→`k` plus `x`→`ks` is two raw edits over a
+  7-character label, below G2's distance-2 length gate, so `brand_lookalike` /
+  `brand_homoglyph` flag nothing. This detector fills exactly that recall hole.
+- **Detection & precision (SC-2):** both the input label and each brand label are
+  normalized to a small **phonetic key** via an ordered, static substitution map
+  of homophone digraphs/phonemes (`ph`→`f`, `ck`→`k`, `x`→`ks`, `oo`→`u`,
+  `y`→`i`, `z`→`s`, hard `c`/`ch`→`k`, silent `gh`→``, …) followed by collapsing
+  runs of a repeated letter (`paypall`→`paypal`). It fires only on **whole-label
+  phonetic-key equality** against a brand — never a loose substring.
+  - **Pure-ASCII registrable label only** — non-ASCII hosts belong to the
+    confusable / `homograph_skeleton_collision` (E3) detectors.
+  - **Exact brand never fires** — a watchlist brand domain (or a label equal to a
+    brand label) is the brand, not a homophone of it.
+  - **Short-label guard** — the input label, the matched brand label, **and** the
+    resulting phonetic key must each be ≥ 5 characters. Short, key-degenerate
+    brands (`x`, `ups`, `dhl`, `ibm`, `n26`, `hsbc`, `dpd`, `wise`, `box`,
+    `meta`, `visa`, `cash`) can never collide — short keys are where phonetic
+    folding manufactures spurious matches. Phonetic matching is FP-prone, so this
+    detector is deliberately conservative.
+  - IP hosts and inputs with no registrable domain are skipped.
+  The detail names the matched brand and the shared sound key.
+- **Lexicon:** a small static homophone-substitution map inline in the detector —
+  an intrinsic micro-lexicon (same judgment as the ASCII-confusables table and
+  the `bait_tokens` word list), **not** version-pinned via `dataVersions`.
+- **See also:** `brand_lookalike` (G2) — the edit-distance sibling this
+  complements (soundsquats slip past it); `brand_homoglyph` (G2) — the
+  digit-fold sibling. All carry distinct codes and may stack when both apply.
+- **Example:** `https://netflicks.com` (→ `netflix.com`); `https://dropboks.com`
+  (→ `dropbox.com`).
+- **Scoring:** scoring, weight 0.3 — below `brand_lookalike` (0.4) because
+  phonetic-key matching is lossier than bounded edit distance, above the low
+  band (a whole-label sound-key match against a real brand is a deliberate
+  soundsquat far more often than chance). Provisional — re-tuned with the brand
+  family.
+
+### `brand_bitsquat` — Epic G (T3, Addendum §4) · weight 0.15
+
+- **Meaning:** the **registrable label is a single-bit-flip neighbor of a
+  watchlist brand label** — the bitsquatting / memory-error attack class.
+  Flipping one bit of one ASCII byte of a brand label yields the input label.
+  `netfliz.com` (netfli**x** → netfli**z**: the byte `x`=0x78 with bit 1 flipped
+  is `z`=0x7a), `amazgn.com` (amaz**o**n → amaz**g**n) of `amazon`.
+- **Why it's a signal:** bitsquatting (IDEAS-ADDENDUM §4) exploits hardware/
+  transmission bit-errors — a flaky DIMM, a cosmic ray, a bad hop flips one bit of
+  a brand domain a client meant to resolve, and an attacker who registered that
+  one-bit-off domain silently receives the traffic. It is a real but **niche**
+  attack: an offline completeness item that **names the specific attack class**
+  (and the exact byte/bit) the fuzzy edit-distance check cannot.
+- **Detection & precision (SC-2):** every valid single-bit-flip neighbor of every
+  watchlist brand label is **precomputed once** at module load into a
+  neighbor→brand map; only neighbors whose flipped byte is still a valid DNS
+  label character (`a-z`, `0-9`, `-`) are kept. At runtime the input label is an
+  O(1) membership test — neighbors of the input are never generated.
+  - **Pure-ASCII registrable label only** — non-ASCII hosts belong to the
+    confusable / `homograph_skeleton_collision` (E3) detectors.
+  - **Exact brand never fires** — a watchlist brand domain (or a label equal to a
+    brand label) is the brand, not a bitsquat of it.
+  - **Whole-label equality only** — the input label must equal a precomputed
+    neighbor exactly; no substring matching.
+  - **Short-label guard** — a brand label shorter than 5 characters contributes
+    **no** neighbors and a short input label is rejected; short brands (`ups`,
+    `dhl`, `box`, `ibm`, `n26`, `dpd`, `x`, `meta`, `visa`, `wise`, `cash`,
+    `hsbc`) manufacture spurious 1-bit collisions.
+  - **No-op flips excluded**, and a flip that lands on **another** real watchlist
+    brand label is dropped (we never fire when the bit-flip is itself a different
+    genuine brand). IP / host-less inputs are skipped.
+- **Stacking:** a single bit flip is by construction also an edit-distance-1
+  neighbor, so this code usually **stacks with `brand_lookalike`** (distinct
+  codes); `brand_bitsquat` adds the named attack class and the byte/bit detail.
+- **Lexicon:** the bit-flip enumeration is an **intrinsic algorithm** over the
+  already-pinned brand watchlist (same judgment as the ASCII-confusables fold or
+  the soundsquat key), **not** version-pinned via `dataVersions`.
+- **See also:** `brand_lookalike` (G2) — the edit-distance sibling it stacks with;
+  `brand_soundsquat` (T2) — the phonetic sibling. All carry distinct codes.
+- **Example:** `https://netfliz.com` (→ `netflix.com`); `https://amazgn.com`
+  (→ `amazon.com`).
+- **Scoring:** scoring, weight 0.15 — intentionally LOW (the `risky_tld` /
+  `bait_tokens` / `excessive_subdomain_depth` band): a bit-flip neighbor is a real
+  but niche attack and is combination-only, never decisive standalone. Provisional
+  — re-tuned with the brand family.
 
 ### `bait_tokens` — Epic G (G4) · weight 0.15
 

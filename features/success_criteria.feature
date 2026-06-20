@@ -194,6 +194,40 @@ Feature: Success criteria — core lexical (PRD §7)
     And the severity is at least "low"
     And the reasons contain "bait_tokens"
 
+  Scenario Outline: Epic G (T2) — phonetic homophones of a brand score >= medium with brand_soundsquat
+    When I inspect "<input>"
+    Then the status is "ok"
+    And the severity is at least "medium"
+    And the reasons contain "brand_soundsquat"
+
+    Examples:
+      | input                  |
+      | https://netflicks.com  |
+      | https://dropboks.com   |
+
+  Scenario Outline: Epic G (T3) — single-bit-flip neighbors of a brand carry brand_bitsquat (low weight)
+    When I inspect "<input>"
+    Then the status is "ok"
+    And the severity is at least "low"
+    And the reasons contain "brand_bitsquat"
+
+    Examples:
+      | input                |
+      | https://netfliz.com  |
+      | https://amazgn.com   |
+
+  Scenario Outline: Epic E3 — single-script whole-label homographs score >= medium with homograph_skeleton_collision
+    When I inspect "<input>"
+    Then the status is "ok"
+    And the severity is at least "medium"
+    And the reasons contain "homograph_skeleton_collision"
+    And the reasons do not contain "mixed_script"
+
+    Examples:
+      | input                  |
+      | https://сһаѕе.com      |
+      | https://ехреԁіа.com    |
+
   Scenario Outline: Epic G — must not over-flag legitimate brand domains (SC-2)
     When I inspect "<input>"
     Then the status is "ok"
@@ -202,10 +236,16 @@ Feature: Success criteria — core lexical (PRD §7)
     And the reasons do not contain "<forbidden>"
 
     Examples:
-      | input                              | forbidden        |
-      | https://paypal.com                 | brand_lookalike  |
-      | https://google.com                 | brand_homoglyph  |
-      | https://accounts.google.com        | brand_combosquat |
-      | https://login.microsoftonline.com  | bait_tokens      |
-      | https://amazonaws.com              | brand_combosquat |
-      | https://example.com/account/login  | bait_tokens      |
+      | input                              | forbidden                     |
+      | https://paypal.com                 | brand_lookalike               |
+      | https://google.com                 | brand_homoglyph               |
+      | https://accounts.google.com        | brand_combosquat              |
+      | https://login.microsoftonline.com  | bait_tokens                   |
+      | https://amazonaws.com              | brand_combosquat              |
+      | https://example.com/account/login  | bait_tokens                   |
+      | https://netflix.com                | brand_soundsquat              |
+      | https://ups.com                    | brand_soundsquat              |
+      | https://amazon.com                 | brand_bitsquat                |
+      | https://oetfliz.com                | brand_bitsquat                |
+      | https://chase.com                  | homograph_skeleton_collision  |
+      | https://пример.com                 | homograph_skeleton_collision  |
