@@ -8,7 +8,7 @@ import { CHECKS } from "./checks.js";
 export type { ScanContext } from "./descriptor.js";
 
 /**
- * A structural scan over the raw/prepared input (J1/J2/J3/J9). Mirrors the
+ * A structural scan over the raw/prepared input. Mirrors the
  * {@link Detector} shape: a stable `id` plus a `run` that maps a context to
  * findings. The `run` thunks wrap the standalone `scanX` exports — those keep
  * their `(prepared: string)`-first signatures so tests can call them directly.

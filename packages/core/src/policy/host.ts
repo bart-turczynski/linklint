@@ -3,7 +3,7 @@ import type { InspectionContext } from "../detectors/types.js";
 import type { CollectedFinding } from "../schema/serialize.js";
 
 /**
- * Host axis (H3). Caller-configured allow/deny on the registrable domain
+ * Host axis. Caller-configured allow/deny on the registrable domain
  * (eTLD+1). Matching is on `ctx.registrableDomain`, case-insensitive, with a
  * leading dot tolerated and stripped from each list entry. Because the match key
  * is the registrable domain, listing `example.com` covers `example.com` and

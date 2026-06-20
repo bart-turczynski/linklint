@@ -2,7 +2,7 @@ import type { DetectorFinding } from "./types.js";
 import { authorityRegion, type AuthorityRegion } from "../parse/authority-region.js";
 
 /**
- * J2 — `separator_lookalike` (Epic J, FR parser-differential). SCORING.
+ * `separator_lookalike` (FR parser-differential). SCORING.
  *
  * Flags characters in the authority that a downstream layer (browser, IDNA/NFKC
  * normalization) maps to a STRUCTURAL ASCII delimiter — a dot or a slash — so

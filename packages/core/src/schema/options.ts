@@ -9,7 +9,7 @@
  * When no policy field is set, inspection is byte-identical to passing no
  * options at all (no `policy` entry in `checksRun`, no policy reasons).
  *
- * Policy fields are flat and additive — each axis (H2–H4) contributes its own
+ * Policy fields are flat and additive — each axis contributes its own
  * optional field here; {@link InspectOptions} stays a single grouping.
  */
 export interface InspectOptions {

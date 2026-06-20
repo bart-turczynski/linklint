@@ -4,7 +4,7 @@ import { boundedDecode } from "../parse/decode.js";
 import { normalizeOptions, type RuntimeConfig } from "../parse/runtime.js";
 
 /**
- * J3 — `control_char` (Epic J, FR parser-differential). SCORING.
+ * `control_char` (FR parser-differential). SCORING.
  *
  * Flags ASCII control / whitespace characters — raw OR percent-encoded — used to
  * SMUGGLE a protocol or TERMINATE the host. The Tsai "A New Era of SSRF"
@@ -26,7 +26,7 @@ import { normalizeOptions, type RuntimeConfig } from "../parse/runtime.js";
  *     `ambiguous_authority`'s scope. Scoped to host-shaped authorities (SC-2) so
  *     a space in a path or in non-URL prose does not flag.
  *
- * Runs as a raw scan (like J1/J2/J9) over the prepared input rather than the
+ * Runs as a raw scan (like the other structural detectors) over the prepared input rather than the
  * parsed context, so the encoded payloads `parse()` would decode or discard
  * still explain themselves instead of degrading to a bare `parse_error`.
  */

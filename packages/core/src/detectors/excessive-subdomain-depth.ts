@@ -4,14 +4,14 @@ import type { Detector } from "./types.js";
 const SUBDOMAIN_DEPTH_THRESHOLD = 5;
 
 /**
- * I3 — excessive subdomain depth. Low-weight scoring (0.15) so it is only
+ * Excessive subdomain depth. Low-weight scoring (0.15) so it is only
  * meaningful in combination, never a flag on its own.
  *
  * An abnormally large number of subdomain labels (e.g.
  * `a.b.c.d.paypal.com.evil.tk`) is a known phishing structure used to bury the
  * real registrable domain far to the right of the visible host. Complements
  * `embedded_domain_in_subdomain` (FR-D-8): that detector fires only when a mid-
- * window of the subdomain is itself a registrable domain, whereas I3 fires on raw
+ * window of the subdomain is itself a registrable domain, whereas this detector fires on raw
  * subdomain DEPTH regardless of whether any window looks like a registrable
  * domain. Only the subdomain labels (everything left of the registrable domain)
  * are counted — the registrable-domain and public-suffix labels are excluded.

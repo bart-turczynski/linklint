@@ -7,7 +7,7 @@ import {
 } from "./brand-utils.js";
 
 /**
- * T3 — `brand_bitsquat` (Epic G, IDEAS-ADDENDUM §4). SCORING, weight 0.15 (LOW).
+ * `brand_bitsquat` (IDEAS-ADDENDUM §4). SCORING, weight 0.15 (LOW).
  *
  * Detects BITSQUATTING: a host whose registrable LABEL is a SINGLE-BIT-FLIP
  * neighbor of a watchlist brand label — the memory/transmission-error attack
@@ -34,7 +34,7 @@ import {
  * specifically the memory-error subset and reports the exact byte/bit, which the
  * fuzzy edit-distance code cannot. It is deliberately conservative:
  *  - **Pure-ASCII registrable label only.** A non-ASCII (IDN) host belongs to the
- *    confusable / E3 detectors; the all-ASCII watchlist cannot be a byte-level
+ *    confusable detectors; the all-ASCII watchlist cannot be a byte-level
  *    bit-flip of a Unicode label.
  *  - **Exact brand never fires.** A watchlist brand domain, or an input label
  *    equal to a brand label, IS the brand — skip.
@@ -91,7 +91,7 @@ export const bitsquatting: Detector = {
   layer: "lexical",
   run(ctx): DetectorFinding[] {
     // Pure-ASCII, non-IP registrable domain that is not itself a brand. Non-ASCII
-    // (IDN) hosts belong to the confusable / E3 detectors; the real brand never
+    // (IDN) hosts belong to the confusable detectors; the real brand never
     // fires — it IS the brand.
     const raw = asciiRegistrableBrandCandidate(ctx);
     if (raw === null) return [];

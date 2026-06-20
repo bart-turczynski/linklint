@@ -3,7 +3,7 @@ import type { InspectionContext } from "../detectors/types.js";
 import type { CollectedFinding } from "../schema/serialize.js";
 
 /**
- * Scheme axis (H4). Caller-configured allow/deny on the scheme (lower-cased, no
+ * Scheme axis. Caller-configured allow/deny on the scheme (lower-cased, no
  * colon). A null scheme (no scheme in the input) is exempt — the axis is
  * skipped, so a schemeless input never emits scheme_denied. Opaque/hostless
  * inputs still carry a scheme (e.g. `javascript`) so scheme policy applies to

@@ -20,7 +20,7 @@ export function toAscii(host: string): string {
  * ASCII (ACE) form of a host under a specific IDNA standard, or `null` if that
  * standard rejects it. `transitional: true` approximates IDNA2003 (the deviation
  * characters ß→ss, ς→σ, ZWJ/ZWNJ removed); `transitional: false` is UTS-46 /
- * IDNA2008. Comparing the two surfaces resolver disagreement (J9). Unlike
+ * IDNA2008. Comparing the two surfaces resolver disagreement. Unlike
  * `toAscii` this does NOT fall back to the input — a `null` is a meaningful
  * "this standard rejects the host" signal.
  */
@@ -44,7 +44,7 @@ export function toUnicode(host: string): string {
 
 /**
  * True if `host` has an `xn--` (ACE) label that fails UTS-46/Punycode decoding —
- * i.e. it does not decode to a valid U-label (FR-D / E5). `tr46.toUnicode`
+ * i.e. it does not decode to a valid U-label (FR-D). `tr46.toUnicode`
  * surfaces this via its `error` flag, which `toUnicode` above discards. Scoped
  * strictly to ACE labels: a non-ASCII host that merely contains other issues is
  * out of scope here. An uppercase ACE label (e.g. `XN--CAF-DMA`) round-trips

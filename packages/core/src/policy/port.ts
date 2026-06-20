@@ -16,7 +16,7 @@ const STANDARD_PORTS: Record<string, number> = {
 };
 
 /**
- * Port axis (H4). Caller-configured deny on the port, evaluated only when an
+ * Port axis. Caller-configured deny on the port, evaluated only when an
  * explicit port is present (ctx.port non-null). `denyPorts` blocks enumerated
  * ports; `denyNonStandardPorts` blocks any explicit port that is not the
  * scheme's standard default (see STANDARD_PORTS). At most one port_denied is

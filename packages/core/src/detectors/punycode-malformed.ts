@@ -2,7 +2,7 @@ import type { Detector } from "./types.js";
 import { hasMalformedPunycode } from "../unicode/idna.js";
 
 /**
- * E5 — malformed punycode. A host with an `xn--` (ACE) label that does not
+ * Malformed punycode. A host with an `xn--` (ACE) label that does not
  * decode to a valid U-label is a lexical anomaly: it is not a registrable IDN
  * and never appears in legitimate links. Low weight — anomalous, but not
  * inherently an attack on its own. Valid IDNs (including uppercase ACE, which

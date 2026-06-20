@@ -2,7 +2,7 @@ import type { Detector } from "./types.js";
 import { isBrandKeyword } from "../data/brands.js";
 
 /**
- * J7 — `brand_in_path` (Epic J). SCORING, low weight (0.2).
+ * `brand_in_path`. SCORING, low weight (0.2).
  *
  * Promotes a brand reference planted in the PATH/QUERY of an UNRELATED host from
  * the info-only `confusable_in_path` annotation to a low scoring signal. The lure
@@ -14,7 +14,7 @@ import { isBrandKeyword } from "../data/brands.js";
  *
  * Precision-first (SC-2). Fires only on the two phishing-shaped patterns, and
  * only when the brand does NOT appear in the host (a brand in the host is a
- * different attack, owned by `embedded_domain_in_subdomain` / Epic G):
+ * different attack, owned by `embedded_domain_in_subdomain` and the brand-aware layer):
  *   - **domain-shaped** — a path/query token `<brand>.<tld>` (`/paypal.com/`,
  *     `?next=paypal.com`). A literal brand domain as a path token is rare in
  *     legitimate URLs.
@@ -23,7 +23,7 @@ import { isBrandKeyword } from "../data/brands.js";
  *     The credential context is required so an ordinary `/amazon/dp/...` style
  *     path does not flag.
  *
- * Uses the SEED brand list in `data/brands.ts`; Epic G replaces it with the
+ * Uses the SEED brand list in `data/brands.ts`; the brand-aware layer replaces it with the
  * authoritative, expandable list and adds the host-side brand escalations.
  */
 

@@ -1,5 +1,5 @@
 /**
- * ASCII letter-shaped digit confusables (Epic G / J4 — shared). The single
+ * ASCII letter-shaped digit confusables (shared). The single
  * source of truth for the three digits that read unambiguously as a Latin
  * letter when embedded in an otherwise-alphabetic word:
  *   `0`→o, `1`→l, `5`→s   (g00gle → google, paypa1 → paypal, mas5 → mass)
@@ -11,9 +11,9 @@
  * letter; treat every other digit as a genuine number.
  *
  * Consumers:
- *   - J4 `ascii_homoglyph` (detectors/ascii-homoglyph.ts) — the general,
+ *   - `ascii_homoglyph` (detectors/ascii-homoglyph.ts) — the general,
  *     brand-free structural signal, which folds a label to its readable skeleton.
- *   - G2 `brand_lookalike` (detectors/brand-lookalike.ts) — folds the
+ *   - `brand_lookalike` (detectors/brand-lookalike.ts) — folds the
  *     registrable domain and tests the skeleton for an exact brand match.
  *
  * No `dataVersions` pin: this is a static, intrinsic property of the ASCII

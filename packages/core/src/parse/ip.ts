@@ -73,7 +73,7 @@ export function analyzeIpv4(host: string): Ipv4Analysis | null {
 }
 
 /**
- * J5 — obfuscated-IPv6 recognition. Extends FR-D-7 to IPv6 literals (the inner
+ * Obfuscated-IPv6 recognition. Extends FR-D-7 to IPv6 literals (the inner
  * text of `[...]`, brackets already stripped). Returns null if the string is not
  * a valid IPv6 address at all; otherwise renders the RFC 5952 canonical form and
  * flags non-canonical / IPv4-embedding forms as obfuscated.

@@ -1,7 +1,7 @@
 import type { Detector } from "./types.js";
 
 /**
- * I1 — `suspicious_extension` (Epic I). SCORING. A lexical, brand-free signal for
+ * `suspicious_extension`. SCORING. A lexical, brand-free signal for
  * direct-download malware links: the URL **path** ends in a dangerous executable
  * file extension, or in a deceptive double-extension that lures a click.
  *

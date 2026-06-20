@@ -1,5 +1,5 @@
 /**
- * Raw authority-region isolation, shared by the Epic J structural detectors
+ * Raw authority-region isolation, shared by the structural detectors
  * (`ambiguous_authority`, `separator_lookalike`, …). These detectors look for
  * tricks in the parts `parse()` discards, so they work on the prepared raw
  * string rather than the parsed `InspectionContext`.

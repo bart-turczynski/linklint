@@ -8,7 +8,7 @@ import {
 } from "./brand-utils.js";
 
 /**
- * G2 — brand-proximity detection (Epic G). A SINGLE detector emitting TWO codes,
+ * Brand-proximity detection. A SINGLE detector emitting TWO codes,
  * in priority order (it reports the strongest single finding per input):
  *
  *   - `brand_homoglyph` (HIGH confidence) — the registrable domain folds, via
@@ -126,7 +126,7 @@ export const brandLookalike: Detector = {
     // EXACTLY a watchlist brand, that is the highest-confidence impersonation.
     const skel = foldAsciiDigitHomoglyphs(raw);
     if (skel !== raw && BRAND_DOMAIN_SET.has(skel)) {
-      // Sanity guard (J4's spirit): a digit was actually folded and the result is
+      // Sanity guard: a digit was actually folded and the result is
       // alphabetic (plus dots/suffix) — a degenerate mostly-digit string can't
       // pass, and the exact-match-to-a-real-brand above is the precision backstop.
       if (/[a-z]/.test(skel) && /^[a-z.]+$/.test(skel)) {

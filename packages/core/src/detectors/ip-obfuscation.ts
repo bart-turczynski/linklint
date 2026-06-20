@@ -2,12 +2,12 @@ import type { Detector } from "./types.js";
 import { analyzeIpv4, analyzeIpv6 } from "../parse/ip.js";
 
 /**
- * FR-D-7 (+ J5) — IP-address obfuscation. Scoring. A canonical dotted-decimal
+ * FR-D-7 — IP-address obfuscation. Scoring. A canonical dotted-decimal
  * IPv4 or canonical IPv6 literal is NOT flagged; only non-canonical encodings
  * are, with the canonical form rendered so the real destination is explained.
  *
  *  - IPv4: decimal / octal / hex / dotless (`2130706433`, `0x7f.0.0.1`).
- *  - IPv6 (J5): non-canonical literals (leading zeros, uppercase, uncompressed
+ *  - IPv6: non-canonical literals (leading zeros, uppercase, uncompressed
  *    zero runs) and IPv4-embedding forms (`[::ffff:127.0.0.1]`) — the SSRF
  *    masquerade where a validator sees IPv6 but the resolver reaches an IPv4.
  */

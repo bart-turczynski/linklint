@@ -1,7 +1,7 @@
 import type { Detector, DetectorFinding, InspectionContext } from "./types.js";
 
 /**
- * G4 — `bait_tokens` (Epic G). SCORING, LOW weight (0.15).
+ * `bait_tokens`. SCORING, LOW weight (0.15).
  *
  * A cheap lexical corroborating signal: the density of phishing-BAIT keywords
  * (`secure`, `verify`, `account`, `login`, `signin`, `update`, `wallet`,
@@ -15,7 +15,7 @@ import type { Detector, DetectorFinding, InspectionContext } from "./types.js";
  * (`accounts.google.com/signin`, a bank's `/account/login`,
  * `login.microsoftonline.com`). So a single bait token MUST NEVER fire, and the
  * weight is deliberately LOW (0.15, the risky_tld / excessive_subdomain_depth
- * band): this corroborates G2/G3 brand checks, it is never decisive alone.
+ * band): this corroborates the brand checks, it is never decisive alone.
  *
  * ── Threshold (the precision lever) ─────────────────────────────────────────
  * Legit sites stack bait words in the PATH all the time (`/account/security/

@@ -4,7 +4,7 @@
  *
  * The extension-confusable TLDs that collide with common file extensions
  * (`.zip`, `.mov`) are owned by the sharper, higher-weight `file_extension_tld`
- * detector (Epic J / J6) — kept out of this set so the two never double-count.
+ * detector — kept out of this set so the two never double-count.
  *
  * Version-pinned via dataVersions.riskyTlds. Entries are the effective TLD
  * (last label).
@@ -34,7 +34,7 @@ export function isRiskyTld(tld: string): boolean {
 }
 
 /**
- * TLDs that are also common file extensions (J6). A registrable domain on one of
+ * TLDs that are also common file extensions. A registrable domain on one of
  * these (`invoice.zip`, `setup.mov`) can masquerade as a downloadable file. These
  * are owned by `file_extension_tld`, NOT `risky_tld`, so the two never overlap.
  */

@@ -3,7 +3,7 @@ import { isBrandKeyword } from "../data/brands.js";
 import { isExactBrandDomain } from "./brand-utils.js";
 
 /**
- * G3 — `brand_combosquat` (Epic G). SCORING, weight 0.4.
+ * `brand_combosquat`. SCORING, weight 0.4.
  *
  * Detects COMBOSQUATTING: a watchlist brand keyword GLUED to an additive
  * (non-brand) token inside a single host label — `paypal-secure.com`,
@@ -11,7 +11,7 @@ import { isExactBrandDomain } from "./brand-utils.js";
  *
  * Per IDEAS-ADDENDUM §4 this structure is MORE common than character typos and
  * is INVISIBLE to edit distance: the host is not a near-miss of the brand
- * domain, so G2's `brand_lookalike` / `brand_homoglyph` never catch it. This
+ * domain, so `brand_lookalike` / `brand_homoglyph` never catch it. This
  * detector complements them with pure string ops over the host.
  *
  * ── Token boundary (the key precision lever) ───────────────────────────────
@@ -41,9 +41,9 @@ import { isExactBrandDomain } from "./brand-utils.js";
  * is legitimately using its own keyword on its own domain, so we skip.
  *
  * ── No overlap with existing detectors ─────────────────────────────────────
- * - `brand_in_path` (J7) fires on a brand in the PATH/QUERY of an unrelated
+ * - `brand_in_path` fires on a brand in the PATH/QUERY of an unrelated
  *   host — a DIFFERENT location (host vs path). No overlap.
- * - `brand_lookalike` / `brand_homoglyph` (G2) fire on edit-distance / digit
+ * - `brand_lookalike` / `brand_homoglyph` fire on edit-distance / digit
  *   folds of the registrable domain; combosquats are not near-misses, so they
  *   are complementary, never duplicative.
  * - Stacking with `embedded_domain_in_subdomain` is acceptable when both
