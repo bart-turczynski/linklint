@@ -1,5 +1,5 @@
 import type { DetectorFinding } from "./types.js";
-import { authorityRegion } from "../parse/authority-region.js";
+import { authorityRegion, type AuthorityRegion } from "../parse/authority-region.js";
 import { boundedDecode } from "../parse/decode.js";
 import { normalizeOptions, type RuntimeConfig } from "../parse/runtime.js";
 
@@ -56,6 +56,7 @@ const SIGNAL_DETAIL: Record<string, string> = {
 export function scanControlChar(
   prepared: string,
   runtime: RuntimeConfig = normalizeOptions({}),
+  region: AuthorityRegion = authorityRegion(prepared),
 ): DetectorFinding[] {
   if (prepared === "") return [];
 
@@ -89,7 +90,7 @@ export function scanControlChar(
   }
 
   // 3. Bare whitespace inside a host-shaped authority.
-  const { authority, opaque } = authorityRegion(prepared);
+  const { authority, opaque } = region;
   if (!opaque && authority !== "") {
     const hostport = authority.includes("@")
       ? authority.slice(authority.lastIndexOf("@") + 1)

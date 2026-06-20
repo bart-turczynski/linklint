@@ -10,6 +10,7 @@ import {
 } from "./schema/serialize.js";
 import { policyConfigured, runPolicy } from "./policy/policy.js";
 import { normalizeOptions } from "./parse/runtime.js";
+import { authorityRegion } from "./parse/authority-region.js";
 
 /**
  * Inspect a single URL or bare hostname. Synchronous, zero-network, never throws
@@ -24,7 +25,8 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRes
   const runtime = normalizeOptions(options);
   const structural: CollectedFinding[] = [];
   const prepared = prepare(input);
-  const scanCtx = { input, prepared, runtime };
+  // Every structural scan needs the authority region — compute it once and share.
+  const scanCtx = { input, prepared, runtime, authority: authorityRegion(prepared) };
   for (const scan of STRUCTURAL_SCANS) {
     try {
       structural.push(...scan.run(scanCtx));

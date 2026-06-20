@@ -1,5 +1,5 @@
 import type { DetectorFinding } from "./types.js";
-import { authorityRegion } from "../parse/authority-region.js";
+import { authorityRegion, type AuthorityRegion } from "../parse/authority-region.js";
 import { toAsciiUnder } from "../unicode/idna.js";
 
 /**
@@ -34,10 +34,13 @@ import { toAsciiUnder } from "../unicode/idna.js";
  * Implemented with the vetted `tr46` library in both processing modes
  * (FR-LIB-1: do not hand-roll IDNA).
  */
-export function scanIdnaMappingAmbiguity(prepared: string): DetectorFinding[] {
+export function scanIdnaMappingAmbiguity(
+  prepared: string,
+  region: AuthorityRegion = authorityRegion(prepared),
+): DetectorFinding[] {
   if (prepared === "") return [];
 
-  const { authority, opaque } = authorityRegion(prepared);
+  const { authority, opaque } = region;
   if (opaque || authority === "") return [];
 
   const host = hostFromAuthority(authority);

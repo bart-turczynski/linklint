@@ -1,5 +1,6 @@
 import type { DetectorFinding } from "./types.js";
 import type { RuntimeConfig } from "../parse/runtime.js";
+import type { AuthorityRegion } from "../parse/authority-region.js";
 import { scanAmbiguousAuthority } from "./ambiguous-authority.js";
 import { scanSeparatorLookalike } from "./separator-lookalike.js";
 import { scanIdnaMappingAmbiguity } from "./idna-mapping-ambiguity.js";
@@ -7,12 +8,14 @@ import { scanControlChar } from "./control-char.js";
 
 /**
  * Shared context handed to every structural scan. Built once per `inspect()`
- * call so scans don't each re-derive the prepared form or runtime knobs.
+ * call so scans don't each re-derive the prepared form, runtime knobs, or the
+ * authority region (every scan needs the latter — compute it once).
  */
 export interface ScanContext {
   input: string;
   prepared: string;
   runtime: RuntimeConfig;
+  authority: AuthorityRegion;
 }
 
 /**
@@ -29,13 +32,16 @@ export interface StructuralScan {
 /**
  * Ordered list of structural scans run by `inspect()` ahead of parse(). Same
  * order as the previous inline array (ambiguous-authority, separator-lookalike,
- * idna-mapping-ambiguity, control-char). scanControlChar is the only scan that
- * decodes, so only it takes `runtime` (the depth knob); the others are pure
- * string scans.
+ * idna-mapping-ambiguity, control-char). Each scan receives the once-computed
+ * authority region; scanControlChar additionally takes `runtime` (the decode
+ * depth knob) — it is the only scan that decodes.
  */
 export const STRUCTURAL_SCANS: StructuralScan[] = [
-  { id: "ambiguous_authority", run: (ctx) => scanAmbiguousAuthority(ctx.prepared) },
-  { id: "separator_lookalike", run: (ctx) => scanSeparatorLookalike(ctx.prepared) },
-  { id: "idna_mapping_ambiguity", run: (ctx) => scanIdnaMappingAmbiguity(ctx.prepared) },
-  { id: "control_char", run: (ctx) => scanControlChar(ctx.prepared, ctx.runtime) },
+  { id: "ambiguous_authority", run: (ctx) => scanAmbiguousAuthority(ctx.prepared, ctx.authority) },
+  { id: "separator_lookalike", run: (ctx) => scanSeparatorLookalike(ctx.prepared, ctx.authority) },
+  {
+    id: "idna_mapping_ambiguity",
+    run: (ctx) => scanIdnaMappingAmbiguity(ctx.prepared, ctx.authority),
+  },
+  { id: "control_char", run: (ctx) => scanControlChar(ctx.prepared, ctx.runtime, ctx.authority) },
 ];
