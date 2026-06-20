@@ -17,6 +17,7 @@ import { brandInPath } from "./brand-in-path.js";
 import { openRedirectParam } from "./open-redirect-param.js";
 import { suspiciousExtension } from "./suspicious-extension.js";
 import { punycodeMalformed } from "./punycode-malformed.js";
+import { excessiveSubdomainDepth } from "./excessive-subdomain-depth.js";
 
 /**
  * Ordered list of lexical detectors run by the default `inspect()` path,
@@ -42,6 +43,7 @@ export const DETECTORS: Detector[] = [
   openRedirectParam, // I2      (scoring)
   suspiciousExtension, // I1      (scoring)
   punycodeMalformed, // E5      (scoring, low)
+  excessiveSubdomainDepth, // I3 (scoring, low)
 ];
 
 export {
@@ -63,4 +65,5 @@ export {
   openRedirectParam,
   suspiciousExtension,
   punycodeMalformed,
+  excessiveSubdomainDepth,
 };

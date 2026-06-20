@@ -164,6 +164,13 @@ export const REASON_CODES = {
     summary:
       "URL path ends in a dangerous executable extension (.exe/.scr/.msi…) or a deceptive double-extension (.pdf.exe).",
   },
+  excessive_subdomain_depth: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.15,
+    summary:
+      "Host has an abnormally large number of subdomain labels (≥5) — a low-weight combination signal for a buried registrable domain.",
+  },
 
   // ── Meta ────────────────────────────────────────────────────────────────
   parse_error: {

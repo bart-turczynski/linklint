@@ -234,6 +234,27 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 - **Example:** `https://paypal.com.spoof.info/` → real domain `spoof.info`;
   `https://paypal.com.login.evil.com/` → real domain `evil.com`.
 
+### `excessive_subdomain_depth` — Epic I (I3) · weight 0.15
+
+- **Meaning:** the host has an abnormally large number of **subdomain labels**
+  (≥ 5 labels left of the registrable domain), e.g.
+  `a.b.c.d.paypal.com.evil.tk`.
+- **Why it's a signal:** stacking many subdomain labels buries the real
+  registrable domain far to the right of the visible host, a known phishing
+  structure. A low-weight contextual signal — it never flags on its own and only
+  matters in combination with other signals.
+- **Relationship to `embedded_domain_in_subdomain`:** that detector (FR-D-8)
+  fires only when a window of the subdomain is itself a registrable domain;
+  I3 fires on raw subdomain **depth** regardless of whether any window looks like
+  a registrable domain, catching deep-burial hosts the embedded check misses.
+- **Detection & precision (SC-2):** counts only the subdomain labels (everything
+  left of the registrable domain) — the registrable-domain and public-suffix
+  labels are excluded — and fires at the threshold of **5**. IP hosts and hosts
+  with no subdomain never fire. Legitimate deep-subdomain hosts
+  (`cdn.assets.eu-west-1.example.com`, 3 labels) stay clean.
+- **Example:** `https://a.b.c.d.paypal.com.evil.tk/` (5 subdomain labels).
+- **Scoring:** scoring, weight 0.15 (low-weight combination signal).
+
 ### `risky_tld` — FR-D-9 · weight 0.15
 
 - **Meaning:** the registrable domain uses a high-abuse / free-registration TLD
