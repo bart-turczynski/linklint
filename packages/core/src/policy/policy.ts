@@ -2,10 +2,7 @@ import type { InspectOptions } from "../schema/types.js";
 import type { InspectionContext } from "../detectors/types.js";
 import type { CollectedFinding } from "../schema/serialize.js";
 import type { PolicyAxis } from "./types.js";
-import { runTldAxis } from "./tld.js";
-import { runHostAxis } from "./host.js";
-import { runSchemeAxis } from "./scheme.js";
-import { runPortAxis } from "./port.js";
+import { POLICY_AXIS_DESCRIPTORS } from "./axes.js";
 
 export { policyConfigured } from "./options.js";
 
@@ -22,16 +19,14 @@ export { policyConfigured } from "./options.js";
  */
 
 /**
- * The configured policy axes, evaluated in this order. The findings array order
- * is asserted by tests, so the order here is load-bearing: TLD → host → scheme
- * → port.
+ * The configured policy axes' run functions, in evaluation order. DERIVED from
+ * {@link POLICY_AXIS_DESCRIPTORS} — the registry is the single source of truth.
+ * The findings array order is asserted by tests, so the registry order is
+ * load-bearing: TLD → host → scheme → port.
  */
-const POLICY_AXES: readonly PolicyAxis[] = [
-  runTldAxis,
-  runHostAxis,
-  runSchemeAxis,
-  runPortAxis,
-];
+const POLICY_AXES: readonly PolicyAxis[] = POLICY_AXIS_DESCRIPTORS.map(
+  (descriptor) => descriptor.run,
+);
 
 /**
  * Run the policy channel over a parsed context. Returns layer-`policy` findings
