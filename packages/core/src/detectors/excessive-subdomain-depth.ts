@@ -21,7 +21,7 @@ export const excessiveSubdomainDepth: Detector = {
   layer: "lexical",
   run(ctx) {
     if (ctx.isIp || !ctx.subdomain || !ctx.registrableDomain) return [];
-    const count = ctx.subdomain.split(".").filter(Boolean).length;
+    const count = ctx.subdomainLabels.filter(Boolean).length;
     if (count < SUBDOMAIN_DEPTH_THRESHOLD) return [];
     return [
       {

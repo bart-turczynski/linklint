@@ -12,7 +12,7 @@ export const embeddedDomain: Detector = {
   layer: "lexical",
   run(ctx) {
     if (!ctx.registrableDomain || !ctx.subdomain) return [];
-    const labels = ctx.subdomain.split(".");
+    const labels = ctx.subdomainLabels;
     const n = labels.length;
     // Scan ALL contiguous windows of subdomain labels — not just suffixes — so a
     // brand domain with filler labels between it and the real eTLD+1 is still

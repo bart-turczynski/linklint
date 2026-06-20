@@ -24,7 +24,7 @@ export const fileExtensionTld: Detector = {
   layer: "lexical",
   run(ctx) {
     if (!ctx.publicSuffix || !ctx.registrableDomain) return [];
-    const tld = ctx.publicSuffix.split(".").pop()!;
+    const tld = ctx.publicSuffixTld!;
     if (!isFileExtensionTld(tld)) return [];
 
     const bareFilename = !ctx.subdomain; // host is exactly `stem.<ext>`

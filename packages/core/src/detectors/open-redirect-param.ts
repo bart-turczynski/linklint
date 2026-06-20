@@ -87,7 +87,7 @@ export const openRedirectParam: Detector = {
   run(ctx) {
     if (!ctx.query || ctx.registrableDomain === null) return [];
 
-    const inputDomain = ctx.registrableDomain.toLowerCase();
+    const inputDomain = ctx.registrableDomainLower!;
 
     for (const pair of ctx.query.split("&")) {
       if (pair === "") continue;
