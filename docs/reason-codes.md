@@ -148,6 +148,41 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   `https://cdn.evil.io/invoice.pdf.exe`.
 - **Scoring:** scoring, weight 0.5.
 
+### `open_redirect_param` — Epic I (I2) · weight 0.4
+
+- **Meaning:** a query parameter whose **name** is a known redirect parameter
+  (`next`, `url`, `redirect`, `redirect_uri`, `redirect_url`, `dest`,
+  `destination`, `return`, `returnUrl`, `continue`, `u`, `goto`, `target`) carries
+  a **value that is itself a URL pointing to a different registrable domain** than
+  the link host.
+- **Why it's a signal:** `https://example.com/login?next=https://evil.com/phish`
+  reads as `example.com`, but when the redirect fires the user lands on
+  `evil.com`. The cross-host payload is the lexical fingerprint of an
+  open-redirect lure.
+- **Roadmap relocation (Phase 2 → Layer 1):** the PRD parks open-redirect under
+  **Phase 2 (resolution)** because *confirming* an open redirect requires
+  following it over the network. But the cross-host PAYLOAD inside the parameter
+  is visible **without any network access** — a purely lexical signal — so the
+  *detection* belongs in **Layer 1 (lexical)**. Phase 2 still owns the
+  resolution-time confirmation of whether the redirect actually fires; this
+  detector owns the offline payload detection.
+- **Detection & precision (SC-2):** the value is bounded-decoded (seeing through
+  single/double percent-encoding) and interpreted as a URL in two shapes:
+  - **absolute URL** — scheme + host (`https://evil.com/...`);
+  - **protocol-relative** — `//evil.com/...`, a classic payload that omits the
+    scheme.
+
+  Fires **only** when the decoded value resolves to a host whose registrable
+  domain is non-null and **differs** (case-insensitively) from the link host's.
+  A relative/same-host path (`?next=/dashboard`), a same-registrable-domain target
+  (`?next=https://app.example.com/home`), a non-redirect param carrying a URL
+  (`?ref=https://evil.com`), and a non-URL value (`?url=2`) all stay clean.
+  Parsing is fully defensive — a junk value yields no finding and the detector
+  never throws.
+- **Example:** `https://example.com/login?next=https://evil.com/phish`;
+  `https://example.com/?redirect=//evil.com`.
+- **Scoring:** scoring, weight 0.4.
+
 ### `invisible_char` — FR-D-4 · weight 0.5
 
 - **Meaning:** invisible, zero-width, or control characters appear anywhere in

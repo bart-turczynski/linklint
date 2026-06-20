@@ -54,6 +54,7 @@ export {
   dangerousScheme,
   confusableInPath,
   brandInPath,
+  openRedirectParam,
   suspiciousExtension,
 } from "./detectors/registry.js";
 export { scanAmbiguousAuthority } from "./detectors/ambiguous-authority.js";

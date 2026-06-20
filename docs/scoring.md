@@ -61,6 +61,7 @@ explainable. Reliability is encoded in the weight itself — there is no separat
 | `mixed_script`                 | 0.40   | yes      |
 | `ip_obfuscation`               | 0.40   | yes      |
 | `file_extension_tld`           | 0.40   | yes      |
+| `open_redirect_param`          | 0.40   | yes      |
 | `encoding_obfuscation`         | 0.35   | yes      |
 | `punycode_malformed`           | 0.20   | yes      |
 | `ascii_homoglyph`              | 0.20   | yes      |

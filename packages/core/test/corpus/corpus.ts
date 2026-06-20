@@ -151,7 +151,7 @@ export const CORPUS: CorpusRow[] = [
   { input: "192.168.1.1", label: "benign", forbidReasons: ["ip_obfuscation"], notes: "canonical IP is not obfuscation" },
   { input: "http://127.0.0.1:3000/", label: "benign", forbidReasons: ["ip_obfuscation"] },
   { input: "example.com", label: "benign", notes: "bare host, missing scheme" },
-  { input: "https://example.com/?redirect=https%3A%2F%2Fok.com%2Fp", label: "benign", forbidReasons: ["encoding_obfuscation"], notes: "legitimate encoded query value" },
+  { input: "https://example.com/?redirect=https%3A%2F%2Fexample.com%2Fp", label: "benign", forbidReasons: ["encoding_obfuscation", "open_redirect_param"], notes: "legitimate encoded SAME-host redirect value (A→A): guards encoding_obfuscation and open_redirect_param. Cross-host (A→B) deceptive case is an I4 corpus row." },
 
   // ── Informational-only (SC-1a): annotate, weight 0, benign ──────────────
   { input: "https://xn--bcher-kva.de/", label: "info", expectReasons: ["normalization_delta"], forbidReasons: ["mixed_script", "punycode_malformed"], notes: "bücher.de ACE form" },
