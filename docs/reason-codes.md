@@ -493,6 +493,65 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 - **Example:** `http://2130706433/` (decimal for `127.0.0.1`);
   `https://[::ffff:127.0.0.1]/` (IPv6 literal embedding `127.0.0.1`).
 
+### Literal-IP range buckets — V1a · weights 0.2 / 0.5
+
+A literal-IP host is classified into **exactly one** range bucket, emitting one
+code. The classifier runs on **all** IP-literal hosts — canonical or obfuscated
+alike — and reuses the already-decoded canonical/embedded address (it does no IP
+parsing of its own). IPv4-in-IPv6 embeddings (`::ffff:127.0.0.1`) are classified
+by the **embedded IPv4** — the SSRF masquerade where a validator sees IPv6 while
+the resolver reaches an internal v4 target.
+
+Most-specific precedence (the first matching bucket wins):
+
+```
+ip_cloud_metadata > ip_loopback > ip_link_local > ip_private > ip_reserved
+```
+
+An ordinary **public** literal IP (`8.8.8.8`, `2001:db8::1`) matches no bucket
+and emits nothing. The detail renders the canonical address so the real
+destination is explained.
+
+### `ip_cloud_metadata` — V1a · weight 0.5
+
+- **Meaning:** the host is the cloud instance-metadata endpoint —
+  `169.254.169.254/32`, `fd00:ec2::254`, or an IPv4-mapped equivalent
+  (`::ffff:169.254.169.254`).
+- **Why it's a signal:** the canonical SSRF credential-theft target; a URL naming
+  it literally is a near-unambiguous exfiltration attempt. Weighted **above** the
+  generic private/loopback buckets.
+- **Example:** `http://169.254.169.254/latest/meta-data/`.
+
+### `ip_loopback` — V1a · weight 0.2
+
+- **Meaning:** a literal loopback IP — `127.0.0.0/8` or `::1`.
+- **Why it's a signal:** an internal target a public-facing URL has no legitimate
+  reason to name — the lexical fingerprint of an SSRF lure. Low weight
+  (suspicious-in-context, not decisive alone).
+- **Example:** `http://127.0.0.1:3000/`, `https://[::1]:8080/`.
+
+### `ip_private` — V1a · weight 0.2
+
+- **Meaning:** a literal private/internal IP — RFC 1918 (`10.0.0.0/8`,
+  `172.16.0.0/12`, `192.168.0.0/16`) or IPv6 unique-local `fc00::/7`.
+- **Why it's a signal:** names an internal target. Same low band as
+  `ip_loopback`.
+- **Example:** `http://192.168.1.1/`, `https://[fc00::1]/`.
+
+### `ip_link_local` — V1a · weight 0.2
+
+- **Meaning:** a literal link-local IP — `169.254.0.0/16` or `fe80::/10`.
+- **Why it's a signal:** an unrouteable internal target. Same low band.
+- **Example:** `http://169.254.0.1/`.
+
+### `ip_reserved` — V1a · weight 0.2
+
+- **Meaning:** a literal reserved / special-use IP — `0.0.0.0/8`, `100.64.0.0/10`
+  (CGNAT), multicast (`224.0.0.0/4`, IPv6 `ff00::/8`), future-use `240.0.0.0/4`,
+  or the IPv6 unspecified address `::`.
+- **Why it's a signal:** not a normal public destination. Same low band.
+- **Example:** `http://0.0.0.0/`, `https://[ff02::1]/`.
+
 ### `embedded_domain_in_subdomain` — FR-D-8 · weight 0.5
 
 - **Meaning:** a domain-looking label sequence appears left of the real

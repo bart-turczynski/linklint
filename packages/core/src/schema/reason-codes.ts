@@ -78,6 +78,55 @@ export const REASON_CODES = {
     weight: 0.4,
     summary: "Host is an obfuscated IP (decimal/octal/hex/dotless).",
   },
+  ip_loopback: {
+    layer: "lexical",
+    scoring: true,
+    // Literal-IP range classifier. A loopback host (127.0.0.0/8, ::1) is an
+    // internal target a public-facing URL has no legitimate reason to name —
+    // the lexical fingerprint of an SSRF lure. Weighted LOW (a literal private
+    // IP is suspicious-in-context, not decisive on its own) and below the cloud-
+    // metadata bucket. Provisional — re-tuned against the corpus.
+    weight: 0.2,
+    summary: "Host is a literal loopback IP (127.0.0.0/8, ::1).",
+  },
+  ip_private: {
+    layer: "lexical",
+    scoring: true,
+    // Literal-IP range classifier. An RFC 1918 / unique-local host
+    // (10/8, 172.16/12, 192.168/16, fc00::/7) names an internal target. Same
+    // low-weight, suspicious-in-context band as ip_loopback.
+    weight: 0.2,
+    summary: "Host is a literal private/internal IP (RFC 1918, fc00::/7).",
+  },
+  ip_link_local: {
+    layer: "lexical",
+    scoring: true,
+    // Literal-IP range classifier. A link-local host (169.254.0.0/16, fe80::/10)
+    // names an unrouteable internal target. Same low band as the other generic
+    // private buckets, below cloud-metadata.
+    weight: 0.2,
+    summary: "Host is a literal link-local IP (169.254.0.0/16, fe80::/10).",
+  },
+  ip_cloud_metadata: {
+    layer: "lexical",
+    scoring: true,
+    // Literal-IP range classifier — the most specific bucket. The cloud
+    // instance-metadata endpoint (169.254.169.254, fd00:ec2::254, and IPv4-mapped
+    // equivalents) is the canonical SSRF credential-theft target; a URL naming it
+    // literally is a near-unambiguous exfiltration attempt. Weighted ABOVE the
+    // generic private/loopback buckets. Provisional — re-tuned against the corpus.
+    weight: 0.5,
+    summary: "Host is the cloud instance-metadata endpoint (169.254.169.254, fd00:ec2::254).",
+  },
+  ip_reserved: {
+    layer: "lexical",
+    scoring: true,
+    // Literal-IP range classifier. A reserved / special-use host (0.0.0.0/8,
+    // 100.64/10 CGNAT, multicast, 240/4, ::, ff00::/8) is not a normal public
+    // destination. Same low band as the other generic IP buckets.
+    weight: 0.2,
+    summary: "Host is a literal reserved/special-use IP (0/8, CGNAT, multicast, 240/4).",
+  },
   embedded_domain_in_subdomain: {
     layer: "lexical",
     scoring: true,

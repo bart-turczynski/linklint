@@ -17,7 +17,7 @@ tool call — and it tells you whether the URL is _deceptive_, and **explains ex
 why**, with no network and no data leaving the machine.
 
 It generalizes one insight from hostname analysis: **if `normalize(input) !== input`,
-something may be hiding in the URL.** linklint turns that intuition into 29 deterministic
+something may be hiding in the URL.** linklint turns that intuition into 30 deterministic
 detectors, each emitting a named, documented reason code.
 
 ```ts
@@ -86,7 +86,7 @@ Each reason is fully self-describing:
 
 ## What linklint protects against
 
-linklint runs **29 offline detectors** grouped into the families below. Every example
+linklint runs **30 offline detectors** grouped into the families below. Every example
 is real output. A clean URL like `https://github.com` returns `score: 0`,
 `severity: 'info'`, `reasons: []`.
 
@@ -100,7 +100,8 @@ authority is somewhere else.
 | `https://paypal.com@evil.com/login` | `userinfo_present` | `paypal.com` is a **username** — the real host is `evil.com`. |
 | `https://paypal.com.login.evil.tk/` | `embedded_domain_in_subdomain`, `risky_tld` | `paypal.com` is a **subdomain label**; the registrable domain is `evil.tk`. |
 | `https://google.com#@evil.com` | `ambiguous_authority` | Fragment-in-authority — parsers disagree on the real host. |
-| `http://2130706433/` | `ip_obfuscation` | Decimal-encoded `127.0.0.1` — an IP wearing a disguise. |
+| `http://2130706433/` | `ip_obfuscation`, `ip_loopback` | Decimal-encoded `127.0.0.1` — an IP wearing a disguise that resolves to loopback. |
+| `http://169.254.169.254/` | `ip_cloud_metadata` | Literal cloud instance-metadata endpoint — the canonical SSRF credential-theft target. |
 | `https://evil。com/` | `separator_lookalike` | `。` (U+3002) normalizes to `.` — a fake label separator. |
 | `https://a.b.c.d.paypal.com.evil.tk/` | `excessive_subdomain_depth` | Abnormally deep labels used to bury the real domain. |
 
@@ -295,7 +296,7 @@ This is a pnpm monorepo.
 
 | Path | What |
 |------|------|
-| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 29 detectors, scoring, policy, schema). |
+| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 30 detectors, scoring, policy, schema). |
 | `packages/cli` | `@linklint/cli` — the offline `linklint` command-line wrapper (`check` / `batch`). |
 | `packages/mcp` | `@linklint/mcp` — the local-only MCP server (`check_url` / `check_domain`). |
 | `docs/architecture.md` | System architecture (channels, pipeline, result contract, layers). |
@@ -320,7 +321,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) and [SECURITY.md](./SECURITY.md).
 
 ## Status & roadmap
 
-**v1 — implemented.** The lexical layer is complete: 29 offline, deterministic detectors,
+**v1 — implemented.** The lexical layer is complete: 30 offline, deterministic detectors,
 probabilistic-OR scoring, a caller-configurable policy layer, a stable versioned schema,
 and a local MCP server. Typically < 5 ms per call, zero network.
 

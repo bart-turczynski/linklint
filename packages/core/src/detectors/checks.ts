@@ -15,6 +15,7 @@ import { invisibleChar } from "./invisible-char.js";
 import { bidiOverride } from "./bidi-override.js";
 import { userinfoPresent } from "./userinfo-present.js";
 import { ipObfuscation } from "./ip-obfuscation.js";
+import { ipClassification } from "./ip-classification.js";
 import { embeddedDomain } from "./embedded-domain.js";
 import { riskyTld } from "./risky-tld.js";
 import { fileExtensionTld } from "./file-extension-tld.js";
@@ -34,12 +35,12 @@ import { punycodeMalformed } from "./punycode-malformed.js";
 import { excessiveSubdomainDepth } from "./excessive-subdomain-depth.js";
 
 /**
- * THE single descriptor source for all 29 checks. `STRUCTURAL_SCANS`
+ * THE single descriptor source for all 30 checks. `STRUCTURAL_SCANS`
  * (structural.ts) and `DETECTORS` (registry.ts) are both DERIVED from this
  * array — add a check here once and both runtime arrays pick it up.
  *
  * Order matches today's runtime order exactly: the 4 structural scans first
- * (STRUCTURAL_SCANS order), then the 25 parsed detectors (DETECTORS order).
+ * (STRUCTURAL_SCANS order), then the 26 parsed detectors (DETECTORS order).
  * Each descriptor reuses the existing detector object / scan thunk's `run`;
  * detector logic is unchanged. `skipReportable: true` for every check (a
  * runtime failure is recorded as `lexical:<id>` in `checksSkipped`).
@@ -146,6 +147,20 @@ export const CHECKS: CheckDescriptor[] = [
     emits: ["ip_obfuscation"],
     skipReportable: true,
     run: ipObfuscation.run,
+  },
+  {
+    id: ipClassification.id,
+    layer: ipClassification.layer,
+    phase: "parsed",
+    emits: [
+      "ip_cloud_metadata",
+      "ip_loopback",
+      "ip_link_local",
+      "ip_private",
+      "ip_reserved",
+    ],
+    skipReportable: true,
+    run: ipClassification.run,
   },
   {
     id: embeddedDomain.id,
