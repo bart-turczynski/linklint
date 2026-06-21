@@ -93,6 +93,20 @@ describe("encoding_obfuscation", () => {
       "encoding_obfuscation",
     );
   });
+  it("flags an overlong UTF-8 path separator (C0 lead)", () => {
+    expect(codes("https://example.com/%C0%AFadmin")).toContain("encoding_obfuscation");
+  });
+  it("flags an overlong UTF-8 sequence with an E0 lead", () => {
+    expect(codes("https://example.com/%E0%80%AFadmin")).toContain("encoding_obfuscation");
+  });
+  it("flags a triple-encoded structural char", () => {
+    expect(codes("https://example.com/%25252e%25252e%25252fadmin")).toContain(
+      "encoding_obfuscation",
+    );
+  });
+  it("does NOT flag a single legitimate %20 space", () => {
+    expect(codes("https://example.com/my%20file")).not.toContain("encoding_obfuscation");
+  });
 });
 
 describe("file_extension_tld (J6) owns .zip/.mov, sharper than risky_tld", () => {
