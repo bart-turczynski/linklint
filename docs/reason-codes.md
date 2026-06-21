@@ -815,6 +815,39 @@ destination is explained.
   fire.
 - **Scoring:** scoring, weight 0.35.
 
+### `data_exfiltration` — V4d · weight 0.3 · **agent-gated**
+
+- **Meaning:** the URL query carries a **data-exfiltration shape** — the lexical
+  fingerprint of context, secrets, or conversation contents being smuggled out to
+  an attacker endpoint via the query string. Two signal classes: an **exfil-marker
+  parameter name** (`data=`, `exfil=`, `beacon=`, `dump=`, `leak=`, `payload=`)
+  carrying a non-empty value, or **any parameter whose value is an abnormally long,
+  opaque base64/hex-style token** (the shape of a stolen-data dump, e.g.
+  `?token=<2KB base64>`).
+- **Why it's a signal:** an agent that follows (or is induced to construct) such a
+  link beacons data out in the URL itself — no response body required. It is a
+  **separate** code and **stacks** with the other detectors: the scoring is a
+  probabilistic OR, so reasons compound on their own — the detector never
+  special-cases stacking.
+- **Precision — the overlong-token threshold + opaqueness gate:** long query
+  values exist in legitimate flows (search strings, signed JWTs, encoded redirect
+  targets). The overlong-token path therefore pairs a conservative **length floor
+  (decoded value ≥ 200 chars)** with an **opaqueness gate**: the value must have
+  **no spaces**, be drawn almost entirely from the base64/hex/url-safe alphabet
+  (`A-Za-z0-9 + / - _ . = ~`), and have an **alphanumeric density ≥ 0.9**. A
+  natural-language `q=` search string has spaces and punctuation and fails the
+  gate; a base64/hex blob passes. The exfil-marker path is an **exact decoded
+  parameter-name** match (set membership, never a substring scan).
+- **Agent-gated (opt-in):** emits **only** when `inspect()` is called with
+  `{ agentMode: true }` (CLI: `--agent`). With agent mode off it is not
+  evaluated and never appears in `checksSkipped`. The default verdict is
+  byte-identical to before this detector existed.
+- **Example:** `https://collect.example.com/p?exfil=<value>`,
+  `https://log.example.net/?token=<200+ char base64 blob>` (both only under
+  `agentMode`). A benign long natural-language `?q=how+do+i+reset+my+password…`
+  search string does **not** fire.
+- **Scoring:** scoring, weight 0.3.
+
 ## Policy codes (caller-configured, layer "policy", weight 0)
 
 These are **caller-configured** via `InspectOptions` — a separate channel from

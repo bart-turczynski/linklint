@@ -122,6 +122,34 @@ describe("agentMode — credential_harvesting gating contract", () => {
   });
 });
 
+// V4d — data_exfiltration is the fourth agent-gated detector. Same gating
+// contract: byte-identical default, observable + fires under agentMode.
+const EXFIL = "https://collect.example.com/p?exfil=secretdata";
+
+describe("agentMode — data_exfiltration gating contract", () => {
+  it("default is byte-identical to agentMode:false for an exfil-shape URL", () => {
+    expect(inspect(EXFIL, { agentMode: false })).toEqual(inspect(EXFIL));
+  });
+
+  it("default neither fires the code nor lists it in checksSkipped / carries the agent token", () => {
+    const r = inspect(EXFIL);
+    expect(r.reasons.map((x) => x.code)).not.toContain("data_exfiltration");
+    expect(r.checksSkipped).not.toContain("lexical:data_exfiltration");
+    expect(r.checksRun).not.toContain("agent");
+  });
+
+  it("agentMode:true puts 'agent' in checksRun AND fires data_exfiltration", () => {
+    const r = inspect(EXFIL, { agentMode: true });
+    expect(r.checksRun).toContain("agent");
+    expect(r.reasons.map((x) => x.code)).toContain("data_exfiltration");
+  });
+
+  it("a benign URL does NOT fire data_exfiltration even under agentMode", () => {
+    const r = inspect("https://www.example.com/dashboard?page=2", { agentMode: true });
+    expect(r.reasons.map((x) => x.code)).not.toContain("data_exfiltration");
+  });
+});
+
 describe("agentMode — invalid-input path is unaffected", () => {
   it("invalid input is byte-identical with and without agentMode", () => {
     const invalid = "http://"; // unparseable

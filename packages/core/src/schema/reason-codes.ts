@@ -369,6 +369,27 @@ export const REASON_CODES = {
     summary:
       "URL has an OAuth/token-flow shape (a /oauth/authorize-style path or a redirect_uri=/access_token=/client_secret=/code=+client_id= query) on a host that is NOT a known OAuth/identity provider — a credential-phishing / token-exfiltration URL shape. Agent-gated (emits only under agentMode).",
   },
+  data_exfiltration: {
+    layer: "lexical",
+    scoring: true,
+    // AGENT-GATED detector (emits only when InspectOptions.agentMode is true).
+    // The query carries a data-exfiltration SHAPE: a parameter whose NAME is an
+    // exfil marker (data=/exfil=/beacon=/dump=/leak=/payload=) with a non-empty
+    // value, OR any parameter whose value is an abnormally long (>=200-char),
+    // opaque, high-density base64/hex-style blob — the shape of context/secrets
+    // smuggled out in the URL. The overlong-token path pairs a conservative length
+    // floor with an opaqueness gate (no spaces, opaque alphabet, >=0.9 alnum
+    // density) so ordinary long query values (search strings, JWTs in legit flows)
+    // do not trip it. "Medium priority" per PRD: weighted in the LOWER band (0.3),
+    // just below credential_harvesting (0.35) and the encoding_obfuscation band —
+    // an exfil-shaped query is a real but not decisive standalone signal (legit
+    // apps DO post long opaque tokens and use params named `data`), so it
+    // corroborates / stacks rather than flagging alone. Provisional — re-tuned with
+    // the agent corpus (V4e).
+    weight: 0.3,
+    summary:
+      "URL query carries a data-exfiltration shape: an exfil-marker parameter (data=/exfil=/beacon=/dump=/leak=/payload=) with a value, or any parameter carrying an abnormally long opaque base64/hex-style token — context/secrets smuggled out in the URL. Agent-gated (emits only under agentMode).",
+  },
 
   // ── Policy (caller-configured, weight 0) ─────────────────────────────────
   tld_denied: {
