@@ -52,15 +52,15 @@ describe("CHECKS registry ⇄ REASON_CODES coverage invariants", () => {
 
   // 3. phase/layer sanity: shape of the registry itself.
   describe("registry phase/layer shape", () => {
-    it("contains exactly 32 checks", () => {
-      expect(CHECKS.length).toBe(32);
+    it("contains exactly 33 checks", () => {
+      expect(CHECKS.length).toBe(33);
     });
 
-    it("splits into 4 structural-phase + 28 parsed-phase descriptors", () => {
+    it("splits into 4 structural-phase + 29 parsed-phase descriptors", () => {
       const structural = CHECKS.filter((c) => c.phase === "structural");
       const parsed = CHECKS.filter((c) => c.phase === "parsed");
       expect(structural.length).toBe(4);
-      expect(parsed.length).toBe(28);
+      expect(parsed.length).toBe(29);
     });
 
     it("has every structural-phase descriptor on the lexical layer", () => {

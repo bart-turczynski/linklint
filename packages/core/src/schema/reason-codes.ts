@@ -348,6 +348,27 @@ export const REASON_CODES = {
     summary:
       "Host masquerades as a known API provider's endpoint — an api-brands token (openai/anthropic/…) appears in a host label whose registrable domain is not the real provider (api.openai-com.io), optionally with a real API route path. Agent-gated (emits only under agentMode).",
   },
+  credential_harvesting: {
+    layer: "lexical",
+    scoring: true,
+    // AGENT-GATED detector (emits only when InspectOptions.agentMode is true).
+    // The URL has an OAuth / token-flow SHAPE (a `/oauth/authorize`-style path
+    // segment or a token-flow query parameter — redirect_uri=/access_token=/
+    // client_secret=/response_type=token/code=+client_id=) on a host whose
+    // registrable domain is NOT a known OAuth/identity provider. These markers
+    // are perfectly legitimate on the real providers (accounts.google.com,
+    // github.com), which is exactly why the detector is gated AND keyed on the
+    // non-allowlisted-host condition. Weighted in the MEDIUM band (0.35), BELOW
+    // the brand-impersonation band (0.5): an OAuth shape on an unknown host is
+    // suspicious but legitimate apps DO implement OAuth, so it is a strong
+    // corroborating signal that stacks with brand/api impersonation (probabilistic
+    // OR) rather than a decisive standalone flag. Sits alongside the
+    // encoding_obfuscation (0.35) band. Provisional — re-tuned with the agent
+    // corpus (V4e).
+    weight: 0.35,
+    summary:
+      "URL has an OAuth/token-flow shape (a /oauth/authorize-style path or a redirect_uri=/access_token=/client_secret=/code=+client_id= query) on a host that is NOT a known OAuth/identity provider — a credential-phishing / token-exfiltration URL shape. Agent-gated (emits only under agentMode).",
+  },
 
   // ── Policy (caller-configured, weight 0) ─────────────────────────────────
   tld_denied: {

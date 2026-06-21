@@ -17,9 +17,10 @@ tool call — and it tells you whether the URL is _deceptive_, and **explains ex
 why**, with no network and no data leaving the machine.
 
 It generalizes one insight from hostname analysis: **if `normalize(input) !== input`,
-something may be hiding in the URL.** linklint turns that intuition into 32 deterministic
-detectors, each emitting a named, documented reason code (two — the agent-mode
-prompt-injection and API-endpoint-impersonation detectors — are opt-in via `agentMode`).
+something may be hiding in the URL.** linklint turns that intuition into 33 deterministic
+detectors, each emitting a named, documented reason code (three — the agent-mode
+prompt-injection, API-endpoint-impersonation, and credential-harvesting detectors — are
+opt-in via `agentMode`).
 
 ```ts
 import { inspect } from 'linklint';
@@ -87,9 +88,9 @@ Each reason is fully self-describing:
 
 ## What linklint protects against
 
-linklint runs **32 offline detectors** grouped into the families below (the agent-mode
-prompt-injection and API-endpoint-impersonation detectors are opt-in via `agentMode`
-and off by default). Every example
+linklint runs **33 offline detectors** grouped into the families below (the agent-mode
+prompt-injection, API-endpoint-impersonation, and credential-harvesting detectors are
+opt-in via `agentMode` and off by default). Every example
 is real output. A clean URL like `https://github.com` returns `score: 0`,
 `severity: 'info'`, `reasons: []`.
 
@@ -299,7 +300,7 @@ This is a pnpm monorepo.
 
 | Path | What |
 |------|------|
-| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 32 detectors, scoring, policy, schema). |
+| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 33 detectors, scoring, policy, schema). |
 | `packages/cli` | `@linklint/cli` — the offline `linklint` command-line wrapper (`check` / `batch`). |
 | `packages/mcp` | `@linklint/mcp` — the local-only MCP server (`check_url` / `check_domain`). |
 | `docs/architecture.md` | System architecture (channels, pipeline, result contract, layers). |

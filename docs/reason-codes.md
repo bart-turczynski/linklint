@@ -777,6 +777,44 @@ destination is explained.
   real `https://api.openai.com/v1/chat/completions` does **not** fire.
 - **Scoring:** scoring, weight 0.5.
 
+### `credential_harvesting` — V4c · weight 0.35 · **agent-gated**
+
+- **Meaning:** the URL has an **OAuth / token-flow shape** on a host that is
+  **not** a known OAuth / identity provider — the lexical fingerprint of a
+  credential-phishing or token-exfiltration endpoint. Two signal classes: an
+  **OAuth path marker** (`/oauth/authorize`, `/oauth/token`, `/oauth2/authorize`,
+  `/login/oauth/authorize`, `/connect/authorize`, …), or a **token-flow query
+  marker** (`redirect_uri=`, `access_token=`, `client_secret=`,
+  `response_type=token`, or `code=` combined with `client_id=` — the
+  authorization-code callback pair).
+- **Why it's a signal:** an agent that follows such a link can be walked through
+  an OAuth handshake on an impostor host, leaking the code / token / secret to an
+  attacker. It is a **separate** code from brand / API impersonation and **stacks**
+  with them: the scoring is a probabilistic OR, so an OAuth shape on a brand
+  look-alike host compounds both reasons on its own — the detector never
+  special-cases stacking.
+- **Critical precision constraint — non-allowlisted hosts only:** these markers
+  are **perfectly legitimate** on real providers
+  (`accounts.google.com/oauth/authorize`, `github.com/login/oauth/authorize`).
+  The detector therefore fires **only** when the OAuth/token shape is present
+  **AND** the registrable domain (eTLD+1) is **NOT** on a small, conservative
+  OAuth-provider allowlist (`google.com`, `github.com`, `microsoft.com` /
+  `microsoftonline.com`, `okta.com`, `auth0.com`, `facebook.com`, `apple.com`, …).
+  The real provider, on any of its subdomains, never fires.
+- **Agent-gated (opt-in):** emits **only** when `inspect()` is called with
+  `{ agentMode: true }` (CLI: `--agent`). With agent mode off it is not
+  evaluated and never appears in `checksSkipped`. The default verdict is
+  byte-identical to before this detector existed.
+- **Conservative by construction:** path matching is on **segment-anchored**
+  marker phrases (so `/myoauth/authorizenow` does not trip it); query matching is
+  on **exact parameter names** (set membership, never a substring scan of
+  values).
+- **Example:** `https://account-verify.example.com/oauth/authorize?redirect_uri=…`,
+  `https://login.evil.tk/oauth/token?client_secret=…` (both only under
+  `agentMode`). The real `https://github.com/login/oauth/authorize` does **not**
+  fire.
+- **Scoring:** scoring, weight 0.35.
+
 ## Policy codes (caller-configured, layer "policy", weight 0)
 
 These are **caller-configured** via `InspectOptions` — a separate channel from

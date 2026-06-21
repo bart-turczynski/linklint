@@ -92,6 +92,36 @@ describe("agentMode — api_endpoint_impersonation gating contract", () => {
   });
 });
 
+// V4c — credential_harvesting is the third agent-gated detector. Same gating
+// contract: byte-identical default, observable + fires under agentMode.
+const CRED_HARVEST = "https://account-verify.example.com/oauth/authorize?client_id=abc";
+
+describe("agentMode — credential_harvesting gating contract", () => {
+  it("default is byte-identical to agentMode:false for an OAuth-shape impostor host", () => {
+    expect(inspect(CRED_HARVEST, { agentMode: false })).toEqual(inspect(CRED_HARVEST));
+  });
+
+  it("default neither fires the code nor lists it in checksSkipped / carries the agent token", () => {
+    const r = inspect(CRED_HARVEST);
+    expect(r.reasons.map((x) => x.code)).not.toContain("credential_harvesting");
+    expect(r.checksSkipped).not.toContain("lexical:credential_harvesting");
+    expect(r.checksRun).not.toContain("agent");
+  });
+
+  it("agentMode:true puts 'agent' in checksRun AND fires credential_harvesting", () => {
+    const r = inspect(CRED_HARVEST, { agentMode: true });
+    expect(r.checksRun).toContain("agent");
+    expect(r.reasons.map((x) => x.code)).toContain("credential_harvesting");
+  });
+
+  it("a known OAuth provider host does NOT fire even under agentMode", () => {
+    const r = inspect("https://github.com/login/oauth/authorize?client_id=abc", {
+      agentMode: true,
+    });
+    expect(r.reasons.map((x) => x.code)).not.toContain("credential_harvesting");
+  });
+});
+
 describe("agentMode — invalid-input path is unaffected", () => {
   it("invalid input is byte-identical with and without agentMode", () => {
     const invalid = "http://"; // unparseable

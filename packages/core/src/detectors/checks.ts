@@ -35,16 +35,18 @@ import { punycodeMalformed } from "./punycode-malformed.js";
 import { excessiveSubdomainDepth } from "./excessive-subdomain-depth.js";
 import { promptInjection } from "./prompt-injection.js";
 import { apiEndpointImpersonation } from "./api-endpoint-impersonation.js";
+import { credentialHarvesting } from "./credential-harvesting.js";
 
 /**
- * THE single descriptor source for all 32 checks. `STRUCTURAL_SCANS`
+ * THE single descriptor source for all 33 checks. `STRUCTURAL_SCANS`
  * (structural.ts) and `DETECTORS` (registry.ts) are both DERIVED from this
  * array — add a check here once and both runtime arrays pick it up.
  *
  * Order matches today's runtime order exactly: the 4 structural scans first
- * (STRUCTURAL_SCANS order), then the 28 parsed detectors (DETECTORS order) —
- * the last two of which (prompt_injection_url, api_endpoint_impersonation) are
- * `agentGated` and run only when `InspectOptions.agentMode` is true.
+ * (STRUCTURAL_SCANS order), then the 29 parsed detectors (DETECTORS order) —
+ * the last three of which (prompt_injection_url, api_endpoint_impersonation,
+ * credential_harvesting) are `agentGated` and run only when
+ * `InspectOptions.agentMode` is true.
  * Each descriptor reuses the existing detector object / scan thunk's `run`;
  * detector logic is unchanged. `skipReportable: true` for every check (a
  * runtime failure is recorded as `lexical:<id>` in `checksSkipped`).
@@ -321,5 +323,14 @@ export const CHECKS: CheckDescriptor[] = [
     skipReportable: true,
     agentGated: true,
     run: apiEndpointImpersonation.run,
+  },
+  {
+    id: credentialHarvesting.id,
+    layer: credentialHarvesting.layer,
+    phase: "parsed",
+    emits: ["credential_harvesting"],
+    skipReportable: true,
+    agentGated: true,
+    run: credentialHarvesting.run,
   },
 ];
