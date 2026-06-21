@@ -8,6 +8,11 @@ When("I inspect {string}", function (this: LinklintWorld, input: string) {
   this.result = inspect(input);
 });
 
+When("I inspect {string} in agent mode", function (this: LinklintWorld, input: string) {
+  this.input = input;
+  this.result = inspect(input, { agentMode: true });
+});
+
 Then("the status is {string}", function (this: LinklintWorld, status: string) {
   assert.equal(this.result.status, status);
 });

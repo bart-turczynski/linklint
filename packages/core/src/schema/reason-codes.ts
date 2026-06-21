@@ -315,6 +315,81 @@ export const REASON_CODES = {
     summary:
       "Host has an abnormally large number of subdomain labels (≥5) — a low-weight combination signal for a buried registrable domain.",
   },
+  prompt_injection_url: {
+    layer: "lexical",
+    scoring: true,
+    // AGENT-GATED detector (emits only when InspectOptions.agentMode is true).
+    // The URL carries an LLM-agent prompt-control payload: a prompt-control query
+    // parameter (role=/system=/prompt=…) or an instruction-override path segment
+    // (/ignore-previous-instructions…). This is the highest false-positive surface
+    // of any detector — these tokens also appear in legitimate apps — which is
+    // exactly WHY it is gated off the default verdict. Weighted in the
+    // strong-but-not-decisive band (0.5): a deliberate injection payload is a real
+    // signal in an agent context, but never decisive standalone. Provisional —
+    // re-tuned with the agent corpus (V4e).
+    weight: 0.5,
+    summary:
+      "URL carries an LLM-agent prompt-injection payload: a prompt-control query parameter (role=/system=/prompt=) or an instruction-override path segment (/ignore-previous-instructions). Agent-gated (emits only under agentMode).",
+  },
+  api_endpoint_impersonation: {
+    layer: "lexical",
+    scoring: true,
+    // AGENT-GATED detector (emits only when InspectOptions.agentMode is true).
+    // A host masquerades as a known API provider's endpoint: an api-brands tier
+    // token (openai/anthropic/…) appears as an exact host label while the
+    // registrable domain is NOT the real provider (api.openai-com.io). Pointing an
+    // agent's API client at a look-alike endpoint is high-confidence impersonation
+    // — an exact brand-token-on-wrong-eTLD+1 match — so it sits in the
+    // brand-impersonation band alongside brand_homoglyph (0.5), above the fuzzier
+    // brand_combosquat (0.4). Path escalation (a real API route) only sharpens the
+    // detail; the weight is unchanged. Provisional — re-tuned with the agent
+    // corpus (V4e).
+    weight: 0.5,
+    summary:
+      "Host masquerades as a known API provider's endpoint — an api-brands token (openai/anthropic/…) appears in a host label whose registrable domain is not the real provider (api.openai-com.io), optionally with a real API route path. Agent-gated (emits only under agentMode).",
+  },
+  credential_harvesting: {
+    layer: "lexical",
+    scoring: true,
+    // AGENT-GATED detector (emits only when InspectOptions.agentMode is true).
+    // The URL has an OAuth / token-flow SHAPE (a `/oauth/authorize`-style path
+    // segment or a token-flow query parameter — redirect_uri=/access_token=/
+    // client_secret=/response_type=token/code=+client_id=) on a host whose
+    // registrable domain is NOT a known OAuth/identity provider. These markers
+    // are perfectly legitimate on the real providers (accounts.google.com,
+    // github.com), which is exactly why the detector is gated AND keyed on the
+    // non-allowlisted-host condition. Weighted in the MEDIUM band (0.35), BELOW
+    // the brand-impersonation band (0.5): an OAuth shape on an unknown host is
+    // suspicious but legitimate apps DO implement OAuth, so it is a strong
+    // corroborating signal that stacks with brand/api impersonation (probabilistic
+    // OR) rather than a decisive standalone flag. Sits alongside the
+    // encoding_obfuscation (0.35) band. Provisional — re-tuned with the agent
+    // corpus (V4e).
+    weight: 0.35,
+    summary:
+      "URL has an OAuth/token-flow shape (a /oauth/authorize-style path or a redirect_uri=/access_token=/client_secret=/code=+client_id= query) on a host that is NOT a known OAuth/identity provider — a credential-phishing / token-exfiltration URL shape. Agent-gated (emits only under agentMode).",
+  },
+  data_exfiltration: {
+    layer: "lexical",
+    scoring: true,
+    // AGENT-GATED detector (emits only when InspectOptions.agentMode is true).
+    // The query carries a data-exfiltration SHAPE: a parameter whose NAME is an
+    // exfil marker (data=/exfil=/beacon=/dump=/leak=/payload=) with a non-empty
+    // value, OR any parameter whose value is an abnormally long (>=200-char),
+    // opaque, high-density base64/hex-style blob — the shape of context/secrets
+    // smuggled out in the URL. The overlong-token path pairs a conservative length
+    // floor with an opaqueness gate (no spaces, opaque alphabet, >=0.9 alnum
+    // density) so ordinary long query values (search strings, JWTs in legit flows)
+    // do not trip it. "Medium priority" per PRD: weighted in the LOWER band (0.3),
+    // just below credential_harvesting (0.35) and the encoding_obfuscation band —
+    // an exfil-shaped query is a real but not decisive standalone signal (legit
+    // apps DO post long opaque tokens and use params named `data`), so it
+    // corroborates / stacks rather than flagging alone. Provisional — re-tuned with
+    // the agent corpus (V4e).
+    weight: 0.3,
+    summary:
+      "URL query carries a data-exfiltration shape: an exfil-marker parameter (data=/exfil=/beacon=/dump=/leak=/payload=) with a value, or any parameter carrying an abnormally long opaque base64/hex-style token — context/secrets smuggled out in the URL. Agent-gated (emits only under agentMode).",
+  },
 
   // ── Policy (caller-configured, weight 0) ─────────────────────────────────
   tld_denied: {

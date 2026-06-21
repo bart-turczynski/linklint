@@ -26,6 +26,8 @@ export interface CheckOptions {
   quiet: boolean;
   /** True when color output is disabled (`--no-color`). */
   noColor: boolean;
+  /** True when agent mode is enabled (`--agent`): enables the agent-gated detectors. */
+  agent: boolean;
 }
 
 /** A fully-parsed CLI invocation. */
@@ -58,6 +60,7 @@ export function parseCli(argv: readonly string[]): ParsedCli {
         "allow-invalid": { type: "boolean", default: false },
         quiet: { type: "boolean", default: false },
         "no-color": { type: "boolean", default: false },
+        agent: { type: "boolean", default: false },
         help: { type: "boolean", default: false },
         version: { type: "boolean", default: false },
       },
@@ -93,6 +96,7 @@ export function parseCli(argv: readonly string[]): ParsedCli {
     allowInvalid: values["allow-invalid"],
     quiet: values.quiet,
     noColor: values["no-color"],
+    agent: values.agent,
   };
 
   if (command === "batch") {

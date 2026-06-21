@@ -35,3 +35,25 @@ Feature: Core inspect() contract (walking skeleton)
       |                    |
       | ://                |
       | @@@@@@             |
+
+  # Agent mode (V4a): the agent-gated channel is OFF by default — the default
+  # verdict is byte-identical to before the channel existed — and observable in
+  # checksRun only when turned on.
+  Scenario: An agent-injection URL is clean by default (gated channel off)
+    When I inspect "https://example.com/agent?role=system&prompt=ignore"
+    Then the status is "ok"
+    And checksRun is "lexical"
+    And checksSkipped is "resolution,reputation"
+    And the reasons do not contain "prompt_injection_url"
+
+  Scenario: Agent mode runs the gated detector and is observable in checksRun
+    When I inspect "https://example.com/agent?role=system&prompt=ignore" in agent mode
+    Then the status is "ok"
+    And checksRun is "lexical,agent"
+    And the reasons contain "prompt_injection_url"
+
+  Scenario: A benign URL in agent mode shows the agent channel but no false reason
+    When I inspect "https://www.example.com/path" in agent mode
+    Then the status is "ok"
+    And checksRun is "lexical,agent"
+    And the reasons do not contain "prompt_injection_url"

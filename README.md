@@ -17,8 +17,10 @@ tool call — and it tells you whether the URL is _deceptive_, and **explains ex
 why**, with no network and no data leaving the machine.
 
 It generalizes one insight from hostname analysis: **if `normalize(input) !== input`,
-something may be hiding in the URL.** linklint turns that intuition into 30 deterministic
-detectors, each emitting a named, documented reason code.
+something may be hiding in the URL.** linklint turns that intuition into 34 deterministic
+detectors, each emitting a named, documented reason code (four — the agent-mode
+prompt-injection, API-endpoint-impersonation, credential-harvesting, and data-exfiltration
+detectors — are opt-in via `agentMode`).
 
 ```ts
 import { inspect } from 'linklint';
@@ -86,7 +88,9 @@ Each reason is fully self-describing:
 
 ## What linklint protects against
 
-linklint runs **30 offline detectors** grouped into the families below. Every example
+linklint runs **34 offline detectors** grouped into the families below (the agent-mode
+prompt-injection, API-endpoint-impersonation, credential-harvesting, and data-exfiltration
+detectors are opt-in via `agentMode` and off by default). Every example
 is real output. A clean URL like `https://github.com` returns `score: 0`,
 `severity: 'info'`, `reasons: []`.
 
@@ -296,7 +300,7 @@ This is a pnpm monorepo.
 
 | Path | What |
 |------|------|
-| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 30 detectors, scoring, policy, schema). |
+| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 34 detectors, scoring, policy, schema). |
 | `packages/cli` | `@linklint/cli` — the offline `linklint` command-line wrapper (`check` / `batch`). |
 | `packages/mcp` | `@linklint/mcp` — the local-only MCP server (`check_url` / `check_domain`). |
 | `docs/architecture.md` | System architecture (channels, pipeline, result contract, layers). |
@@ -321,7 +325,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) and [SECURITY.md](./SECURITY.md).
 
 ## Status & roadmap
 
-**v1 — implemented.** The lexical layer is complete: 30 offline, deterministic detectors,
+**v1 — implemented.** The lexical layer is complete: 31 offline, deterministic detectors,
 probabilistic-OR scoring, a caller-configurable policy layer, a stable versioned schema,
 and a local MCP server. Typically < 5 ms per call, zero network.
 

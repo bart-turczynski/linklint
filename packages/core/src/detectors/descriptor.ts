@@ -32,6 +32,13 @@ export interface CheckDescriptorBase {
   emits: readonly ReasonCode[];
   /** Whether a runtime failure of this check is recorded in `checksSkipped`. */
   skipReportable: boolean;
+  /**
+   * Agent-gated: this check runs ONLY when `InspectOptions.agentMode` is true.
+   * Higher-false-positive heuristics meant for LLM-agent contexts. When gated
+   * off it is silently not evaluated (NOT listed in `checksSkipped`); when ≥1
+   * gated check runs, the `agent` channel token appears in `checksRun`.
+   */
+  agentGated?: boolean;
 }
 
 /** A structural scan: runs over the prepared/raw input ahead of parse(). */
@@ -46,5 +53,5 @@ export interface ParsedCheckDescriptor extends CheckDescriptorBase {
   run(ctx: InspectionContext): DetectorFinding[];
 }
 
-/** The unified descriptor for all 29 checks. */
+/** The unified descriptor for all 31 checks. */
 export type CheckDescriptor = StructuralCheckDescriptor | ParsedCheckDescriptor;

@@ -56,6 +56,7 @@ describe("parseCli — flags resolve onto options", () => {
       allowInvalid: true,
       quiet: true,
       noColor: true,
+      agent: false,
     });
   });
 
@@ -69,6 +70,7 @@ describe("parseCli — flags resolve onto options", () => {
       allowInvalid: false,
       quiet: false,
       noColor: false,
+      agent: false,
     });
   });
 });

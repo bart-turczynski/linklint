@@ -33,14 +33,21 @@ import { openRedirectParam } from "./open-redirect-param.js";
 import { suspiciousExtension } from "./suspicious-extension.js";
 import { punycodeMalformed } from "./punycode-malformed.js";
 import { excessiveSubdomainDepth } from "./excessive-subdomain-depth.js";
+import { promptInjection } from "./prompt-injection.js";
+import { apiEndpointImpersonation } from "./api-endpoint-impersonation.js";
+import { credentialHarvesting } from "./credential-harvesting.js";
+import { dataExfiltration } from "./data-exfiltration.js";
 
 /**
- * THE single descriptor source for all 30 checks. `STRUCTURAL_SCANS`
+ * THE single descriptor source for all 34 checks. `STRUCTURAL_SCANS`
  * (structural.ts) and `DETECTORS` (registry.ts) are both DERIVED from this
  * array — add a check here once and both runtime arrays pick it up.
  *
  * Order matches today's runtime order exactly: the 4 structural scans first
- * (STRUCTURAL_SCANS order), then the 26 parsed detectors (DETECTORS order).
+ * (STRUCTURAL_SCANS order), then the 30 parsed detectors (DETECTORS order) —
+ * the last four of which (prompt_injection_url, api_endpoint_impersonation,
+ * credential_harvesting, data_exfiltration) are `agentGated` and run only when
+ * `InspectOptions.agentMode` is true.
  * Each descriptor reuses the existing detector object / scan thunk's `run`;
  * detector logic is unchanged. `skipReportable: true` for every check (a
  * runtime failure is recorded as `lexical:<id>` in `checksSkipped`).
@@ -297,5 +304,43 @@ export const CHECKS: CheckDescriptor[] = [
     emits: ["excessive_subdomain_depth"],
     skipReportable: true,
     run: excessiveSubdomainDepth.run,
+  },
+
+  // --- Agent-gated detectors (run only when InspectOptions.agentMode) ---
+  {
+    id: promptInjection.id,
+    layer: promptInjection.layer,
+    phase: "parsed",
+    emits: ["prompt_injection_url"],
+    skipReportable: true,
+    agentGated: true,
+    run: promptInjection.run,
+  },
+  {
+    id: apiEndpointImpersonation.id,
+    layer: apiEndpointImpersonation.layer,
+    phase: "parsed",
+    emits: ["api_endpoint_impersonation"],
+    skipReportable: true,
+    agentGated: true,
+    run: apiEndpointImpersonation.run,
+  },
+  {
+    id: credentialHarvesting.id,
+    layer: credentialHarvesting.layer,
+    phase: "parsed",
+    emits: ["credential_harvesting"],
+    skipReportable: true,
+    agentGated: true,
+    run: credentialHarvesting.run,
+  },
+  {
+    id: dataExfiltration.id,
+    layer: dataExfiltration.layer,
+    phase: "parsed",
+    emits: ["data_exfiltration"],
+    skipReportable: true,
+    agentGated: true,
+    run: dataExfiltration.run,
   },
 ];

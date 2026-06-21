@@ -720,6 +720,144 @@ destination is explained.
   `http://127.0.0.1%09foo.google.com` (TAB host terminator).
 - **Scoring:** scoring, weight 0.6.
 
+### `prompt_injection_url` — V4a · weight 0.5 · **agent-gated**
+
+- **Meaning:** the URL carries an LLM-agent **prompt-injection payload** — text
+  positioned to hijack a model's instructions when the link is fetched and fed
+  to an agent. Two shapes: a **prompt-control query parameter** whose name
+  addresses the model's control plane (`role=`, `system=`, `prompt=`,
+  `instruction(s)=`, `assistant=`, `system_prompt=`, `jailbreak=`, …) with a
+  non-empty value, or an **instruction-override path segment** whose normalized
+  text reads as an override (`/ignore-previous-instructions`,
+  `/disregard-all-prior-prompts`, `/you-are-now`, `/act-as`).
+- **Why it's a signal:** in agent / tool-use contexts a fetched URL can smuggle
+  instructions into the model. This is a real attack class but also the **highest
+  false-positive surface** of any detector — these tokens occur in legitimate
+  apps — which is exactly why it is **gated**.
+- **Agent-gated (opt-in):** this detector emits **only** when `inspect()` is
+  called with `{ agentMode: true }` (CLI: `--agent`). With agent mode off it is
+  not evaluated and never appears in `checksSkipped`; with it on, the `agent`
+  channel token is added to `checksRun` (order `["lexical", "policy", "agent"]`).
+  The default verdict is byte-identical to before this detector existed.
+- **Conservative by construction:** query matching is on **exact decoded
+  parameter names** (set membership, never a substring scan); path matching is on
+  **whole, anchored segments** so an unrelated `/ignored/` directory does not
+  trip it.
+- **Example:** `https://example.com/agent?role=system&prompt=ignore%20all%20rules`,
+  `https://example.com/ignore-previous-instructions` (both only under `agentMode`).
+- **Scoring:** scoring, weight 0.5.
+
+### `api_endpoint_impersonation` — V4b · weight 0.5 · **agent-gated**
+
+- **Meaning:** the host **masquerades as a known API provider's endpoint**. A
+  token from the SEPARATE **api-brands tier** (`openai`, `anthropic`,
+  `googleapis`, `cohere`, `mistral`, `huggingface`, `stripe`, `twilio`,
+  `sendgrid`, `github`) appears as an exact, separator-delimited **host label**
+  while the **registrable domain (eTLD+1) is NOT** one of that provider's
+  legitimate domains — the `api.openai-com.io` shape (label `openai-com` →
+  token `openai`, but the eTLD+1 is `openai-com.io`, not `openai.com`).
+- **Escalation:** when the **path** also matches a known API route prefix
+  (`/v1/messages`, `/v1/chat/completions`, `/v1/completions`, `/v1/responses`)
+  the detail notes that the host looks like a real API endpoint **and** the path
+  looks like a real API call. Same code, same weight — only the detail sharpens.
+- **Why it's a signal:** in agent / tool-use contexts an API client pointed at a
+  look-alike endpoint leaks requests (and any keys) to an impostor. It is a
+  separate tier from the curated brand watchlist because the match shape is an
+  exact label-token membership test plus an exact eTLD+1 legitimacy check, not
+  the curated list's edit-distance / keyword machinery.
+- **Agent-gated (opt-in):** emits **only** when `inspect()` is called with
+  `{ agentMode: true }` (CLI: `--agent`). With agent mode off it is not
+  evaluated and never appears in `checksSkipped`. The default verdict is
+  byte-identical to before this detector existed.
+- **Conservative by construction:** the real provider on its own domain never
+  fires (exact eTLD+1 skip); matching is set membership over separator-split
+  labels (no substring scans, no regex backtracking). A brand-token match also
+  requires a **corroborating API-endpoint signal** before firing — either an
+  `api`-ish host label (an exact `api`/`apis` token in some label) **or** a path
+  that matches a known API route prefix. This keeps `api.openai-com.io` firing
+  while sparing brand-owned platform hosts on sibling eTLD+1s
+  (`myproject.github.io`) and hosts that merely contain a brand word in an
+  unrelated subdomain (`openai.example.com`).
+- **Example:** `https://api.openai-com.io/v1/chat/completions`,
+  `https://api.anthropic-com.co/v1/messages` (both only under `agentMode`). The
+  real `https://api.openai.com/v1/chat/completions` does **not** fire.
+- **Scoring:** scoring, weight 0.5.
+
+### `credential_harvesting` — V4c · weight 0.35 · **agent-gated**
+
+- **Meaning:** the URL has an **OAuth / token-flow shape** on a host that is
+  **not** a known OAuth / identity provider — the lexical fingerprint of a
+  credential-phishing or token-exfiltration endpoint. Two signal classes: an
+  **OAuth path marker** (`/oauth/authorize`, `/oauth/token`, `/oauth2/authorize`,
+  `/login/oauth/authorize`, `/connect/authorize`, …), or a **token-flow query
+  marker** (`redirect_uri=`, `access_token=`, `client_secret=`,
+  `response_type=token`, or `code=` combined with `client_id=` — the
+  authorization-code callback pair).
+- **Why it's a signal:** an agent that follows such a link can be walked through
+  an OAuth handshake on an impostor host, leaking the code / token / secret to an
+  attacker. It is a **separate** code from brand / API impersonation and **stacks**
+  with them: the scoring is a probabilistic OR, so an OAuth shape on a brand
+  look-alike host compounds both reasons on its own — the detector never
+  special-cases stacking.
+- **Critical precision constraint — non-allowlisted hosts only:** these markers
+  are **perfectly legitimate** on real providers
+  (`accounts.google.com/oauth/authorize`, `github.com/login/oauth/authorize`).
+  The detector therefore fires **only** when the OAuth/token shape is present
+  **AND** the registrable domain (eTLD+1) is **NOT** on a small, conservative
+  OAuth-provider allowlist (`google.com`, `github.com`, `microsoft.com` /
+  `microsoftonline.com`, `okta.com`, `auth0.com`, `facebook.com`, `apple.com`, …).
+  The real provider, on any of its subdomains, never fires.
+- **Agent-gated (opt-in):** emits **only** when `inspect()` is called with
+  `{ agentMode: true }` (CLI: `--agent`). With agent mode off it is not
+  evaluated and never appears in `checksSkipped`. The default verdict is
+  byte-identical to before this detector existed.
+- **Conservative by construction:** path matching is on **segment-anchored**
+  marker phrases (so `/myoauth/authorizenow` does not trip it); query matching is
+  on **exact parameter names** (set membership, never a substring scan of
+  values).
+- **Example:** `https://account-verify.example.com/oauth/authorize?redirect_uri=…`,
+  `https://login.evil.tk/oauth/token?client_secret=…` (both only under
+  `agentMode`). The real `https://github.com/login/oauth/authorize` does **not**
+  fire.
+- **Scoring:** scoring, weight 0.35.
+
+### `data_exfiltration` — V4d · weight 0.3 · **agent-gated**
+
+- **Meaning:** the URL query carries a **data-exfiltration shape** — the lexical
+  fingerprint of context, secrets, or conversation contents being smuggled out to
+  an attacker endpoint via the query string. Two signal classes: an **exfil-marker
+  parameter name** (`data=`, `exfil=`, `beacon=`, `dump=`, `leak=`, `payload=`)
+  carrying a non-empty value, or **any parameter whose value is an abnormally long,
+  opaque base64/hex-style token** (the shape of a stolen-data dump, e.g.
+  `?token=<2KB base64>`).
+- **Why it's a signal:** an agent that follows (or is induced to construct) such a
+  link beacons data out in the URL itself — no response body required. It is a
+  **separate** code and **stacks** with the other detectors: the scoring is a
+  probabilistic OR, so reasons compound on their own — the detector never
+  special-cases stacking.
+- **Precision — the overlong-token threshold + opaqueness gate:** long query
+  values exist in legitimate flows (search strings, signed JWTs, encoded redirect
+  targets). The overlong-token path therefore pairs a conservative **length floor
+  (decoded value ≥ 200 chars)** with an **opaqueness gate**: the value must have
+  **no spaces**, be drawn almost entirely from the base64/hex/url-safe alphabet
+  (`A-Za-z0-9 + / - _ . = ~`), and have an **alphanumeric density ≥ 0.9**. A
+  natural-language `q=` search string has spaces and punctuation and fails the
+  gate; a base64/hex blob passes. A **JWT-shaped value** (three base64url
+  dot-segments) is **excluded outright** — a signed `id_token` / `access_token`
+  is a legitimate long opaque value in OAuth/OIDC URLs, so keying on its length
+  would mis-flag it; OAuth/credential misuse is `credential_harvesting`'s job.
+  The exfil-marker path is an **exact decoded parameter-name** match (set
+  membership, never a substring scan).
+- **Agent-gated (opt-in):** emits **only** when `inspect()` is called with
+  `{ agentMode: true }` (CLI: `--agent`). With agent mode off it is not
+  evaluated and never appears in `checksSkipped`. The default verdict is
+  byte-identical to before this detector existed.
+- **Example:** `https://collect.example.com/p?exfil=<value>`,
+  `https://log.example.net/?token=<200+ char base64 blob>` (both only under
+  `agentMode`). A benign long natural-language `?q=how+do+i+reset+my+password…`
+  search string does **not** fire.
+- **Scoring:** scoring, weight 0.3.
+
 ## Policy codes (caller-configured, layer "policy", weight 0)
 
 These are **caller-configured** via `InspectOptions` — a separate channel from
