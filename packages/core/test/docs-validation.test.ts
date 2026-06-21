@@ -59,9 +59,9 @@ describe("docs/reason-codes.md stays in sync with the REASON_CODES registry", ()
 describe("README detector count matches the computed total", () => {
   // 4. DETECTOR COUNT — the true count is the lexical detector registry plus the
   //    structural scans. README hardcodes this number; assert both agree.
-  it("DETECTORS + STRUCTURAL_SCANS equals 30 and README states it", () => {
+  it("DETECTORS + STRUCTURAL_SCANS equals 31 and README states it", () => {
     const total = DETECTORS.length + STRUCTURAL_SCANS.length;
-    expect(total).toBe(30);
+    expect(total).toBe(31);
     expect(readme.includes(String(total))).toBe(true);
   });
 });

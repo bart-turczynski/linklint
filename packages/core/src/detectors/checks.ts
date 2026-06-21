@@ -33,14 +33,17 @@ import { openRedirectParam } from "./open-redirect-param.js";
 import { suspiciousExtension } from "./suspicious-extension.js";
 import { punycodeMalformed } from "./punycode-malformed.js";
 import { excessiveSubdomainDepth } from "./excessive-subdomain-depth.js";
+import { promptInjection } from "./prompt-injection.js";
 
 /**
- * THE single descriptor source for all 30 checks. `STRUCTURAL_SCANS`
+ * THE single descriptor source for all 31 checks. `STRUCTURAL_SCANS`
  * (structural.ts) and `DETECTORS` (registry.ts) are both DERIVED from this
  * array — add a check here once and both runtime arrays pick it up.
  *
  * Order matches today's runtime order exactly: the 4 structural scans first
- * (STRUCTURAL_SCANS order), then the 26 parsed detectors (DETECTORS order).
+ * (STRUCTURAL_SCANS order), then the 27 parsed detectors (DETECTORS order) —
+ * the last of which (prompt_injection_url) is `agentGated` and runs only when
+ * `InspectOptions.agentMode` is true.
  * Each descriptor reuses the existing detector object / scan thunk's `run`;
  * detector logic is unchanged. `skipReportable: true` for every check (a
  * runtime failure is recorded as `lexical:<id>` in `checksSkipped`).
@@ -297,5 +300,16 @@ export const CHECKS: CheckDescriptor[] = [
     emits: ["excessive_subdomain_depth"],
     skipReportable: true,
     run: excessiveSubdomainDepth.run,
+  },
+
+  // --- Agent-gated detectors (run only when InspectOptions.agentMode) ---
+  {
+    id: promptInjection.id,
+    layer: promptInjection.layer,
+    phase: "parsed",
+    emits: ["prompt_injection_url"],
+    skipReportable: true,
+    agentGated: true,
+    run: promptInjection.run,
   },
 ];

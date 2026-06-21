@@ -59,7 +59,20 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRes
   // Seed with any structural-scan skips so they reach checksSkipped on the OK path.
   const skippedDetectors: string[] = [...structuralSkipped];
 
+  // Agent channel (FR-AGENT-*): agent-gated detectors are an explicit opt-in
+  // (InspectOptions.agentMode). When off they are silently not evaluated — NOT
+  // listed in checksSkipped (an available-but-disabled feature channel, not a
+  // skipped layer). `agentRan` mirrors `policyRan`: it records that ≥1 gated
+  // check was actually evaluated, gating the `agent` token in checksRun so the
+  // default path stays byte-identical to today.
+  const agentMode = options.agentMode === true;
+  let agentRan = false;
+
   for (const detector of DETECTORS) {
+    if (detector.agentGated) {
+      if (!agentMode) continue;
+      agentRan = true;
+    }
     try {
       for (const f of detector.run(ctx)) {
         findings.push({ code: f.code, detail: f.detail, ...(f.confusables ? { confusables: f.confusables } : {}) });
@@ -86,5 +99,5 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRes
     }
   }
 
-  return buildOkResult(ctx, findings, skippedDetectors, policyFindings, policyRan);
+  return buildOkResult(ctx, findings, skippedDetectors, policyFindings, policyRan, agentRan);
 }

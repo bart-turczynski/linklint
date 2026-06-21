@@ -315,6 +315,22 @@ export const REASON_CODES = {
     summary:
       "Host has an abnormally large number of subdomain labels (≥5) — a low-weight combination signal for a buried registrable domain.",
   },
+  prompt_injection_url: {
+    layer: "lexical",
+    scoring: true,
+    // AGENT-GATED detector (emits only when InspectOptions.agentMode is true).
+    // The URL carries an LLM-agent prompt-control payload: a prompt-control query
+    // parameter (role=/system=/prompt=…) or an instruction-override path segment
+    // (/ignore-previous-instructions…). This is the highest false-positive surface
+    // of any detector — these tokens also appear in legitimate apps — which is
+    // exactly WHY it is gated off the default verdict. Weighted in the
+    // strong-but-not-decisive band (0.5): a deliberate injection payload is a real
+    // signal in an agent context, but never decisive standalone. Provisional —
+    // re-tuned with the agent corpus (V4e).
+    weight: 0.5,
+    summary:
+      "URL carries an LLM-agent prompt-injection payload: a prompt-control query parameter (role=/system=/prompt=) or an instruction-override path segment (/ignore-previous-instructions). Agent-gated (emits only under agentMode).",
+  },
 
   // ── Policy (caller-configured, weight 0) ─────────────────────────────────
   tld_denied: {

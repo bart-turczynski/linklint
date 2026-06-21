@@ -36,7 +36,12 @@ import { excessiveSubdomainDepth } from "./excessive-subdomain-depth.js";
  */
 export const DETECTORS: Detector[] = CHECKS.filter(
   (c): c is ParsedCheckDescriptor => c.phase === "parsed",
-).map((c) => ({ id: c.id, layer: c.layer, run: c.run }));
+).map((c) => ({
+  id: c.id,
+  layer: c.layer,
+  run: c.run,
+  ...(c.agentGated ? { agentGated: true } : {}),
+}));
 
 export {
   normalizationDelta,

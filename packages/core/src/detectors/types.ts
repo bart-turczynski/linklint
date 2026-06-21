@@ -65,4 +65,10 @@ export interface Detector {
   id: string;
   layer: Layer;
   run(ctx: InspectionContext): DetectorFinding[];
+  /**
+   * Agent-gated: runs only when `InspectOptions.agentMode` is true. Threaded
+   * from the descriptor registry so the `inspect()` run loop can skip it when
+   * agent mode is off. Absent/false for standard detectors.
+   */
+  agentGated?: boolean;
 }

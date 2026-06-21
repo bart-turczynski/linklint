@@ -21,6 +21,27 @@ export interface InspectOptions {
   maxDecodeDepth?: number;
 
   /**
+   * Agent mode: enable the agent-gated detector channel (default `false`). These
+   * are higher-false-positive heuristics aimed at LLM-agent / tool-use contexts
+   * (e.g. prompt-injection via URL) — deliberately OFF by default so the standard
+   * deception verdict stays precision-first.
+   *
+   * `agentMode` is an explicit, reproducible INPUT: the same `(url, options)`
+   * always yields the same result. When `false` (or unset) the output is
+   * byte-identical to passing no options — verdict AND bookkeeping (`checksRun`,
+   * `checksSkipped`, `score`, `reasons`). When `true` and ≥1 agent-gated check
+   * is evaluated, the `agent` channel token appears in `checksRun` (after
+   * `lexical`/`policy`).
+   *
+   * Agent-gated checks that are disabled by `agentMode: false` are NOT listed in
+   * `checksSkipped` — they are an available-but-intentionally-disabled feature
+   * channel, not a skipped layer or a runtime failure.
+   *
+   * @example agentMode: true
+   */
+  agentMode?: boolean;
+
+  /**
    * Policy: TLD deny-list (default-allow). When set, a host whose TLD is in this
    * list emits the `tld_denied` policy reason. Everything else passes.
    *

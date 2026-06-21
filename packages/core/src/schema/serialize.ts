@@ -74,6 +74,13 @@ export function buildInvalidResult(
  * score. `policyRan` records whether the policy channel was configured/ran — it
  * gates the `policy` entry in `checksRun` so that, with no policy configured,
  * `checksRun` stays exactly `["lexical"]`.
+ *
+ * `agentRan` is the parallel flag for the agent channel: when `InspectOptions.
+ * agentMode` is on AND ≥1 agent-gated check was evaluated, the `agent` channel
+ * token is appended to `checksRun`. The deterministic channel order when all
+ * three run is `["lexical", "policy", "agent"]`. Like `policyRan`, agent-gated
+ * checks disabled by `agentMode: false` are NOT recorded in `checksSkipped`, so
+ * the default path stays byte-identical.
  */
 export function buildOkResult(
   ctx: InspectionContext,
@@ -81,6 +88,7 @@ export function buildOkResult(
   skippedDetectors: string[],
   policyFindings: CollectedFinding[] = [],
   policyRan = false,
+  agentRan = false,
 ): InspectResult {
   const reasons: Reason[] = [...findings, ...policyFindings].map((f) => ({
     code: f.code,
@@ -97,6 +105,13 @@ export function buildOkResult(
 
   const checksSkipped = [...skippedDetectors, "resolution", "reputation"];
 
+  // Channel tokens in deterministic order: lexical always; policy when the
+  // policy channel ran; agent when the agent-gated channel ran. Appended in this
+  // fixed order so the default path is exactly ["lexical"].
+  const checksRun = ["lexical"];
+  if (policyRan) checksRun.push("policy");
+  if (agentRan) checksRun.push("agent");
+
   return {
     schemaVersion: SCHEMA_VERSION,
     status: "ok",
@@ -106,7 +121,7 @@ export function buildOkResult(
     severity,
     reasons,
     confusables,
-    checksRun: policyRan ? ["lexical", "policy"] : ["lexical"],
+    checksRun,
     checksSkipped,
     dataVersions: DATA_VERSIONS,
   };

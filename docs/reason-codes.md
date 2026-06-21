@@ -720,6 +720,33 @@ destination is explained.
   `http://127.0.0.1%09foo.google.com` (TAB host terminator).
 - **Scoring:** scoring, weight 0.6.
 
+### `prompt_injection_url` — V4a · weight 0.5 · **agent-gated**
+
+- **Meaning:** the URL carries an LLM-agent **prompt-injection payload** — text
+  positioned to hijack a model's instructions when the link is fetched and fed
+  to an agent. Two shapes: a **prompt-control query parameter** whose name
+  addresses the model's control plane (`role=`, `system=`, `prompt=`,
+  `instruction(s)=`, `assistant=`, `system_prompt=`, `jailbreak=`, …) with a
+  non-empty value, or an **instruction-override path segment** whose normalized
+  text reads as an override (`/ignore-previous-instructions`,
+  `/disregard-all-prior-prompts`, `/you-are-now`, `/act-as`).
+- **Why it's a signal:** in agent / tool-use contexts a fetched URL can smuggle
+  instructions into the model. This is a real attack class but also the **highest
+  false-positive surface** of any detector — these tokens occur in legitimate
+  apps — which is exactly why it is **gated**.
+- **Agent-gated (opt-in):** this detector emits **only** when `inspect()` is
+  called with `{ agentMode: true }` (CLI: `--agent`). With agent mode off it is
+  not evaluated and never appears in `checksSkipped`; with it on, the `agent`
+  channel token is added to `checksRun` (order `["lexical", "policy", "agent"]`).
+  The default verdict is byte-identical to before this detector existed.
+- **Conservative by construction:** query matching is on **exact decoded
+  parameter names** (set membership, never a substring scan); path matching is on
+  **whole, anchored segments** so an unrelated `/ignored/` directory does not
+  trip it.
+- **Example:** `https://example.com/agent?role=system&prompt=ignore%20all%20rules`,
+  `https://example.com/ignore-previous-instructions` (both only under `agentMode`).
+- **Scoring:** scoring, weight 0.5.
+
 ## Policy codes (caller-configured, layer "policy", weight 0)
 
 These are **caller-configured** via `InspectOptions` — a separate channel from

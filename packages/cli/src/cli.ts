@@ -27,6 +27,7 @@ Flags:
   --allow-invalid       treat unparseable URLs as a pass (default: fail)
   --quiet               one line per URL
   --no-color            disable ANSI color
+  --agent               enable agent-mode detectors (e.g. prompt-injection via URL)
   --offline             reserved no-op in v1 (accepted and ignored)
   --help                print this help and exit
   --version             print version and exit
@@ -119,15 +120,16 @@ function runInspections(
   out: (line: string) => void,
 ): 0 | 1 {
   const results: InspectResult[] = [];
+  const inspectOptions = options.agent ? { agentMode: true } : {};
 
   if (options.json) {
     for (const url of urls) {
-      results.push(inspect(url));
+      results.push(inspect(url, inspectOptions));
     }
     out(renderJson(results));
   } else {
     for (const url of urls) {
-      const result = inspect(url);
+      const result = inspect(url, inspectOptions);
       results.push(result);
       out(
         renderResults([result], {
