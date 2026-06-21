@@ -64,6 +64,34 @@ describe("agentMode:true — observable channel token", () => {
   });
 });
 
+// V4b — api_endpoint_impersonation is the second agent-gated detector. Same
+// gating contract: byte-identical default, observable + fires under agentMode.
+const API_IMPOSTER = "https://api.openai-com.io/v1/chat/completions";
+
+describe("agentMode — api_endpoint_impersonation gating contract", () => {
+  it("default is byte-identical to agentMode:false for an impersonating host", () => {
+    expect(inspect(API_IMPOSTER, { agentMode: false })).toEqual(inspect(API_IMPOSTER));
+  });
+
+  it("default neither fires the code nor lists it in checksSkipped / carries the agent token", () => {
+    const r = inspect(API_IMPOSTER);
+    expect(r.reasons.map((x) => x.code)).not.toContain("api_endpoint_impersonation");
+    expect(r.checksSkipped).not.toContain("lexical:api_endpoint_impersonation");
+    expect(r.checksRun).not.toContain("agent");
+  });
+
+  it("agentMode:true puts 'agent' in checksRun AND fires api_endpoint_impersonation", () => {
+    const r = inspect(API_IMPOSTER, { agentMode: true });
+    expect(r.checksRun).toContain("agent");
+    expect(r.reasons.map((x) => x.code)).toContain("api_endpoint_impersonation");
+  });
+
+  it("the real provider host does NOT fire even under agentMode", () => {
+    const r = inspect("https://api.openai.com/v1/chat/completions", { agentMode: true });
+    expect(r.reasons.map((x) => x.code)).not.toContain("api_endpoint_impersonation");
+  });
+});
+
 describe("agentMode — invalid-input path is unaffected", () => {
   it("invalid input is byte-identical with and without agentMode", () => {
     const invalid = "http://"; // unparseable

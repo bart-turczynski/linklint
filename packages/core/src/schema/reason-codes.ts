@@ -331,6 +331,23 @@ export const REASON_CODES = {
     summary:
       "URL carries an LLM-agent prompt-injection payload: a prompt-control query parameter (role=/system=/prompt=) or an instruction-override path segment (/ignore-previous-instructions). Agent-gated (emits only under agentMode).",
   },
+  api_endpoint_impersonation: {
+    layer: "lexical",
+    scoring: true,
+    // AGENT-GATED detector (emits only when InspectOptions.agentMode is true).
+    // A host masquerades as a known API provider's endpoint: an api-brands tier
+    // token (openai/anthropic/…) appears as an exact host label while the
+    // registrable domain is NOT the real provider (api.openai-com.io). Pointing an
+    // agent's API client at a look-alike endpoint is high-confidence impersonation
+    // — an exact brand-token-on-wrong-eTLD+1 match — so it sits in the
+    // brand-impersonation band alongside brand_homoglyph (0.5), above the fuzzier
+    // brand_combosquat (0.4). Path escalation (a real API route) only sharpens the
+    // detail; the weight is unchanged. Provisional — re-tuned with the agent
+    // corpus (V4e).
+    weight: 0.5,
+    summary:
+      "Host masquerades as a known API provider's endpoint — an api-brands token (openai/anthropic/…) appears in a host label whose registrable domain is not the real provider (api.openai-com.io), optionally with a real API route path. Agent-gated (emits only under agentMode).",
+  },
 
   // ── Policy (caller-configured, weight 0) ─────────────────────────────────
   tld_denied: {
