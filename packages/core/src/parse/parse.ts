@@ -58,6 +58,49 @@ export function parse(
     );
   }
 
+  // ── Local file: forms (hostless) ────────────────────────────────────────────
+  // `file:` URLs may name a local path with no authority. The WHATWG-canonical
+  // local shapes are `file:/etc/passwd` (single slash, no authority) and
+  // `file:///etc/passwd` (explicit empty authority). Both denote host = none +
+  // path. The generic authority logic below would reject these — `file:/…` lands
+  // an empty authority that fails hostIsValid (parse_error), and `file:///…`'s
+  // `///` trips the structural ambiguous_authority scan to `invalid` — so the
+  // dangerous_scheme detector (which keys off scheme === "file") never runs.
+  // That is a real bypass: a sanitizer that only blocks `file://host/…` lets the
+  // hostless local forms through (the changedetection.io local-file-read class).
+  // Scoped strictly to `file:` so no other scheme's invalid-input contract moves.
+  // `file://host/…` still has a non-empty authority and falls through to the
+  // normal path below, keeping its existing host parse.
+  if (scheme === "file") {
+    // Strip an optional leading `//` authority introducer, then any remaining
+    // leading slashes. A non-empty authority (e.g. `file://localhost/…`) is left
+    // for the generic branch; only the hostless local forms are special-cased.
+    const afterSlashes = rest.startsWith("//") ? rest.slice(2) : rest;
+    if (afterSlashes === "" || afterSlashes.startsWith("/")) {
+      // Hostless: everything after the scheme (minus the empty authority) is the
+      // path. Preserve a single leading slash so the path reads `/etc/passwd`.
+      const localPath = afterSlashes === "" ? rest : "/" + afterSlashes.replace(/^\/+/, "");
+      let work = localPath;
+      let fragment: string | null = null;
+      let query: string | null = null;
+      const hashIdx = work.indexOf("#");
+      if (hashIdx !== -1) {
+        fragment = work.slice(hashIdx + 1);
+        work = work.slice(0, hashIdx);
+      }
+      const qIdx = work.indexOf("?");
+      if (qIdx !== -1) {
+        query = work.slice(qIdx + 1);
+        work = work.slice(0, qIdx);
+      }
+      return buildContext(
+        input,
+        { scheme, userinfo: null, rawHost: "", port: null, path: work, query, fragment },
+        runtime,
+      );
+    }
+  }
+
   // ── Authority + path/query/fragment ─────────────────────────────────────────
   let authorityAndRest: string;
   if (scheme && rest.startsWith("//")) {

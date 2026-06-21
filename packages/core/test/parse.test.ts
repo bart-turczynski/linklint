@@ -60,6 +60,37 @@ describe("parse — opaque/dangerous schemes", () => {
   });
 });
 
+describe("parse — hostless local file: forms (V2 dangerous-scheme coverage)", () => {
+  // `file:/etc/passwd` and `file:///etc/passwd` are the WHATWG-canonical local
+  // (hostless) file shapes. They must parse to scheme:file + host:none + path so
+  // the dangerous_scheme detector fires — they previously slipped through as
+  // `invalid` (parse_error / ambiguous_authority), the local-file-read bypass.
+  it("parses file:/path as hostless with the path preserved", () => {
+    const ctx = parse("file:/etc/passwd");
+    expect(ctx).not.toBeNull();
+    expect(ctx!.scheme).toBe("file");
+    expect(ctx!.host).toBe("");
+    expect(ctx!.parsed.effectiveHost).toBeNull();
+    expect(ctx!.path).toBe("/etc/passwd");
+  });
+
+  it("parses file:///path (explicit empty authority) as hostless", () => {
+    const ctx = parse("file:///etc/passwd");
+    expect(ctx).not.toBeNull();
+    expect(ctx!.scheme).toBe("file");
+    expect(ctx!.host).toBe("");
+    expect(ctx!.parsed.effectiveHost).toBeNull();
+    expect(ctx!.path).toBe("/etc/passwd");
+  });
+
+  it("leaves file://host/path with a non-empty authority on the host path", () => {
+    const ctx = parse("file://localhost/etc/passwd");
+    expect(ctx!.scheme).toBe("file");
+    expect(ctx!.host).toBe("localhost");
+    expect(ctx!.path).toBe("/etc/passwd");
+  });
+});
+
 describe("parse — malformed input returns null (never throws)", () => {
   const garbage = [
     "",
@@ -70,6 +101,9 @@ describe("parse — malformed input returns null (never throws)", () => {
     "<<<>>>",
     "@@@",
     "http://exa mple.com",
+    // The hostless file: special-case must not swallow genuinely-malformed
+    // file: input: a non-empty authority with whitespace still parses invalid.
+    "file:// /etc/passwd",
   ];
   for (const g of garbage) {
     it(`returns null for ${JSON.stringify(g)}`, () => {

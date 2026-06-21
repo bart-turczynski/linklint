@@ -67,6 +67,18 @@ describe("scoring detectors reach >= medium on their own (SC-1)", () => {
     expect(inspect("javascript:alert(1)").severity).toBe("critical");
     expect(inspect("data:text/html,<script>").severity).toBe("critical");
   });
+
+  it("dangerous_scheme — hostless local file: forms (V2 local-file-read coverage)", () => {
+    // The hostless/slash-prefixed local forms previously slipped through as
+    // `invalid` so the detector never saw scheme:file. They must now parse ok
+    // and reach dangerous_scheme/critical like the host-qualified form.
+    for (const url of ["file:/etc/passwd", "file:///etc/passwd", "file://localhost/etc/passwd"]) {
+      const r = inspect(url);
+      expect(r.status).toBe("ok");
+      expect(r.reasons.map((x) => x.code)).toContain("dangerous_scheme");
+      expect(r.severity).toBe("critical");
+    }
+  });
 });
 
 describe("encoding_obfuscation", () => {

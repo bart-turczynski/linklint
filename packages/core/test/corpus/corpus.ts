@@ -127,6 +127,20 @@ export const CORPUS: CorpusRow[] = [
     expectReasons: ["dangerous_scheme"],
   },
   {
+    input: "file:/etc/passwd",
+    label: "deceptive",
+    minSeverity: "critical",
+    expectReasons: ["dangerous_scheme"],
+    notes: "hostless local file: (single slash) — local-file-read; must not slip to invalid",
+  },
+  {
+    input: "file:///etc/passwd",
+    label: "deceptive",
+    minSeverity: "critical",
+    expectReasons: ["dangerous_scheme"],
+    notes: "hostless local file: (empty authority) — same local-file-read class",
+  },
+  {
     input: "https://example.com/%2e%2e%2f%2e%2e%2fadmin",
     label: "deceptive",
     expectReasons: ["encoding_obfuscation"],
@@ -178,6 +192,7 @@ export const CORPUS: CorpusRow[] = [
   { input: "http://", label: "invalid" },
   { input: "http://exa mple.com", label: "invalid", notes: "space in host" },
   { input: "@@@@@", label: "invalid" },
+  { input: "file:// /etc/passwd", label: "invalid", notes: "regression: hostless file: special-case must not rescue a malformed (whitespace) authority" },
 
   // ── Epic J: parser-differential & structural-obfuscation (J1–J9) ────────
   // Deceptive — authority ambiguity (J1, weight 0.65 → high)
