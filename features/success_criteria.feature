@@ -116,11 +116,65 @@ Feature: Success criteria — core lexical (PRD §7)
 
     Examples:
       | input                                              | forbidden          |
-      | https://[::1]:8080/                                | ip_obfuscation     |
       | https://s3.amazonaws.com/my-bucket/key             | ascii_homoglyph    |
       | https://github.com/anthropics/repo/archive/main.zip | file_extension_tld |
       | https://paypal.com/login                           | brand_in_path      |
       | https://straße.de/                                 | mixed_script       |
+
+  # ── V1b — literal-IP range classifier (loopback / private / link-local / metadata / reserved) ──
+
+  Scenario Outline: V1b — the cloud instance-metadata endpoint scores >= medium with ip_cloud_metadata
+    When I inspect "<input>"
+    Then the status is "ok"
+    And the severity is at least "medium"
+    And the reasons contain "ip_cloud_metadata"
+
+    Examples:
+      | input                                  |
+      | http://169.254.169.254/latest/meta-data/ |
+      | https://[fd00:ec2::254]/               |
+
+  Scenario Outline: V1b — generic internal-range literals score >= low with their bucket reason
+    When I inspect "<input>"
+    Then the status is "ok"
+    And the severity is at least "low"
+    And the reasons contain "<reason>"
+    And the reasons do not contain "ip_obfuscation"
+
+    Examples:
+      | input                       | reason         |
+      | http://127.0.0.1:3000/      | ip_loopback    |
+      | http://127.5.6.7/           | ip_loopback    |
+      | https://[::1]:8080/         | ip_loopback    |
+      | 192.168.1.1                 | ip_private     |
+      | http://10.1.2.3/admin       | ip_private     |
+      | https://[fd12:3456:789a::1]/ | ip_private     |
+      | http://169.254.10.20/       | ip_link_local  |
+      | https://[fe80::abcd]/       | ip_link_local  |
+      | http://0.0.0.10/            | ip_reserved    |
+      | http://100.64.1.1/          | ip_reserved    |
+      | http://239.0.0.1/           | ip_reserved    |
+      | https://[ff02::1]/          | ip_reserved    |
+
+  Scenario Outline: V1b — precedence: the most-specific bucket wins
+    When I inspect "<input>"
+    Then the status is "ok"
+    And the reasons contain "<expected>"
+    And the reasons do not contain "<forbidden>"
+
+    Examples:
+      | input                  | expected          | forbidden     |
+      | http://169.254.169.254/ | ip_cloud_metadata | ip_link_local |
+
+  Scenario Outline: V1b — IPv4-in-IPv6 embeddings classify by the embedded IPv4
+    When I inspect "<input>"
+    Then the status is "ok"
+    And the reasons contain "<reason>"
+
+    Examples:
+      | input                            | reason            |
+      | https://[::ffff:127.0.0.1]/      | ip_loopback       |
+      | https://[::ffff:169.254.169.254]/ | ip_cloud_metadata |
 
   # ── Epic I — download / redirect / subdomain-depth detectors ─────────────
 

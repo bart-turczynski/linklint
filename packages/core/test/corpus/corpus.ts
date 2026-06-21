@@ -63,14 +63,14 @@ export const CORPUS: CorpusRow[] = [
   {
     input: "http://2130706433/",
     label: "deceptive",
-    expectReasons: ["ip_obfuscation"],
-    notes: "decimal-encoded 127.0.0.1",
+    expectReasons: ["ip_obfuscation", "ip_loopback"],
+    notes: "decimal-encoded 127.0.0.1 — V1b: decodes to loopback, so also ip_loopback",
   },
   {
     input: "http://0x7f.0.0.1/",
     label: "deceptive",
-    expectReasons: ["ip_obfuscation"],
-    notes: "hex-encoded IP",
+    expectReasons: ["ip_obfuscation", "ip_loopback"],
+    notes: "hex-encoded IP (127.0.0.1) — V1b: decodes to loopback, so also ip_loopback",
   },
   {
     input: "https://paypal.com.spoof.info/",
@@ -154,8 +154,12 @@ export const CORPUS: CorpusRow[] = [
   { input: "https://cdn.assets.eu-west-1.example.com/", label: "benign", forbidReasons: ["embedded_domain_in_subdomain"], notes: "E4 guard: 3-label subdomain, no mid-window is a registrable domain" },
   { input: "https://mail.google.com/", label: "benign" },
   { input: "https://amazon.co.jp/", label: "benign" },
-  { input: "192.168.1.1", label: "benign", forbidReasons: ["ip_obfuscation"], notes: "canonical IP is not obfuscation" },
-  { input: "http://127.0.0.1:3000/", label: "benign", forbidReasons: ["ip_obfuscation"] },
+  // V1b reclassification: canonical literal-IP internal links. NOT ip_obfuscation
+  // (that invariant holds), but the V1a range classifier now emits a low-weight
+  // bucket signal (a public-facing URL has no business naming an internal target),
+  // so these score low and read as deceptive at minSeverity low — see worklog.
+  { input: "192.168.1.1", label: "deceptive", minSeverity: "low", expectReasons: ["ip_private"], forbidReasons: ["ip_obfuscation"], notes: "canonical RFC 1918 internal link — low-weight ip_private signal, not obfuscation" },
+  { input: "http://127.0.0.1:3000/", label: "deceptive", minSeverity: "low", expectReasons: ["ip_loopback"], forbidReasons: ["ip_obfuscation"], notes: "canonical loopback internal link — low-weight ip_loopback signal, not obfuscation" },
   { input: "example.com", label: "benign", notes: "bare host, missing scheme" },
   { input: "https://example.com/?redirect=https%3A%2F%2Fexample.com%2Fp", label: "benign", forbidReasons: ["encoding_obfuscation", "open_redirect_param"], notes: "legitimate encoded SAME-host redirect value (A→A): guards encoding_obfuscation and open_redirect_param. Cross-host (A→B) deceptive case is an I4 corpus row." },
 
@@ -258,8 +262,8 @@ export const CORPUS: CorpusRow[] = [
   {
     input: "https://[::ffff:127.0.0.1]/",
     label: "deceptive",
-    expectReasons: ["ip_obfuscation"],
-    notes: "J5 IPv4-mapped IPv6 — SSRF masquerade for 127.0.0.1",
+    expectReasons: ["ip_obfuscation", "ip_loopback"],
+    notes: "J5 IPv4-mapped IPv6 — SSRF masquerade for 127.0.0.1; V1b classifies by embedded v4 → ip_loopback",
   },
   {
     input: "https://[2001:0db8::1]/",
@@ -341,7 +345,7 @@ export const CORPUS: CorpusRow[] = [
   },
 
   // Benign (SC-2): the J detectors must NOT over-flag these
-  { input: "https://[::1]:8080/", label: "benign", forbidReasons: ["ip_obfuscation"], notes: "J5: canonical IPv6 + port" },
+  { input: "https://[::1]:8080/", label: "deceptive", minSeverity: "low", expectReasons: ["ip_loopback"], forbidReasons: ["ip_obfuscation"], notes: "J5/V1b: canonical IPv6 loopback + port — low-weight ip_loopback signal, not obfuscation" },
   { input: "https://[2001:db8::1]/", label: "benign", forbidReasons: ["ip_obfuscation"], notes: "J5: canonical IPv6" },
   { input: "https://s3.amazonaws.com/my-bucket/key", label: "benign", forbidReasons: ["ascii_homoglyph"], notes: "J4: legit digit label (s3)" },
   { input: "https://web3.example.com/", label: "benign", forbidReasons: ["ascii_homoglyph"], notes: "J4: legit digit label (web3)" },
@@ -560,6 +564,124 @@ export const CORPUS: CorpusRow[] = [
   { input: "https://ups.com", label: "benign", forbidReasons: ["brand_soundsquat", "brand_bitsquat"], notes: "T2/T3 short-label guard: 3-char brand label cannot soundsquat/bitsquat-collide" },
   { input: "https://amazon.com", label: "benign", forbidReasons: ["brand_bitsquat", "brand_lookalike"], notes: "T3 guard: exact brand domain is the brand, never a bit-flip of itself" },
   { input: "https://oetfliz.com", label: "benign", forbidReasons: ["brand_bitsquat"], notes: "T3 guard: a 2-bit-away label (n->o AND x->z off netflix) is NOT a single-bit neighbor" },
+
+  // ── V1b: literal-IP range classifier coverage (5 buckets + precedence + v4-in-v6) ──
+  // Each literal-IP host carries a scoring bucket signal (generic 0.2 → low,
+  // cloud-metadata 0.5 → medium), so every fixture is deceptive. Grounded in
+  // technique (RFC ranges / SSRF target shapes), no advisory IDs.
+
+  // Private (RFC 1918) — v4 and v6 (fc00::/7 unique-local).
+  {
+    input: "http://10.1.2.3/admin",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["ip_private"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "V1b private bucket — 10/8 internal target",
+  },
+  {
+    input: "http://172.16.5.5/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["ip_private"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "V1b private bucket — 172.16/12 internal target",
+  },
+  {
+    input: "https://[fd12:3456:789a::1]/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["ip_private"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "V1b private bucket (IPv6) — fc00::/7 unique-local",
+  },
+
+  // Loopback — v4 (127/8) and v6 (::1) beyond the reclassified canonical rows.
+  {
+    input: "http://127.5.6.7/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["ip_loopback"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "V1b loopback bucket — 127/8 (not just 127.0.0.1)",
+  },
+
+  // Link-local — v4 (169.254/16, NOT the metadata /32) and v6 (fe80::/10).
+  {
+    input: "http://169.254.10.20/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["ip_link_local"],
+    forbidReasons: ["ip_obfuscation", "ip_cloud_metadata"],
+    notes: "V1b link-local bucket — 169.254/16 generic (NOT the metadata endpoint)",
+  },
+  {
+    input: "https://[fe80::abcd]/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["ip_link_local"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "V1b link-local bucket (IPv6) — fe80::/10",
+  },
+
+  // Cloud-metadata (most-specific bucket, deceptive-labeled) — v4 and v6 literals.
+  {
+    input: "http://169.254.169.254/latest/meta-data/",
+    label: "deceptive",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["ip_link_local", "ip_obfuscation"],
+    notes: "V1b precedence — the metadata /32 wins over the 169.254/16 link-local range",
+  },
+  {
+    input: "https://[fd00:ec2::254]/",
+    label: "deceptive",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["ip_private", "ip_obfuscation"],
+    notes: "V1b cloud-metadata bucket (IPv6) — wins over the fc00::/7 unique-local range",
+  },
+
+  // Reserved / special-use — v4 (0/8, CGNAT, multicast) and v6 (unspecified, multicast).
+  {
+    input: "http://0.0.0.10/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["ip_reserved"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "V1b reserved bucket — 0/8 special-use",
+  },
+  {
+    input: "http://100.64.1.1/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["ip_reserved"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "V1b reserved bucket — 100.64/10 CGNAT",
+  },
+  {
+    input: "http://239.0.0.1/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["ip_reserved"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "V1b reserved bucket — 224/4 multicast",
+  },
+  {
+    input: "https://[ff02::1]/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["ip_reserved"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "V1b reserved bucket (IPv6) — ff00::/8 multicast",
+  },
+
+  // v4-in-v6 embeddings — classified by the EMBEDDED IPv4 (SSRF masquerade).
+  {
+    input: "https://[::ffff:169.254.169.254]/",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata", "ip_obfuscation"],
+    notes: "V1b v4-in-v6 — embedded metadata endpoint classifies as ip_cloud_metadata (+ ip_obfuscation → high)",
+  },
 
   // ── Imported IDN / PSL / host test vectors (E6) ─────────────────────────
   ...VECTORS,
