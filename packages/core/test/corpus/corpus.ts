@@ -147,6 +147,18 @@ export const CORPUS: CorpusRow[] = [
     notes: "encoded traversal",
   },
   {
+    input: "https://example.com/%C0%AFadmin",
+    label: "deceptive",
+    expectReasons: ["encoding_obfuscation"],
+    notes: "overlong UTF-8: C0 AF folds to '/' under permissive decoding — hides a path separator",
+  },
+  {
+    input: "https://example.com/%25252e%25252e%25252fadmin",
+    label: "deceptive",
+    expectReasons: ["encoding_obfuscation"],
+    notes: "triple-encoded traversal — '..' and '/' hidden behind three percent-encoding levels",
+  },
+  {
     input: "https://xn--abc.com/",
     label: "deceptive",
     minSeverity: "low",
