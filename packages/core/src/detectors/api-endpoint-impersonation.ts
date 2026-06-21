@@ -38,6 +38,18 @@ import {
  * over separator-split labels (no substring scans, no regex, no backtracking),
  * well within the <5ms budget. Reuses the pipeline's eTLD+1 facts
  * (`ctx.registrableDomainLower`, `ctx.hostLabels`) — no re-parsing.
+ *
+ * ── Precision tightening (V4e corpus tuning) ────────────────────────────────
+ * A bare brand-token-on-wrong-eTLD+1 match is too loose on its own: it fires on
+ * legitimate brand-owned platform hosts whose eTLD+1 is a sibling domain
+ * (`myproject.github.io` — eTLD+1 `github.io`, not `github.com`) and on any host
+ * that merely contains a brand word in an unrelated subdomain label
+ * (`stripe-blog.example.com`). To impersonate an API ENDPOINT the host must also
+ * LOOK like one, so the detector additionally requires a CORROBORATING API
+ * signal before firing: either an `api`-ish host label (an exact `api`/`apis`
+ * token in some label, split on `-`) OR a path that matches a known API route
+ * prefix. `api.openai-com.io` keeps firing (it has the `api` label); the
+ * brand-owned-platform / brand-word-subdomain false positives no longer do.
  */
 
 /**
@@ -56,6 +68,21 @@ function matchedApiRoute(path: string): string | null {
   return null;
 }
 
+/**
+ * Corroborating "this host looks like an API endpoint" signal: some host label
+ * carries an exact `api`/`apis` token (split on `-`, so `api`, `api-gateway`,
+ * `openai-api` all qualify; `myproject`, `stripe-blog` do not). Bounded set
+ * membership over already-split labels — no regex, no substring scan.
+ */
+function hasApiHostLabel(hostLabels: readonly string[]): boolean {
+  for (const label of hostLabels) {
+    for (const token of label.toLowerCase().split("-")) {
+      if (token === "api" || token === "apis") return true;
+    }
+  }
+  return false;
+}
+
 export const apiEndpointImpersonation: Detector = {
   id: "api_endpoint_impersonation",
   layer: "lexical",
@@ -69,6 +96,12 @@ export const apiEndpointImpersonation: Detector = {
 
     // The real provider, on its own legitimate domain, never fires.
     if (API_BRAND_LEGITIMATE_DOMAINS.has(registrable)) return [];
+
+    // Corroborating API-endpoint signals (computed once). A brand-token match
+    // fires only when at least one is present — see file header.
+    const route = matchedApiRoute(ctx.path);
+    const apiHostLabel = hasApiHostLabel(ctx.hostLabels);
+    if (!route && !apiHostLabel) return [];
 
     // Find an api-brand token appearing as an exact, separator-delimited token in
     // any host label whose registrable domain is NOT that provider's.
@@ -85,7 +118,6 @@ export const apiEndpointImpersonation: Detector = {
         // this host masquerades as the provider's API endpoint.
         if (legitDomains.has(registrable)) continue; // belt-and-suspenders
 
-        const route = matchedApiRoute(ctx.path);
         const base =
           `host '${ctx.host}' masquerades as the '${token}' API provider — the ` +
           `brand token '${token}' appears in a host label but the registrable domain ` +

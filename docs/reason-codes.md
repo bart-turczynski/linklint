@@ -771,7 +771,13 @@ destination is explained.
   byte-identical to before this detector existed.
 - **Conservative by construction:** the real provider on its own domain never
   fires (exact eTLD+1 skip); matching is set membership over separator-split
-  labels (no substring scans, no regex backtracking).
+  labels (no substring scans, no regex backtracking). A brand-token match also
+  requires a **corroborating API-endpoint signal** before firing — either an
+  `api`-ish host label (an exact `api`/`apis` token in some label) **or** a path
+  that matches a known API route prefix. This keeps `api.openai-com.io` firing
+  while sparing brand-owned platform hosts on sibling eTLD+1s
+  (`myproject.github.io`) and hosts that merely contain a brand word in an
+  unrelated subdomain (`openai.example.com`).
 - **Example:** `https://api.openai-com.io/v1/chat/completions`,
   `https://api.anthropic-com.co/v1/messages` (both only under `agentMode`). The
   real `https://api.openai.com/v1/chat/completions` does **not** fire.
@@ -836,8 +842,12 @@ destination is explained.
   **no spaces**, be drawn almost entirely from the base64/hex/url-safe alphabet
   (`A-Za-z0-9 + / - _ . = ~`), and have an **alphanumeric density ≥ 0.9**. A
   natural-language `q=` search string has spaces and punctuation and fails the
-  gate; a base64/hex blob passes. The exfil-marker path is an **exact decoded
-  parameter-name** match (set membership, never a substring scan).
+  gate; a base64/hex blob passes. A **JWT-shaped value** (three base64url
+  dot-segments) is **excluded outright** — a signed `id_token` / `access_token`
+  is a legitimate long opaque value in OAuth/OIDC URLs, so keying on its length
+  would mis-flag it; OAuth/credential misuse is `credential_harvesting`'s job.
+  The exfil-marker path is an **exact decoded parameter-name** match (set
+  membership, never a substring scan).
 - **Agent-gated (opt-in):** emits **only** when `inspect()` is called with
   `{ agentMode: true }` (CLI: `--agent`). With agent mode off it is not
   evaluated and never appears in `checksSkipped`. The default verdict is

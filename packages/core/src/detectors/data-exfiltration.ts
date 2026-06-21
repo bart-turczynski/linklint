@@ -34,7 +34,8 @@ import { boundedDecode } from "../parse/decode.js";
  *     floor: a 200+ char opaque token is well beyond a typical search box,
  *     short id, or page param, but a multi-KB stolen-data dump clears it easily.
  *     A signed JWT can reach this length too — which is exactly why length alone
- *     is not enough and the opaqueness gate below is also required.
+ *     is not enough and the opaqueness gate below is also required, AND why a
+ *     JWT-shaped value (three base64url dot-segments) is excluded outright (V4e).
  *   • **opaqueness gate** — the value must read as an opaque blob, not natural
  *     language: it has NO spaces (decoded `+`/`%20` count as spaces), it is drawn
  *     almost entirely from the base64/hex/url-safe alphabet
@@ -78,6 +79,18 @@ const OVERLONG_VALUE_LEN = 200;
 
 /** Minimum alphanumeric density for a value to read as an opaque blob. */
 const MIN_ALNUM_DENSITY = 0.9;
+
+/**
+ * A signed JWT shape: three non-empty base64url segments separated by dots
+ * (`header.payload.signature`). Anchored, no nested quantifiers — bounded match,
+ * no catastrophic backtracking. JWTs are a legitimate long opaque value carried
+ * in URLs (`id_token=`, `access_token=` in OAuth/OIDC flows), so the
+ * overlong-token rule deliberately excludes them (V4e decision — see worklog):
+ * keying on bare token length here would mis-flag an OIDC id_token in the URL.
+ * Credential / OAuth misuse is the credential_harvesting detector's job; this
+ * rule targets opaque dumps, not standards-shaped identity tokens.
+ */
+const JWT_SHAPE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 
 /**
  * Single bounded pass: is `value` an opaque, high-density base64/hex/url-safe
@@ -152,7 +165,12 @@ export const dataExfiltration: Detector = {
       // 2. Overlong opaque token VALUE (any parameter name).
       if (rawValue !== "") {
         const value = decodeToken(rawValue, ctx.runtime.maxDecodeDepth);
-        if (value !== null && value.length >= OVERLONG_VALUE_LEN && isOpaqueBlob(value)) {
+        if (
+          value !== null &&
+          value.length >= OVERLONG_VALUE_LEN &&
+          !JWT_SHAPE.test(value) &&
+          isOpaqueBlob(value)
+        ) {
           const name = decodeToken(rawKey, ctx.runtime.maxDecodeDepth)?.toLowerCase() ?? rawKey;
           return [
             {

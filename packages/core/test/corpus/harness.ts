@@ -22,7 +22,7 @@ export interface RowCheck {
 
 /** Check a single corpus row against its expected behavior. */
 export function checkRow(row: CorpusRow): RowCheck {
-  const result = inspect(row.input);
+  const result = inspect(row.input, row.options);
   const failures: string[] = [];
   const codes = result.reasons.map((r) => r.code);
 
@@ -86,7 +86,7 @@ export function runHarness(rows: CorpusRow[] = CORPUS): HarnessSummary {
   const falseNegativeInputs: string[] = [];
 
   for (const row of rows) {
-    const result = inspect(row.input);
+    const result = inspect(row.input, row.options);
     const flagged = result.status === "ok" && (result.score ?? 0) > 0;
     if (row.label === "deceptive") {
       if (flagged) tp++;

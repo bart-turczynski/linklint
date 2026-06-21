@@ -23,8 +23,23 @@ describe("api_endpoint_impersonation — impersonating hosts FIRE (agentMode)", 
     expect(agentCodes("https://openai-api.io")).toContain("api_endpoint_impersonation");
   });
 
-  it("the brand token as its own subdomain label on a wrong eTLD+1 fires (openai.evil.com)", () => {
-    expect(agentCodes("https://openai.evil.com")).toContain("api_endpoint_impersonation");
+  // Corroboration gate (V4e tuning): a brand word appearing anywhere in the host
+  // is too loose on its own (it false-positives on legitimate brand-word
+  // subdomains and brand-owned alt-domains like github.io). To impersonate an API
+  // ENDPOINT the host must ALSO look like one — an `api`-ish host label OR a known
+  // API route path. A bare brand-token subdomain without either does NOT fire.
+  it("a bare brand-token subdomain without a corroborating api label/route does NOT fire (openai.evil.com)", () => {
+    expect(agentCodes("https://openai.evil.com")).not.toContain("api_endpoint_impersonation");
+  });
+
+  it("a bare brand-token subdomain WITH an api host label fires (api.openai.evil.com)", () => {
+    expect(agentCodes("https://api.openai.evil.com")).toContain("api_endpoint_impersonation");
+  });
+
+  it("a bare brand-token subdomain WITH a known API route fires (openai.evil.com/v1/chat/completions)", () => {
+    expect(agentCodes("https://openai.evil.com/v1/chat/completions")).toContain(
+      "api_endpoint_impersonation",
+    );
   });
 });
 
