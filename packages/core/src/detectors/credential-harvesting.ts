@@ -2,48 +2,13 @@ import type { Detector, DetectorFinding } from "./types.js";
 import { OAUTH_PROVIDER_DOMAINS } from "../data/oauth-providers.js";
 
 /**
- * `credential_harvesting`. SCORING, weight 0.35. **AGENT-GATED** — emits only
- * when `InspectOptions.agentMode` is true (wired via `agentGated: true` in
- * checks.ts). Like the other gated detectors, this targets the LLM-agent /
- * tool-use context: an agent that follows a link carrying an OAuth / token flow
- * is the party at risk of being walked through a credential-phishing or
- * token-exfiltration handshake on an impostor host.
- *
- * ── What fires ──────────────────────────────────────────────────────────────
- * An OAuth / token-flow URL SHAPE on a NON-allowlisted host. Two signal classes:
- *   - **path markers** — an OAuth authorize/token segment sequence
- *     (`/oauth/authorize`, `/oauth/token`, `/oauth2/authorize`,
- *     `/login/oauth/authorize`, `/connect/authorize`, …).
- *   - **query markers** — token-flow parameters: `redirect_uri=`,
- *     `access_token=`, `client_secret=`, `response_type=token`, or `code=`
- *     combined with `client_id=` (the authorization-code callback pair).
- *
- * This SEPARATE reason code stacks naturally with brand / api impersonation —
- * the scoring is a probabilistic OR, so two reasons compound on their own. The
- * detector emits only its own code; it never special-cases stacking.
- *
- * ── CRITICAL precision constraint: non-allowlisted hosts only ───────────────
- * These markers are PERFECTLY LEGITIMATE on real OAuth providers
- * (accounts.google.com/oauth/authorize, github.com/login/oauth/authorize). The
- * detector therefore fires ONLY when the OAuth/token shape is present AND the
- * registrable domain (eTLD+1) is NOT on the conservative OAuth-provider
- * allowlist (data/oauth-providers.ts). The real provider, on its own domain (any
- * subdomain), never fires.
- *
- * ── Precision / performance ─────────────────────────────────────────────────
- * Matching is bounded: a fixed set of path-marker phrases tested over a
- * normalized lowercase path, and exact parameter-NAME membership tests over the
- * split query (no substring scans of values, no regex backtracking) — well
- * within the <5ms budget. Reuses the pipeline's eTLD+1 facts
- * (`ctx.registrableDomainLower`) and raw `path` / `query` — no re-parsing.
+ * `credential_harvesting`. Agent-gated. Detects OAuth/token-flow URL shapes on
+ * non-allowlisted registrable domains. Design rationale and examples live in
+ * docs/reason-codes.md.
  */
 
 /**
- * OAuth / token-flow path markers, lowercase. Matched as a contiguous segment
- * SUBSTRING of the normalized path (segments joined by `/`, wrapped so a marker
- * matches only on segment boundaries — `/oauth/authorize` matches but
- * `/myoauth/authorizenow` does not). Conservative, fixed list — every entry is a
- * canonical authorize/token endpoint shape.
+ * OAuth / token-flow path markers, lowercase and segment-boundary matched.
  */
 const OAUTH_PATH_MARKERS: readonly string[] = [
   "/oauth/authorize/",
@@ -57,9 +22,7 @@ const OAUTH_PATH_MARKERS: readonly string[] = [
 ];
 
 /**
- * Token-flow query parameter NAMES, lowercase. Each is, on its own, a strong
- * marker of an OAuth / token handshake. Compared case-insensitively against the
- * EXACT parameter name (never a substring scan).
+ * Token-flow query parameter names, matched exactly and case-insensitively.
  */
 const TOKEN_FLOW_PARAMS: ReadonlySet<string> = new Set([
   "redirect_uri",
@@ -79,8 +42,7 @@ function normalizedPath(path: string): string {
   return p;
 }
 
-/** Parse the raw query (no leading `?`) into the set of lowercase parameter
- *  names present and a name→value map (values lowercased) for value checks. */
+/** Parse the raw query into lowercase parameter names and values. */
 function queryParams(query: string): { names: Set<string>; values: Map<string, string> } {
   const names = new Set<string>();
   const values = new Map<string, string>();

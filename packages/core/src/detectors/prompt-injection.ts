@@ -2,38 +2,14 @@ import type { Detector } from "./types.js";
 import { boundedDecode } from "../parse/decode.js";
 
 /**
- * `prompt_injection_url`. SCORING, weight 0.5. **AGENT-GATED** — emits only when
- * `InspectOptions.agentMode` is true (wired via `agentGated: true` in
- * checks.ts). This is the highest false-positive surface of any detector, which
- * is precisely WHY it is gated off the default precision-first verdict: the
- * tokens it keys on (`role=`, `system=`, `prompt=`, `/ignore-previous-…`) also
- * appear in legitimate apps. It targets the LLM-agent / tool-use context, where
- * a URL fetched and fed to a model can smuggle instructions.
- *
- * Two payload shapes, both purely lexical (zero network, consistent with every
- * v1 detector):
- *
- *   - **prompt-control query parameter** — a parameter whose NAME is a
- *     prompt/role-control token (`role`, `system`, `prompt`, `system_prompt`,
- *     `assistant`, …) carrying a non-empty value. The classic
- *     `?role=system&prompt=ignore everything` injection vector.
- *   - **instruction-override path segment** — a path segment whose normalized
- *     text reads as an instruction override (`ignore-previous-instructions`,
- *     `disregard all previous`, `you are now …`). Anchored to whole segments so
- *     an unrelated `/ignored/` directory does not trip it.
- *
- * Conservative / anchored by construction: matching is on EXACT decoded query
- * parameter NAMES (a set membership test, never a substring scan) and on
- * WHOLE-SEGMENT instruction phrases (anchored alternation, no unbounded
- * quantifier nesting — no catastrophic backtracking, well within the <5ms
- * budget). A junk/undecodable value just yields no finding; the detector never
- * throws.
+ * `prompt_injection_url`. Agent-gated. Detects prompt-control query parameter
+ * names and whole path segments that read as instruction overrides. Design
+ * rationale and examples live in docs/reason-codes.md.
  */
 
 /**
- * Query parameter NAMES that directly address an LLM's control plane (role /
- * system / instruction channel). Compared case-insensitively against the EXACT
- * decoded parameter name — never a substring match — to stay conservative.
+ * Query parameter names that directly address an LLM control plane. Compared
+ * case-insensitively against the exact decoded parameter name.
  */
 const PROMPT_CONTROL_PARAMS = new Set([
   "role",
@@ -49,10 +25,7 @@ const PROMPT_CONTROL_PARAMS = new Set([
 ]);
 
 /**
- * Whole-segment instruction-override phrasing. Each alternative is a fixed
- * anchored phrase (separators normalized to a single space before matching), so
- * the regex has no nested quantifiers and cannot backtrack catastrophically.
- * Anchored with `^…$` against a single normalized path segment.
+ * Whole-segment instruction-override phrasing after separator normalization.
  */
 const OVERRIDE_PHRASE =
   /^(?:ignore|disregard|forget|override)(?: (?:all|the|any))?(?: (?:previous|prior|earlier|above))?(?: (?:instructions?|prompts?|messages?|context|rules?))$/;
@@ -61,9 +34,8 @@ const OVERRIDE_PHRASE =
 const PERSONA_RESET = /^(?:you are now|act as|pretend (?:to be|you are)|new instructions?)$/;
 
 /**
- * Normalize a single raw path segment to lowercase words separated by single
- * spaces: percent-/plus-decode, replace `-`/`_`/`+`/`.` runs with a space, and
- * collapse whitespace. Defensive — returns null if it cannot decode.
+ * Normalize a single raw path segment to lowercase words. Defensive: returns
+ * null if decoding fails.
  */
 function normalizeSegment(raw: string, maxDecodeDepth: number): string | null {
   if (raw === "") return null;

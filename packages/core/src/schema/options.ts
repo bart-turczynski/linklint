@@ -22,9 +22,7 @@ export interface InspectOptions {
 
   /**
    * Agent mode: enable the agent-gated detector channel (default `false`). These
-   * are higher-false-positive heuristics aimed at LLM-agent / tool-use contexts
-   * (e.g. prompt-injection via URL) — deliberately OFF by default so the standard
-   * deception verdict stays precision-first.
+   * are higher-false-positive heuristics aimed at LLM-agent / tool-use contexts.
    *
    * `agentMode` is an explicit, reproducible INPUT: the same `(url, options)`
    * always yields the same result. When `false` (or unset) the output is
@@ -33,32 +31,25 @@ export interface InspectOptions {
    * is evaluated, the `agent` channel token appears in `checksRun` (after
    * `lexical`/`policy`).
    *
-   * Agent-gated checks that are disabled by `agentMode: false` are NOT listed in
-   * `checksSkipped` — they are an available-but-intentionally-disabled feature
-   * channel, not a skipped layer or a runtime failure.
+   * Disabled agent-gated checks are not listed in `checksSkipped`.
    *
    * @example agentMode: true
    */
   agentMode?: boolean;
 
   /**
-   * IDN handling (default `"block"`). An internationalized domain name — a
-   * registrable domain carrying a non-ASCII (Unicode/punycode) label — is, for a
-   * Western-market audience, almost always accidental, so it is **blocked by
-   * default**: a non-ASCII registrable domain emits the scoring `idn_host` reason
-   * (weight lands it `high` — enough to fail the default `high` gate, while
-   * `critical` stays reserved for the unambiguous homograph/script attacks).
+   * IDN handling (default `"block"`). A non-ASCII registrable domain emits the
+   * scoring `idn_host` reason unless this is set to `"allow"` or the domain is
+   * covered by `idnAllowlist`.
    *
    * Set `"allow"` for deployments that legitimately serve internationalized
    * domains (e.g. an Asian-market audience): IDNs are then not penalized and the
    * verdict is the historical, IDN-agnostic one. For granular control under
    * `"block"`, exempt specific domains with {@link idnAllowlist} instead.
    *
-   * Unlike the policy axes below this is a **scoring** signal, not a weight-0
-   * advisory channel. The dangerous IDN subset (script-mixing, all-Latin-
-   * confusable homographs) is already `critical` via the built-in blockers
-   * regardless of this option; `idnPolicy` governs only the remaining *genuine*
-   * IDNs. IP / hostless inputs and pure-ASCII hosts are never affected.
+   * Unlike the policy axes below this is a scoring signal, not a weight-0
+   * advisory channel. IP / hostless inputs and pure-ASCII hosts are never
+   * affected.
    *
    * @example idnPolicy: "allow"
    */

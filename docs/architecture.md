@@ -11,7 +11,7 @@ The core architectural rule: **channels do not implement detectors.** `packages/
 ```
 linklint/
   packages/
-    core/           # linklint npm package — inspect(), 29 detectors, scoring, policy, schema
+    core/           # linklint npm package — inspect(), 35 checks, scoring, policy, schema
     mcp/            # @linklint/mcp — local-only MCP server (check_url / check_domain)
     cli/            # @linklint/cli — offline CLI (linklint check / batch)
   docs/
@@ -29,7 +29,7 @@ linklint/
 | Export | What |
 |--------|------|
 | `linklint` | Stable `inspect()`, schema types, `InspectOptions`; legacy advanced compatibility re-exports |
-| `linklint/metadata` | Reason-code metadata and detector descriptors |
+| `linklint/metadata` | Reason-code metadata, scoring weights, and data-version stamps |
 | `linklint/experimental` | Unstable detector, policy, parser, and unicode APIs |
 | `linklint/data` | Version-pinned reference data (risky TLDs, brands, confusables) |
 
@@ -51,7 +51,7 @@ Runtime dependencies: `tldts` (Public Suffix List) and `tr46` (IDNA/UTS-46).
 
 4. **Normalization** — IDNA/UTS-46 normalization via `tr46`. Record deltas as informational findings (`normalization_delta`).
 
-5. **Detector execution** — run 29 independent lexical detectors. A detector failure adds `lexical:<id>` to `checksSkipped` rather than aborting the inspection. Any skipped scoring detector means the score is a lower bound, not a complete verdict.
+5. **Detector execution** — run 35 independent lexical checks: 4 structural scans ahead of parsing, then 31 parsed-context detectors. The 5 agent-gated parsed detectors run only under `agentMode`. A detector failure adds `lexical:<id>` to `checksSkipped` rather than aborting the inspection. Any skipped scoring detector means the score is a lower bound, not a complete verdict.
 
 6. **Policy layer** (optional) — apply caller-configured allow/deny rules. Policy reasons carry `weight: 0` and never change `score` or `severity`.
 
@@ -61,7 +61,7 @@ Runtime dependencies: `tldts` (Public Suffix List) and `tr46` (IDNA/UTS-46).
 
 ## 5. Detectors
 
-`packages/core/src/detectors/` contains 29 lexical detectors. Each implements:
+`packages/core/src/detectors/` contains 35 lexical checks: 4 structural scans and 31 parsed-context detectors. Parsed detectors implement:
 
 ```ts
 interface Detector {
@@ -73,7 +73,7 @@ interface Detector {
 
 Detectors emit findings only — they never read weights. The core attaches weights from the version-pinned table (`packages/core/src/scoring/weights.ts`) keyed by reason code.
 
-The 29 detectors group into six families:
+The 35 checks group into seven families:
 
 | Family | Detectors |
 |--------|-----------|
@@ -83,6 +83,7 @@ The 29 detectors group into six families:
 | **Dangerous payloads** | `dangerous_scheme`, `file_extension_tld`, `suspicious_extension`, `open_redirect_param` |
 | **Hidden characters** | `invisible_char`, `bidi_override`, `control_char`, `encoding_obfuscation`, `confusable_in_path` |
 | **Contextual signals** | `risky_tld`, `bait_tokens` |
+| **Agent-gated** | `prompt_injection_url`, `api_endpoint_impersonation`, `credential_harvesting`, `data_exfiltration`, `ssrf_cloud_metadata` |
 
 Informational detectors (`confusable_char`, `confusable_in_path`, `normalization_delta`, `idna_mapping_ambiguity`) have weight 0 — they annotate without raising severity.
 
@@ -168,7 +169,7 @@ The three-layer model is a forward-compatibility contract:
 
 | Layer | Status | Description |
 |-------|--------|-------------|
-| **Lexical** (L1) | **Implemented** | Offline, deterministic, synchronous. 29 detectors, < 5 ms typical. |
+| **Lexical** (L1) | **Implemented** | Offline, deterministic, synchronous. 35 checks: 4 structural, 31 parsed, 5 agent-gated. < 5 ms typical. |
 | **Resolution** (L2) | Roadmap | Follow redirects, expand shorteners, re-inspect each hop through L1. |
 | **Reputation** (L3) | Roadmap | Threat feeds, RDAP domain age, CT, DNS posture. Privacy-preserving by design. |
 

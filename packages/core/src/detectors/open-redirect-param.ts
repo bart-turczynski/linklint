@@ -11,13 +11,6 @@ import { boundedDecode } from "../parse/decode.js";
  * `https://example.com/login?next=https://evil.com/phish` reads as `example.com`
  * but, when the redirect fires, lands the user on `evil.com`.
  *
- * **Roadmap relocation:** the PRD parks open-redirect under Phase 2 (resolution),
- * because *confirming* an open redirect requires following it over the network.
- * But the cross-host PAYLOAD inside the parameter is visible WITHOUT any network
- * access — it is a purely lexical signal — so the detection belongs in Layer 1
- * (lexical). Phase 2 still owns the resolution-time confirmation of whether the
- * redirect actually fires; this detector owns the offline payload detection.
- *
  * Pure-lexical, zero network (consistent with all v1 detectors). Two payload
  * shapes are recognized in the decoded value:
  *   - **absolute URL** — scheme + host (`https://evil.com/...`);

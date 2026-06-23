@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { CHECKS } from "../src/detectors/checks.js";
 import { DETECTORS } from "../src/detectors/registry.js";
 import { STRUCTURAL_SCANS } from "../src/detectors/structural.js";
 import { REASON_CODES, type ReasonCode } from "../src/schema/reason-codes.js";
@@ -58,10 +59,33 @@ describe("docs/reason-codes.md stays in sync with the REASON_CODES registry", ()
 
 describe("README detector count matches the computed total", () => {
   // 4. DETECTOR COUNT — the true count is the lexical detector registry plus the
-  //    structural scans. README hardcodes this number; assert both agree.
-  it("DETECTORS + STRUCTURAL_SCANS equals 35 and README states it", () => {
-    const total = DETECTORS.length + STRUCTURAL_SCANS.length;
+  //    structural scans. README hardcodes this number in two public sections;
+  //    assert the targeted lines, not a loose substring.
+  it("CHECKS, DETECTORS, STRUCTURAL_SCANS, and README all state the current shape", () => {
+    const total = CHECKS.length;
+    const structural = CHECKS.filter((c) => c.phase === "structural").length;
+    const parsed = CHECKS.filter((c) => c.phase === "parsed").length;
+    const agentGated = CHECKS.filter((c) => c.agentGated === true).length;
+
     expect(total).toBe(35);
-    expect(readme.includes(String(total))).toBe(true);
+    expect(structural).toBe(4);
+    expect(parsed).toBe(31);
+    expect(agentGated).toBe(5);
+    expect(DETECTORS.length).toBe(parsed);
+    expect(STRUCTURAL_SCANS.length).toBe(structural);
+
+    const protectionSection = readme.match(
+      /## What linklint protects against[\s\S]*?### 1\. Authority spoofing/m,
+    )?.[0];
+    expect(protectionSection).toContain(`linklint runs **${total} offline detectors**`);
+    expect(protectionSection).toContain(`${structural} structural`);
+    expect(protectionSection).toContain(`${parsed} parsed-context detectors`);
+    expect(protectionSection).toContain(`including ${agentGated} agent-mode detectors`);
+    expect(protectionSection).toContain("cloud-metadata SSRF) that are opt-in via `agentMode`");
+
+    const roadmapLine = readme.match(
+      /\*\*v1 — implemented\.\*\* The lexical layer is complete: (\d+) offline, deterministic detectors,/m,
+    );
+    expect(roadmapLine?.[1]).toBe(String(total));
   });
 });

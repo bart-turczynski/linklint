@@ -40,14 +40,13 @@ import { dataExfiltration } from "./data-exfiltration.js";
 import { ssrfCloudMetadata } from "./ssrf-cloud-metadata.js";
 
 /**
- * THE single descriptor source for all 34 checks. `STRUCTURAL_SCANS`
+ * THE single descriptor source for all 35 checks. `STRUCTURAL_SCANS`
  * (structural.ts) and `DETECTORS` (registry.ts) are both DERIVED from this
  * array — add a check here once and both runtime arrays pick it up.
  *
  * Order matches today's runtime order exactly: the 4 structural scans first
- * (STRUCTURAL_SCANS order), then the 30 parsed detectors (DETECTORS order) —
- * the last four of which (prompt_injection_url, api_endpoint_impersonation,
- * credential_harvesting, data_exfiltration) are `agentGated` and run only when
+ * (STRUCTURAL_SCANS order), then the 31 parsed detectors (DETECTORS order) —
+ * the last five of which are `agentGated` and run only when
  * `InspectOptions.agentMode` is true.
  * Each descriptor reuses the existing detector object / scan thunk's `run`;
  * detector logic is unchanged. `skipReportable: true` for every check (a

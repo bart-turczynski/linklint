@@ -18,9 +18,9 @@ why**, with no network and no data leaving the machine.
 
 It generalizes one insight from hostname analysis: **if `normalize(input) !== input`,
 something may be hiding in the URL.** linklint turns that intuition into 35 deterministic
-detectors, each emitting a named, documented reason code (four — the agent-mode
-prompt-injection, API-endpoint-impersonation, credential-harvesting, and data-exfiltration
-detectors — are opt-in via `agentMode`).
+detectors, each emitting a named, documented reason code (five — the agent-mode
+prompt-injection, API-endpoint-impersonation, credential-harvesting, data-exfiltration,
+and cloud-metadata SSRF detectors — are opt-in via `agentMode`).
 
 ```ts
 import { inspect } from 'linklint';
@@ -88,9 +88,10 @@ Each reason is fully self-describing:
 
 ## What linklint protects against
 
-linklint runs **35 offline detectors** grouped into the families below (the agent-mode
-prompt-injection, API-endpoint-impersonation, credential-harvesting, data-exfiltration,
-and cloud-metadata SSRF detectors are opt-in via `agentMode` and off by default). Every
+linklint runs **35 offline detectors** grouped into the families below: 4 structural
+scans and 31 parsed-context detectors, including 5 agent-mode detectors
+(prompt-injection, API-endpoint-impersonation, credential-harvesting, data-exfiltration,
+and cloud-metadata SSRF) that are opt-in via `agentMode` and off by default. Every
 example is real output. A clean URL like `https://github.com` returns `score: 0`,
 `severity: 'info'`, `reasons: []`.
 
@@ -249,10 +250,16 @@ server so an LLM agent can vet a URL _before_ opening it.
 }
 ```
 
-It exposes two tools, both delegating to the same offline `inspect()`:
+It exposes two tools, both delegating to the same offline `inspect()` by default:
 
-- **`check_url`** — check a URL before fetching.
-- **`check_domain`** — same verdict logic, for hostname-oriented callers.
+- **`check_url`** — check a URL before fetching: `{ url, agentMode? }`.
+- **`check_domain`** — same verdict logic, for hostname-oriented callers:
+  `{ domain, agentMode? }`.
+
+`agentMode` is explicit and defaults to `false`; default MCP output is
+byte-identical to `inspect(url)` and disabled agent checks are not listed as
+skipped. Set `agentMode: true` for LLM/tool-use contexts to enable the
+agent-gated V4 checks plus cloud-metadata SSRF escalation.
 
 No network, no API keys — the server runs entirely on the local machine.
 
@@ -325,7 +332,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) and [SECURITY.md](./SECURITY.md).
 
 ## Status & roadmap
 
-**v1 — implemented.** The lexical layer is complete: 31 offline, deterministic detectors,
+**v1 — implemented.** The lexical layer is complete: 35 offline, deterministic detectors,
 probabilistic-OR scoring, a caller-configurable policy layer, a stable versioned schema,
 and a local MCP server. Typically < 5 ms per call, zero network.
 

@@ -2,21 +2,9 @@ import type { Detector, DetectorFinding } from "./types.js";
 import { classifyHost } from "./ip-classification.js";
 
 /**
- * `ssrf_cloud_metadata` (scoring, BLOCKER weight 1.0). AGENT-GATED escalation:
- * runs only when `InspectOptions.agentMode` is true. In an agent / tool-use
- * context a URL whose host is the cloud instance-metadata endpoint
- * (169.254.169.254, fd00:ec2::254, and IPv4-in-IPv6 embeddings of it) is an
- * in-flight SSRF credential-theft attempt with no defensible purpose, so it
- * BLOCKS — the weight saturates the score to critical.
- *
- * It STACKS on the always-on `ip_cloud_metadata` (0.75): that classifier states
- * the fact (host is the metadata endpoint, lands high), this states the
- * agent-context verdict (block). Default (non-agent) callers — log scanners,
- * cloud-ops tooling that legitimately names the endpoint — never see this and
- * keep the high, overridable `ip_cloud_metadata` verdict.
- *
- * Reuses the shared `classifyHost` range logic — no IP parsing here. Pure,
- * synchronous, no network/fs.
+ * `ssrf_cloud_metadata`. Agent-gated escalation for the cloud metadata endpoint.
+ * Reuses the shared `classifyHost` range logic; rationale and examples live in
+ * docs/reason-codes.md.
  */
 export const ssrfCloudMetadata: Detector = {
   id: "ssrf_cloud_metadata",
