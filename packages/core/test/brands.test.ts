@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BRAND_DOMAINS, BRAND_KEYWORDS, BRAND_WATCHLIST } from "../src/index.js";
-import { isBrandKeyword } from "../src/data/brands.js";
+import { BRAND_DOMAINS, BRAND_WATCHLIST } from "../src/index.js";
 
 // A registrable-domain shape: one or more lowercase labels + a TLD label.
 const DOMAIN_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
@@ -11,66 +10,18 @@ describe("G1 brand watchlist — shape & invariants", () => {
     expect(BRAND_WATCHLIST.length).toBeLessThanOrEqual(200);
   });
 
-  it("every entry is well-formed (lowercase domain, valid-looking, keywords lowercase)", () => {
+  it("every entry is well-formed (lowercase domain, valid registrable shape)", () => {
     for (const entry of BRAND_WATCHLIST) {
-      // domain: lowercase, no scheme/path/whitespace, valid registrable shape
       expect(entry.domain).toBe(entry.domain.toLowerCase());
       expect(entry.domain).not.toMatch(/[\s/:]/);
       expect(entry.domain).toMatch(DOMAIN_RE);
       expect(entry.domain).toContain(".");
-
-      // keywords: an array of lowercase, non-empty, separator-free tokens
-      expect(Array.isArray(entry.keywords)).toBe(true);
-      for (const kw of entry.keywords) {
-        expect(kw.length).toBeGreaterThan(0);
-        expect(kw).toBe(kw.toLowerCase());
-        expect(kw).toMatch(/^[a-z0-9]+$/);
-      }
     }
   });
 
   it("domains are unique", () => {
     const domains = BRAND_WATCHLIST.map((b) => b.domain);
     expect(new Set(domains).size).toBe(domains.length);
-  });
-
-  it("at least one entry carries keywords (the list is not domain-only)", () => {
-    expect(BRAND_WATCHLIST.some((b) => b.keywords.length > 0)).toBe(true);
-  });
-});
-
-describe("G1 BRAND_KEYWORDS — derived contract", () => {
-  it("is exactly the union of all watchlist keywords", () => {
-    const union = new Set(BRAND_WATCHLIST.flatMap((b) => b.keywords));
-    expect(new Set(BRAND_KEYWORDS)).toEqual(union);
-    expect(BRAND_KEYWORDS.size).toBe(union.size);
-  });
-
-  it("still recognizes seed brands (back-compat with J7)", () => {
-    for (const seed of ["paypal", "google", "gmail", "microsoft", "amazon", "fedex", "ups"]) {
-      expect(BRAND_KEYWORDS.has(seed)).toBe(true);
-    }
-  });
-});
-
-describe("G1 isBrandKeyword — case-insensitive", () => {
-  it("recognizes seed brands regardless of case", () => {
-    expect(isBrandKeyword("paypal")).toBe(true);
-    expect(isBrandKeyword("PayPal")).toBe(true);
-    expect(isBrandKeyword("GOOGLE")).toBe(true);
-    expect(isBrandKeyword("Microsoft")).toBe(true);
-  });
-
-  it("rejects non-brand tokens", () => {
-    expect(isBrandKeyword("notabrand")).toBe(false);
-    expect(isBrandKeyword("")).toBe(false);
-  });
-
-  it("agrees with BRAND_KEYWORDS membership", () => {
-    for (const kw of BRAND_KEYWORDS) {
-      expect(isBrandKeyword(kw)).toBe(true);
-      expect(isBrandKeyword(kw.toUpperCase())).toBe(true);
-    }
   });
 });
 

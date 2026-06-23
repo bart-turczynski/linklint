@@ -3,7 +3,7 @@ import { BRAND_DOMAINS } from "../data/brands.js";
 
 /**
  * Shared building blocks for the brand-family detectors (`brand_lookalike`,
- * `brand_soundsquat`, `brand_bitsquat`, `brand_combosquat`). These derived sets,
+ * `brand_soundsquat`, `brand_bitsquat`). These derived sets,
  * the significant-label helpers, and the ASCII-registrable preamble were
  * duplicated byte-for-byte across those files; they live here once so all brand
  * detectors share one source of truth.

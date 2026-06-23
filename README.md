@@ -17,7 +17,7 @@ tool call — and it tells you whether the URL is _deceptive_, and **explains ex
 why**, with no network and no data leaving the machine.
 
 It generalizes one insight from hostname analysis: **if `normalize(input) !== input`,
-something may be hiding in the URL.** linklint turns that intuition into 37 deterministic
+something may be hiding in the URL.** linklint turns that intuition into 35 deterministic
 detectors, each emitting a named, documented reason code (four — the agent-mode
 prompt-injection, API-endpoint-impersonation, credential-harvesting, and data-exfiltration
 detectors — are opt-in via `agentMode`).
@@ -88,7 +88,7 @@ Each reason is fully self-describing:
 
 ## What linklint protects against
 
-linklint runs **37 offline detectors** grouped into the families below (the agent-mode
+linklint runs **35 offline detectors** grouped into the families below (the agent-mode
 prompt-injection, API-endpoint-impersonation, credential-harvesting, data-exfiltration,
 and cloud-metadata SSRF detectors are opt-in via `agentMode` and off by default). Every
 example is real output. A clean URL like `https://github.com` returns `score: 0`,
@@ -125,10 +125,8 @@ authority is somewhere else.
 | Example | Reason code(s) | Why it's deceptive |
 |---------|----------------|--------------------|
 | `https://gogole.com` | `brand_lookalike` | Edit-distance 1–2 near-miss of a known brand. |
-| `https://paypal-secure.com` | `brand_combosquat` | Brand keyword glued to a bait token. |
 | `https://netflicks.com` | `brand_soundsquat` | Phonetic homophone of `netflix`. |
 | `https://netfliz.com` | `brand_bitsquat` | Single-bit-flip neighbor of `netflix` (memory/DNS corruption squatting). |
-| `https://evil.com/paypal.com/login` | `brand_in_path` | Brand name placed in the path of an unrelated host. |
 
 ### 4. Dangerous payloads, schemes & redirects
 
@@ -302,7 +300,7 @@ This is a pnpm monorepo.
 
 | Path | What |
 |------|------|
-| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 37 detectors, scoring, policy, schema). |
+| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 35 detectors, scoring, policy, schema). |
 | `packages/cli` | `@linklint/cli` — the offline `linklint` command-line wrapper (`check` / `batch`). |
 | `packages/mcp` | `@linklint/mcp` — the local-only MCP server (`check_url` / `check_domain`). |
 | `docs/architecture.md` | System architecture (channels, pipeline, result contract, layers). |

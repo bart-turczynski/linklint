@@ -79,7 +79,6 @@ signal. Reserved for patterns with no legitimate use.
 | `brand_soundsquat`             | 0.30   | yes      |
 | `punycode_malformed`           | 0.20   | yes      |
 | `ascii_homoglyph`              | 0.20   | yes      |
-| `brand_in_path`                | 0.20   | yes      |
 | `risky_tld`                    | 0.15   | yes      |
 | `brand_bitsquat`               | 0.15   | yes      |
 | `excessive_subdomain_depth`    | 0.15   | yes      |
