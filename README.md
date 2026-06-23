@@ -17,7 +17,7 @@ tool call — and it tells you whether the URL is _deceptive_, and **explains ex
 why**, with no network and no data leaving the machine.
 
 It generalizes one insight from hostname analysis: **if `normalize(input) !== input`,
-something may be hiding in the URL.** linklint turns that intuition into 34 deterministic
+something may be hiding in the URL.** linklint turns that intuition into 35 deterministic
 detectors, each emitting a named, documented reason code (four — the agent-mode
 prompt-injection, API-endpoint-impersonation, credential-harvesting, and data-exfiltration
 detectors — are opt-in via `agentMode`).
@@ -88,7 +88,7 @@ Each reason is fully self-describing:
 
 ## What linklint protects against
 
-linklint runs **34 offline detectors** grouped into the families below (the agent-mode
+linklint runs **35 offline detectors** grouped into the families below (the agent-mode
 prompt-injection, API-endpoint-impersonation, credential-harvesting, and data-exfiltration
 detectors are opt-in via `agentMode` and off by default). Every example
 is real output. A clean URL like `https://github.com` returns `score: 0`,
@@ -114,6 +114,7 @@ authority is somewhere else.
 | Example | Reason code(s) | Why it's deceptive |
 |---------|----------------|--------------------|
 | `https://раypal.com` | `homograph_skeleton_collision`, `mixed_script`, `confusable_char` | Cyrillic `р`/`а` rendered identically to Latin — reads as `paypal.com`. |
+| `https://сһаѕе.com` (all-Cyrillic) | `homograph_latin_skeleton` | Non-Latin host whose confusable skeleton is **pure ASCII-Latin** (`chase.com`) — masquerades as an ASCII domain, no brand list needed. **Blocks.** |
 | `https://g00gle.com` | `brand_homoglyph`, `ascii_homoglyph` | ASCII digit look-alikes (`00` → `oo`) folding exactly onto `google.com`. |
 | `https://xn--abc.com/` | `punycode_malformed` | A punycode label that doesn't decode to a valid IDN. |
 | any IDN | `normalization_delta`, `idna_mapping_ambiguity` | Flags that the Unicode form differs from the ACE/punycode form, or maps differently under IDNA2003 vs. UTS-46. |
@@ -300,7 +301,7 @@ This is a pnpm monorepo.
 
 | Path | What |
 |------|------|
-| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 34 detectors, scoring, policy, schema). |
+| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 35 detectors, scoring, policy, schema). |
 | `packages/cli` | `@linklint/cli` — the offline `linklint` command-line wrapper (`check` / `batch`). |
 | `packages/mcp` | `@linklint/mcp` — the local-only MCP server (`check_url` / `check_domain`). |
 | `docs/architecture.md` | System architecture (channels, pipeline, result contract, layers). |

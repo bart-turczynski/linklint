@@ -45,6 +45,9 @@ const cyr = (...cps: number[]): string => String.fromCodePoint(...cps);
 const CYR_CHASE = cyr(0x0441, 0x04bb, 0x0430, 0x0455, 0x0435) + ".com";
 // ехреԁіа.com — all-Cyrillic look-alike of expedia.com.
 const CYR_EXPEDIA = cyr(0x0435, 0x0445, 0x0440, 0x0435, 0x0501, 0x0456, 0x0430) + ".com";
+// ассеѕѕ.com — all-Cyrillic look-alike of the NON-brand word "access" (skeleton
+// folds to pure ASCII-Latin). Target-less: no watchlist brand involved.
+const CYR_ACCESS = cyr(0x0430, 0x0441, 0x0441, 0x0435, 0x0455, 0x0455) + ".com";
 
 export const CORPUS: CorpusRow[] = [
   // ── Deceptive: canonical scoring attack set (SC-1) ──────────────────────
@@ -576,16 +579,26 @@ export const CORPUS: CorpusRow[] = [
   {
     input: `https://${CYR_CHASE}`,
     label: "deceptive",
-    expectReasons: ["homograph_skeleton_collision"],
+    minSeverity: "critical",
+    expectReasons: ["homograph_skeleton_collision", "homograph_latin_skeleton"],
     forbidReasons: ["mixed_script", "brand_homoglyph", "brand_lookalike"],
     notes: "E3 all-Cyrillic сһаѕе.com skeletonizes to chase.com (single-script whole-label homograph)",
   },
   {
     input: `https://${CYR_EXPEDIA}`,
     label: "deceptive",
-    expectReasons: ["homograph_skeleton_collision"],
+    minSeverity: "critical",
+    expectReasons: ["homograph_skeleton_collision", "homograph_latin_skeleton"],
     forbidReasons: ["mixed_script", "brand_homoglyph"],
-    notes: "E3 all-Cyrillic ехреԁіа.com skeletonizes to expedia.com",
+    notes: "E3 all-Cyrillic ехреԁіа.com skeletonizes to expedia.com — collision (0.5) STACKS with latin-skeleton blocker (1.0 → critical)",
+  },
+  {
+    input: `https://${CYR_ACCESS}`,
+    label: "deceptive",
+    minSeverity: "critical",
+    expectReasons: ["homograph_latin_skeleton"],
+    forbidReasons: ["mixed_script", "homograph_skeleton_collision", "brand_homoglyph", "brand_lookalike"],
+    notes: "target-LESS: all-Cyrillic ассеѕѕ.com folds to the non-brand word 'access' — pure-Latin skeleton blocks with NO brand match",
   },
 
   // Benign (SC-2): the G family must NOT over-flag these.

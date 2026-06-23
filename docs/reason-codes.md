@@ -230,6 +230,39 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   (→ `expedia.com`).
 - **Scoring:** scoring, weight 0.5 (provisional — re-tuned with the brand family).
 
+### `homograph_latin_skeleton` — weight 1.0 (blocker)
+
+- **Meaning:** the **target-less sibling** of `homograph_skeleton_collision`. A
+  non-ASCII registrable domain whose UTS#39 confusable skeleton is **pure
+  ASCII-Latin** — every character folds to a Latin look-alike, so the whole host
+  reads to a human as an ASCII domain — with **no brand list needed**. An
+  all-Cyrillic `сһаѕе.com` skeletonizes to `chase.com`; `ехямрӏе.com` to
+  `example.com`. Either way the host is Unicode masquerading as Latin.
+- **Why it's a signal:** "pure unicode that looks like ASCII" has no legitimate
+  use. Where `homograph_skeleton_collision` requires the skeleton to land on a
+  watchlist brand, this fires on *any* pure-Latin skeleton, catching look-alikes
+  of non-brand strings too.
+- **Detection & precision:** the **full registrable domain** is run through
+  `skeleton()` (`unicode/skeleton.ts`); the detector fires only when the result
+  contains **no non-ASCII codepoint**.
+  - **Non-ASCII only**, and skips the NFKC compatibility-fold family (owned by
+    `idna_mapping_ambiguity`) — same guards as the collision sibling.
+  - **Legitimate IDNs are excluded by construction:** a genuine non-Latin word
+    always contains at least one character with no Latin confusable, so its
+    skeleton keeps a non-ASCII codepoint and never folds to pure ASCII
+    (`пример`→`пpимep`, `россия`→`poccия`, `κόσμος`→`κóoμoς`, `日本語`→`日本語`).
+  - **Residual:** a short genuine word built only from the Latin-confusable
+    subset (Cyrillic `сор`→`cop`) still folds to ASCII — but such a host is
+    visually identical to its Latin reading and is exactly the "looks like ASCII"
+    case the block targets. A legitimate owner overrides via the caller IDN
+    allow-list.
+- **See also:** `homograph_skeleton_collision` — the brand-targeted sibling
+  (weight 0.5); the two **stack** on a brand homograph (this blocks, the
+  collision adds brand attribution).
+- **Example:** `https://сһаѕе.com` (all-Cyrillic, → `chase.com`).
+- **Scoring:** scoring, **weight 1.0 (blocker)** — saturates the score to
+  critical regardless of context.
+
 ### `brand_combosquat` — Epic G (G3) · weight 0.4
 
 - **Meaning:** a **watchlist brand keyword is glued to an additive (non-brand)
