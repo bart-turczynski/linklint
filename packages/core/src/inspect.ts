@@ -1,6 +1,7 @@
 import type { InspectOptions, InspectResult } from "./schema/types.js";
-import { parse } from "./parse/parse.js";
+import { parsePrepared } from "./parse/parse.js";
 import { prepare } from "./parse/prepare.js";
+import { tokenizeRawUrl } from "./parse/raw-tokens.js";
 import { DETECTORS } from "./detectors/registry.js";
 import { STRUCTURAL_SCANS } from "./detectors/structural.js";
 import {
@@ -29,8 +30,9 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRes
   // same `lexical:<id>` shape the parsed-detector loop uses below (FR-D-13).
   const structuralSkipped: string[] = [];
   const prepared = prepare(input);
+  const rawTokens = tokenizeRawUrl(prepared);
   // Every structural scan needs the authority region — compute it once and share.
-  const scanCtx = { input, prepared, runtime, authority: authorityRegion(prepared) };
+  const scanCtx = { input, prepared, runtime, authority: authorityRegion(prepared, rawTokens) };
   for (const scan of STRUCTURAL_SCANS) {
     try {
       structural.push(...scan.run(scanCtx));
@@ -43,7 +45,7 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRes
 
   let ctx;
   try {
-    ctx = parse(input, runtime);
+    ctx = prepared === "" ? null : parsePrepared(input, prepared, runtime, rawTokens);
   } catch {
     // Parsing must be total — any unexpected failure is treated as invalid input.
     // The invalid path's bare `"lexical"` checksSkipped entry already states that
@@ -92,7 +94,7 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRes
   let policyFindings: CollectedFinding[] = [];
   if (policyRan) {
     try {
-      policyFindings = runPolicy(ctx, options);
+      policyFindings = runPolicy(ctx);
     } catch {
       // A policy failure must never abort inspection (FR-D-13).
       skippedDetectors.push("policy");

@@ -58,6 +58,16 @@ describe("parse — opaque/dangerous schemes", () => {
     expect(ctx!.scheme).toBe("data");
     expect(ctx!.parsed.effectiveHost).toBeNull();
   });
+
+  it("preserves opaque query and fragment delimiters in the body", () => {
+    const ctx = parse("data:text/html,<script>?x=1#frag");
+    expect(ctx).not.toBeNull();
+    expect(ctx!.scheme).toBe("data");
+    expect(ctx!.host).toBe("");
+    expect(ctx!.path).toBe("text/html,<script>?x=1#frag");
+    expect(ctx!.query).toBeNull();
+    expect(ctx!.fragment).toBeNull();
+  });
 });
 
 describe("parse — hostless local file: forms (V2 dangerous-scheme coverage)", () => {
@@ -81,6 +91,16 @@ describe("parse — hostless local file: forms (V2 dangerous-scheme coverage)", 
     expect(ctx!.host).toBe("");
     expect(ctx!.parsed.effectiveHost).toBeNull();
     expect(ctx!.path).toBe("/etc/passwd");
+  });
+
+  it("extracts query and fragment from hostless file: paths", () => {
+    const ctx = parse("file:///etc/passwd?download=1#frag");
+    expect(ctx).not.toBeNull();
+    expect(ctx!.scheme).toBe("file");
+    expect(ctx!.host).toBe("");
+    expect(ctx!.path).toBe("/etc/passwd");
+    expect(ctx!.query).toBe("download=1");
+    expect(ctx!.fragment).toBe("frag");
   });
 
   it("leaves file://host/path with a non-empty authority on the host path", () => {

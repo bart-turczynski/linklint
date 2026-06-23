@@ -1,6 +1,6 @@
 import { stripInvisible } from "../unicode/format-chars.js";
 import { analyzeIpv6 } from "./ip.js";
-import { SCHEME_RE, firstIndexOf, isOpaqueScheme, looksLikeHostPort } from "./syntax.js";
+import { tokenizeRawUrl, type RawUrlTokens } from "./raw-tokens.js";
 
 const ILLEGAL_HOST_RE = /[\s<>"{}|\\^`]/;
 const HOST_CHARS_RE = /^[\p{L}\p{M}\p{N}._%\-]+$/u;
@@ -26,99 +26,50 @@ export interface RawParts {
  * `status: "invalid"` result (never throws). See FR-IN-1..4 and architecture
  * §4.1. Expects the output of `prepare()` (non-empty); callers handle `""`.
  */
-export function parseRawParts(prepared: string): RawParts | null {
-  // ── Scheme ────────────────────────────────────────────────────────────────
-  let scheme: string | null = null;
-  let rest = prepared;
-  const m = SCHEME_RE.exec(prepared);
-  if (m) {
-    const candidate = m[1]!.toLowerCase();
-    const after = prepared.slice(m[0].length);
-    if (looksLikeHostPort(candidate, after)) {
-      // e.g. "paypal.com:8080" or "localhost:8080" — missing scheme, not opaque.
-      scheme = null;
-      rest = prepared;
-    } else {
-      scheme = candidate;
-      rest = after;
-    }
-  }
+export function parseRawParts(
+  prepared: string,
+  tokens: RawUrlTokens = tokenizeRawUrl(prepared),
+): RawParts | null {
+  const { scheme } = tokens;
 
   // ── Opaque scheme (no authority): javascript:, data:, mailto:, … ───────────
-  if (scheme && isOpaqueScheme(scheme) && !rest.startsWith("//")) {
+  if (tokens.opaque) {
     return {
       scheme,
       userinfo: null,
       rawHost: "",
       port: null,
-      path: rest,
+      path: opaqueBody(tokens),
       query: null,
       fragment: null,
     };
   }
 
-  // ── Local file: forms (hostless) ────────────────────────────────────────────
-  // `file:` URLs may name a local path with no authority. The WHATWG-canonical
-  // local shapes are `file:/etc/passwd` (single slash, no authority) and
-  // `file:///etc/passwd` (explicit empty authority). Both denote host = none +
-  // path. The generic authority logic below would reject these — `file:/…` lands
-  // an empty authority that fails hostIsValid (parse_error), and `file:///…`'s
-  // `///` trips the structural ambiguous_authority scan to `invalid` — so the
-  // dangerous_scheme detector (which keys off scheme === "file") never runs.
-  // That is a real bypass: a sanitizer that only blocks `file://host/…` lets the
-  // hostless local forms through (the changedetection.io local-file-read class).
-  // Scoped strictly to `file:` so no other scheme's invalid-input contract moves.
-  // `file://host/…` still has a non-empty authority and falls through to the
-  // normal path below, keeping its existing host parse.
-  if (scheme === "file") {
-    // Strip an optional leading `//` authority introducer, then any remaining
-    // leading slashes. A non-empty authority (e.g. `file://localhost/…`) is left
-    // for the generic branch; only the hostless local forms are special-cased.
-    const afterSlashes = rest.startsWith("//") ? rest.slice(2) : rest;
-    if (afterSlashes === "" || afterSlashes.startsWith("/")) {
-      // Hostless: everything after the scheme (minus the empty authority) is the
-      // path. Preserve a single leading slash so the path reads `/etc/passwd`.
-      const localPath = afterSlashes === "" ? rest : "/" + afterSlashes.replace(/^\/+/, "");
-      let work = localPath;
-      let fragment: string | null = null;
-      let query: string | null = null;
-      const hashIdx = work.indexOf("#");
-      if (hashIdx !== -1) {
-        fragment = work.slice(hashIdx + 1);
-        work = work.slice(0, hashIdx);
-      }
-      const qIdx = work.indexOf("?");
-      if (qIdx !== -1) {
-        query = work.slice(qIdx + 1);
-        work = work.slice(0, qIdx);
-      }
-      return { scheme, userinfo: null, rawHost: "", port: null, path: work, query, fragment };
-    }
+  // ── Local file: forms (hostless) ───────────────────────────────────────────
+  // The raw tokenizer owns the `file:/path` and `file:///path` split. Keep this
+  // projection hostless so dangerous-scheme policy still sees local file URLs.
+  if (scheme === "file" && tokens.authority === "") {
+    return {
+      scheme,
+      userinfo: null,
+      rawHost: "",
+      port: null,
+      path: tokens.path,
+      query: tokens.query,
+      fragment: tokens.fragment,
+    };
   }
+
+  if (!hasParseableAuthorityIntroducer(tokens)) return null;
 
   // ── Authority + path/query/fragment ─────────────────────────────────────────
-  let authorityAndRest: string;
-  if (scheme && rest.startsWith("//")) {
-    authorityAndRest = rest.slice(2);
-  } else if (scheme && !rest.startsWith("//")) {
-    // Non-opaque scheme with no `//` (e.g. "http:example.com") — be lenient.
-    authorityAndRest = rest;
-  } else {
-    // Missing scheme: treat the whole thing as authority + path.
-    authorityAndRest = rest;
-  }
-
-  const delimIdx = firstIndexOf(authorityAndRest, "/?#");
-  const authority = delimIdx === -1 ? authorityAndRest : authorityAndRest.slice(0, delimIdx);
-  const remainder = delimIdx === -1 ? "" : authorityAndRest.slice(delimIdx);
-
   // userinfo (split at LAST '@', per WHATWG)
   let userinfo: string | null = null;
-  let hostport = authority;
-  const atIdx = authority.lastIndexOf("@");
+  let hostport = tokens.authority;
+  const atIdx = tokens.authority.lastIndexOf("@");
   if (atIdx !== -1) {
-    userinfo = authority.slice(0, atIdx);
-    hostport = authority.slice(atIdx + 1);
+    userinfo = tokens.authority.slice(0, atIdx);
+    hostport = tokens.authority.slice(atIdx + 1);
   }
 
   // host + port
@@ -156,26 +107,34 @@ export function parseRawParts(prepared: string): RawParts | null {
     return null;
   }
 
-  // path / query / fragment
-  let path = "";
-  let query: string | null = null;
-  let fragment: string | null = null;
-  if (remainder !== "") {
-    let work = remainder;
-    const hashIdx = work.indexOf("#");
-    if (hashIdx !== -1) {
-      fragment = work.slice(hashIdx + 1);
-      work = work.slice(0, hashIdx);
-    }
-    const qIdx = work.indexOf("?");
-    if (qIdx !== -1) {
-      query = work.slice(qIdx + 1);
-      work = work.slice(0, qIdx);
-    }
-    path = work;
+  return {
+    scheme,
+    userinfo,
+    rawHost,
+    port,
+    path: tokens.path,
+    query: tokens.query,
+    fragment: tokens.fragment,
+  };
+}
+
+function hasParseableAuthorityIntroducer(tokens: RawUrlTokens): boolean {
+  if (tokens.scheme === null) {
+    // Historically, scheme-less `//host` is scanned structurally but does not
+    // parse as a valid host input.
+    return !tokens.protocolRelative;
   }
 
-  return { scheme, userinfo, rawHost, port, path, query, fragment };
+  // `scheme://host` is the only explicit authority introducer accepted by the
+  // parser. Extra slashes and backslashes stay lexical-only findings.
+  return tokens.authorityIntroducer === "" || tokens.authorityIntroducer === "//";
+}
+
+function opaqueBody(tokens: RawUrlTokens): string {
+  let body = tokens.path;
+  if (tokens.query !== null) body += `?${tokens.query}`;
+  if (tokens.fragment !== null) body += `#${tokens.fragment}`;
+  return body;
 }
 
 /**
