@@ -21,6 +21,17 @@ import { VECTORS } from "./vectors.js";
  *  - Build invisible/bidi inputs from codepoints so this file stays readable.
  */
 export type CorpusLabel = "deceptive" | "benign" | "info" | "invalid";
+export type CorpusSuccessCriterion = "SC-1" | "SC-1a" | "SC-2" | "SC-2a";
+
+export interface CorpusAcceptanceMetadata {
+  /** PRD success criteria this row contributes to. */
+  successCriteria: CorpusSuccessCriterion[];
+  /**
+   * Detector/reason families this row covers. Populated from expected and
+   * forbidden reasons so acceptance coverage can be validated from the corpus.
+   */
+  detectorFamilies: string[];
+}
 
 export interface CorpusRow {
   input: string;
@@ -33,6 +44,7 @@ export interface CorpusRow {
   source?: string;
   /** Per-row inspect options (default: none). Used by the V4 agent family. */
   options?: InspectOptions;
+  acceptance?: CorpusAcceptanceMetadata;
 }
 
 const ZWSP = String.fromCodePoint(0x200b);
@@ -190,6 +202,20 @@ export const CORPUS: CorpusRow[] = [
     minSeverity: "low",
     expectReasons: ["punycode_malformed"],
     notes: "E5: empty ACE payload",
+  },
+  {
+    input: "https://promo-login.tk/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["risky_tld"],
+    notes: "FR-D-9 risky TLD — low-weight signal, represented in corpus coverage even though it is contextual",
+  },
+  {
+    input: "https://münchen.de",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["idn_host"],
+    notes: "V2 default policy blocks non-ASCII registrable domains unless idnPolicy is allow",
   },
 
   // ── Benign (SC-2): must be score 0 / info ───────────────────────────────
@@ -893,3 +919,31 @@ export const AGENT_CORPUS: CorpusRow[] = [
 // appended after both arrays are initialized (avoids a TDZ on AGENT_CORPUS while
 // keeping a single shared corpus). Every other row runs with default options.
 CORPUS.push(...AGENT_CORPUS);
+
+export function successCriteriaForLabel(label: CorpusLabel): CorpusSuccessCriterion[] {
+  switch (label) {
+    case "deceptive":
+      return ["SC-1"];
+    case "info":
+      return ["SC-1a", "SC-2"];
+    case "benign":
+      return ["SC-2"];
+    case "invalid":
+      return ["SC-2a"];
+  }
+}
+
+function detectorFamiliesForRow(row: CorpusRow): string[] {
+  return [...new Set([...(row.expectReasons ?? []), ...(row.forbidReasons ?? [])])].sort();
+}
+
+export function applyAcceptanceMetadata(rows: CorpusRow[]): void {
+  for (const row of rows) {
+    row.acceptance = {
+      successCriteria: successCriteriaForLabel(row.label),
+      detectorFamilies: detectorFamiliesForRow(row),
+    };
+  }
+}
+
+applyAcceptanceMetadata(CORPUS);
