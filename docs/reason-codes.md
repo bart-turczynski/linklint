@@ -573,15 +573,34 @@ An ordinary **public** literal IP (`8.8.8.8`, `2001:db8::1`) matches no bucket
 and emits nothing. The detail renders the canonical address so the real
 destination is explained.
 
-### `ip_cloud_metadata` — V1a · weight 0.5
+### `ip_cloud_metadata` — V1a · weight 0.75 (high)
 
 - **Meaning:** the host is the cloud instance-metadata endpoint —
   `169.254.169.254/32`, `fd00:ec2::254`, or an IPv4-mapped equivalent
   (`::ffff:169.254.169.254`).
 - **Why it's a signal:** the canonical SSRF credential-theft target; a URL naming
-  it literally is a near-unambiguous exfiltration attempt. Weighted **above** the
-  generic private/loopback buckets.
+  it literally is a near-unambiguous exfiltration attempt. Weighted to land
+  **high** on its own (it fails the default `--fail-on high` gate) — well above
+  the generic private/loopback buckets, but short of `critical`, which is left to
+  the agentMode escalation (`ssrf_cloud_metadata`) where a fetch is in flight.
+  Dual-use (cloud-init, IaC legitimately name it), so not a hard block in the
+  default verdict.
 - **Example:** `http://169.254.169.254/latest/meta-data/`.
+
+### `ssrf_cloud_metadata` — weight 1.0 (blocker, agent-gated)
+
+- **Meaning:** the agentMode escalation of `ip_cloud_metadata` — the host is the
+  cloud instance-metadata endpoint **and** `InspectOptions.agentMode` is on.
+- **Why it blocks:** in an agent / tool-use context, fetching the metadata
+  endpoint is an in-flight SSRF credential-theft attempt with no defensible
+  purpose, so it **blocks** (weight 1.0 → saturates the score to `critical`). It
+  **stacks** on the always-on `ip_cloud_metadata` (0.75): the classifier states
+  the fact, this states the agent-context verdict.
+- **Gating:** emits only under `agentMode`. Default (non-agent) callers — log
+  scanners, cloud-ops tooling that legitimately names the endpoint — never see it
+  and keep the high, `--fail-on`-overridable `ip_cloud_metadata` verdict.
+- **Example:** `inspect("http://169.254.169.254/", { agentMode: true })` →
+  `critical`.
 
 ### `ip_loopback` — V1a · weight 0.2
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ipClassification } from "../src/detectors/ip-classification.js";
+import { inspect } from "../src/index.js";
 import type { InspectionContext } from "../src/detectors/types.js";
 
 // The literal-IP range classifier reads only `ctx.host` (the IP literal, IPv6
@@ -116,5 +117,49 @@ describe("ip_classification — literal-IP range buckets", () => {
     expect(f?.code).toBe("ip_cloud_metadata");
     expect(f?.detail).toContain("169.254.169.254");
     expect(f?.detail).toContain("metadata");
+  });
+});
+
+describe("ip_cloud_metadata scoring + agentMode SSRF escalation (ssrf_cloud_metadata)", () => {
+  const codes = (url: string, opts?: Parameters<typeof inspect>[1]) =>
+    inspect(url, opts).reasons.map((r) => r.code);
+
+  it("lands high (0.75) by default — blocks the --fail-on high gate, not critical", () => {
+    const r = inspect("http://169.254.169.254/latest/meta-data/");
+    expect(r.reasons.map((x) => x.code)).toContain("ip_cloud_metadata");
+    expect(r.severity).toBe("high");
+    const reason = r.reasons.find((x) => x.code === "ip_cloud_metadata")!;
+    expect(reason.weight).toBeCloseTo(0.75, 5);
+  });
+
+  it("does NOT emit the agent-gated ssrf_cloud_metadata in the default verdict", () => {
+    expect(codes("http://169.254.169.254/")).not.toContain("ssrf_cloud_metadata");
+  });
+
+  it("escalates to critical under agentMode — ip_cloud_metadata + ssrf_cloud_metadata blocker", () => {
+    const r = inspect("http://169.254.169.254/latest/meta-data/", { agentMode: true });
+    const c = r.reasons.map((x) => x.code);
+    expect(c).toContain("ip_cloud_metadata");
+    expect(c).toContain("ssrf_cloud_metadata");
+    expect(r.severity).toBe("critical");
+    const blocker = r.reasons.find((x) => x.code === "ssrf_cloud_metadata")!;
+    expect(blocker.weight).toBe(1);
+  });
+
+  it("escalates the IPv6 and v4-in-v6 metadata forms too", () => {
+    expect(codes("https://[fd00:ec2::254]/", { agentMode: true })).toContain("ssrf_cloud_metadata");
+    expect(codes("https://[::ffff:169.254.169.254]/", { agentMode: true })).toContain(
+      "ssrf_cloud_metadata",
+    );
+  });
+
+  it("does NOT escalate the generic internal buckets under agentMode (loopback stays low)", () => {
+    const r = inspect("http://127.0.0.1:3000/", { agentMode: true });
+    expect(r.reasons.map((x) => x.code)).not.toContain("ssrf_cloud_metadata");
+    expect(r.severity).toBe("low");
+  });
+
+  it("does NOT fire on a public IP", () => {
+    expect(codes("http://93.184.216.34/", { agentMode: true })).not.toContain("ssrf_cloud_metadata");
   });
 });

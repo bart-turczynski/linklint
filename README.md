@@ -17,7 +17,7 @@ tool call — and it tells you whether the URL is _deceptive_, and **explains ex
 why**, with no network and no data leaving the machine.
 
 It generalizes one insight from hostname analysis: **if `normalize(input) !== input`,
-something may be hiding in the URL.** linklint turns that intuition into 36 deterministic
+something may be hiding in the URL.** linklint turns that intuition into 37 deterministic
 detectors, each emitting a named, documented reason code (four — the agent-mode
 prompt-injection, API-endpoint-impersonation, credential-harvesting, and data-exfiltration
 detectors — are opt-in via `agentMode`).
@@ -88,10 +88,10 @@ Each reason is fully self-describing:
 
 ## What linklint protects against
 
-linklint runs **36 offline detectors** grouped into the families below (the agent-mode
-prompt-injection, API-endpoint-impersonation, credential-harvesting, and data-exfiltration
-detectors are opt-in via `agentMode` and off by default). Every example
-is real output. A clean URL like `https://github.com` returns `score: 0`,
+linklint runs **37 offline detectors** grouped into the families below (the agent-mode
+prompt-injection, API-endpoint-impersonation, credential-harvesting, data-exfiltration,
+and cloud-metadata SSRF detectors are opt-in via `agentMode` and off by default). Every
+example is real output. A clean URL like `https://github.com` returns `score: 0`,
 `severity: 'info'`, `reasons: []`.
 
 ### 1. Authority spoofing — "which host am I actually talking to?"
@@ -105,7 +105,7 @@ authority is somewhere else.
 | `https://paypal.com.login.evil.tk/` | `embedded_domain_in_subdomain`, `risky_tld` | `paypal.com` is a **subdomain label**; the registrable domain is `evil.tk`. |
 | `https://google.com#@evil.com` | `ambiguous_authority` | Fragment-in-authority — parsers disagree on the real host. |
 | `http://2130706433/` | `ip_obfuscation`, `ip_loopback` | Decimal-encoded `127.0.0.1` — an IP wearing a disguise that resolves to loopback. |
-| `http://169.254.169.254/` | `ip_cloud_metadata` | Literal cloud instance-metadata endpoint — the canonical SSRF credential-theft target. |
+| `http://169.254.169.254/` | `ip_cloud_metadata` (+ `ssrf_cloud_metadata` under `agentMode`) | Literal cloud instance-metadata endpoint — the canonical SSRF credential-theft target. Lands `high` by default; **blocks (`critical`) under `agentMode`**, where a fetch is in flight. |
 | `https://evil。com/` | `separator_lookalike` | `。` (U+3002) normalizes to `.` — a fake label separator. |
 | `https://a.b.c.d.paypal.com.evil.tk/` | `excessive_subdomain_depth` | Abnormally deep labels used to bury the real domain. |
 
@@ -302,7 +302,7 @@ This is a pnpm monorepo.
 
 | Path | What |
 |------|------|
-| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 36 detectors, scoring, policy, schema). |
+| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 37 detectors, scoring, policy, schema). |
 | `packages/cli` | `@linklint/cli` — the offline `linklint` command-line wrapper (`check` / `batch`). |
 | `packages/mcp` | `@linklint/mcp` — the local-only MCP server (`check_url` / `check_domain`). |
 | `docs/architecture.md` | System architecture (channels, pipeline, result contract, layers). |
