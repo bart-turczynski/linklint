@@ -94,32 +94,49 @@ const SUMMARY: Record<Bucket, string> = {
   ip_reserved: "a reserved / special-use address",
 };
 
+/** A classified literal-IP host: its range bucket plus display/canonical forms. */
+export interface IpClassification {
+  bucket: Bucket;
+  /** Host as shown in detail strings (IPv6 wrapped in brackets). */
+  shown: string;
+  /** Canonical address that determined the bucket. */
+  canonical: string;
+}
+
+/**
+ * Classify `ctx.host` into exactly one range bucket, or null for a public /
+ * non-IP host. Shared by the always-on `ipClassification` detector and the
+ * agentMode SSRF escalation so the range logic lives in one place.
+ */
+export function classifyHost(host: string): IpClassification | null {
+  if (host === "") return null;
+
+  const ip4 = analyzeIpv4(host);
+  if (ip4) {
+    const bucket = classifyIpv4(ip4.canonical);
+    return bucket ? { bucket, shown: host, canonical: ip4.canonical } : null;
+  }
+
+  const ip6 = analyzeIpv6(host);
+  if (ip6) {
+    // IPv4-in-IPv6 embedding: classify by the embedded IPv4 (SSRF masquerade).
+    if (ip6.embeddedIpv4) {
+      const bucket = classifyIpv4(ip6.embeddedIpv4);
+      return bucket ? { bucket, shown: `[${host}]`, canonical: ip6.embeddedIpv4 } : null;
+    }
+    const bucket = classifyIpv6(ip6.canonical);
+    if (bucket) return { bucket, shown: `[${host}]`, canonical: ip6.canonical };
+  }
+
+  return null;
+}
+
 export const ipClassification: Detector = {
   id: "ip_classification",
   layer: "lexical",
   run(ctx): DetectorFinding[] {
-    if (ctx.host === "") return [];
-
-    const ip4 = analyzeIpv4(ctx.host);
-    if (ip4) {
-      const bucket = classifyIpv4(ip4.canonical);
-      if (bucket) return [finding(bucket, ctx.host, ip4.canonical)];
-      return [];
-    }
-
-    const ip6 = analyzeIpv6(ctx.host);
-    if (ip6) {
-      // IPv4-in-IPv6 embedding: classify by the embedded IPv4 (SSRF masquerade).
-      if (ip6.embeddedIpv4) {
-        const bucket = classifyIpv4(ip6.embeddedIpv4);
-        if (bucket) return [finding(bucket, `[${ctx.host}]`, ip6.embeddedIpv4)];
-        return [];
-      }
-      const bucket = classifyIpv6(ip6.canonical);
-      if (bucket) return [finding(bucket, `[${ctx.host}]`, ip6.canonical)];
-    }
-
-    return [];
+    const c = classifyHost(ctx.host);
+    return c ? [finding(c.bucket, c.shown, c.canonical)] : [];
   },
 };
 

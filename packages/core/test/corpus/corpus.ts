@@ -685,16 +685,18 @@ export const CORPUS: CorpusRow[] = [
   {
     input: "http://169.254.169.254/latest/meta-data/",
     label: "deceptive",
+    minSeverity: "high",
     expectReasons: ["ip_cloud_metadata"],
-    forbidReasons: ["ip_link_local", "ip_obfuscation"],
-    notes: "V1b precedence — the metadata /32 wins over the 169.254/16 link-local range",
+    forbidReasons: ["ip_link_local", "ip_obfuscation", "ssrf_cloud_metadata"],
+    notes: "V1b precedence — metadata /32 wins over 169.254/16; lands high (0.75); ssrf_cloud_metadata is agent-gated so NOT present in the default verdict",
   },
   {
     input: "https://[fd00:ec2::254]/",
     label: "deceptive",
+    minSeverity: "high",
     expectReasons: ["ip_cloud_metadata"],
-    forbidReasons: ["ip_private", "ip_obfuscation"],
-    notes: "V1b cloud-metadata bucket (IPv6) — wins over the fc00::/7 unique-local range",
+    forbidReasons: ["ip_private", "ip_obfuscation", "ssrf_cloud_metadata"],
+    notes: "V1b cloud-metadata bucket (IPv6) — wins over fc00::/7; lands high (0.75); ssrf_cloud_metadata is agent-gated",
   },
 
   // Reserved / special-use — v4 (0/8, CGNAT, multicast) and v6 (unspecified, multicast).
@@ -815,6 +817,24 @@ export const AGENT_CORPUS: CorpusRow[] = [
     options: AGENT,
     expectReasons: ["data_exfiltration"],
     notes: "V4 overlong opaque token value (256-char base64-style blob, no JWT dots) — stolen-data dump shape",
+  },
+
+  // ── Agent-gated SSRF escalation: the cloud-metadata endpoint BLOCKS under agentMode ──
+  {
+    input: "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+    label: "deceptive",
+    minSeverity: "critical",
+    options: AGENT,
+    expectReasons: ["ip_cloud_metadata", "ssrf_cloud_metadata"],
+    notes: "agentMode: metadata endpoint stacks ip_cloud_metadata (0.75) + ssrf_cloud_metadata (1.0 blocker) → critical",
+  },
+  {
+    input: "https://[::ffff:169.254.169.254]/",
+    label: "deceptive",
+    minSeverity: "critical",
+    options: AGENT,
+    expectReasons: ["ip_cloud_metadata", "ssrf_cloud_metadata"],
+    notes: "agentMode: v4-in-v6 embedded metadata endpoint also escalates to the SSRF blocker",
   },
 
   // ── Benign / info under agentMode (Step 2) — MUST stay score 0 ──────────

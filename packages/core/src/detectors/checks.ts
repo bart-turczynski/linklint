@@ -39,6 +39,7 @@ import { promptInjection } from "./prompt-injection.js";
 import { apiEndpointImpersonation } from "./api-endpoint-impersonation.js";
 import { credentialHarvesting } from "./credential-harvesting.js";
 import { dataExfiltration } from "./data-exfiltration.js";
+import { ssrfCloudMetadata } from "./ssrf-cloud-metadata.js";
 
 /**
  * THE single descriptor source for all 34 checks. `STRUCTURAL_SCANS`
@@ -360,5 +361,14 @@ export const CHECKS: CheckDescriptor[] = [
     skipReportable: true,
     agentGated: true,
     run: dataExfiltration.run,
+  },
+  {
+    id: ssrfCloudMetadata.id,
+    layer: ssrfCloudMetadata.layer,
+    phase: "parsed",
+    emits: ["ssrf_cloud_metadata"],
+    skipReportable: true,
+    agentGated: true,
+    run: ssrfCloudMetadata.run,
   },
 ];

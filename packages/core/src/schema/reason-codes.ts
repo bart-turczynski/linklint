@@ -124,10 +124,29 @@ export const REASON_CODES = {
     // Literal-IP range classifier — the most specific bucket. The cloud
     // instance-metadata endpoint (169.254.169.254, fd00:ec2::254, and IPv4-mapped
     // equivalents) is the canonical SSRF credential-theft target; a URL naming it
-    // literally is a near-unambiguous exfiltration attempt. Weighted ABOVE the
-    // generic private/loopback buckets. Provisional — re-tuned against the corpus.
-    weight: 0.5,
+    // literally is a near-unambiguous exfiltration attempt. Weighted 0.75 so it
+    // lands HIGH on its own (it blocks the default `--fail-on high` gate) — well
+    // above the generic private/loopback buckets, but short of `critical`, which
+    // is reserved for the agentMode SSRF escalation (ssrf_cloud_metadata) where a
+    // fetch is actually in flight. Dual-use (cloud-init, IaC) so not a hard block
+    // in the default verdict.
+    weight: 0.75,
     summary: "Host is the cloud instance-metadata endpoint (169.254.169.254, fd00:ec2::254).",
+  },
+  ssrf_cloud_metadata: {
+    layer: "lexical",
+    scoring: true,
+    // AGENT-GATED escalation (emits only when InspectOptions.agentMode is true).
+    // In an agent / tool-use context a URL naming the cloud instance-metadata
+    // endpoint is an in-flight SSRF credential-theft attempt with no defensible
+    // purpose — so it BLOCKS (weight 1.0 → saturates the score to critical). It
+    // stacks on the always-on ip_cloud_metadata (0.75): the classifier states the
+    // fact, this states the agent-context verdict. Default (non-agent) callers —
+    // log scanners, cloud-ops tooling that legitimately names the endpoint — keep
+    // the high (overridable) ip_cloud_metadata verdict and never see this.
+    weight: 1,
+    summary:
+      "Agent context: the host is the cloud instance-metadata endpoint — an in-flight SSRF credential-theft target, blocked. Agent-gated (emits only under agentMode).",
   },
   ip_reserved: {
     layer: "lexical",
