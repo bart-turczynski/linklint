@@ -5,7 +5,7 @@ Feature: Agent pre-fetch check over MCP (SC-3)
 
   Scenario: A deceptive URL is refused before fetching
     When the agent checks the URL "https://paypal.com@xn--pypal-4ve.ru/login" over MCP
-    Then the MCP verdict severity is "high"
+    Then the MCP verdict severity is "critical"
     And the MCP verdict has reasons
     And the agent decides not to fetch
 

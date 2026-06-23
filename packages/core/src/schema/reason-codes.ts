@@ -51,19 +51,30 @@ export const REASON_CODES = {
   mixed_script: {
     layer: "lexical",
     scoring: true,
-    weight: 0.4,
+    // BLOCKER (weight 1.0). A single host label mixing scripts (Cyrillic+Latin
+    // etc.) has NO legitimate use — real IDNs are single-script (the detector
+    // already de-noises on this). Maintainer directive: this should effectively
+    // block, so it is weighted 1.0 — the probabilistic-OR product zeroes and the
+    // score saturates to 1 (critical) regardless of context.
+    weight: 1,
     summary: "A single host label mixes characters from multiple scripts.",
   },
   invisible_char: {
     layer: "lexical",
     scoring: true,
-    weight: 0.5,
+    // BLOCKER (weight 1.0). Invisible / zero-width / control characters in a URL
+    // are an obfuscation technique with no legitimate use. Maintainer directive:
+    // block — weighted 1.0 (saturates the score to critical).
+    weight: 1,
     summary: "Invisible, zero-width, or control characters appear in the URL.",
   },
   bidi_override: {
     layer: "lexical",
     scoring: true,
-    weight: 0.6,
+    // BLOCKER (weight 1.0). Bidi/RTL override characters manipulate the rendered
+    // reading direction to disguise the URL — no legitimate use. Maintainer
+    // directive: block — weighted 1.0 (saturates the score to critical).
+    weight: 1,
     summary: "Bidirectional/RTL override characters appear in the URL.",
   },
   userinfo_present: {

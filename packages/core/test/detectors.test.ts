@@ -197,13 +197,13 @@ describe("confusables[] / reason invariant (FR-SCORE-2a)", () => {
 });
 
 describe("PRD canonical reference example", () => {
-  it("scores 0.7 / high with the documented reasons", () => {
+  it("saturates to critical — mixed_script is a blocker (weight 1.0)", () => {
     const r = inspect("https://paypal.com@xn--pypal-4ve.ru/login");
-    expect(r.score).toBeCloseTo(0.7, 10);
-    expect(r.severity).toBe("high");
+    expect(r.score).toBeCloseTo(1, 10);
+    expect(r.severity).toBe("critical");
     expect(r.reasons.map((x) => x.code)).toEqual([
-      "userinfo_present",
       "mixed_script",
+      "userinfo_present",
       "confusable_char",
       "normalization_delta",
     ]);
