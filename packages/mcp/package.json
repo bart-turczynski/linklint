@@ -1,7 +1,7 @@
 {
   "name": "@linklint/mcp",
   "version": "0.1.0-dev.0",
-  "description": "Local-only MCP server for linklint — check a URL before an agent fetches it (offline, explainable).",
+  "description": "Local-only MCP server for linklint — check URLs before fetches, with explicit agentMode for agent-gated checks.",
   "keywords": ["mcp", "url", "security", "phishing", "agent", "linklint"],
   "license": "MIT",
   "type": "module",

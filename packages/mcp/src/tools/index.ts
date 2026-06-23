@@ -13,7 +13,8 @@ import {
  *
  * Both tools are read-only, do no outbound network I/O, and emit no telemetry
  * (FR-MCP-2). `check_domain` is an alias of `check_url` for hostname-oriented
- * callers — both return the identical core schema (no channel drift).
+ * callers — both return the identical core schema (no channel drift). The
+ * optional agentMode flag is passed through to core inspect() explicitly.
  */
 export function registerTools(server: McpServer): void {
   server.registerTool(
@@ -24,7 +25,8 @@ export function registerTools(server: McpServer): void {
       inputSchema: CHECK_URL_INPUT,
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
-    async ({ url }) => toToolResult(runCheck(url)),
+    async ({ url, agentMode }) =>
+      toToolResult(runCheck(url, agentMode === true ? { agentMode: true } : {})),
   );
 
   server.registerTool(
@@ -35,6 +37,7 @@ export function registerTools(server: McpServer): void {
       inputSchema: CHECK_DOMAIN_INPUT,
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
-    async ({ domain }) => toToolResult(runCheck(domain)),
+    async ({ domain, agentMode }) =>
+      toToolResult(runCheck(domain, agentMode === true ? { agentMode: true } : {})),
   );
 }

@@ -1,4 +1,4 @@
-import { inspect, type InspectResult } from "linklint";
+import { inspect, type InspectOptions, type InspectResult } from "linklint";
 import { z } from "zod";
 
 /**
@@ -10,25 +10,36 @@ export const PREFETCH_GUIDANCE =
   "userinfo spoofs, IP obfuscation, embedded domains, bidi/invisible characters, " +
   "dangerous schemes) BEFORE you fetch, open, or follow it. Fully offline and " +
   "deterministic — no network request is made to the URL. " +
+  "By default this matches core inspect(url) semantics; set `agentMode: true` " +
+  "to enable agent-gated checks such as prompt-injection URLs, API endpoint " +
+  "impersonation, credential-harvesting shapes, data-exfiltration parameters, " +
+  "and cloud-metadata SSRF escalation. " +
   "Returns a structured verdict: `severity` (info|low|medium|high|critical), a " +
   "`score` in [0,1], and named `reasons`. Treat `high`/`critical` as do-not-fetch; " +
   "treat `status: \"invalid\"` as not-checked (do NOT assume it is safe). Use this " +
-  "to defend against prompt-injection links.";
+  "to defend against deceptive and agent-targeted links.";
 
 export const CHECK_URL_INPUT = {
   url: z.string().describe("The URL or bare hostname to inspect (untrusted input is fine)."),
+  agentMode: z
+    .boolean()
+    .optional()
+    .describe(
+      "Enable the core agent-gated detector channel for LLM/tool-use contexts. Defaults to false.",
+    ),
 } as const;
 
 export const CHECK_DOMAIN_INPUT = {
   domain: z.string().describe("The domain / hostname (or URL) to inspect."),
+  agentMode: CHECK_URL_INPUT.agentMode,
 } as const;
 
 /**
  * The single point of truth: delegate to the core. The adapter never
  * reimplements or forks detector/scoring logic (channel rule, architecture §7.2).
  */
-export function runCheck(input: string): InspectResult {
-  return inspect(input);
+export function runCheck(input: string, options: Pick<InspectOptions, "agentMode"> = {}): InspectResult {
+  return options.agentMode === true ? inspect(input, { agentMode: true }) : inspect(input);
 }
 
 /** Shape a core result into an MCP tool result (text JSON + structured content). */

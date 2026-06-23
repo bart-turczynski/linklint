@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { inspect, type InspectResult } from "linklint";
 import { parseCli, UsageError, type CheckOptions } from "./args.js";
 import { parseUrlLines } from "./lines.js";
 import { renderJson, renderResults } from "./render.js";
 import { resolveExitCode } from "./policy.js";
 
-/** Package version, kept in sync with package.json. */
-export const CLI_VERSION = "0.1.0-dev.0";
+const requirePackageJson = createRequire(import.meta.url);
+const packageJson = requirePackageJson("../package.json") as { version: string };
+
+/** Package version sourced from package.json. */
+export const CLI_VERSION = packageJson.version;
 
 /** Usage text printed by `--help`. */
 export const USAGE = `linklint — offline URL deception check

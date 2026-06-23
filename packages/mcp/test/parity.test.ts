@@ -23,7 +23,9 @@ interface ToolCallResult {
   structuredContent?: Record<string, unknown>;
 }
 
-async function call(name: string, args: Record<string, string>): Promise<InspectResult> {
+type ToolArgs = { url?: string; domain?: string; agentMode?: boolean };
+
+async function call(name: string, args: ToolArgs): Promise<InspectResult> {
   const res = (await client.callTool({ name, arguments: args })) as unknown as ToolCallResult;
   const textPart = res.content.find((c) => c.type === "text");
   return JSON.parse(textPart!.text!) as InspectResult;
@@ -38,6 +40,8 @@ describe("MCP surface", () => {
     for (const t of tools) {
       expect(t.description?.toLowerCase()).toContain("before");
       expect(t.description?.toLowerCase()).toContain("fetch");
+      expect(t.description).toContain("agentMode: true");
+      expect(t.inputSchema.properties).toHaveProperty("agentMode");
     }
   });
 });
@@ -56,12 +60,71 @@ describe("schema parity with core inspect() (no channel drift)", () => {
       const viaTool = await call("check_url", { url: input });
       expect(viaTool).toEqual(inspect(input));
     });
+
+    it(`check_url agentMode:false matches core default for ${JSON.stringify(input)}`, async () => {
+      const viaTool = await call("check_url", { url: input, agentMode: false });
+      expect(viaTool).toEqual(inspect(input));
+      expect(viaTool).toEqual(inspect(input, { agentMode: false }));
+    });
   }
 
   it("check_domain returns the same shape as check_url", async () => {
     const viaUrl = await call("check_url", { url: "paypal.com.spoof.info" });
     const viaDomain = await call("check_domain", { domain: "paypal.com.spoof.info" });
     expect(viaDomain).toEqual(viaUrl);
+  });
+
+  it("check_url agentMode:true matches core agentMode:true", async () => {
+    const input = "https://example.com/agent?role=system&prompt=ignore%20everything";
+    const viaTool = await call("check_url", { url: input, agentMode: true });
+    expect(viaTool).toEqual(inspect(input, { agentMode: true }));
+  });
+
+  it("check_domain agentMode:true matches check_url agentMode:true", async () => {
+    const input = "http://169.254.169.254/latest/meta-data/";
+    const viaUrl = await call("check_url", { url: input, agentMode: true });
+    const viaDomain = await call("check_domain", { domain: input, agentMode: true });
+    expect(viaDomain).toEqual(viaUrl);
+  });
+});
+
+describe("MCP agentMode opt-in coverage", () => {
+  const agentExamples = [
+    ["prompt_injection_url", "https://example.com/agent?role=system&prompt=ignore%20everything"],
+    ["api_endpoint_impersonation", "https://api.openai-com.io/v1/chat/completions"],
+    ["credential_harvesting", "https://account-verify.example.com/oauth/authorize?client_id=abc"],
+    ["data_exfiltration", "https://evil.example/collect?exfil=customer-secret"],
+    ["ssrf_cloud_metadata", "http://169.254.169.254/latest/meta-data/"],
+  ] as const;
+
+  it.each(agentExamples)("keeps %s out of the default MCP verdict", async (code, input) => {
+    const verdict = await call("check_url", { url: input });
+    expect(verdict).toEqual(inspect(input));
+    expect(verdict.reasons.map((r) => r.code)).not.toContain(code);
+    expect(verdict.checksRun).not.toContain("agent");
+    expect(verdict.checksSkipped).not.toContain("agent");
+  });
+
+  it.each(agentExamples)("emits %s when agentMode is true", async (code, input) => {
+    const verdict = await call("check_url", { url: input, agentMode: true });
+    expect(verdict).toEqual(inspect(input, { agentMode: true }));
+    expect(verdict.reasons.map((r) => r.code)).toContain(code);
+    expect(verdict.checksRun).toContain("agent");
+  });
+
+  it("escalates cloud metadata SSRF from high to critical under agentMode", async () => {
+    const input = "http://169.254.169.254/latest/meta-data/";
+    const defaultVerdict = await call("check_url", { url: input });
+    const agentVerdict = await call("check_url", { url: input, agentMode: true });
+
+    expect(defaultVerdict.reasons.map((r) => r.code)).toContain("ip_cloud_metadata");
+    expect(defaultVerdict.reasons.map((r) => r.code)).not.toContain("ssrf_cloud_metadata");
+    expect(defaultVerdict.severity).toBe("high");
+
+    expect(agentVerdict.reasons.map((r) => r.code)).toEqual(
+      expect.arrayContaining(["ip_cloud_metadata", "ssrf_cloud_metadata"]),
+    );
+    expect(agentVerdict.severity).toBe("critical");
   });
 });
 

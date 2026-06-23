@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { createRequire } from "node:module";
 import { registerTools } from "./tools/index.js";
 
-/** Package version, kept in sync with package.json. */
-export const SERVER_VERSION = "0.1.0-dev.0";
+const requirePackageJson = createRequire(import.meta.url);
+const packageJson = requirePackageJson("../package.json") as { version: string };
+
+/** Package version sourced from package.json. */
+export const SERVER_VERSION = packageJson.version;
 
 /**
  * Create a fully-configured linklint MCP server (tools registered, no transport
@@ -17,7 +21,8 @@ export function createServer(): McpServer {
       instructions:
         "linklint inspects URLs for deception offline. Call check_url (or " +
         "check_domain) on any untrusted URL BEFORE fetching it, and avoid " +
-        "fetching results with severity high or critical.",
+        "fetching results with severity high or critical. Pass agentMode: true " +
+        "when the caller is an LLM/tool-use agent and wants the agent-gated checks.",
     },
   );
   registerTools(server);
