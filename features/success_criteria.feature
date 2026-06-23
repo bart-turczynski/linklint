@@ -19,7 +19,7 @@ Feature: Success criteria — core lexical (PRD §7)
       | data:text/html,<script>                        | dangerous_scheme             |
 
   Scenario Outline: SC-1a — informational-only cases annotate (weight 0) and stay benign
-    When I inspect "<input>"
+    When I inspect "<input>" allowing IDNs
     Then the status is "ok"
     And the score is 0
     And the severity is "info"
@@ -32,7 +32,7 @@ Feature: Success criteria — core lexical (PRD §7)
       | https://пример.com                 | confusable_char     |
 
   Scenario Outline: SC-2 — legitimate single-script IDNs are not flagged
-    When I inspect "<input>"
+    When I inspect "<input>" allowing IDNs
     Then the status is "ok"
     And the score is 0
     And the severity is "info"
@@ -44,6 +44,25 @@ Feature: Success criteria — core lexical (PRD §7)
       | https://müller.de/          |
       | https://日本語.jp/           |
       | https://пример.com          |
+
+  Scenario Outline: V2 — internationalized domains are blocked by default (idn_host)
+    When I inspect "<input>"
+    Then the status is "ok"
+    And the severity is at least "high"
+    And the reasons contain "idn_host"
+
+    Examples:
+      | input                      |
+      | https://münchen.de         |
+      | https://пример.com         |
+      | https://xn--mnchen-3ya.de/ |
+
+  Scenario: V2 — the IDN block is opt-out (idnPolicy allow)
+    When I inspect "https://münchen.de" allowing IDNs
+    Then the status is "ok"
+    And the score is 0
+    And the severity is "info"
+    And the reasons do not contain "idn_host"
 
   Scenario: SC-2a — unparseable input is invalid, not benign
     When I inspect "ht!tp://%%%not a url"
@@ -83,7 +102,7 @@ Feature: Success criteria — core lexical (PRD §7)
       | https://evil.com/paypal.com/login | brand_in_path   |
 
   Scenario Outline: Epic J — IDNA mapping ambiguity annotates (weight 0) and stays benign
-    When I inspect "<input>"
+    When I inspect "<input>" allowing IDNs
     Then the status is "ok"
     And the score is 0
     And the severity is "info"
@@ -108,7 +127,7 @@ Feature: Success criteria — core lexical (PRD §7)
       | http://google。com           | separator_lookalike |
 
   Scenario Outline: Epic J — must not over-flag legitimate look-alikes (SC-2)
-    When I inspect "<input>"
+    When I inspect "<input>" allowing IDNs
     Then the status is "ok"
     And the score is 0
     And the severity is "info"
@@ -283,7 +302,7 @@ Feature: Success criteria — core lexical (PRD §7)
       | https://ехреԁіа.com    |
 
   Scenario Outline: Epic G — must not over-flag legitimate brand domains (SC-2)
-    When I inspect "<input>"
+    When I inspect "<input>" allowing IDNs
     Then the status is "ok"
     And the score is 0
     And the severity is "info"

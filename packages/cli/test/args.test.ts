@@ -45,6 +45,11 @@ describe("parseCli — flags resolve onto options", () => {
       "--allow-invalid",
       "--quiet",
       "--no-color",
+      "--allow-idn",
+      "--idn-allow",
+      "münchen.de",
+      "--idn-allow",
+      "köln.de",
       "https://x.example",
     ]);
     expect(cli.kind).toBe("check");
@@ -57,6 +62,8 @@ describe("parseCli — flags resolve onto options", () => {
       quiet: true,
       noColor: true,
       agent: false,
+      allowIdn: true,
+      idnAllowlist: ["münchen.de", "köln.de"],
     });
   });
 
@@ -71,6 +78,8 @@ describe("parseCli — flags resolve onto options", () => {
       quiet: false,
       noColor: false,
       agent: false,
+      allowIdn: false,
+      idnAllowlist: [],
     });
   });
 });

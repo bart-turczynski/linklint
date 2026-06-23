@@ -48,6 +48,11 @@ const CYR_EXPEDIA = cyr(0x0435, 0x0445, 0x0440, 0x0435, 0x0501, 0x0456, 0x0430) 
 // ассеѕѕ.com — all-Cyrillic look-alike of the NON-brand word "access" (skeleton
 // folds to pure ASCII-Latin). Target-less: no watchlist brand involved.
 const CYR_ACCESS = cyr(0x0430, 0x0441, 0x0441, 0x0435, 0x0455, 0x0455) + ".com";
+// IDN handling defaults to "block" (non-ASCII registrable domains emit the
+// scoring `idn_host` reason). Legitimate-IDN rows below test the DECEPTION
+// analysis — orthogonal to the policy block — so they run with idnPolicy "allow"
+// to stay benign/info; the default-block behavior is covered by idn-policy.test.ts.
+const ALLOW_IDN: InspectOptions = { idnPolicy: "allow" };
 
 export const CORPUS: CorpusRow[] = [
   // ── Deceptive: canonical scoring attack set (SC-1) ──────────────────────
@@ -204,11 +209,11 @@ export const CORPUS: CorpusRow[] = [
   { input: "https://example.com/?redirect=https%3A%2F%2Fexample.com%2Fp", label: "benign", forbidReasons: ["encoding_obfuscation", "open_redirect_param"], notes: "legitimate encoded SAME-host redirect value (A→A): guards encoding_obfuscation and open_redirect_param. Cross-host (A→B) deceptive case is an I4 corpus row." },
 
   // ── Informational-only (SC-1a): annotate, weight 0, benign ──────────────
-  { input: "https://xn--bcher-kva.de/", label: "info", expectReasons: ["normalization_delta"], forbidReasons: ["mixed_script", "punycode_malformed"], notes: "bücher.de ACE form" },
-  { input: "https://XN--CAF-DMA.com/", label: "info", expectReasons: ["normalization_delta"], forbidReasons: ["punycode_malformed"], notes: "E5 guard: uppercase ACE round-trips to café — NOT malformed" },
-  { input: "https://müller.de/", label: "info", expectReasons: ["normalization_delta"], forbidReasons: ["mixed_script"], notes: "legitimate German IDN" },
-  { input: "https://пример.com", label: "info", expectReasons: ["confusable_char", "normalization_delta"], forbidReasons: ["mixed_script", "homograph_skeleton_collision"], notes: "single-script Cyrillic label + ASCII TLD — E3 guard: skeleton is not a brand" },
-  { input: "https://日本語.jp/", label: "info", expectReasons: ["normalization_delta"], forbidReasons: ["mixed_script"], notes: "Japanese IDN" },
+  { input: "https://xn--bcher-kva.de/", label: "info", options: ALLOW_IDN, expectReasons: ["normalization_delta"], forbidReasons: ["mixed_script", "punycode_malformed"], notes: "bücher.de ACE form" },
+  { input: "https://XN--CAF-DMA.com/", label: "info", options: ALLOW_IDN, expectReasons: ["normalization_delta"], forbidReasons: ["punycode_malformed"], notes: "E5 guard: uppercase ACE round-trips to café — NOT malformed" },
+  { input: "https://müller.de/", label: "info", options: ALLOW_IDN, expectReasons: ["normalization_delta"], forbidReasons: ["mixed_script"], notes: "legitimate German IDN" },
+  { input: "https://пример.com", label: "info", options: ALLOW_IDN, expectReasons: ["confusable_char", "normalization_delta"], forbidReasons: ["mixed_script", "homograph_skeleton_collision"], notes: "single-script Cyrillic label + ASCII TLD — E3 guard: skeleton is not a brand" },
+  { input: "https://日本語.jp/", label: "info", options: ALLOW_IDN, expectReasons: ["normalization_delta"], forbidReasons: ["mixed_script"], notes: "Japanese IDN" },
   { input: `https://example.com/p${CYR_A}y`, label: "info", expectReasons: ["confusable_in_path"], notes: "path-embedded confusable" },
 
   // ── Invalid (SC-2a): not benign ─────────────────────────────────────────
@@ -348,6 +353,7 @@ export const CORPUS: CorpusRow[] = [
   {
     input: "https://wordpreß.com",
     label: "info",
+    options: ALLOW_IDN,
     expectReasons: ["idna_mapping_ambiguity"],
     forbidReasons: ["mixed_script"],
     notes: "J9 ß: IDNA2003 → wordpress.com vs UTS-46 punycode (Epic G escalates)",
@@ -401,8 +407,8 @@ export const CORPUS: CorpusRow[] = [
   { input: "https://sub.domain.example.co.uk/a/b/c/d/e", label: "benign", forbidReasons: ["embedded_domain_in_subdomain"], notes: "legit deep path + multi-level suffix" },
 
   // Informational — legitimate IDNs with deviation chars (ß / final sigma ς) stay benign
-  { input: "https://straße.de/", label: "info", expectReasons: ["idna_mapping_ambiguity"], forbidReasons: ["mixed_script"], notes: "J9: legit German ß IDN — info only, must not flag" },
-  { input: "https://ολυμπιακός.gr/", label: "info", expectReasons: ["idna_mapping_ambiguity"], forbidReasons: ["mixed_script"], notes: "J9: legit Greek IDN with final sigma ς" },
+  { input: "https://straße.de/", label: "info", options: ALLOW_IDN, expectReasons: ["idna_mapping_ambiguity"], forbidReasons: ["mixed_script"], notes: "J9: legit German ß IDN — info only, must not flag" },
+  { input: "https://ολυμπιακός.gr/", label: "info", options: ALLOW_IDN, expectReasons: ["idna_mapping_ambiguity"], forbidReasons: ["mixed_script"], notes: "J9: legit Greek IDN with final sigma ς" },
 
   // ── Epic I: download / redirect / subdomain-depth detectors (I1–I3) ──────
   // Deceptive — suspicious executable extension (I1, weight 0.5 → medium)

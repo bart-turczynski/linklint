@@ -38,7 +38,9 @@ describe("J9 — Group B (compatibility folds to ASCII, no punycode)", () => {
 
 describe("J9 — informational only (weight 0); legit IDNs stay benign (SC-2)", () => {
   it("does not raise severity on its own — baß.de is a real German IDN", () => {
-    const r = inspect("https://baß.de");
+    // idnPolicy "allow" isolates the J9 annotation: under the default "block"
+    // this IDN is deliberately flagged by idn_host (covered by idn-policy.test.ts).
+    const r = inspect("https://baß.de", { idnPolicy: "allow" });
     expect(r.status).toBe("ok");
     expect(r.severity).toBe("info");
     expect(r.score).toBe(0);

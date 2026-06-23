@@ -263,6 +263,34 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 - **Scoring:** scoring, **weight 1.0 (blocker)** — saturates the score to
   critical regardless of context.
 
+### `idn_host` — weight 0.7 (policy-gated, default block)
+
+- **Meaning:** the registrable domain is an **internationalized domain name** —
+  it carries a non-ASCII label, whether written in Unicode (`münchen.de`) or
+  punycode (`xn--mnchen-3ya.de`).
+- **Why it's blocked by default:** for a Western-market audience a
+  Unicode/punycode domain is almost always accidental, so IDNs are **blocked by
+  default** (`idnPolicy: "block"`). The weight lands the verdict at `high` —
+  enough to fail the default `--fail-on high` gate (an effective block) — while
+  `critical` stays reserved for the unambiguous homograph/script attacks.
+- **Gating (a scoring signal, not a weight-0 policy channel):**
+  - `idnPolicy: "allow"` suppresses it entirely (the historical, IDN-agnostic
+    verdict) — for deployments that legitimately serve IDNs.
+  - `idnAllowlist: ["münchen.de", …]` exempts specific registrable domains even
+    under `"block"` (compared in Unicode form, so a punycode input matches too).
+- **Scope & precision:**
+  - Scoped to the **registrable domain** (canonicalized to Unicode), so an ASCII
+    domain with a Unicode *path* is unaffected (`confusable_in_path`'s territory).
+  - A **malformed** `xn--` label is owned by `punycode_malformed`, not this — they
+    never double-flag.
+  - The dangerous IDN subset (script-mixing, all-Latin-confusable homographs) is
+    already `critical` via `mixed_script` / `homograph_latin_skeleton` regardless;
+    `idn_host` simply stacks there and adds the `high` block for genuine IDNs.
+  - IP / hostless inputs and pure-ASCII hosts never fire.
+- **Example:** `https://münchen.de` → `high` (blocked) by default;
+  `inspect(url, { idnPolicy: "allow" })` → `info`.
+- **Scoring:** scoring, weight 0.7 (lands `high`).
+
 ### `brand_combosquat` — Epic G (G3) · weight 0.4
 
 - **Meaning:** a **watchlist brand keyword is glued to an additive (non-brand)
