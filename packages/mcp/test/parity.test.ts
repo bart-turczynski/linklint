@@ -71,7 +71,7 @@ describe("SC-3: an agent can act on the verdict before fetching", () => {
     // The agent's decision logic:
     const shouldFetch = verdict.status === "ok" && verdict.severity !== "high" && verdict.severity !== "critical";
     expect(shouldFetch).toBe(false);
-    expect(verdict.severity).toBe("high");
+    expect(verdict.severity).toBe("critical");
     expect(verdict.reasons.length).toBeGreaterThan(0);
   });
 

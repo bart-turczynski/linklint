@@ -66,7 +66,7 @@ only reasons are informational is **benign** (`score: 0`, `severity: "info"`).
 
 These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 
-### `mixed_script` — FR-D-3 · weight 0.4
+### `mixed_script` — FR-D-3 · weight 1.0 (blocker)
 
 - **Meaning:** a single host label mixes characters from more than one script
   (e.g. Latin + Cyrillic in one label).
@@ -454,7 +454,7 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   `https://example.com/?redirect=//evil.com`.
 - **Scoring:** scoring, weight 0.4.
 
-### `invisible_char` — FR-D-4 · weight 0.5
+### `invisible_char` — FR-D-4 · weight 1.0 (blocker)
 
 - **Meaning:** invisible, zero-width, or control characters appear anywhere in
   the URL (excluding bidi controls, which are reported as `bidi_override`).
@@ -462,7 +462,7 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   deceptive host and a legitimate one.
 - **Example:** `exa​mple.com` (zero-width space inside the host).
 
-### `bidi_override` — FR-D-5 · weight 0.6
+### `bidi_override` — FR-D-5 · weight 1.0 (blocker)
 
 - **Meaning:** bidirectional / RTL override characters (U+202A–U+202E,
   U+2066–U+2069, U+061C, U+200E/U+200F) appear in the URL.

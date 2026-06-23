@@ -3,7 +3,7 @@
 > Version-pinned (`dataVersions.weights`). Source of truth:
 > `packages/core/src/schema/reason-codes.ts` (weights) and
 > `packages/core/src/scoring/` (aggregation + bands). Current weights version:
-> **1.3**.
+> **1.9**.
 
 ## Aggregation — probabilistic OR (FR-SCORE-1a)
 
@@ -21,11 +21,15 @@ Properties:
 - **Informational reasons contribute nothing** — their weight is 0, so
   `(1 − 0) = 1` leaves the product unchanged (FR-D-15/16).
 
-Worked example (PRD §5.3): `userinfo_present` (0.5) + `mixed_script` (0.4):
+Worked example: `userinfo_present` (0.5) + `ip_obfuscation` (0.4):
 
 ```
 score = 1 − (1 − 0.5)(1 − 0.4) = 1 − 0.5 × 0.6 = 0.7 → high
 ```
+
+A **blocker** weight (1.0) zeroes a factor and saturates the score: any URL with
+`mixed_script`, `invisible_char`, or `bidi_override` scores exactly 1 (critical),
+regardless of what else fires.
 
 ## Severity bands (FR-SCORE-1b)
 
@@ -47,19 +51,23 @@ Weights are hand-tuned and transparent (not learned), so the verdict stays
 explainable. Reliability is encoded in the weight itself — there is no separate
 `confidence` field in v1 (FR-SCORE-2b).
 
+A weight of **1.00 is a blocker** — under probabilistic OR the `(1 − w)` factor
+zeroes the product, so the score saturates to 1 (critical) regardless of any other
+signal. Reserved for patterns with no legitimate use.
+
 | Reason code                    | Weight | Scoring? |
 | ------------------------------ | ------ | -------- |
+| `mixed_script`                 | 1.00   | yes      |
+| `invisible_char`               | 1.00   | yes      |
+| `bidi_override`                | 1.00   | yes      |
 | `dangerous_scheme`             | 0.90   | yes      |
 | `ambiguous_authority`          | 0.65   | yes      |
-| `bidi_override`                | 0.60   | yes      |
 | `control_char`                 | 0.60   | yes      |
-| `invisible_char`               | 0.50   | yes      |
 | `suspicious_extension`         | 0.50   | yes      |
 | `separator_lookalike`          | 0.50   | yes      |
 | `userinfo_present`             | 0.50   | yes      |
 | `embedded_domain_in_subdomain` | 0.50   | yes      |
 | `homograph_skeleton_collision` | 0.50   | yes      |
-| `mixed_script`                 | 0.40   | yes      |
 | `ip_obfuscation`               | 0.40   | yes      |
 | `file_extension_tld`           | 0.40   | yes      |
 | `open_redirect_param`          | 0.40   | yes      |

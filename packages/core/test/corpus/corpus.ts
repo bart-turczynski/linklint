@@ -58,8 +58,9 @@ export const CORPUS: CorpusRow[] = [
   {
     input: `https://p${CYR_A}ypal.com`,
     label: "deceptive",
+    minSeverity: "critical",
     expectReasons: ["mixed_script"],
-    notes: "script-mixed host (Latin + Cyrillic а)",
+    notes: "script-mixed host (Latin + Cyrillic а) — mixed_script is a blocker (weight 1.0)",
   },
   {
     input: "https://paypal.com@evil.com/login",
@@ -106,20 +107,23 @@ export const CORPUS: CorpusRow[] = [
   {
     input: `https://example.com/${RLO}fdp.exe`,
     label: "deceptive",
+    minSeverity: "critical",
     expectReasons: ["bidi_override"],
-    notes: "RTL override in path",
+    notes: "RTL override in path — bidi_override is a blocker (weight 1.0)",
   },
   {
     input: `https://exa${ZWSP}mple.com`,
     label: "deceptive",
+    minSeverity: "critical",
     expectReasons: ["invisible_char"],
-    notes: "zero-width space in host",
+    notes: "zero-width space in host — invisible_char is a blocker (weight 1.0)",
   },
   {
     input: `https://exa${SOFT_HYPHEN}mple.com`,
     label: "deceptive",
+    minSeverity: "critical",
     expectReasons: ["invisible_char"],
-    notes: "soft hyphen in host",
+    notes: "soft hyphen in host — invisible_char is a blocker (weight 1.0)",
   },
   {
     input: "javascript:alert(document.cookie)",
