@@ -1,4 +1,3 @@
-import type { InspectOptions } from "../schema/types.js";
 import type { InspectionContext } from "../detectors/types.js";
 import type { CollectedFinding } from "../schema/serialize.js";
 
@@ -10,41 +9,29 @@ import type { CollectedFinding } from "../schema/serialize.js";
  * them. Both lists map to the SAME code; the detail distinguishes deny-list vs
  * not-allow-listed. Distinct from the built-in dangerous_scheme detector.
  */
-export function runSchemeAxis(
-  ctx: InspectionContext,
-  options: InspectOptions,
-): CollectedFinding[] {
+export function runSchemeAxis(ctx: InspectionContext): CollectedFinding[] {
   const findings: CollectedFinding[] = [];
 
   if (ctx.scheme) {
     const scheme = ctx.scheme.toLowerCase();
+    const { allowSchemes, denySchemes } = ctx.runtime.policy;
 
-    if (options.denySchemes && normalizeSchemes(options.denySchemes).includes(scheme)) {
+    if (denySchemes.set.has(scheme)) {
       findings.push({
         code: "scheme_denied",
         detail: `scheme '${scheme}' is on the caller deny-list`,
       });
     }
 
-    if (options.allowSchemes) {
-      const allow = normalizeSchemes(options.allowSchemes);
-      if (!allow.includes(scheme)) {
+    if (allowSchemes.configured) {
+      if (!allowSchemes.set.has(scheme)) {
         findings.push({
           code: "scheme_denied",
-          detail: `scheme '${scheme}' is not on the caller allow-list ([${allow.join(", ")}])`,
+          detail: `scheme '${scheme}' is not on the caller allow-list ([${allowSchemes.values.join(", ")}])`,
         });
       }
     }
   }
 
   return findings;
-}
-
-/**
- * Normalize a caller-supplied scheme list defensively: strip leading/trailing
- * colons and lower-case each entry so the comparison against the parsed scheme
- * is bare and case-insensitive.
- */
-function normalizeSchemes(schemes: string[]): string[] {
-  return schemes.map((s) => s.replace(/^:+|:+$/g, "").toLowerCase());
 }

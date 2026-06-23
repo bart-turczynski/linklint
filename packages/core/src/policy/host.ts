@@ -1,4 +1,3 @@
-import type { InspectOptions } from "../schema/types.js";
 import type { InspectionContext } from "../detectors/types.js";
 import type { CollectedFinding } from "../schema/serialize.js";
 
@@ -11,41 +10,29 @@ import type { CollectedFinding } from "../schema/serialize.js";
  * IP / hostless inputs have no registrable domain and are exempt. Both lists may
  * fire independently when both are configured.
  */
-export function runHostAxis(
-  ctx: InspectionContext,
-  options: InspectOptions,
-): CollectedFinding[] {
+export function runHostAxis(ctx: InspectionContext): CollectedFinding[] {
   const findings: CollectedFinding[] = [];
 
   if (ctx.registrableDomain) {
     const registrable = ctx.registrableDomainLower!;
+    const { allowHosts, denyHosts } = ctx.runtime.policy;
 
-    if (options.denyHosts && normalizeHostList(options.denyHosts).includes(registrable)) {
+    if (denyHosts.set.has(registrable)) {
       findings.push({
         code: "host_denied",
         detail: `Host '${ctx.host}' (registrable domain '${registrable}') is on the caller deny-list`,
       });
     }
 
-    if (options.allowHosts) {
-      const allow = normalizeHostList(options.allowHosts);
-      if (!allow.includes(registrable)) {
+    if (allowHosts.configured) {
+      if (!allowHosts.set.has(registrable)) {
         findings.push({
           code: "host_not_allowlisted",
-          detail: `Host '${ctx.host}' (registrable domain '${registrable}') is not on the caller allow-list ([${allow.join(", ")}])`,
+          detail: `Host '${ctx.host}' (registrable domain '${registrable}') is not on the caller allow-list ([${allowHosts.values.join(", ")}])`,
         });
       }
     }
   }
 
   return findings;
-}
-
-/**
- * Normalize a caller-supplied host list defensively: strip a leading dot and
- * lower-case each entry so the comparison against the registrable domain is bare
- * and case-insensitive.
- */
-function normalizeHostList(hosts: string[]): string[] {
-  return hosts.map((h) => h.replace(/^\./, "").toLowerCase());
 }

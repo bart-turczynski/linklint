@@ -1,4 +1,3 @@
-import type { InspectOptions } from "../schema/types.js";
 import type { InspectionContext } from "../detectors/types.js";
 import type { CollectedFinding } from "../schema/serialize.js";
 
@@ -8,40 +7,29 @@ import type { CollectedFinding } from "../schema/serialize.js";
  * suffix and are exempt. Both lists may fire independently when both are
  * configured.
  */
-export function runTldAxis(
-  ctx: InspectionContext,
-  options: InspectOptions,
-): CollectedFinding[] {
+export function runTldAxis(ctx: InspectionContext): CollectedFinding[] {
   const findings: CollectedFinding[] = [];
 
   if (ctx.publicSuffix) {
     const tld = ctx.publicSuffixTld!.toLowerCase();
+    const { allowTlds, denyTlds } = ctx.runtime.policy;
 
-    if (options.denyTlds && normalizeTlds(options.denyTlds).includes(tld)) {
+    if (denyTlds.set.has(tld)) {
       findings.push({
         code: "tld_denied",
         detail: `TLD '.${tld}' is on the caller deny-list`,
       });
     }
 
-    if (options.allowTlds) {
-      const allow = normalizeTlds(options.allowTlds);
-      if (!allow.includes(tld)) {
+    if (allowTlds.configured) {
+      if (!allowTlds.set.has(tld)) {
         findings.push({
           code: "tld_not_allowlisted",
-          detail: `TLD '.${tld}' is not on the caller allow-list ([${allow.join(", ")}])`,
+          detail: `TLD '.${tld}' is not on the caller allow-list ([${allowTlds.values.join(", ")}])`,
         });
       }
     }
   }
 
   return findings;
-}
-
-/**
- * Normalize a caller-supplied TLD list defensively: strip a leading dot and
- * lower-case each entry so the comparison is bare and case-insensitive.
- */
-function normalizeTlds(tlds: string[]): string[] {
-  return tlds.map((t) => t.replace(/^\./, "").toLowerCase());
 }

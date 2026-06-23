@@ -15,6 +15,27 @@ export interface RuntimeConfig {
   idnPolicy: "block" | "allow";
   /** Normalized IDN allow-list: lower-cased, leading-dot-stripped registrable domains exempt under `"block"`. */
   idnAllowlist: ReadonlySet<string>;
+  /** Normalized policy configuration derived once per inspection. */
+  policy: PolicyRuntimeConfig;
+}
+
+/** Normalized policy list: ordered for detail strings, indexed for matching. */
+export interface PolicyList<T> {
+  configured: boolean;
+  values: readonly T[];
+  set: ReadonlySet<T>;
+}
+
+/** Policy options normalized once before policy axes run. */
+export interface PolicyRuntimeConfig {
+  denyTlds: PolicyList<string>;
+  allowTlds: PolicyList<string>;
+  denyHosts: PolicyList<string>;
+  allowHosts: PolicyList<string>;
+  denySchemes: PolicyList<string>;
+  allowSchemes: PolicyList<string>;
+  denyPorts: PolicyList<number>;
+  denyNonStandardPorts: boolean;
 }
 
 /**
@@ -39,5 +60,44 @@ export function normalizeOptions(options: InspectOptions): RuntimeConfig {
       .filter((d): d is string => typeof d === "string")
       .map((d) => toUnicode(d.replace(/^\./, "")).toLowerCase()),
   );
-  return { maxDecodeDepth, idnPolicy, idnAllowlist };
+  return { maxDecodeDepth, idnPolicy, idnAllowlist, policy: normalizePolicyOptions(options) };
+}
+
+export function normalizePolicyOptions(options: InspectOptions): PolicyRuntimeConfig {
+  return {
+    denyTlds: normalizedList(options.denyTlds, normalizeTld),
+    allowTlds: normalizedList(options.allowTlds, normalizeTld),
+    denyHosts: normalizedList(options.denyHosts, normalizeHost),
+    allowHosts: normalizedList(options.allowHosts, normalizeHost),
+    denySchemes: normalizedList(options.denySchemes, normalizeScheme),
+    allowSchemes: normalizedList(options.allowSchemes, normalizeScheme),
+    denyPorts: normalizedList(options.denyPorts, normalizePort),
+    denyNonStandardPorts: options.denyNonStandardPorts === true,
+  };
+}
+
+function normalizedList<T, U>(
+  values: readonly T[] | undefined,
+  normalize: (value: T) => U | null,
+): PolicyList<U> {
+  const normalized = (Array.isArray(values) ? values : [])
+    .map(normalize)
+    .filter((value): value is U => value !== null);
+  return { configured: values !== undefined, values: normalized, set: new Set(normalized) };
+}
+
+function normalizeTld(value: string): string | null {
+  return typeof value === "string" ? value.replace(/^\./, "").toLowerCase() : null;
+}
+
+function normalizeHost(value: string): string | null {
+  return typeof value === "string" ? value.replace(/^\./, "").toLowerCase() : null;
+}
+
+function normalizeScheme(value: string): string | null {
+  return typeof value === "string" ? value.replace(/^:+|:+$/g, "").toLowerCase() : null;
+}
+
+function normalizePort(value: number): number | null {
+  return typeof value === "number" ? value : null;
 }

@@ -1,4 +1,3 @@
-import type { InspectOptions } from "../schema/types.js";
 import type { InspectionContext } from "../detectors/types.js";
 import type { CollectedFinding } from "../schema/serialize.js";
 
@@ -23,20 +22,17 @@ const STANDARD_PORTS: Record<string, number> = {
  * emitted per input — if both conditions hit, the deny-list reason wins
  * (deduped).
  */
-export function runPortAxis(
-  ctx: InspectionContext,
-  options: InspectOptions,
-): CollectedFinding[] {
+export function runPortAxis(ctx: InspectionContext): CollectedFinding[] {
   const findings: CollectedFinding[] = [];
 
   if (ctx.port !== null) {
     const port = ctx.port;
-    if (options.denyPorts && options.denyPorts.includes(port)) {
+    if (ctx.runtime.policy.denyPorts.set.has(port)) {
       findings.push({
         code: "port_denied",
         detail: `port ${port} is on the caller deny-list`,
       });
-    } else if (options.denyNonStandardPorts) {
+    } else if (ctx.runtime.policy.denyNonStandardPorts) {
       const scheme = ctx.scheme ? ctx.scheme.toLowerCase() : null;
       const standard = scheme !== null ? STANDARD_PORTS[scheme] : undefined;
       if (standard === undefined || port !== standard) {

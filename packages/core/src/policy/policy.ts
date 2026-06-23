@@ -1,4 +1,3 @@
-import type { InspectOptions } from "../schema/types.js";
 import type { InspectionContext } from "../detectors/types.js";
 import type { CollectedFinding } from "../schema/serialize.js";
 import type { PolicyAxis } from "./types.js";
@@ -37,13 +36,10 @@ const POLICY_AXES: readonly PolicyAxis[] = POLICY_AXIS_DESCRIPTORS.map(
  * rely on that. Iterates {@link POLICY_AXES} in order and concatenates each
  * axis's findings.
  */
-export function runPolicy(
-  ctx: InspectionContext,
-  options: InspectOptions,
-): CollectedFinding[] {
+export function runPolicy(ctx: InspectionContext): CollectedFinding[] {
   const findings: CollectedFinding[] = [];
   for (const axis of POLICY_AXES) {
-    findings.push(...axis(ctx, options));
+    findings.push(...axis(ctx));
   }
   return findings;
 }
