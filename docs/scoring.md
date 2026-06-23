@@ -3,7 +3,7 @@
 > Version-pinned (`dataVersions.weights`). Source of truth:
 > `packages/core/src/schema/reason-codes.ts` (weights) and
 > `packages/core/src/scoring/` (aggregation + bands). Current weights version:
-> **1.9**.
+> **1.10**.
 
 ## Aggregation — probabilistic OR (FR-SCORE-1a)
 
@@ -28,8 +28,8 @@ score = 1 − (1 − 0.5)(1 − 0.4) = 1 − 0.5 × 0.6 = 0.7 → high
 ```
 
 A **blocker** weight (1.0) zeroes a factor and saturates the score: any URL with
-`mixed_script`, `invisible_char`, or `bidi_override` scores exactly 1 (critical),
-regardless of what else fires.
+`mixed_script`, `invisible_char`, `bidi_override`, or `homograph_latin_skeleton`
+scores exactly 1 (critical), regardless of what else fires.
 
 ## Severity bands (FR-SCORE-1b)
 
@@ -60,6 +60,7 @@ signal. Reserved for patterns with no legitimate use.
 | `mixed_script`                 | 1.00   | yes      |
 | `invisible_char`               | 1.00   | yes      |
 | `bidi_override`                | 1.00   | yes      |
+| `homograph_latin_skeleton`     | 1.00   | yes      |
 | `dangerous_scheme`             | 0.90   | yes      |
 | `ambiguous_authority`          | 0.65   | yes      |
 | `control_char`                 | 0.60   | yes      |

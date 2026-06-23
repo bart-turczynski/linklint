@@ -263,6 +263,22 @@ export const REASON_CODES = {
     summary:
       "Registrable domain's UTS#39 confusable skeleton equals a known brand domain exactly — a single-script whole-label homograph (an all-Cyrillic look-alike of a brand) that script-mixing checks cannot see.",
   },
+  homograph_latin_skeleton: {
+    layer: "lexical",
+    scoring: true,
+    // BLOCKER (weight 1.0). Target-LESS whole-label homograph: a non-ASCII
+    // registrable domain whose UTS#39 confusable skeleton is PURE ASCII-Latin
+    // (every character a Latin look-alike), so it reads to a human as an ASCII
+    // domain — сһаѕе.com→chase.com, ехямрӏе.com→example.com. Unlike
+    // homograph_skeleton_collision this needs no brand list; a genuine non-Latin
+    // word retains a non-Latin character in its skeleton and never fires.
+    // Maintainer directive: "pure unicode that looks like ASCII → block", so it
+    // is weighted 1.0 (saturates the score to critical). Legitimate IDN owners
+    // use the caller IDN allow-list to override.
+    weight: 1,
+    summary:
+      "Non-Latin registrable domain whose UTS#39 confusable skeleton is pure ASCII-Latin — a whole-label homograph masquerading as an ASCII domain (сһаѕе.com→chase.com), no brand list needed.",
+  },
   brand_soundsquat: {
     layer: "lexical",
     scoring: true,
