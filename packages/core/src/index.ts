@@ -1,9 +1,13 @@
 /**
  * linklint core — explainable, offline-first URL inspection.
  *
- * Public API: a single synchronous `inspect()` entry point, the result schema
- * types, the reason-code registry + weights (for docs/UI surfaces), and the
- * individual detectors (for advanced consumers).
+ * Stable API: a single synchronous `inspect()` entry point, the result schema
+ * types, and metadata useful to docs/UI surfaces.
+ *
+ * Compatibility API: the root still re-exports advanced detector, policy,
+ * parsing, and reference-data helpers for pre-subpath consumers. New advanced
+ * consumers should prefer `linklint/experimental` or `linklint/data`; root
+ * compatibility may narrow after a documented deprecation window.
  */
 
 export { inspect } from "./inspect.js";
@@ -36,33 +40,8 @@ export { WEIGHTS, WEIGHTS_VERSION, severityForScore } from "./scoring/weights.js
 // Data versions
 export { DATA_VERSIONS } from "./data/versions.js";
 
-// Detector internals (advanced consumers)
-export {
-  DETECTORS,
-  normalizationDelta,
-  confusableChar,
-  mixedScript,
-  asciiHomoglyph,
-  invisibleChar,
-  bidiOverride,
-  userinfoPresent,
-  ipObfuscation,
-  embeddedDomain,
-  riskyTld,
-  fileExtensionTld,
-  encodingObfuscation,
-  dangerousScheme,
-  confusableInPath,
-  brandLookalike,
-  skeletonCollision,
-  soundsquatting,
-  bitsquatting,
-  baitTokens,
-  openRedirectParam,
-  suspiciousExtension,
-  punycodeMalformed,
-  excessiveSubdomainDepth,
-} from "./detectors/registry.js";
+// Detector internals (legacy/advanced compatibility)
+export * from "./detectors/registry.js";
 export { scanAmbiguousAuthority } from "./detectors/ambiguous-authority.js";
 export { scanSeparatorLookalike } from "./detectors/separator-lookalike.js";
 export { scanIdnaMappingAmbiguity } from "./detectors/idna-mapping-ambiguity.js";

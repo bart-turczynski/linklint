@@ -9,6 +9,7 @@ import { invisibleChar } from "./invisible-char.js";
 import { bidiOverride } from "./bidi-override.js";
 import { userinfoPresent } from "./userinfo-present.js";
 import { ipObfuscation } from "./ip-obfuscation.js";
+import { ipClassification } from "./ip-classification.js";
 import { embeddedDomain } from "./embedded-domain.js";
 import { riskyTld } from "./risky-tld.js";
 import { fileExtensionTld } from "./file-extension-tld.js";
@@ -26,6 +27,11 @@ import { openRedirectParam } from "./open-redirect-param.js";
 import { suspiciousExtension } from "./suspicious-extension.js";
 import { punycodeMalformed } from "./punycode-malformed.js";
 import { excessiveSubdomainDepth } from "./excessive-subdomain-depth.js";
+import { promptInjection } from "./prompt-injection.js";
+import { apiEndpointImpersonation } from "./api-endpoint-impersonation.js";
+import { credentialHarvesting } from "./credential-harvesting.js";
+import { dataExfiltration } from "./data-exfiltration.js";
+import { ssrfCloudMetadata } from "./ssrf-cloud-metadata.js";
 
 /**
  * Ordered list of lexical detectors run by the default `inspect()` path, in
@@ -52,6 +58,7 @@ export {
   bidiOverride,
   userinfoPresent,
   ipObfuscation,
+  ipClassification,
   embeddedDomain,
   riskyTld,
   fileExtensionTld,
@@ -69,4 +76,9 @@ export {
   suspiciousExtension,
   punycodeMalformed,
   excessiveSubdomainDepth,
+  promptInjection,
+  apiEndpointImpersonation,
+  credentialHarvesting,
+  dataExfiltration,
+  ssrfCloudMetadata,
 };

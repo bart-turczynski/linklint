@@ -3,9 +3,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
+import * as root from "../src/index.js";
 import * as metadata from "../src/metadata.js";
 import * as experimental from "../src/experimental.js";
 import * as data from "../src/data.js";
+import * as detectorRegistry from "../src/detectors/registry.js";
+import { CHECKS } from "../src/detectors/checks.js";
 
 /**
  * Contract tests for the curated secondary entry points (LINK-kflglaxa).
@@ -15,9 +18,10 @@ import * as data from "../src/data.js";
  * `exports` map (including `types`-before-`default` conditional ordering), and
  * enforce adapter discipline (cli/mcp must not deep-import core internals).
  *
- * Deliberately NOT asserted: that the root `index.ts` is stable-only. The root
- * is treated as the legacy/advanced surface and is left untouched; freezing it
- * here would lock in today's internal-heavy export list.
+ * Root decision: keep a legacy/advanced compatibility window. `inspect()` and
+ * schema/metadata exports are the stable root surface; detector, policy,
+ * parser, unicode, and reference-data helpers remain available from root for
+ * compatibility, but new advanced consumers should prefer the curated subpaths.
  */
 
 // Resolve paths relative to THIS module so the test holds regardless of cwd.
@@ -48,6 +52,7 @@ describe("linklint/experimental — curated runtime surface", () => {
         "bidiOverride",
         "userinfoPresent",
         "ipObfuscation",
+        "ipClassification",
         "embeddedDomain",
         "riskyTld",
         "fileExtensionTld",
@@ -56,6 +61,8 @@ describe("linklint/experimental — curated runtime surface", () => {
         "confusableInPath",
         "brandLookalike",
         "skeletonCollision",
+        "latinSkeletonHomograph",
+        "idnHost",
         "soundsquatting",
         "bitsquatting",
         "baitTokens",
@@ -63,6 +70,11 @@ describe("linklint/experimental — curated runtime surface", () => {
         "suspiciousExtension",
         "punycodeMalformed",
         "excessiveSubdomainDepth",
+        "promptInjection",
+        "apiEndpointImpersonation",
+        "credentialHarvesting",
+        "dataExfiltration",
+        "ssrfCloudMetadata",
         "scanAmbiguousAuthority",
         "scanSeparatorLookalike",
         "scanIdnaMappingAmbiguity",
@@ -75,6 +87,28 @@ describe("linklint/experimental — curated runtime surface", () => {
       ].sort(),
     );
   });
+
+  it("has a named detector export for every parsed check descriptor", () => {
+    const parsedChecks = CHECKS.filter((check) => check.phase === "parsed");
+    const namedDetectorIds = new Set<string>();
+    for (const [name, value] of Object.entries(detectorRegistry) as [string, unknown][]) {
+      if (name !== "DETECTORS" && isDetectorLike(value)) {
+        namedDetectorIds.add(value.id);
+      }
+    }
+
+    expect([...namedDetectorIds].sort()).toEqual(
+      parsedChecks.map((check) => check.id).sort(),
+    );
+  });
+});
+
+describe("linklint root — legacy advanced compatibility surface", () => {
+  it("continues to expose the complete experimental surface from root", () => {
+    for (const key of Object.keys(experimental)) {
+      expect(root).toHaveProperty(key);
+    }
+  });
 });
 
 describe("linklint/data — curated runtime surface", () => {
@@ -85,6 +119,16 @@ describe("linklint/data — curated runtime surface", () => {
     );
   });
 });
+
+function isDetectorLike(value: unknown): value is { id: string; run: unknown } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    "run" in value &&
+    typeof (value as { id: unknown }).id === "string"
+  );
+}
 
 describe("package.json exports map declares the secondary entry points", () => {
   type Conditional = Record<string, string>;

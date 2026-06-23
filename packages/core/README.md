@@ -38,6 +38,13 @@ and **never throws** — unparseable input returns `status: "invalid"` (which is
 benign). See [`docs/reason-codes.md`](../../docs/reason-codes.md) and
 [`docs/scoring.md`](../../docs/scoring.md) for the full contract.
 
+The stable root API is `inspect()`, the result/schema types, and versioned
+metadata helpers. The root also keeps a legacy advanced compatibility window for
+detector, policy, parser, unicode, and reference-data helpers that existed before
+secondary entry points. New advanced consumers should import from
+`linklint/experimental`, `linklint/metadata`, or `linklint/data`; those subpaths
+are the documented migration path if the root is narrowed in a future major.
+
 ## License
 
 MIT.

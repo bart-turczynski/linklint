@@ -28,12 +28,14 @@ linklint/
 
 | Export | What |
 |--------|------|
-| `linklint` | `inspect()`, schema types, `InspectOptions` |
+| `linklint` | Stable `inspect()`, schema types, `InspectOptions`; legacy advanced compatibility re-exports |
 | `linklint/metadata` | Reason-code metadata and detector descriptors |
-| `linklint/experimental` | Unstable APIs |
+| `linklint/experimental` | Unstable detector, policy, parser, and unicode APIs |
 | `linklint/data` | Version-pinned reference data (risky TLDs, brands, confusables) |
 
 All exports are synchronous and side-effect-free. No network, no filesystem I/O at runtime.
+New advanced consumers should prefer the secondary entry points over root
+compatibility exports.
 
 Runtime dependencies: `tldts` (Public Suffix List) and `tr46` (IDNA/UTS-46).
 
