@@ -222,13 +222,6 @@ export const REASON_CODES = {
     summary:
       "Host label uses ASCII digit look-alikes for letters (g00gle, paypa1) — a same-script disguise the cross-script checks miss.",
   },
-  brand_in_path: {
-    layer: "lexical",
-    scoring: true,
-    weight: 0.2,
-    summary:
-      "A brand reference is planted in the path/query of an unrelated host (evil.com/paypal.com/login).",
-  },
   brand_homoglyph: {
     layer: "lexical",
     scoring: true,
@@ -252,19 +245,6 @@ export const REASON_CODES = {
     weight: 0.4,
     summary:
       "Registrable domain is a transposition-aware edit-distance near-miss (1–2) of a known brand domain — a typosquat (gogole.com, microsoftt.com, paypal.co).",
-  },
-  brand_combosquat: {
-    layer: "lexical",
-    scoring: true,
-    // Combosquatting (a brand keyword hyphen-glued to an additive token in the
-    // host: paypal-secure.com, login-paypal.com) is a common, deliberate
-    // phishing structure that edit distance cannot see. Tuned into the
-    // brand_lookalike band (0.4): a strong-but-not-decisive standalone signal —
-    // host-keyword matching carries some FP risk, so it sits below the
-    // exact-fold brand_homoglyph. Provisional — re-tuned against the corpus.
-    weight: 0.4,
-    summary:
-      "A watchlist brand keyword is glued to an additive token in the host (paypal-secure.com, login-paypal.com) — a combosquat invisible to edit-distance look-alike checks.",
   },
   homograph_skeleton_collision: {
     layer: "lexical",
@@ -402,7 +382,7 @@ export const REASON_CODES = {
     // agent's API client at a look-alike endpoint is high-confidence impersonation
     // — an exact brand-token-on-wrong-eTLD+1 match — so it sits in the
     // brand-impersonation band alongside brand_homoglyph (0.5), above the fuzzier
-    // brand_combosquat (0.4). Path escalation (a real API route) only sharpens the
+    // brand_lookalike (0.4). Path escalation (a real API route) only sharpens the
     // detail; the weight is unchanged. Provisional — re-tuned with the agent
     // corpus (V4e).
     weight: 0.5,

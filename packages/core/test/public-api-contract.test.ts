@@ -54,10 +54,8 @@ describe("linklint/experimental — curated runtime surface", () => {
         "encodingObfuscation",
         "dangerousScheme",
         "confusableInPath",
-        "brandInPath",
         "brandLookalike",
         "skeletonCollision",
-        "combosquatting",
         "soundsquatting",
         "bitsquatting",
         "baitTokens",
@@ -83,7 +81,7 @@ describe("linklint/data — curated runtime surface", () => {
   it("exposes exactly the reference-data value exports", () => {
     // BrandEntry is type-only and does not appear at runtime.
     expect(Object.keys(data).sort()).toEqual(
-      ["RISKY_TLDS", "FILE_EXTENSION_TLDS", "BRAND_KEYWORDS", "BRAND_DOMAINS", "BRAND_WATCHLIST"].sort(),
+      ["RISKY_TLDS", "FILE_EXTENSION_TLDS", "BRAND_DOMAINS", "BRAND_WATCHLIST"].sort(),
     );
   });
 });

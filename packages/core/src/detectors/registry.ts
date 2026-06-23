@@ -15,12 +15,10 @@ import { fileExtensionTld } from "./file-extension-tld.js";
 import { encodingObfuscation } from "./encoding-obfuscation.js";
 import { dangerousScheme } from "./dangerous-scheme.js";
 import { confusableInPath } from "./confusable-in-path.js";
-import { brandInPath } from "./brand-in-path.js";
 import { brandLookalike } from "./brand-lookalike.js";
 import { skeletonCollision } from "./skeleton-collision.js";
 import { latinSkeletonHomograph } from "./latin-skeleton-homograph.js";
 import { idnHost } from "./idn-host.js";
-import { combosquatting } from "./combosquatting.js";
 import { soundsquatting } from "./soundsquatting.js";
 import { bitsquatting } from "./bitsquatting.js";
 import { baitTokens } from "./bait-tokens.js";
@@ -60,12 +58,10 @@ export {
   encodingObfuscation,
   dangerousScheme,
   confusableInPath,
-  brandInPath,
   brandLookalike,
   skeletonCollision,
   latinSkeletonHomograph,
   idnHost,
-  combosquatting,
   soundsquatting,
   bitsquatting,
   baitTokens,

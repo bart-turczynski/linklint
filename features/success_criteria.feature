@@ -99,7 +99,6 @@ Feature: Success criteria — core lexical (PRD §7)
       | input                             | reason          |
       | https://g00gle.com                | ascii_homoglyph |
       | https://paypa1.com                | ascii_homoglyph |
-      | https://evil.com/paypal.com/login | brand_in_path   |
 
   Scenario Outline: Epic J — IDNA mapping ambiguity annotates (weight 0) and stays benign
     When I inspect "<input>" allowing IDNs
@@ -137,7 +136,6 @@ Feature: Success criteria — core lexical (PRD §7)
       | input                                              | forbidden          |
       | https://s3.amazonaws.com/my-bucket/key             | ascii_homoglyph    |
       | https://github.com/anthropics/repo/archive/main.zip | file_extension_tld |
-      | https://paypal.com/login                           | brand_in_path      |
       | https://straße.de/                                 | mixed_script       |
 
   # ── V1b — literal-IP range classifier (loopback / private / link-local / metadata / reserved) ──
@@ -247,7 +245,7 @@ Feature: Success criteria — core lexical (PRD §7)
       | https://g00gle.com   |
       | https://revo1ut.com  |
 
-  Scenario Outline: Epic G — fuzzy look-alikes & combosquats score >= medium with the right reason
+  Scenario Outline: Epic G — fuzzy look-alikes score >= medium with the right reason
     When I inspect "<input>"
     Then the status is "ok"
     And the severity is at least "medium"
@@ -258,8 +256,6 @@ Feature: Success criteria — core lexical (PRD §7)
       | https://gogole.com          | brand_lookalike   |
       | https://microsoftt.com      | brand_lookalike   |
       | https://paypal.co           | brand_lookalike   |
-      | https://paypal-secure.com   | brand_combosquat  |
-      | https://login-paypal.com    | brand_combosquat  |
 
   Scenario: Epic G — a bait-stacked host scores >= low with bait_tokens (corroborating, low weight)
     When I inspect "https://secure-account-verify-login.com"
@@ -312,9 +308,9 @@ Feature: Success criteria — core lexical (PRD §7)
       | input                              | forbidden                     |
       | https://paypal.com                 | brand_lookalike               |
       | https://google.com                 | brand_homoglyph               |
-      | https://accounts.google.com        | brand_combosquat              |
+      | https://accounts.google.com        | brand_lookalike               |
       | https://login.microsoftonline.com  | bait_tokens                   |
-      | https://amazonaws.com              | brand_combosquat              |
+      | https://amazonaws.com              | brand_lookalike               |
       | https://example.com/account/login  | bait_tokens                   |
       | https://netflix.com                | brand_soundsquat              |
       | https://ups.com                    | brand_soundsquat              |

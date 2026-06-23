@@ -77,7 +77,7 @@ The 29 detectors group into six families:
 |--------|-----------|
 | **Authority spoofing** | `userinfo_present`, `embedded_domain_in_subdomain`, `ambiguous_authority`, `ip_obfuscation`, `separator_lookalike`, `excessive_subdomain_depth` |
 | **Homographs & confusables** | `mixed_script`, `confusable_char`, `ascii_homoglyph`, `punycode_malformed`, `normalization_delta`, `idna_mapping_ambiguity` |
-| **Brand impersonation** | `brand_lookalike`, `brand_combosquat`, `brand_soundsquat`, `brand_bitsquat`, `brand_in_path`, `homograph_skeleton_collision` |
+| **Brand impersonation** | `brand_lookalike`, `brand_soundsquat`, `brand_bitsquat`, `homograph_skeleton_collision` |
 | **Dangerous payloads** | `dangerous_scheme`, `file_extension_tld`, `suspicious_extension`, `open_redirect_param` |
 | **Hidden characters** | `invisible_char`, `bidi_override`, `control_char`, `encoding_obfuscation`, `confusable_in_path` |
 | **Contextual signals** | `risky_tld`, `bait_tokens` |

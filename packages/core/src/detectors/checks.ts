@@ -22,12 +22,10 @@ import { fileExtensionTld } from "./file-extension-tld.js";
 import { encodingObfuscation } from "./encoding-obfuscation.js";
 import { dangerousScheme } from "./dangerous-scheme.js";
 import { confusableInPath } from "./confusable-in-path.js";
-import { brandInPath } from "./brand-in-path.js";
 import { brandLookalike } from "./brand-lookalike.js";
 import { skeletonCollision } from "./skeleton-collision.js";
 import { latinSkeletonHomograph } from "./latin-skeleton-homograph.js";
 import { idnHost } from "./idn-host.js";
-import { combosquatting } from "./combosquatting.js";
 import { soundsquatting } from "./soundsquatting.js";
 import { bitsquatting } from "./bitsquatting.js";
 import { baitTokens } from "./bait-tokens.js";
@@ -221,14 +219,6 @@ export const CHECKS: CheckDescriptor[] = [
     run: confusableInPath.run,
   },
   {
-    id: brandInPath.id,
-    layer: brandInPath.layer,
-    phase: "parsed",
-    emits: ["brand_in_path"],
-    skipReportable: true,
-    run: brandInPath.run,
-  },
-  {
     id: brandLookalike.id,
     layer: brandLookalike.layer,
     phase: "parsed",
@@ -259,14 +249,6 @@ export const CHECKS: CheckDescriptor[] = [
     emits: ["idn_host"],
     skipReportable: true,
     run: idnHost.run,
-  },
-  {
-    id: combosquatting.id,
-    layer: combosquatting.layer,
-    phase: "parsed",
-    emits: ["brand_combosquat"],
-    skipReportable: true,
-    run: combosquatting.run,
   },
   {
     id: soundsquatting.id,

@@ -333,22 +333,6 @@ export const CORPUS: CorpusRow[] = [
     notes: "J6 .mov filename masquerade",
   },
 
-  // Deceptive — brand in path (J7, weight 0.2 → low)
-  {
-    input: "https://evil.com/paypal.com/login",
-    label: "deceptive",
-    minSeverity: "low",
-    expectReasons: ["brand_in_path"],
-    notes: "J7 brand domain planted in the path of evil.com",
-  },
-  {
-    input: "https://phish.io/google/signin",
-    label: "deceptive",
-    minSeverity: "low",
-    expectReasons: ["brand_in_path"],
-    notes: "J7 brand keyword + credential-flow path",
-  },
-
   // Informational — IDNA mapping ambiguity (J9, weight 0): annotate, stay benign
   {
     input: "https://wordpreß.com",
@@ -399,9 +383,8 @@ export const CORPUS: CorpusRow[] = [
   { input: "https://bet365.com/", label: "benign", forbidReasons: ["ascii_homoglyph"], notes: "J4: non-homoglyph digits (3,6)" },
   { input: "https://github.com/anthropics/repo/archive/main.zip", label: "benign", forbidReasons: ["file_extension_tld"], notes: "J6: .zip in the path is a real file, not the TLD" },
   { input: "https://cdn.assets.acme.zip/", label: "benign", forbidReasons: ["file_extension_tld"], notes: "J6: deep-subdomain .zip reads as a site" },
-  { input: "https://paypal.com/login", label: "benign", forbidReasons: ["brand_in_path"], notes: "J7: brand's own site" },
-  { input: "https://medium.com/paypal-vs-stripe", label: "benign", forbidReasons: ["brand_in_path"], notes: "J7: brand word in prose, not a token" },
-  { input: "https://github.com/paypal/repo", label: "benign", forbidReasons: ["brand_in_path"], notes: "J7: bare brand path, no credential context" },
+  { input: "https://paypal.com/login", label: "benign", notes: "brand's own site — must stay benign" },
+  { input: "https://github.com/paypal/repo", label: "benign", notes: "bare brand word in a repo path — must stay benign" },
   { input: "https://example.com:8443/a/b?x=1#frag", label: "benign", forbidReasons: ["ambiguous_authority"], notes: "J1: legit explicit port" },
   { input: "https://example.com//foo//bar", label: "benign", forbidReasons: ["ambiguous_authority"], notes: "J1: accidental double slashes in path" },
   { input: "https://sub.domain.example.co.uk/a/b/c/d/e", label: "benign", forbidReasons: ["embedded_domain_in_subdomain"], notes: "legit deep path + multi-level suffix" },
@@ -465,7 +448,7 @@ export const CORPUS: CorpusRow[] = [
   { input: "https://files.example.com/archive.zip", label: "benign", forbidReasons: ["suspicious_extension"], notes: "I1 guard: .zip archive is deliberately excluded from the dangerous set" },
   { input: "https://files.example.com/photo.png", label: "benign", forbidReasons: ["suspicious_extension"], notes: "I1 guard: image download is ordinary" },
 
-  // ── Epic G: brand-proximity family (G2 homoglyph/lookalike, G3 combosquat, G4 bait) ──
+  // ── Epic G: brand-proximity family (G2 homoglyph/lookalike, G4 bait) ──
   // Deceptive — brand_homoglyph (G2, weight 0.5): registrable domain folds via
   // ASCII digit look-alikes to EXACTLY a watchlist brand → stacks with the J4
   // ascii_homoglyph signal → high.
@@ -513,19 +496,14 @@ export const CORPUS: CorpusRow[] = [
     notes: "G2 TLD-swap near-miss of paypal.com (.co for .com) — visible only on full registrable domain",
   },
 
-  // Deceptive — brand_combosquat (G3, weight 0.4 → medium): brand keyword hyphen-glued to additive token.
+  // Benign — hyphen-glued brand-keyword hosts no longer flag (brand keyword
+  // matching dropped, LINK-blgvypxk): legitimate infra/marketing hosts of this
+  // shape were the dominant false-positive class.
   {
     input: "https://paypal-secure.com",
-    label: "deceptive",
-    expectReasons: ["brand_combosquat"],
+    label: "benign",
     forbidReasons: ["brand_lookalike", "brand_homoglyph"],
-    notes: "G3 combosquat — registrable label 'paypal-secure' (brand + additive token)",
-  },
-  {
-    input: "https://login-paypal.com",
-    label: "deceptive",
-    expectReasons: ["brand_combosquat"],
-    notes: "G3 combosquat — additive token glued before the brand keyword",
+    notes: "keyword matching dropped — hyphen-glued brand token no longer flags on its own",
   },
 
   // Deceptive — brand_soundsquat (T2, weight 0.3 → medium): phonetic homophone of
@@ -608,13 +586,13 @@ export const CORPUS: CorpusRow[] = [
   },
 
   // Benign (SC-2): the G family must NOT over-flag these.
-  { input: "https://paypal.com", label: "benign", forbidReasons: ["brand_lookalike", "brand_homoglyph", "brand_combosquat", "homograph_skeleton_collision"], notes: "G2/G3/E3 guard: exact brand domain is the brand, never fires" },
+  { input: "https://paypal.com", label: "benign", forbidReasons: ["brand_lookalike", "brand_homoglyph", "homograph_skeleton_collision"], notes: "G2/E3 guard: exact brand domain is the brand, never fires" },
   { input: "https://chase.com", label: "benign", forbidReasons: ["homograph_skeleton_collision", "brand_lookalike"], notes: "E3 guard: the real (ASCII) brand is guarded out before any skeleton collision" },
   { input: "https://google.com", label: "benign", forbidReasons: ["brand_lookalike", "brand_homoglyph"], notes: "G2 guard: exact brand domain" },
   { input: "https://microsoft.com", label: "benign", forbidReasons: ["brand_lookalike", "brand_homoglyph"], notes: "G2 guard: exact brand domain" },
-  { input: "https://accounts.google.com", label: "benign", forbidReasons: ["brand_combosquat", "bait_tokens"], notes: "G3/G4 guard: legit brand subdomain, single bait token, registrable domain is the brand" },
-  { input: "https://login.microsoftonline.com", label: "benign", forbidReasons: ["brand_combosquat", "bait_tokens", "brand_lookalike"], notes: "G3/G4 guard: legit MS login host — single bait token, no hyphen-combo" },
-  { input: "https://amazonaws.com", label: "benign", forbidReasons: ["brand_combosquat", "brand_lookalike", "brand_soundsquat"], notes: "G3 guard: 'amazonaws' is a single concatenated token (no hyphen), not a combosquat" },
+  { input: "https://accounts.google.com", label: "benign", forbidReasons: ["bait_tokens"], notes: "G4 guard: legit brand subdomain, single bait token, registrable domain is the brand" },
+  { input: "https://login.microsoftonline.com", label: "benign", forbidReasons: ["bait_tokens", "brand_lookalike"], notes: "G4 guard: legit MS login host — single bait token" },
+  { input: "https://amazonaws.com", label: "benign", forbidReasons: ["brand_lookalike", "brand_soundsquat"], notes: "legit AWS host — not an edit-distance/soundsquat near-miss" },
   { input: "https://example.com/account/login", label: "benign", forbidReasons: ["bait_tokens"], notes: "G4 guard: 2 path-only bait tokens stays UNDER the host>=2 / total>=3 threshold" },
   { input: "https://netflix.com", label: "benign", forbidReasons: ["brand_soundsquat", "brand_lookalike", "brand_bitsquat"], notes: "T2/T3 guard: exact brand domain is the brand, never a homophone or bit-flip of itself" },
   { input: "https://dropbox.com", label: "benign", forbidReasons: ["brand_soundsquat", "brand_lookalike"], notes: "T2 guard: exact brand domain" },
