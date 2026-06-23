@@ -42,6 +42,43 @@ export interface InspectOptions {
   agentMode?: boolean;
 
   /**
+   * IDN handling (default `"block"`). An internationalized domain name — a
+   * registrable domain carrying a non-ASCII (Unicode/punycode) label — is, for a
+   * Western-market audience, almost always accidental, so it is **blocked by
+   * default**: a non-ASCII registrable domain emits the scoring `idn_host` reason
+   * (weight lands it `high` — enough to fail the default `high` gate, while
+   * `critical` stays reserved for the unambiguous homograph/script attacks).
+   *
+   * Set `"allow"` for deployments that legitimately serve internationalized
+   * domains (e.g. an Asian-market audience): IDNs are then not penalized and the
+   * verdict is the historical, IDN-agnostic one. For granular control under
+   * `"block"`, exempt specific domains with {@link idnAllowlist} instead.
+   *
+   * Unlike the policy axes below this is a **scoring** signal, not a weight-0
+   * advisory channel. The dangerous IDN subset (script-mixing, all-Latin-
+   * confusable homographs) is already `critical` via the built-in blockers
+   * regardless of this option; `idnPolicy` governs only the remaining *genuine*
+   * IDNs. IP / hostless inputs and pure-ASCII hosts are never affected.
+   *
+   * @example idnPolicy: "allow"
+   */
+  idnPolicy?: "block" | "allow";
+
+  /**
+   * IDN allow-list (only meaningful under `idnPolicy: "block"`). A non-ASCII
+   * registrable domain whose value matches an entry does **not** emit `idn_host`
+   * — the escape hatch for known-good internationalized domains while IDNs stay
+   * blocked by default.
+   *
+   * Values are registrable domains compared **case-insensitively** against the
+   * host's registrable domain (in its Unicode form); a leading dot is tolerated
+   * and stripped. Listing the registrable domain covers all its subdomains.
+   *
+   * @example idnAllowlist: ["münchen.de", "日本語.jp"]
+   */
+  idnAllowlist?: string[];
+
+  /**
    * Policy: TLD deny-list (default-allow). When set, a host whose TLD is in this
    * list emits the `tld_denied` policy reason. Everything else passes.
    *

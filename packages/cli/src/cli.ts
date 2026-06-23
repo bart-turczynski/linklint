@@ -28,6 +28,9 @@ Flags:
   --quiet               one line per URL
   --no-color            disable ANSI color
   --agent               enable agent-mode detectors (e.g. prompt-injection via URL)
+  --allow-idn           permit internationalized (Unicode/punycode) domains
+                        (default: IDNs are blocked at 'high')
+  --idn-allow <domain>  exempt a registrable domain from the IDN block (repeatable)
   --offline             reserved no-op in v1 (accepted and ignored)
   --help                print this help and exit
   --version             print version and exit
@@ -120,7 +123,12 @@ function runInspections(
   out: (line: string) => void,
 ): 0 | 1 {
   const results: InspectResult[] = [];
-  const inspectOptions = options.agent ? { agentMode: true } : {};
+  const inspectOptions = {
+    ...(options.agent ? { agentMode: true } : {}),
+    // IDNs are blocked by default; --allow-idn opts out, --idn-allow exempts hosts.
+    ...(options.allowIdn ? { idnPolicy: "allow" as const } : {}),
+    ...(options.idnAllowlist.length > 0 ? { idnAllowlist: options.idnAllowlist } : {}),
+  };
 
   if (options.json) {
     for (const url of urls) {

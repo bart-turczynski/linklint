@@ -19,6 +19,7 @@ import { brandInPath } from "./brand-in-path.js";
 import { brandLookalike } from "./brand-lookalike.js";
 import { skeletonCollision } from "./skeleton-collision.js";
 import { latinSkeletonHomograph } from "./latin-skeleton-homograph.js";
+import { idnHost } from "./idn-host.js";
 import { combosquatting } from "./combosquatting.js";
 import { soundsquatting } from "./soundsquatting.js";
 import { bitsquatting } from "./bitsquatting.js";
@@ -63,6 +64,7 @@ export {
   brandLookalike,
   skeletonCollision,
   latinSkeletonHomograph,
+  idnHost,
   combosquatting,
   soundsquatting,
   bitsquatting,

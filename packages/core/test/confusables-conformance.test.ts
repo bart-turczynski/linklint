@@ -98,7 +98,10 @@ describe("E2 — SC-2 de-noising holds with the official table", () => {
     { input: "https://café.com/", note: "French IDN" },
     { input: `https://${"пример"}.com`, note: "single-script Cyrillic word + ASCII TLD" },
   ])("$note stays benign: $input", ({ input }) => {
-    const r = inspect(input);
+    // idnPolicy "allow" isolates the DECEPTION analysis: these legit IDNs would
+    // otherwise be blocked by the default idn_host policy signal (not a confusable
+    // false-positive). This test is about confusable de-noising (SC-2).
+    const r = inspect(input, { idnPolicy: "allow" });
     expect(r.status).toBe("ok");
     expect(r.score).toBe(0);
     expect(r.severity).toBe("info");

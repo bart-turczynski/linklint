@@ -263,6 +263,21 @@ export const REASON_CODES = {
     summary:
       "Registrable domain's UTS#39 confusable skeleton equals a known brand domain exactly — a single-script whole-label homograph (an all-Cyrillic look-alike of a brand) that script-mixing checks cannot see.",
   },
+  idn_host: {
+    layer: "lexical",
+    scoring: true,
+    // POLICY-GATED scoring signal. The registrable domain is an internationalized
+    // domain (carries a non-ASCII label). Blocked by DEFAULT (idnPolicy "block"):
+    // for a Western-market audience a Unicode/punycode domain is almost always
+    // accidental. Weighted 0.7 so it lands HIGH on its own — enough to fail the
+    // default `--fail-on high` gate (an effective block) while leaving `critical`
+    // to the unambiguous homograph/script attacks. Suppressed entirely under
+    // idnPolicy "allow", or per-domain via idnAllowlist. The dangerous IDN subset
+    // is already critical via mixed_script / homograph_latin_skeleton regardless.
+    weight: 0.7,
+    summary:
+      "Registrable domain is an internationalized (non-ASCII/punycode) domain — blocked by default (idnPolicy 'block'); lands high. Set idnPolicy 'allow' or use idnAllowlist to exempt.",
+  },
   homograph_latin_skeleton: {
     layer: "lexical",
     scoring: true,

@@ -13,6 +13,13 @@ When("I inspect {string} in agent mode", function (this: LinklintWorld, input: s
   this.result = inspect(input, { agentMode: true });
 });
 
+// IDNs are blocked by default (idnPolicy "block"); this opts out so a scenario can
+// assert the DECEPTION analysis of a legitimate IDN in isolation.
+When("I inspect {string} allowing IDNs", function (this: LinklintWorld, input: string) {
+  this.input = input;
+  this.result = inspect(input, { idnPolicy: "allow" });
+});
+
 Then("the status is {string}", function (this: LinklintWorld, status: string) {
   assert.equal(this.result.status, status);
 });

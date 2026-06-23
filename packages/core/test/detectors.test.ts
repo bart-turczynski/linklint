@@ -128,8 +128,10 @@ describe("risky_tld is low and only matters in combination", () => {
 });
 
 describe("informational-only cases stay benign (SC-1a / SC-2)", () => {
+  // These isolate the DECEPTION analysis under idnPolicy "allow"; with the default
+  // "block" the same IDNs are deliberately flagged by idn_host (see idn-policy.test.ts).
   it("a single-script Cyrillic label on .com is benign with info reasons", () => {
-    const r = inspect("https://пример.com"); // пример = Cyrillic word
+    const r = inspect("https://пример.com", { idnPolicy: "allow" }); // пример = Cyrillic word
     expect(r.status).toBe("ok");
     expect(r.score).toBe(0);
     expect(r.severity).toBe("info");
@@ -138,13 +140,13 @@ describe("informational-only cases stay benign (SC-1a / SC-2)", () => {
   });
 
   it("a legitimate German IDN is benign", () => {
-    const r = inspect("https://müller.de/"); // müller.de
+    const r = inspect("https://müller.de/", { idnPolicy: "allow" }); // müller.de
     expect(r.score).toBe(0);
     expect(r.severity).toBe("info");
   });
 
   it("an ACE-form IDN with no scoring signal is benign", () => {
-    const r = inspect("https://xn--bcher-kva.de/"); // bücher.de
+    const r = inspect("https://xn--bcher-kva.de/", { idnPolicy: "allow" }); // bücher.de
     expect(r.score).toBe(0);
     expect(r.reasons.map((x) => x.code)).toContain("normalization_delta");
   });
@@ -203,6 +205,7 @@ describe("PRD canonical reference example", () => {
     expect(r.severity).toBe("critical");
     expect(r.reasons.map((x) => x.code)).toEqual([
       "mixed_script",
+      "idn_host",
       "userinfo_present",
       "confusable_char",
       "normalization_delta",

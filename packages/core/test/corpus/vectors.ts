@@ -1,4 +1,14 @@
+import type { InspectOptions } from "../../src/index.js";
 import type { CorpusRow } from "./corpus.js";
+
+/**
+ * IDN handling defaults to `"block"` (a non-ASCII registrable domain emits the
+ * scoring `idn_host` reason). These reference vectors test the *deception*
+ * analysis of legitimate IDNs — orthogonal to the policy block — so they run
+ * with `idnPolicy: "allow"` to isolate it. The default-block behavior is covered
+ * by the dedicated idn-policy test.
+ */
+const ALLOW_IDN: InspectOptions = { idnPolicy: "allow" };
 
 /**
  * E6 — shared IDN / PSL / host test vectors imported from the canonical sources
@@ -24,6 +34,7 @@ export const VECTORS: CorpusRow[] = [
   {
     input: "https://мойдомен.рф",
     label: "info",
+    options: ALLOW_IDN,
     expectReasons: ["normalization_delta"],
     forbidReasons: ["mixed_script", "punycode_malformed"],
     notes: "Russian IDN + Cyrillic ccTLD (.рф)",
@@ -32,6 +43,7 @@ export const VECTORS: CorpusRow[] = [
   {
     input: "https://例え.テスト",
     label: "info",
+    options: ALLOW_IDN,
     expectReasons: ["normalization_delta"],
     forbidReasons: ["mixed_script"],
     notes: "Japanese IDN + IDN TLD (.テスト)",
@@ -40,6 +52,7 @@ export const VECTORS: CorpusRow[] = [
   {
     input: "https://例子.中国",
     label: "info",
+    options: ALLOW_IDN,
     expectReasons: ["normalization_delta"],
     forbidReasons: ["mixed_script"],
     notes: "Chinese IDN + IDN ccTLD (.中国)",
@@ -48,6 +61,7 @@ export const VECTORS: CorpusRow[] = [
   {
     input: "https://나라.한국",
     label: "info",
+    options: ALLOW_IDN,
     expectReasons: ["normalization_delta"],
     forbidReasons: ["mixed_script"],
     notes: "Korean IDN + IDN ccTLD (.한국)",
@@ -56,6 +70,7 @@ export const VECTORS: CorpusRow[] = [
   {
     input: "https://उदाहरण.भारत",
     label: "info",
+    options: ALLOW_IDN,
     expectReasons: ["normalization_delta"],
     forbidReasons: ["mixed_script"],
     notes: "Hindi (Devanagari) IDN + IDN ccTLD (.भारत)",
@@ -64,6 +79,7 @@ export const VECTORS: CorpusRow[] = [
   {
     input: "https://مثال.إختبار",
     label: "info",
+    options: ALLOW_IDN,
     expectReasons: ["normalization_delta"],
     forbidReasons: ["mixed_script", "bidi_override"],
     notes: "Arabic (RTL) IDN — RTL letters must NOT trip bidi_override",
@@ -72,6 +88,7 @@ export const VECTORS: CorpusRow[] = [
   {
     input: "https://דוגמה.com",
     label: "info",
+    options: ALLOW_IDN,
     expectReasons: ["normalization_delta"],
     forbidReasons: ["mixed_script", "bidi_override"],
     notes: "Hebrew (RTL) IDN + ASCII TLD",
@@ -82,6 +99,7 @@ export const VECTORS: CorpusRow[] = [
   {
     input: "https://faß.de",
     label: "info",
+    options: ALLOW_IDN,
     expectReasons: ["normalization_delta"],
     forbidReasons: ["mixed_script", "punycode_malformed"],
     notes: "eszett (ß) stays ß under non-transitional processing",
@@ -90,6 +108,7 @@ export const VECTORS: CorpusRow[] = [
   {
     input: "https://xn--fa-hia.de",
     label: "info",
+    options: ALLOW_IDN,
     expectReasons: ["normalization_delta"],
     forbidReasons: ["punycode_malformed"],
     notes: "ACE form of faß.de — valid, must NOT be punycode_malformed",
@@ -98,6 +117,7 @@ export const VECTORS: CorpusRow[] = [
   {
     input: "https://straße.de",
     label: "info",
+    options: ALLOW_IDN,
     expectReasons: ["normalization_delta"],
     forbidReasons: ["mixed_script"],
     notes: "eszett mid-label",
@@ -106,6 +126,7 @@ export const VECTORS: CorpusRow[] = [
   {
     input: "https://Σίσυφος.gr",
     label: "info",
+    options: ALLOW_IDN,
     expectReasons: ["normalization_delta"],
     forbidReasons: ["mixed_script"],
     notes: "Greek with final sigma — single-script, benign",

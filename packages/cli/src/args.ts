@@ -28,6 +28,10 @@ export interface CheckOptions {
   noColor: boolean;
   /** True when agent mode is enabled (`--agent`): enables the agent-gated detectors. */
   agent: boolean;
+  /** True when `--allow-idn` is set: permits internationalized domains (default blocks them). */
+  allowIdn: boolean;
+  /** Registrable domains to exempt from the default IDN block (`--idn-allow`, repeatable). */
+  idnAllowlist: string[];
 }
 
 /** A fully-parsed CLI invocation. */
@@ -61,6 +65,8 @@ export function parseCli(argv: readonly string[]): ParsedCli {
         quiet: { type: "boolean", default: false },
         "no-color": { type: "boolean", default: false },
         agent: { type: "boolean", default: false },
+        "allow-idn": { type: "boolean", default: false },
+        "idn-allow": { type: "string", multiple: true },
         help: { type: "boolean", default: false },
         version: { type: "boolean", default: false },
       },
@@ -97,6 +103,8 @@ export function parseCli(argv: readonly string[]): ParsedCli {
     quiet: values.quiet,
     noColor: values["no-color"],
     agent: values.agent,
+    allowIdn: values["allow-idn"],
+    idnAllowlist: values["idn-allow"] ?? [],
   };
 
   if (command === "batch") {
