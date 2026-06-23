@@ -36,6 +36,19 @@ linklint check --json <url...>   # machine-readable JSON array of full results
 - **No outbound network** and **no telemetry** (v1). Nothing about an inspected
   URL leaves the process.
 
+## Library API
+
+`@linklint/cli` supports a small root-only library API for tests and thin
+wrappers:
+
+```ts
+import { parseCli, renderResults, resolveExitCode, run } from '@linklint/cli';
+```
+
+Supported exports are the argument parser, line parser, renderers, exit-policy
+helpers/constants, `run`, `main`, `USAGE`, `CLI_VERSION`, and `UsageError`.
+Deep imports are not supported; the executable remains the `linklint` bin.
+
 ## License
 
 MIT.
