@@ -284,8 +284,12 @@ Files and stdin skip blank lines and lines starting with `#`.
 | `--json` | Emit a JSON array of full `InspectResult` objects (no human text) |
 | `--fail-on <severity>` | Exit non-zero at/above this severity (`info`\|`low`\|`medium`\|`high`\|`critical`; default `high`) |
 | `--allow-invalid` | Treat unparseable URLs as a pass (default: fail) |
+| `--agent` | Enable the 5 agent-gated detectors (prompt-injection, API impersonation, credential-harvesting, data-exfiltration, cloud-metadata SSRF escalation) |
+| `--allow-idn` | Permit internationalized (Unicode/punycode) domains (default: block at `high`) |
+| `--idn-allow <domain>` | Exempt one registrable domain from the IDN block; repeatable |
 | `--quiet` | One line per URL |
 | `--no-color` | Disable ANSI color |
+| `--offline` | Reserved no-op in v1 (accepted and ignored) |
 | `--help` / `--version` | Print help / version and exit |
 
 Exit codes: `0` all URLs below the `--fail-on` threshold and none invalid (or allowed),

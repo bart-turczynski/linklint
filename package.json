@@ -17,12 +17,12 @@
     "check": "pnpm build && pnpm typecheck && pnpm test && pnpm features"
   },
   "devDependencies": {
-    "@cucumber/cucumber": "^12.0.0",
+    "@cucumber/cucumber": "^12.9.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@types/node": "^24.0.0",
-    "esbuild": "^0.28.0",
-    "tsx": "^4.20.0",
-    "typescript": "^5.8.0",
-    "vitest": "^4.1.0"
+    "@types/node": "^24.13.2",
+    "esbuild": "^0.28.1",
+    "tsx": "^4.22.4",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.9"
   }
 }

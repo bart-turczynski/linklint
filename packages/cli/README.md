@@ -8,20 +8,27 @@ deterministic, no telemetry.
 
 ```bash
 linklint check <url...>          # inspect one or more URLs
+linklint check                   # read URLs from stdin (one per line) when piped
 linklint check --json <url...>   # machine-readable JSON array of full results
+linklint batch <file>            # inspect URLs from a file (one per line)
 ```
+
+Files and stdin skip blank lines and lines starting with `#`.
 
 ### Flags
 
-| Flag                  | Effect                                                        |
-| --------------------- | ------------------------------------------------------------ |
-| `--json`              | emit a JSON array of the full `InspectResult` objects        |
-| `--fail-on <sev>`     | severity threshold for a non-zero exit (default `high`)       |
-| `--allow-invalid`     | treat unparseable URLs as a pass rather than a failure        |
-| `--quiet`             | one line per URL                                              |
-| `--no-color`          | disable ANSI color                                            |
-| `--offline`           | reserved no-op in v1 (accepted and ignored)                  |
-| `--help`, `--version` | print usage / version and exit 0                             |
+| Flag                  | Effect                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------------- |
+| `--json`              | emit a JSON array of the full `InspectResult` objects                                       |
+| `--fail-on <sev>`     | severity threshold for a non-zero exit (default `high`)                                     |
+| `--allow-invalid`     | treat unparseable URLs as a pass rather than a failure                                      |
+| `--agent`             | enable agent-gated detectors (prompt-injection, API impersonation, credential-harvesting, data-exfiltration, cloud-metadata SSRF escalation) |
+| `--allow-idn`         | permit internationalized (Unicode/punycode) domains (default: block at `high`)              |
+| `--idn-allow <domain>`| exempt one registrable domain from the IDN block (repeatable)                               |
+| `--quiet`             | one line per URL                                                                            |
+| `--no-color`          | disable ANSI color                                                                          |
+| `--offline`           | reserved no-op in v1 (accepted and ignored)                                                 |
+| `--help`, `--version` | print usage / version and exit 0                                                            |
 
 ## Exit codes
 
