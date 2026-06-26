@@ -3,6 +3,7 @@ import {
   CHECK_DOMAIN_INPUT,
   CHECK_URL_INPUT,
   PREFETCH_GUIDANCE,
+  resolveAgentMode,
   runCheck,
   toToolResult,
 } from "./check.js";
@@ -13,10 +14,14 @@ import {
  *
  * Both tools are read-only, do no outbound network I/O, and emit no telemetry
  * (FR-MCP-2). `check_domain` is an alias of `check_url` for hostname-oriented
- * callers — both return the identical core schema (no channel drift). The
- * optional agentMode flag is passed through to core inspect() explicitly.
+ * callers — both return the identical core schema (no channel drift).
+ *
+ * `defaultAgentMode` is the server-level fallback (set from LINKLINT_AGENT_MODE
+ * at the stdio entrypoint). A per-call `agentMode` always overrides it; only an
+ * omitted value uses the default. The resolved flag is passed through to core
+ * inspect() explicitly.
  */
-export function registerTools(server: McpServer): void {
+export function registerTools(server: McpServer, defaultAgentMode = false): void {
   server.registerTool(
     "check_url",
     {
@@ -26,7 +31,7 @@ export function registerTools(server: McpServer): void {
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async ({ url, agentMode }) =>
-      toToolResult(runCheck(url, agentMode === true ? { agentMode: true } : {})),
+      toToolResult(runCheck(url, resolveAgentMode(agentMode, defaultAgentMode) ? { agentMode: true } : {})),
   );
 
   server.registerTool(
@@ -38,6 +43,6 @@ export function registerTools(server: McpServer): void {
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async ({ domain, agentMode }) =>
-      toToolResult(runCheck(domain, agentMode === true ? { agentMode: true } : {})),
+      toToolResult(runCheck(domain, resolveAgentMode(agentMode, defaultAgentMode) ? { agentMode: true } : {})),
   );
 }

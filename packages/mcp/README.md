@@ -25,6 +25,22 @@ the V4 agent-family checks (`prompt_injection_url`, `api_endpoint_impersonation`
 `credential_harvesting`, `data_exfiltration`) plus the cloud-metadata SSRF
 escalation (`ssrf_cloud_metadata`).
 
+### Server default: `LINKLINT_AGENT_MODE`
+
+Set `LINKLINT_AGENT_MODE=1` (also `true`/`yes`/`on`) when launching the server to
+default **every** call to agent mode — useful when the server only ever serves an
+LLM/tool-use agent. A per-call `agentMode` still wins: a call passing
+`agentMode: false` opts out even when the server default is on, and `agentMode: true`
+opts in even when it is off. Unset (the default) keeps output byte-identical to core.
+
+```json
+{
+  "mcpServers": {
+    "linklint": { "command": "linklint-mcp", "env": { "LINKLINT_AGENT_MODE": "1" } }
+  }
+}
+```
+
 ## Run
 
 ```bash
