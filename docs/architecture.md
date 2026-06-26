@@ -151,7 +151,9 @@ Available axes (all optional, all default-allow):
 | `denyPorts` / `denyNonStandardPorts` | Port policy |
 | `maxDecodeDepth` | Decode-bomb guard |
 
-Enforcement is the consumer's job — linklint only reports the verdict.
+Enforcement is the consumer's job — linklint only reports the verdict. Ready-made
+fail-closed wrappers (Claude Code PreToolUse hook, curl/wget shell aliases) live in
+[`docs/enforcement.md`](enforcement.md).
 
 ## 9. Channels
 
