@@ -29,8 +29,9 @@ schemes. Resolution (redirects) and reputation (feeds) are roadmap.
 ```ts
 import { inspect } from 'linklint';
 
-const result = inspect('https://paypal.com@xn--pypal-4ve.ru/login');
-// → { status: 'ok', score: 0.7, severity: 'high', reasons: [...], ... }
+const result = inspect('https://paypal.com@evil.com/login');
+// → { status: 'ok', score: 0.5, severity: 'medium', reasons: [...], ... }
+//   paypal.com is a username — the real host is evil.com
 ```
 
 `inspect(input, options?)` is **synchronous**, does **no** network or filesystem I/O,
