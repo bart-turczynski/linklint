@@ -2,6 +2,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createRequire } from "node:module";
+import { parseAgentModeEnv } from "./tools/check.js";
 import { registerTools } from "./tools/index.js";
 
 const requirePackageJson = createRequire(import.meta.url);
@@ -14,7 +15,7 @@ export const SERVER_VERSION = packageJson.version;
  * Create a fully-configured linklint MCP server (tools registered, no transport
  * attached). Exported so tests can connect it to an in-memory transport.
  */
-export function createServer(): McpServer {
+export function createServer(options: { defaultAgentMode?: boolean } = {}): McpServer {
   const server = new McpServer(
     { name: "linklint", version: SERVER_VERSION },
     {
@@ -22,16 +23,17 @@ export function createServer(): McpServer {
         "linklint inspects URLs for deception offline. Call check_url (or " +
         "check_domain) on any untrusted URL BEFORE fetching it, and avoid " +
         "fetching results with severity high or critical. Pass agentMode: true " +
-        "when the caller is an LLM/tool-use agent and wants the agent-gated checks.",
+        "when the caller is an LLM/tool-use agent and wants the agent-gated checks; " +
+        "operators can default every call to agent mode with LINKLINT_AGENT_MODE=1.",
     },
   );
-  registerTools(server);
+  registerTools(server, options.defaultAgentMode ?? false);
   return server;
 }
 
 /** Start the server over stdio (local-only; no outbound network, no telemetry). */
 export async function main(): Promise<void> {
-  const server = createServer();
+  const server = createServer({ defaultAgentMode: parseAgentModeEnv(process.env.LINKLINT_AGENT_MODE) });
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
