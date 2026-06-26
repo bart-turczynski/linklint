@@ -51,6 +51,13 @@ docs — an earlier example hook was broken and failed **open**):
 - The hook sees only the **original** URL. WebFetch's own redirect-following
   happens later, inside tool execution, out of the hook's reach (per-hop
   revalidation is roadmap, not v1).
+- **Agent mode is ON by default** here — this hook *is* the agent context, so it
+  passes `--agent` and the agent-gated detectors (prompt-injection, SSRF
+  cloud-metadata escalation, API-endpoint impersonation, credential-harvesting,
+  data-exfiltration) are evaluated. Set `LINKLINT_AGENT=0` to disable. Note
+  `prompt_injection_url` is weight `0.5` (severity `medium`), so it does **not**
+  block at the default `LINKLINT_FAIL_ON=high`; pair it with
+  `LINKLINT_FAIL_ON=medium` to make URL-borne prompt injection deny the fetch.
 
 ## Shell-alias installer (curl / wget)
 

@@ -35,6 +35,18 @@ set -uo pipefail
 # stricter/looser gate; default matches the CLI default.
 FAIL_ON="${LINKLINT_FAIL_ON:-high}"
 
+# Agent mode. This hook IS the agent context — the URL is about to be fed to an
+# LLM via WebFetch — so the agent-gated detectors (prompt-injection, SSRF
+# cloud-metadata escalation, API-endpoint impersonation, credential-harvesting,
+# data-exfiltration) are ON by default. Set LINKLINT_AGENT=0 to disable.
+# Note: prompt_injection_url is weight 0.5 (severity `medium`); to make it BLOCK,
+# pair this with LINKLINT_FAIL_ON=medium.
+if [[ "${LINKLINT_AGENT:-1}" == "0" ]]; then
+  AGENT_FLAG=()
+else
+  AGENT_FLAG=(--agent)
+fi
+
 input=$(cat)
 
 # Unreadable input or no jq -> fail closed.
@@ -46,7 +58,7 @@ url=$(printf '%s' "$input" | jq -r '.tool_input.url // empty') \
 
 # Any non-zero exit — threshold hit, invalid input, missing binary (127),
 # internal error — falls into the deny branch.
-if ! linklint check "$url" --fail-on "$FAIL_ON" >/dev/null 2>&1; then
+if ! linklint check "$url" --fail-on "$FAIL_ON" "${AGENT_FLAG[@]}" >/dev/null 2>&1; then
   echo "linklint blocked: $url (>= $FAIL_ON, invalid, or check failed)" >&2
   exit 2
 fi
