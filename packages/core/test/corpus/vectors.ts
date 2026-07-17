@@ -10,6 +10,12 @@ import type { CorpusRow } from "./corpus.js";
  */
 const ALLOW_IDN: InspectOptions = { idnPolicy: "allow" };
 
+// Authority control chars for the paper vectors (E7), built from codepoints so
+// the byte sequence is unambiguous in source (matches the corpus convention).
+const TAB = String.fromCodePoint(0x09);
+const CR = String.fromCodePoint(0x0d);
+const LF = String.fromCodePoint(0x0a);
+
 /**
  * E6 — shared IDN / PSL / host test vectors imported from the canonical sources
  * the sibling repos (punycoder, pslr, rurl) maintain. All are reference data
@@ -356,4 +362,198 @@ export const VECTORS: CorpusRow[] = [
     notes: "valid canonical private IP → ip_private only, never ambiguous_numeric_host",
     source: "P3 precision guard / no-regression",
   },
+
+  // ── E7 (LINK-krzcupbk): adversarial URL-confusion paper vectors ────────────
+  // Byte-verified vectors from two academic papers, transcribed into rurl's
+  // committed external-url-vectors.csv (BSD-3-Clause feed) and mapped here to
+  // linklint-NATIVE verdicts (linklint judges DECEPTION, not spec-conformance —
+  // so these are NOT rurl's `diverges` verdicts). These lock in the measured
+  // Epic-P finding: linklint already catches the dangerous host-swap / evasion
+  // rows, mostly at CRITICAL, via shape detection.
+  //
+  //   Sources:
+  //   - Reynolds/Bates/Bailey, "Equivocal URLs", ESORICS '22 (Best Paper),
+  //     Table 3 U1–U8 + §6.2 GSB/VirusTotal misdirection vectors.
+  //   - Ajmani/Koishybayev/Kapravelos, "yoU aRe a Liar", SecWeb '22, §V
+  //     categories + §VI PoCs. Byte-verified vs wspr-ncsu/urlparsing-framework.
+  //   (eq-U1 NUL and eq-U7 raw-octet vectors are non-runnable placeholders in the
+  //   source and are intentionally omitted.)
+
+  // yoU-aRe-a-Liar §V/§VI — backslash / control-char / slash host confusion.
+  {
+    input: "http://google.com:80\\@yahoo.com",
+    label: "deceptive",
+    minSeverity: "critical",
+    expectReasons: ["ambiguous_authority", "userinfo_present"],
+    notes: "yal-001 §V.1 backslash-before-@ host swap (CVE-2020-26291); real host yahoo.com",
+    source: "yoU-aRe-a-Liar SecWeb'22 §V.1 (via rurl external-url-vectors.csv)",
+  },
+  {
+    input: `https://user:pass@xdavidhu.me${TAB}est.corp.google.com`,
+    label: "deceptive",
+    minSeverity: "critical",
+    expectReasons: ["control_char", "ambiguous_authority"],
+    notes: "yal-002 §V.3 literal TAB in authority — WHATWG strips, others disagree",
+    source: "yoU-aRe-a-Liar SecWeb'22 §V.3 (via rurl external-url-vectors.csv)",
+  },
+  {
+    input: `http://127.0.0.${CR}${LF}1:6379?SET${CR}${LF}test${CR}${LF}failure12:80`,
+    label: "deceptive",
+    minSeverity: "critical",
+    expectReasons: ["control_char", "ip_loopback"],
+    notes: "yal-003 §V.3 CRLF-in-host redis SSRF; WHATWG resolves to 127.0.0.1",
+    source: "yoU-aRe-a-Liar SecWeb'22 §V.3 (via rurl external-url-vectors.csv)",
+  },
+  {
+    input: "https:/\\/\\/\\github.com/foo/bar",
+    label: "invalid",
+    expectReasons: ["ambiguous_authority"],
+    notes: "yal-004 §V.4 mixed //\\ before host — ambiguous authority, unparseable",
+    source: "yoU-aRe-a-Liar SecWeb'22 §V.4 (via rurl external-url-vectors.csv)",
+  },
+  {
+    input: "http://ヒ:キ@ヒ.abc.ニ/ヒ",
+    label: "deceptive",
+    minSeverity: "critical",
+    expectReasons: ["userinfo_present"],
+    notes: "yal-005 §V.7 non-ASCII host + userinfo spoof (katakana)",
+    source: "yoU-aRe-a-Liar SecWeb'22 §V.7 (via rurl external-url-vectors.csv)",
+  },
+  {
+    input: "https:///evil.com",
+    label: "invalid",
+    expectReasons: ["ambiguous_authority"],
+    notes: "yal-006 §VI.B empty-authority slash confusion — RFC-empty-host SSRF-filter bypass PoC",
+    source: "yoU-aRe-a-Liar SecWeb'22 §VI.B (via rurl external-url-vectors.csv)",
+  },
+  {
+    input: "http://example.com:80\\@localhost:8080/secret.txt",
+    label: "deceptive",
+    minSeverity: "critical",
+    expectReasons: ["ambiguous_authority", "userinfo_present"],
+    notes: "yal-007 §VI.A allow-list-bypass PoC (validate example.com, fetch localhost)",
+    source: "yoU-aRe-a-Liar SecWeb'22 §VI.A (via rurl external-url-vectors.csv)",
+  },
+  {
+    input: "foo://///////bar.com/",
+    label: "invalid",
+    expectReasons: ["ambiguous_authority"],
+    notes: "yal-008 §V.5 many-slashes non-special scheme — ambiguous authority",
+    source: "yoU-aRe-a-Liar SecWeb'22 §V.5 (via rurl external-url-vectors.csv)",
+  },
+  {
+    input: "www.php.net:80/index.php?test=1",
+    label: "benign",
+    forbidReasons: ["ambiguous_authority", "userinfo_present"],
+    notes:
+      "yal-009 §V.2 schemeless host:port — documented Epic-P low-value MISS: no attacker host, " +
+      "linklint infers http and reads www.php.net as host (benign)",
+    source: "yoU-aRe-a-Liar SecWeb'22 §V.2 (via rurl external-url-vectors.csv)",
+  },
+
+  // Equivocal URLs, Table 3 (U2–U8) + §6.2 GSB evasion.
+  {
+    input: "https://n.pr\\@e.gg",
+    label: "deceptive",
+    minSeverity: "critical",
+    expectReasons: ["ambiguous_authority", "userinfo_present"],
+    notes: "eq-U2 Pitfall 2 backslash correction; browsers→n.pr, RFC→e.gg",
+    source: "Equivocal URLs ESORICS'22 Table 3 U2 (via rurl external-url-vectors.csv)",
+  },
+  {
+    input: "https://n.pr][e.gg",
+    label: "invalid",
+    notes: "eq-U3 Pitfall 4 balanced-but-unmatched brackets ][ in host — unparseable",
+    source: "Equivocal URLs ESORICS'22 Table 3 U3 (via rurl external-url-vectors.csv)",
+  },
+  {
+    input: "https://n.pr#@e.gg",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ambiguous_authority"],
+    notes: "eq-U4 Pitfall 7 extra delimiter (# then @) — # opens fragment, host n.pr",
+    source: "Equivocal URLs ESORICS'22 Table 3 U4 (via rurl external-url-vectors.csv)",
+  },
+  {
+    input: "https://n.pr%2ee.gg",
+    label: "deceptive",
+    expectReasons: ["encoding_obfuscation"],
+    notes: "eq-U5 Pitfall 3 overeager %2e decode → n.pr.e.gg; encoded '.' in host",
+    source: "Equivocal URLs ESORICS'22 Table 3 U5 (via rurl external-url-vectors.csv)",
+  },
+  {
+    input: `https://n.pr${LF}e.gg`,
+    label: "deceptive",
+    minSeverity: "critical",
+    expectReasons: ["control_char"],
+    notes: "eq-U6 Pitfall 6 LF (0x0A) in host — WHATWG strips, linklint flags the control char",
+    source: "Equivocal URLs ESORICS'22 Table 3 U6 (via rurl external-url-vectors.csv)",
+  },
+  {
+    input: "https://n.prİ@e.gg",
+    label: "deceptive",
+    expectReasons: ["userinfo_present"],
+    notes: "eq-U8 Pitfall 5 dotted-capital İ (U+0130) then @ — userinfo spoof, real host e.gg",
+    source: "Equivocal URLs ESORICS'22 Table 3 U8 (via rurl external-url-vectors.csv)",
+  },
+  {
+    input: "https://malware.testing.google.test/testing/malware/*",
+    label: "benign",
+    forbidReasons: ["userinfo_present", "ambiguous_authority", "embedded_domain_in_subdomain"],
+    notes:
+      "eq-gsb §6.2 GSB always-flagged baseline — NOT lexically deceptive; linklint is a lexical " +
+      "deception detector, not a reputation/blocklist service (benign by design)",
+    source: "Equivocal URLs ESORICS'22 §6.2 (via rurl external-url-vectors.csv)",
+  },
+  {
+    input: "http://letsencrypt.org%2F@malware.testing.google.test/testing/malware/*",
+    label: "deceptive",
+    expectReasons: ["userinfo_present"],
+    notes:
+      "eq-pe1 §6.2 GSB API/web evasion via %2F over-decode — real host is the google.test malware " +
+      "host; linklint flags the userinfo spoof GSB missed",
+    source: "Equivocal URLs ESORICS'22 §6.2 (via rurl external-url-vectors.csv)",
+  },
+  {
+    input: "http://letsencrypt.org%5C@malware.testing.google.test/testing/malware/*",
+    label: "deceptive",
+    expectReasons: ["userinfo_present"],
+    notes: "eq-pe2 §6.2 GSB API evasion via %5C backslash-correction — userinfo spoof",
+    source: "Equivocal URLs ESORICS'22 §6.2 (via rurl external-url-vectors.csv)",
+  },
+  {
+    input: "https://malware.testing.google.test\\testing\\malware\\*@letsencrypt.org",
+    label: "deceptive",
+    minSeverity: "critical",
+    expectReasons: ["ambiguous_authority", "userinfo_present"],
+    notes: "eq-bs §6.2 GSB web-interface evasion via literal backslashes — host equivocation",
+    source: "Equivocal URLs ESORICS'22 §6.2 (via rurl external-url-vectors.csv)",
+  },
+
+  // ── E8 (LINK-krzcupbk): PSL-harms multi-tenant eTLD benign set ─────────────
+  // McQuistin et al., "Privacy Harms of the PSL" (IMC '23), Table 2. These legit
+  // multi-tenant hosts must stay BENIGN in the full inspect() pipeline — a stale
+  // PSL or an over-eager embedded-domain/brand heuristic must not manufacture a
+  // false deception signal. (The PSL FRESHNESS gate — asserting the correct
+  // registrable boundary against the bundled list — lives in freshness-corpus.
+  // test.ts, P2; these rows guard the deception layer, not the boundary.)
+  ...(
+    [
+      "https://myshop.myshopify.com/",
+      "https://docs.readthedocs.io/",
+      "https://myapp.netlify.app/",
+      "https://site.web.app/",
+      "https://portfolio.carrd.co/",
+      "https://bucket.nyc3.digitaloceanspaces.com/",
+      "https://svc.uc.r.appspot.com/",
+    ] as const
+  ).map(
+    (input): CorpusRow => ({
+      input,
+      label: "benign",
+      forbidReasons: ["embedded_domain_in_subdomain", "brand_lookalike", "ambiguous_authority"],
+      notes: "IMC'23 Table-2 multi-tenant eTLD — legit tenant host, no false deception signal",
+      source: "PSL-harms IMC'23 Table 2 (via pslr / P2 freshness corpus)",
+    }),
+  ),
 ];
