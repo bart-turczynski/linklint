@@ -179,6 +179,8 @@ The three-layer model is a forward-compatibility contract:
 
 L2 and L3 extend `checksRun` / `checksSkipped` — they add to lexical results, never replace them. Until they are built, the score is always a lower bound over L1 alone.
 
+**Result cache (opt-in).** So networked enrichers don't re-hit third parties on every call, `inspectAsync` accepts a pluggable `EnrichmentCache` (`get`/`set` carrying a TTL; `InMemoryEnrichmentCache` is the dependency-free default). An enricher opts in per-source by declaring a `cacheKey(result)` and a positive `cacheTtlMs`; a cache hit skips the network call but still counts as a run (`<layer>:<id>` in `checksRun`). Failures and skips are never cached. **Privacy:** the cache key is entirely enricher-supplied — the framework never derives a key from the full URL, so an enricher must key on a privacy-preserving projection (registrable domain, hash-prefix), never the URL itself.
+
 ## 11. Testing
 
 Two runners:

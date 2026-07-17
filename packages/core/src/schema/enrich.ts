@@ -16,10 +16,12 @@
  *
  * Per-finding `confidence` (K2, FR-SCORE-2b) IS here: an optional [0,1] measure
  * of how reliable a probabilistic signal is, min-aggregated into the result's
- * top-level `confidence`. Deliberately NOT here (later units, clean seams left
- * open): caching (K3), rate-limit / timeout / backoff policy (K4), allowlist /
- * feedback (K5). {@link EnrichmentContext} is the single extension point those
- * units grow — add fields there without changing `enrich`'s arity.
+ * top-level `confidence`. Optional per-source cache metadata (K3, `cacheKey` /
+ * `cacheTtlMs`) IS here too — the store itself lives in `enrichment-cache.ts`.
+ * Deliberately NOT here (later units, clean seams left open): rate-limit / timeout
+ * / backoff policy (K4), allowlist / feedback (K5). {@link EnrichmentContext} is
+ * the single extension point those units grow — add fields there without changing
+ * `enrich`'s arity.
  */
 
 import type { ReasonCode } from "./reason-codes.js";
@@ -97,4 +99,31 @@ export interface Enricher {
    * cancellation-carrying context. Resolves to zero or more findings.
    */
   enrich(result: InspectResult, ctx: EnrichmentContext): Promise<EnricherFinding[]>;
+  /**
+   * OPTIONAL result-cache key (LINK-wtnpkbkf, unit K3). When a cache is supplied
+   * to `inspectAsync` AND this returns a non-null string, the pipeline reuses a
+   * cached prior run under that key instead of calling {@link enrich} again; a
+   * cache hit still counts as a run (recorded in `checksRun` as `<layer>:<id>`).
+   *
+   * Omitting `cacheKey`, or returning `null`, means this enricher is NEVER cached
+   * (it runs every call). It is also never cached unless a positive, finite
+   * {@link cacheTtlMs} is declared — a `cacheKey` without a TTL degrades to
+   * "run fresh every time", never to a guessed default.
+   *
+   * PRIVACY (umbrella binding constraint, docs/architecture.md §10): the key is
+   * ENTIRELY the enricher's responsibility and the framework NEVER derives one
+   * from the full URL. An enricher MUST key on a privacy-preserving projection —
+   * e.g. the registrable domain or a hash-prefix — and MUST NOT return the full
+   * URL (or anything from which it can be reconstructed) as the key.
+   */
+  cacheKey?(result: InspectResult): string | null;
+  /**
+   * OPTIONAL per-source time-to-live, in milliseconds, for entries this enricher
+   * writes (LINK-wtnpkbkf, unit K3). Applied per `set()`, so each enricher's cache
+   * entries expire on their own schedule ("per-source TTLs"). Required (positive,
+   * finite) for caching to take effect: if {@link cacheKey} yields a key but this
+   * is absent/non-positive, the enricher runs fresh every call and nothing is
+   * stored.
+   */
+  cacheTtlMs?: number;
 }
