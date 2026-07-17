@@ -71,7 +71,8 @@ export interface EnrichmentGovernor {
   recordSuccess(token: string): void;
   /**
    * Record that an admitted run for `token` did NOT cleanly succeed — a timeout,
-   * a throw/reject, an observed post-abort, or a malformed (non-array) return.
+   * a throw/reject, an observed post-abort, a source-declared failure, or an
+   * invalid legacy/structured return.
    * Increments the consecutive-failure count and opens an exponentially larger
    * backoff window.
    */

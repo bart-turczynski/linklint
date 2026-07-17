@@ -1,6 +1,7 @@
 import { SCHEMA_VERSION, type Layer, type Status, type Severity } from "./base.js";
 import type { ParsedUrl } from "./parsed.js";
 import type { PslSnapshot } from "../data/psl-provenance.js";
+import type { EnrichmentReport } from "./enrich.js";
 
 export type { PslSnapshot } from "../data/psl-provenance.js";
 
@@ -88,4 +89,11 @@ export interface InspectResult {
    * learn the provenance of the trust boundary they are handed.
    */
   pslSnapshot: PslSnapshot;
+  /**
+   * Versioned per-source online outcomes and evidence. Present only when
+   * `inspectAsync()` is called with at least one enricher; synchronous
+   * `inspect()` output and the no-enricher async path do not add the field.
+   * Added in schema 1.3 (LINK-isytbvjy).
+   */
+  enrichment?: EnrichmentReport;
 }

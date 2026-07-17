@@ -191,18 +191,21 @@ are **version-pinned** (`dataVersions` on every result) so verdicts are reproduc
 
 ```ts
 interface InspectResult {
-  schemaVersion: '1.0';
+  schemaVersion: '1.3';
   status: 'ok' | 'invalid';
   input: string;
   parsed: ParsedUrl | null;        // scheme, userinfo, registrableDomain, publicSuffix,
                                    // subdomain, hostLabels, port, path, query, fragment, isIp …
   score: number | null;            // [0,1] when ok; null when invalid
   severity: 'info' | 'low' | 'medium' | 'high' | 'critical' | null;
+  confidence: number;              // [0,1], independent from score
   reasons: Reason[];               // { code, layer, detail, weight }
   confusables: Confusable[];       // per-character expansion of confusable findings
   checksRun: string[];             // e.g. ['lexical', 'policy']
   checksSkipped: string[];         // e.g. ['resolution', 'reputation']
   dataVersions: DataVersions;      // pinned PSL / confusables / scripts / IDNA / brands / weights
+  pslSnapshot: PslSnapshot;        // PSL observation date + advisory staleness
+  enrichment?: EnrichmentReport;   // inspectAsync() only; versioned source outcomes/evidence
 }
 ```
 
@@ -212,7 +215,8 @@ interface InspectResult {
 
 The full registry of reason codes lives in
 [`docs/reason-codes.md`](./docs/reason-codes.md); the scoring model in
-[`docs/scoring.md`](./docs/scoring.md).
+[`docs/scoring.md`](./docs/scoring.md); and the opt-in online evidence contract in
+[`docs/enrichment-outcomes.md`](./docs/enrichment-outcomes.md).
 
 ## Policy layer — caller-configurable allow/deny
 

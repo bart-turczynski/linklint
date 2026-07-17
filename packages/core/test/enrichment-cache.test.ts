@@ -8,6 +8,7 @@ import {
 import type {
   Enricher,
   EnricherFinding,
+  EnricherOutput,
   EnrichmentContext,
   EnrichmentLayer,
   InspectResult,
@@ -277,7 +278,7 @@ describe("enrichment cache — pluggable custom store is honored", () => {
   it("routes get/set through a caller-supplied EnrichmentCache implementation", async () => {
     const gets: string[] = [];
     const sets: Array<{ key: string; ttlMs: number }> = [];
-    const backing = new Map<string, EnricherFinding[]>();
+    const backing = new Map<string, EnricherOutput>();
     const custom: EnrichmentCache = {
       get(key) {
         gets.push(key);

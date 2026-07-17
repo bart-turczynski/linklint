@@ -4,6 +4,10 @@ import type {
   EnricherFinding,
   EnrichmentContext,
   EnrichmentLayer,
+  EnrichmentOutcome,
+  EnrichmentReport,
+  EnrichmentSubject,
+  EnricherOutput,
   InspectOptions,
   InspectResult,
   Reason,
@@ -15,6 +19,11 @@ import { reasonMeta, weightFor } from "./schema/reason-codes.js";
 import { aggregate } from "./scoring/score.js";
 import { applySuppressions, suppressionHostContext } from "./scoring/suppress.js";
 import { normalizeSuppressReasons } from "./parse/runtime.js";
+import {
+  ENRICHMENT_SCHEMA_VERSION,
+  isEnricherFindingArray,
+  isEnrichmentReport,
+} from "./schema/enrich.js";
 
 /**
  * Options for {@link inspectAsync}. A superset of the synchronous
@@ -59,10 +68,11 @@ export interface InspectAsyncOptions extends InspectOptions {
 /** The bare per-layer placeholder tokens `inspect()` seeds into `checksSkipped`. */
 const LAYER_PLACEHOLDERS: readonly EnrichmentLayer[] = ["resolution", "reputation"];
 
-/** Per-enricher outcome after running (or declining to run) it. */
-type EnricherOutcome =
-  | { kind: "run"; token: string; findings: EnricherFinding[] }
-  | { kind: "skipped"; token: string };
+/** Validated per-enricher report after running (or declining to run) it. */
+interface EnricherRun {
+  token: string;
+  report: EnrichmentReport;
+}
 
 /**
  * Async, opt-in enrichment entry point (LINK-iprlxqxb, unit K1).
@@ -104,7 +114,7 @@ export async function inspectAsync(
     options.signal !== undefined ? { signal: options.signal } : {};
   const cache = options.cache;
   const governor = options.governor;
-  const outcomes = await Promise.all(
+  const runs = await Promise.all(
     enrichers.map((enricher) => runEnricher(enricher, base, ctx, cache, governor)),
   );
 
@@ -112,14 +122,21 @@ export async function inspectAsync(
   const configuredLayers = new Set<EnrichmentLayer>(enrichers.map((e) => e.layer));
 
   const enrichmentFindings: EnricherFinding[] = [];
+  const enrichmentOutcomes: EnrichmentOutcome[] = [];
   const runTokens: string[] = [];
   const skippedTokens: string[] = [];
-  for (const outcome of outcomes) {
-    if (outcome.kind === "run") {
-      runTokens.push(outcome.token);
-      enrichmentFindings.push(...outcome.findings);
-    } else {
-      skippedTokens.push(outcome.token);
+  for (const run of runs) {
+    enrichmentOutcomes.push(...run.report.outcomes);
+    const completed = run.report.outcomes.some(
+      (outcome) => outcome.status === "success" || outcome.status === "no-hit",
+    );
+    const incomplete = run.report.outcomes.some(
+      (outcome) => outcome.status === "skipped" || outcome.status === "failure",
+    );
+    if (completed) runTokens.push(run.token);
+    if (incomplete) skippedTokens.push(run.token);
+    for (const outcome of run.report.outcomes) {
+      if (outcome.status === "success") enrichmentFindings.push(...outcome.findings);
     }
   }
 
@@ -195,6 +212,10 @@ export async function inspectAsync(
     confidence,
     checksRun,
     checksSkipped,
+    enrichment: {
+      schemaVersion: ENRICHMENT_SCHEMA_VERSION,
+      outcomes: enrichmentOutcomes,
+    },
   };
 }
 
@@ -202,15 +223,15 @@ export async function inspectAsync(
 const TIMED_OUT = Symbol("timed-out");
 
 /**
- * Run a single enricher behind a total guard. Resolves to a `run` outcome with
- * its findings on success, or a `skipped` outcome on cancellation, rejection, a
- * malformed (non-array) return, a rate-limit/backoff skip, or a bounded-timeout.
- * Never rejects — graceful degradation is the whole point.
+ * Run a single enricher behind a total guard. Resolves to a validated structured
+ * report on success/no-hit or to an explicit skipped/failure report on
+ * cancellation, rejection, invalid output, governor refusal, or timeout. Never
+ * rejects — graceful degradation is the whole point.
  *
  * Ordering (K3 cache × K4 governor — the interplay matters):
  *  1. **Already-aborted signal → skip** without touching cache or governor.
- *  2. **Cache FIRST.** A HIT (LINK-wtnpkbkf, K3) returns the cached findings as a
- *     `run` outcome WITHOUT calling `enrich`, and MUST NOT consume a rate-limit
+ *  2. **Cache FIRST.** A HIT (LINK-wtnpkbkf, K3) returns the cached output
+ *     WITHOUT calling `enrich`, and MUST NOT consume a rate-limit
  *     token, start a timeout, or touch backoff — no network happened.
  *  3. On a cache MISS, **consult the governor** (LINK-bergliii, K4) if supplied:
  *     rate-limited OR in an open backoff window → skip (never call `enrich`).
@@ -218,7 +239,7 @@ const TIMED_OUT = Symbol("timed-out");
  *  4. Otherwise run `enrich` under the bounded timeout. Timeout, throw/reject,
  *     observed post-abort, or a malformed return → skip AND record a governor
  *     failure (backoff); the result is NEVER cached. A clean success → record a
- *     governor success (reset backoff), store in cache, and return `run`.
+ *     governor success (reset backoff), and store complete success/no-hit output.
  *
  * With no governor the timeout/rate-limit/backoff machinery is entirely inert, so
  * this path stays byte-for-byte K1–K3.
@@ -229,11 +250,16 @@ async function runEnricher(
   ctx: EnrichmentContext,
   cache: EnrichmentCache | undefined,
   governor: EnrichmentGovernor | undefined,
-): Promise<EnricherOutcome> {
+): Promise<EnricherRun> {
   const token = `${enricher.layer}:${enricher.id}`;
   // A signal already aborted before we start: skip without invoking. Checked
   // BEFORE the cache so an aborted call never even reads from it.
-  if (ctx.signal?.aborted) return { kind: "skipped", token };
+  if (ctx.signal?.aborted) {
+    return {
+      token,
+      report: frameworkReport(enricher, base, "skipped", "caller-aborted", false),
+    };
+  }
 
   // Resolve the (optional) cache slot. The key is entirely enricher-supplied —
   // the framework never derives it from the URL (privacy constraint).
@@ -241,16 +267,28 @@ async function runEnricher(
   if (slot !== null) {
     const cached = slot.cache.get(slot.key);
     // Cache HIT: a successful prior run stands in for this one. It still counts
-    // as run, so its findings flow into reasons/confidence exactly like fresh.
+    // as run, so its report/findings flow through exactly like fresh output.
     // No token is spent and no timeout starts — cache-before-governor is the point.
-    if (cached !== undefined) return { kind: "run", token, findings: cached };
+    if (cached !== undefined) {
+      return {
+        token,
+        report:
+          normalizeOutput(cached, enricher, base) ??
+          frameworkReport(enricher, base, "failure", "invalid-cached-output", false),
+      };
+    }
   }
 
   // Cache MISS: consult the governor (if any) before spending a network call.
   let timeoutMs = enricher.timeoutMs;
   if (governor !== undefined) {
     const decision = governor.admit(token);
-    if (!decision.run) return { kind: "skipped", token };
+    if (!decision.run) {
+      return {
+        token,
+        report: frameworkReport(enricher, base, "skipped", "governor-denied", true),
+      };
+    }
     // Enricher's own timeout wins; otherwise fall back to the governor default.
     timeoutMs = enricher.timeoutMs ?? decision.timeoutMs;
   } else {
@@ -264,33 +302,69 @@ async function runEnricher(
       // The bounded timeout fired (or the signal aborted mid-race): degrade and
       // record a failure so repeated slowness opens a backoff window.
       governor?.recordFailure(token);
-      return { kind: "skipped", token };
+      if (ctx.signal?.aborted) {
+        return {
+          token,
+          report: frameworkReport(enricher, base, "skipped", "caller-aborted", false),
+        };
+      }
+      return {
+        token,
+        report: frameworkReport(enricher, base, "failure", "timeout", true),
+      };
     }
     // A completion observed after cancellation is treated as skipped, so an
     // enricher that ignores the signal still degrades rather than leaking. A
     // cancelled run is NEVER cached; it counts as a failure for backoff.
     if (ctx.signal?.aborted) {
       governor?.recordFailure(token);
-      return { kind: "skipped", token };
+      return {
+        token,
+        report: frameworkReport(enricher, base, "skipped", "caller-aborted", false),
+      };
     }
-    if (!Array.isArray(outcome)) {
+    const report = normalizeOutput(outcome, enricher, base);
+    if (report === null) {
       governor?.recordFailure(token);
-      return { kind: "skipped", token };
+      return {
+        token,
+        report: frameworkReport(enricher, base, "failure", "invalid-output", false),
+      };
     }
-    // Clean success: reset backoff, then store this run under its slot for reuse.
-    governor?.recordSuccess(token);
-    if (slot !== null) slot.cache.set(slot.key, outcome, slot.ttlMs);
-    return { kind: "run", token, findings: outcome };
+    // A source-declared failure feeds backoff; successful/no-hit/skipped reports
+    // are clean protocol completions. Only wholly completed success/no-hit reports
+    // are cached — partial, skipped, and failed reports are never negative-cached.
+    if (report.outcomes.some((item) => item.status === "failure")) {
+      governor?.recordFailure(token);
+    } else {
+      governor?.recordSuccess(token);
+    }
+    if (
+      slot !== null &&
+      report.outcomes.every((item) => item.status === "success" || item.status === "no-hit")
+    ) {
+      slot.cache.set(slot.key, outcome, slot.ttlMs);
+    }
+    return { token, report };
   } catch {
-    // Any throw/rejection (including an abort) degrades to a skip — never cached,
-    // and counts as a failure for backoff.
+    // Any throw/rejection is never cached and is counted for backoff. A caller
+    // abort stays a skip; other source errors become explicit failures.
     governor?.recordFailure(token);
-    return { kind: "skipped", token };
+    if (ctx.signal?.aborted) {
+      return {
+        token,
+        report: frameworkReport(enricher, base, "skipped", "caller-aborted", false),
+      };
+    }
+    return {
+      token,
+      report: frameworkReport(enricher, base, "failure", "source-error", true),
+    };
   }
 }
 
 /**
- * Run `enrich` bounded by `timeoutMs`. Returns the enricher's findings, or the
+ * Run `enrich` bounded by `timeoutMs`. Returns the enricher's output, or the
  * {@link TIMED_OUT} sentinel when the timeout (or the caller's signal) fires first.
  *
  * When a positive, finite timeout is set, a timer-driven {@link AbortController}
@@ -310,7 +384,7 @@ async function runWithTimeout(
   base: InspectResult,
   ctx: EnrichmentContext,
   timeoutMs: number | undefined,
-): Promise<EnricherFinding[] | typeof TIMED_OUT> {
+): Promise<EnricherOutput | typeof TIMED_OUT> {
   if (timeoutMs === undefined || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     return enricher.enrich(base, ctx);
   }
@@ -338,6 +412,101 @@ async function runWithTimeout(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Validate structured output or adapt a legacy findings array without inventing provenance. */
+function normalizeOutput(
+  output: unknown,
+  enricher: Enricher,
+  base: InspectResult,
+): EnrichmentReport | null {
+  if (isEnricherFindingArray(output)) return legacyReport(enricher, base, output);
+  if (
+    !isEnrichmentReport(output, { sourceId: enricher.id, layer: enricher.layer }) ||
+    output.outcomes.some(
+      (item) =>
+        item.provenance.kind !== "declared" ||
+        item.evidence.some((evidence) => evidence.provenance.kind !== "declared"),
+    )
+  ) {
+    return null;
+  }
+  return output;
+}
+
+/** Compatibility adapter for the pre-K6 flat output. Empty arrays remain visibly ambiguous. */
+function legacyReport(
+  enricher: Enricher,
+  base: InspectResult,
+  findings: EnricherFinding[],
+): EnrichmentReport {
+  const observedAt = new Date().toISOString();
+  const subject = inspectionSubject(base);
+  const provenance = { kind: "legacy-incomplete", source: null, data: null } as const;
+  const freshness = { status: "unknown", expiresAt: null } as const;
+  return {
+    schemaVersion: ENRICHMENT_SCHEMA_VERSION,
+    outcomes: [
+      {
+        sourceId: enricher.id,
+        layer: enricher.layer,
+        status: "success",
+        subject,
+        observedAt,
+        provenance,
+        freshness,
+        evidence:
+          findings.length === 0
+            ? [
+                {
+                  type: "legacy.empty-result",
+                  subject,
+                  observedAt,
+                  provenance,
+                  freshness,
+                  payload: { semantics: "unknown" },
+                },
+              ]
+            : [],
+        findings,
+      },
+    ],
+  };
+}
+
+/** Build an explicit framework-owned degradation outcome. */
+function frameworkReport(
+  enricher: Enricher,
+  base: InspectResult,
+  status: "skipped" | "failure",
+  code: string,
+  retryable: boolean,
+): EnrichmentReport {
+  return {
+    schemaVersion: ENRICHMENT_SCHEMA_VERSION,
+    outcomes: [
+      {
+        sourceId: enricher.id,
+        layer: enricher.layer,
+        status,
+        subject: inspectionSubject(base),
+        observedAt: new Date().toISOString(),
+        provenance: { kind: "unavailable", source: null, data: null },
+        freshness: { status: "unknown", expiresAt: null },
+        evidence: [],
+        findings: [],
+        cause: { code, retryable },
+      },
+    ],
+  };
+}
+
+/** The subject core can state truthfully without guessing what a source queried. */
+function inspectionSubject(base: InspectResult): EnrichmentSubject {
+  if (base.parsed?.scheme === null && base.parsed.effectiveHost !== null) {
+    return { kind: "host", value: base.parsed.effectiveHost };
+  }
+  return { kind: "url", value: base.input };
 }
 
 /** A resolved cache slot: the store, the namespaced key, and the TTL to write. */

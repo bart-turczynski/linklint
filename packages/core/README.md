@@ -46,6 +46,12 @@ secondary entry points. New advanced consumers should import from
 `linklint/experimental`, `linklint/metadata`, or `linklint/data`; those subpaths
 are the documented migration path if the root is narrowed in a future major.
 
+`inspectAsync()` is the opt-in orchestration surface for caller-supplied online
+work. New enrichers return versioned, source-attributed outcomes and evidence;
+the synchronous package itself still performs no network I/O. See
+[`docs/enrichment-outcomes.md`](../../docs/enrichment-outcomes.md) for the public
+contract, status semantics, validation rules, and legacy-findings migration.
+
 ## License
 
 MIT.

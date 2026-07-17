@@ -8,9 +8,10 @@
 /**
  * Current schema version. Bumped on every contract change — additive minor
  * bumps included, so consumers can pin behavior: 1.0→1.1 added `confidence`,
- * 1.1→1.2 added `pslSnapshot` (both back-compatible field additions).
+ * 1.1→1.2 added `pslSnapshot`, and 1.2→1.3 added the optional structured
+ * `enrichment` report (all backward-compatible field additions).
  */
-export const SCHEMA_VERSION = "1.2" as const;
+export const SCHEMA_VERSION = "1.3" as const;
 
 /**
  * Conceptual inspection layers. v1 implements `lexical` only.

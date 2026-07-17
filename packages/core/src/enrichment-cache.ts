@@ -23,7 +23,7 @@
  * dependency-free.
  */
 
-import type { EnricherFinding } from "./schema/enrich.js";
+import type { EnricherOutput } from "./schema/enrich.js";
 
 /**
  * A pluggable store the async pipeline consults before running a cacheable
@@ -36,24 +36,24 @@ import type { EnricherFinding } from "./schema/enrich.js";
  */
 export interface EnrichmentCache {
   /**
-   * Look up findings previously stored under `key`. Returns `undefined` on a miss
-   * OR when the stored entry has expired (the store is responsible for enforcing
-   * its own TTL). A non-`undefined` return is a cache HIT and its findings flow
-   * into the result exactly like freshly-computed ones.
+   * Look up an enricher output previously stored under `key`. Returns `undefined`
+   * on a miss OR when the stored entry has expired (the store is responsible for
+   * enforcing its own TTL). A non-`undefined` return is a cache HIT and its
+   * report/findings flow into the result exactly like freshly-computed output.
    */
-  get(key: string): EnricherFinding[] | undefined;
+  get(key: string): EnricherOutput | undefined;
   /**
-   * Store `findings` under `key`, valid for `ttlMs` milliseconds from now. The
+   * Store `output` under `key`, valid for `ttlMs` milliseconds from now. The
    * pipeline only calls `set` after a SUCCESSFUL enricher run — failures and skips
    * are never cached. A non-positive or non-finite `ttlMs` should be treated as
    * "do not store".
    */
-  set(key: string, findings: EnricherFinding[], ttlMs: number): void;
+  set(key: string, output: EnricherOutput, ttlMs: number): void;
 }
 
-/** A stored entry: the cached findings plus the absolute epoch-ms it expires at. */
+/** A stored entry: the cached legacy/structured output plus its absolute expiry. */
 interface CacheEntry {
-  findings: EnricherFinding[];
+  output: EnricherOutput;
   expiresAt: number;
 }
 
@@ -72,7 +72,7 @@ export class InMemoryEnrichmentCache implements EnrichmentCache {
 
   constructor(private readonly now: () => number = Date.now) {}
 
-  get(key: string): EnricherFinding[] | undefined {
+  get(key: string): EnricherOutput | undefined {
     const entry = this.store.get(key);
     if (entry === undefined) return undefined;
     // Lazy eviction: an expired entry is a miss, and we drop it as we notice it.
@@ -80,13 +80,13 @@ export class InMemoryEnrichmentCache implements EnrichmentCache {
       this.store.delete(key);
       return undefined;
     }
-    return entry.findings;
+    return entry.output;
   }
 
-  set(key: string, findings: EnricherFinding[], ttlMs: number): void {
+  set(key: string, output: EnricherOutput, ttlMs: number): void {
     // A non-positive / non-finite TTL is not cacheable — refuse to store rather
     // than plant an already-dead (or immortal) entry.
     if (!Number.isFinite(ttlMs) || ttlMs <= 0) return;
-    this.store.set(key, { findings, expiresAt: this.now() + ttlMs });
+    this.store.set(key, { output, expiresAt: this.now() + ttlMs });
   }
 }

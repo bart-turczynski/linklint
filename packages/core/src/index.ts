@@ -45,9 +45,28 @@ export {
   type Severity,
   type Enricher,
   type EnricherFinding,
+  type EnricherOutput,
   type EnrichmentContext,
   type EnrichmentLayer,
+  type EnrichmentCause,
+  type EnrichmentEvidence,
+  type EnrichmentFreshness,
+  type EnrichmentIdentity,
+  type EnrichmentJsonValue,
+  type EnrichmentOutcome,
+  type EnrichmentPayload,
+  type EnrichmentProvenance,
+  type EnrichmentProvenanceRef,
+  type EnrichmentReport,
+  type EnrichmentSubject,
 } from "./schema/types.js";
+
+// Structured async outcome/evidence contract (schema 1.3, LINK-isytbvjy).
+export {
+  ENRICHMENT_SCHEMA_VERSION,
+  isEnricherFindingArray,
+  isEnrichmentReport,
+} from "./schema/enrich.js";
 
 // Reason-code registry + scoring reference data
 export {

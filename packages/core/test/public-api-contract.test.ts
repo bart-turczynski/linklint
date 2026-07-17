@@ -31,9 +31,9 @@ const thisDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(thisDir, "..", "..", "..");
 
 describe("InspectResult schema contract (schemaVersion + confidence, FR-SCORE-2b)", () => {
-  it("stamps schemaVersion 1.2 on ok and invalid results", () => {
-    expect(inspect("https://www.example.com/").schemaVersion).toBe("1.2");
-    expect(inspect("ht!tp://%%%not a url").schemaVersion).toBe("1.2");
+  it("stamps schemaVersion 1.3 on ok and invalid results", () => {
+    expect(inspect("https://www.example.com/").schemaVersion).toBe("1.3");
+    expect(inspect("ht!tp://%%%not a url").schemaVersion).toBe("1.3");
   });
 
   it("deterministic lexical results (ok AND invalid) carry confidence 1.0", () => {
