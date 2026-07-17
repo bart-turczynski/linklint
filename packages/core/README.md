@@ -48,7 +48,12 @@ are the documented migration path if the root is narrowed in a future major.
 
 `inspectAsync()` is the opt-in orchestration surface for caller-supplied online
 work. New enrichers return versioned, source-attributed outcomes and evidence;
-the synchronous package itself still performs no network I/O. See
+optional `<layer>:<id>` dependencies create deterministic stages, and downstream
+enrichers receive prior structured outcomes through their context. Independent
+work remains parallel, while failed prerequisites become explicit skipped
+outcomes. Host-scoped suppressions are evaluated against each outcome's actual
+subject, so allowing the original host cannot hide a discovered destination.
+The synchronous package itself still performs no network I/O. See
 [`docs/enrichment-outcomes.md`](../../docs/enrichment-outcomes.md) for the public
 contract, status semantics, validation rules, and legacy-findings migration.
 

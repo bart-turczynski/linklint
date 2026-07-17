@@ -62,6 +62,10 @@ Suppression never hides itself: whenever the option is present (even `[]`) the
 byte-for-byte unchanged — the `suppressed` marker never appears, so no
 `SCHEMA_VERSION` bump is needed (the field is additive and absent by default).
 Enricher-layer reasons (`inspectAsync`) are suppressible by the same mechanism.
+For structured enrichment, host scope is evaluated against each finding's
+outcome subject rather than the original input, so an exemption for the original
+host cannot suppress evidence about a discovered destination. Legacy flat
+findings retain their original-input subject.
 
 ## Weights table (v1, hand-tuned — OQ-3)
 

@@ -211,6 +211,8 @@ a caller supplies `{ code, host? }` rules marking a reason a false positive.
 - **Scope.** No `host` = suppress that `code` for all inputs; a `host` limits it to
   inputs whose registrable domain matches (mirrors `idnAllowlist`: registrable
   domain, case-insensitive, Unicode/punycode agnostic, covers subdomains).
+  Structured enrichment findings use their outcome's actual URL/host subject;
+  allowing the original host never suppresses a discovered destination.
 - **Honesty.** Whenever the option is present (even `[]`) the `suppression` token
   is appended to `checksRun` (order: `lexical → policy → agent → suppression`), so
   a result never hides that a caller escape hatch was applied.
@@ -256,6 +258,17 @@ L2 and L3 extend `checksRun` / `checksSkipped` — they add to lexical results, 
 **Result cache (opt-in).** So networked enrichers don't re-hit third parties on every call, `inspectAsync` accepts a pluggable `EnrichmentCache` (`get`/`set` carrying a TTL; `InMemoryEnrichmentCache` is the dependency-free default). An enricher opts in per-source by declaring a `cacheKey(result)` and a positive `cacheTtlMs`; a cache hit skips the network call but still counts as a run (`<layer>:<id>` in `checksRun`). Failures and skips are never cached. **Privacy:** the cache key is entirely enricher-supplied — the framework never derives a key from the full URL, so an enricher must key on a privacy-preserving projection (registrable domain, hash-prefix), never the URL itself.
 
 **Per-source governor (opt-in).** So one slow or failing source can never block a verdict, `inspectAsync` also accepts a pluggable `EnrichmentGovernor` (`InMemoryEnrichmentGovernor` is the dependency-free default, with an injectable clock; state persists across calls). It enforces three per-source mechanisms keyed by the `<layer>:<id>` token: (1) a **bounded timeout** — each `enrich` is raced against a per-source budget (`Enricher.timeoutMs`, else the governor default); on timeout the enricher's context signal aborts (`AbortSignal.any` of the caller's signal and a timer-driven one) and the source degrades to `checksSkipped`, and the runner-level race holds even if the enricher ignores its signal; (2) a **token-bucket rate limit** (capacity + continuous refill) — an out-of-tokens source is skipped, never queued or blocked; (3) **exponential backoff** — after consecutive failures a source is skipped without calling `enrich` until the (doubling, capped) window elapses, resetting on the first success. **Ordering (cache-before-governor):** the cache is consulted first — a HIT serves cached findings and consumes no token, starts no timeout, and touches no backoff, because no network happened. Only on a MISS is the governor consulted; a **token is consumed exactly at admission** (an attempted run), and any admitted run that does not cleanly succeed (timeout, throw/reject, post-abort, or a malformed return) records a failure for backoff and is never cached. With no governor supplied the pipeline behaves exactly as the pre-K4 path — governance is never on by default.
+
+**Staged orchestration.** The caller-ordered `EnrichmentPlan` is the existing
+`enrichers` list plus optional `Enricher.dependsOn` `<layer>:<id>` edges. The
+runner derives stable topological stages: independent steps in one stage run in
+parallel over the same prior-outcome snapshot, while fan-in waits until every
+declared prerequisite wholly completes. `EnrichmentContext.previousOutcomes`
+carries every earlier structured status in plan order. Skipped, failed, or
+partial prerequisites produce an explicit `prerequisite-unavailable` skipped
+outcome; invalid/duplicate edges and cycles also degrade explicitly. Final
+serialization stays in caller plan order regardless of promise completion order.
+No dependency declarations preserves the original single parallel stage.
 
 ## 11. Testing
 

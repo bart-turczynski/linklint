@@ -82,6 +82,69 @@ time, provenance, and freshness so serialization does not lose attribution.
 Evidence payloads are extensible JSON-safe objects; non-finite numbers, functions,
 cycles, and class instances are rejected at the runner boundary.
 
+## Staged execution plans
+
+The `enrichers` option is a caller-ordered `EnrichmentPlan`. Each enricher may
+declare prerequisite check tokens through `dependsOn`:
+
+```ts
+import { inspectAsync, type Enricher, type EnrichmentPlan } from "linklint";
+
+const redirectFixture: Enricher = {
+  id: "redirect.fixture",
+  layer: "resolution",
+  async enrich(_result, context) {
+    // Root stage: no earlier outcomes.
+    console.assert(context.previousOutcomes.length === 0);
+    return redirectReport;
+  },
+};
+
+const destinationReputationFixture: Enricher = {
+  id: "destination-reputation.fixture",
+  layer: "reputation",
+  dependsOn: ["resolution:redirect.fixture"],
+  async enrich(_result, context) {
+    const redirectOutcomes = context.previousOutcomes.filter(
+      (outcome) => outcome.sourceId === "redirect.fixture",
+    );
+    return lookupFixtureDestinations(redirectOutcomes);
+  },
+};
+
+const plan = [redirectFixture, destinationReputationFixture] satisfies EnrichmentPlan;
+const result = await inspectAsync("https://example.com/start", { enrichers: plan });
+```
+
+The runner derives topological stages from these edges:
+
+- Enrichers with no unresolved prerequisites run in parallel within the same
+  stage. They receive the same frozen `previousOutcomes` array and cannot observe
+  one another's in-flight output.
+- A later stage receives every earlier outcome — including no-hit, skipped, and
+  failure outcomes — in the caller's original plan order. Completion timing
+  never changes final `enrichment.outcomes`, `checksRun`, or `checksSkipped`
+  ordering.
+- A prerequisite is available only when all of its outcomes are `success` or
+  `no-hit`. Partial, skipped, or failed prerequisites prevent the dependent from
+  running and produce `status: "skipped"` with
+  `cause.code: "prerequisite-unavailable"` and the unavailable tokens in
+  `cause.details.prerequisites`.
+- Caller cancellation stays `caller-aborted` for both the active stage and work
+  not yet started. It is not relabeled as a prerequisite failure.
+- Every `<layer>:<id>` token must be unique. Unknown/duplicate prerequisites
+  produce `invalid-plan`; actual dependency cycles produce `dependency-cycle`.
+  These are explicit configuration skips, not provider failures or verdicts.
+
+With no `dependsOn` declarations, all configured enrichers form the original K1
+parallel stage. With no configured enrichers, `inspectAsync()` remains
+byte-identical to `inspect()` and creates no enrichment report.
+
+`cacheKey(result, context)` receives the same stage context, allowing dependent
+sources to include a privacy-safe projection of prerequisite outcomes in their
+key. Existing one-argument cache-key functions remain compatible. The framework
+still never derives or stores a full-URL key automatically.
+
 ## Status semantics
 
 | Status | Meaning | Coverage token |
@@ -100,6 +163,9 @@ confusables fields. Evidence never replaces the offline lexical result.
 Core-generated degradation codes currently include:
 
 - `caller-aborted`
+- `prerequisite-unavailable`
+- `invalid-plan`
+- `dependency-cycle`
 - `governor-denied`
 - `timeout`
 - `source-error`
@@ -107,6 +173,25 @@ Core-generated degradation codes currently include:
 - `invalid-cached-output`
 
 These are operational states, not malicious or benign verdicts.
+
+## Subject-aware scoring and suppression
+
+The `subject` on a structured outcome is also the subject of every finding in
+that outcome. When projecting findings into top-level reasons, `inspectAsync()`
+evaluates a host-scoped `suppressReasons` rule against that outcome subject's
+registrable domain, not against the original input unconditionally.
+
+For example, a rule scoped to `example.com` may suppress an original-host finding
+whose outcome subject is `www.example.com`, but it does not suppress the same
+reason code on a discovered `landing.example.org` outcome. Global rules (no
+`host`) still apply to every subject. Invalid or hostless subjects never match a
+host-scoped rule by guesswork. Legacy flat findings are wrapped with the original
+inspection subject and retain their previous suppression behavior.
+
+Outcome/evidence records remain source-attributed regardless of whether their
+scoring projection is suppressed. Suppression annotates the top-level reason and
+zeroes its weight; it never deletes evidence or turns a skipped/failure/no-hit
+state into another status.
 
 ## Validation and identity
 

@@ -218,6 +218,13 @@ The full registry of reason codes lives in
 [`docs/scoring.md`](./docs/scoring.md); and the opt-in online evidence contract in
 [`docs/enrichment-outcomes.md`](./docs/enrichment-outcomes.md).
 
+`inspectAsync()` accepts a caller-ordered enrichment plan. Optional
+`dependsOn: ['resolution:source-id']` edges create deterministic sequential
+stages; independent sources still run in parallel, and downstream enrichers see
+prior source-attributed outcomes through `context.previousOutcomes`. The runner
+does not perform network I/O itself, and an empty/absent plan remains
+byte-identical to `inspect()`.
+
 ## Policy layer — caller-configurable allow/deny
 
 Beyond deception detection, callers can enforce their own org-specific rules. Policy
