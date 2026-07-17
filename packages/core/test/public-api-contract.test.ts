@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
+import { inspect } from "../src/index.js";
 import * as root from "../src/index.js";
 import * as metadata from "../src/metadata.js";
 import * as experimental from "../src/experimental.js";
@@ -28,6 +29,26 @@ import { CHECKS } from "../src/detectors/checks.js";
 const thisDir = dirname(fileURLToPath(import.meta.url));
 // packages/core/test -> repo root is three levels up.
 const repoRoot = join(thisDir, "..", "..", "..");
+
+describe("InspectResult schema contract (schemaVersion + confidence, FR-SCORE-2b)", () => {
+  it("stamps schemaVersion 1.1 on ok and invalid results", () => {
+    expect(inspect("https://www.example.com/").schemaVersion).toBe("1.1");
+    expect(inspect("ht!tp://%%%not a url").schemaVersion).toBe("1.1");
+  });
+
+  it("deterministic lexical results (ok AND invalid) carry confidence 1.0", () => {
+    const ok = inspect("https://www.example.com/");
+    expect(ok.status).toBe("ok");
+    expect(ok.confidence).toBe(1);
+
+    const risky = inspect("https://paypal.com@xn--pypal-4ve.ru/login");
+    expect(risky.confidence).toBe(1);
+
+    const invalid = inspect("ht!tp://%%%not a url");
+    expect(invalid.status).toBe("invalid");
+    expect(invalid.confidence).toBe(1);
+  });
+});
 
 describe("linklint/metadata — curated runtime surface", () => {
   it("exposes exactly the metadata value exports", () => {

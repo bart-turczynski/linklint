@@ -6,7 +6,7 @@
  */
 
 /** Current schema version. Bumped only on a breaking change to this contract. */
-export const SCHEMA_VERSION = "1.0" as const;
+export const SCHEMA_VERSION = "1.1" as const;
 
 /**
  * Conceptual inspection layers. v1 implements `lexical` only.

@@ -53,6 +53,16 @@ export interface InspectResult {
   /** Risk score in [0,1], or `null` on invalid input. */
   score: number | null;
   severity: Severity | null;
+  /**
+   * Confidence in [0,1] that the contributing signals are reliable (FR-SCORE-2b).
+   * Independent of `score`/`weight`: `weight` encodes a signal's scoring
+   * reliability, `confidence` is a separate advisory measure. Deterministic
+   * lexical results (everything sync `inspect()` produces, including
+   * `status: "invalid"`) are fully deterministic at `1.0`. Probabilistic
+   * (resolution/reputation) enrichers may lower it; the result's value is the
+   * MINIMUM over all contributing signals (see {@link import("../inspect-async.js").inspectAsync}).
+   */
+  confidence: number;
   reasons: Reason[];
   confusables: Confusable[];
   checksRun: string[];

@@ -122,6 +122,18 @@ export async function inspectAsync(
     ({ score, severity } = aggregate(reasons));
   }
 
+  // Confidence (FR-SCORE-2b) is INDEPENDENT of score/weight: it does not feed
+  // the probabilistic-OR aggregation above. The verdict is only as confident as
+  // its least-confident contributing signal, so we take the MINIMUM over the
+  // deterministic lexical base (1.0) and every SUCCESSFUL enricher finding's
+  // confidence (default 1.0 when omitted). A skipped/failed enricher contributes
+  // nothing — its absence is already visible in checksSkipped. With no findings
+  // this stays base.confidence (1.0), preserving the no-enricher invariant.
+  const confidence = Math.min(
+    base.confidence,
+    ...enrichmentFindings.map((f) => f.confidence ?? 1),
+  );
+
   // A configured layer is no longer wholesale-skipped: drop its bare placeholder
   // (per-enricher outcomes now speak for it). An unconfigured layer keeps its
   // placeholder, so an unchecked layer is never silently clean.
@@ -143,6 +155,7 @@ export async function inspectAsync(
     confusables,
     score,
     severity,
+    confidence,
     checksRun,
     checksSkipped,
   };

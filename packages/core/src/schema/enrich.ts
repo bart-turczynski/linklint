@@ -14,10 +14,12 @@
  * reason-code registry (`reasonMeta`/`weightFor`), exactly as it does for
  * lexical and policy findings. An enricher never supplies its own weight.
  *
- * Deliberately NOT here (later units, clean seams left open): per-finding
- * confidence (K2), caching (K3), rate-limit / timeout / backoff policy (K4),
- * allowlist / feedback (K5). {@link EnrichmentContext} is the single extension
- * point those units grow — add fields there without changing `enrich`'s arity.
+ * Per-finding `confidence` (K2, FR-SCORE-2b) IS here: an optional [0,1] measure
+ * of how reliable a probabilistic signal is, min-aggregated into the result's
+ * top-level `confidence`. Deliberately NOT here (later units, clean seams left
+ * open): caching (K3), rate-limit / timeout / backoff policy (K4), allowlist /
+ * feedback (K5). {@link EnrichmentContext} is the single extension point those
+ * units grow — add fields there without changing `enrich`'s arity.
  */
 
 import type { ReasonCode } from "./reason-codes.js";
@@ -45,6 +47,14 @@ export interface EnricherFinding {
   detail: string;
   /** Per-character confusable entries that bubble up to top-level `confusables[]`. */
   confusables?: Confusable[];
+  /**
+   * How confident the enricher is in this probabilistic signal, in [0,1]
+   * (FR-SCORE-2b). Omitting it means `1.0` (fully confident). The core folds
+   * every successful finding's confidence into the result's top-level
+   * `confidence` by taking the MINIMUM — a verdict is only as confident as its
+   * least-confident contributing signal. Independent of scoring `weight`.
+   */
+  confidence?: number;
 }
 
 /**
