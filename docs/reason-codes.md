@@ -681,7 +681,24 @@ destination is explained.
   an attack on its own, so it flags only at `low`. Valid IDNs are unaffected,
   including uppercase ACE (`XN--CAF-DMA` → `café`), which round-trips after
   UTS-46 case-folding.
-- **Example:** `https://xn--abc.com/` or `https://xn--.com/` (undecodable ACE).
+- **Failure taxonomy (P1):** the reason code is stable, but the **detail** names a
+  specific RFC 3492 sub-code (mirroring the punycoder taxonomy), so consumers see
+  *why* a label is malformed:
+  - `empty_ace_payload` — `xn--` with nothing to decode.
+  - `invalid_punycode_digit` — a non-base-36 digit in the payload (reachable only
+    via a direct label; the URL parser strips non-LDH chars before the detector).
+  - `truncated_punycode_input` — a generalized-integer sequence ends early.
+  - `punycode_overflow` — delta/bias arithmetic overflowed during decode.
+  - `decoded_code_point_out_of_range` — a decoded scalar is a surrogate or above
+    `U+10FFFF`.
+  - `non_canonical_encoding` — decodes but is **not** the canonical encoding
+    (fails the A-label decode→re-encode round-trip, RFC 5891 §5.4).
+  - `invalid_idna_label` — decodes and round-trips, but the U-label fails a UTS-46
+    validity rule (bidi, combining-mark-initial, hyphen position, …).
+  Firing is unchanged (still gated by tr46), so scoring never changes.
+- **Example:** `https://xn--abc.com/` (`invalid_idna_label`), `https://xn--.com/`
+  (`empty_ace_payload`), `https://xn--99999999a.com/` (`punycode_overflow`),
+  `https://xn--a-.com/` (`non_canonical_encoding`).
 
 ### `ambiguous_authority` — Epic J (J1) · weight 0.65
 

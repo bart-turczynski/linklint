@@ -201,7 +201,40 @@ export const CORPUS: CorpusRow[] = [
     label: "deceptive",
     minSeverity: "low",
     expectReasons: ["punycode_malformed"],
-    notes: "E5: empty ACE payload",
+    notes: "E5: empty ACE payload (sub-code empty_ace_payload)",
+  },
+  // P1 (LINK-dynjdiax): RFC 3492 failure taxonomy — one input per reachable
+  // sub-code. The corpus asserts the stable `punycode_malformed` code + low band;
+  // the exact sub-code in the detail is asserted by test/punycode.test.ts.
+  // (invalid_punycode_digit is unreachable via inspect() — a non-base-36 char is
+  // not a valid host label char, so the parser strips it before the detector.)
+  {
+    input: "https://xn--0.com/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["punycode_malformed"],
+    notes: "P1: generalized-integer sequence ends early (sub-code truncated_punycode_input)",
+  },
+  {
+    input: "https://xn--99999999a.com/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["punycode_malformed"],
+    notes: "P1: delta/bias arithmetic overflow (sub-code punycode_overflow)",
+  },
+  {
+    input: "https://xn--a-.com/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["punycode_malformed"],
+    notes: "P1: decodes but fails the A-label round-trip (sub-code non_canonical_encoding)",
+  },
+  {
+    input: "https://xn--bb0c.com/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["punycode_malformed"],
+    notes: "P1: decodes to a code point above U+10FFFF (sub-code decoded_code_point_out_of_range)",
   },
   {
     input: "https://promo-login.tk/",
