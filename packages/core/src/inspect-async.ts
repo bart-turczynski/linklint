@@ -9,6 +9,7 @@ import type {
   Reason,
 } from "./schema/types.js";
 import type { EnrichmentCache } from "./enrichment-cache.js";
+import type { EnrichmentGovernor } from "./enrichment-governor.js";
 import { inspect } from "./inspect.js";
 import { reasonMeta, weightFor } from "./schema/reason-codes.js";
 import { aggregate } from "./scoring/score.js";
@@ -39,6 +40,18 @@ export interface InspectAsyncOptions extends InspectOptions {
    * the pipeline behaves exactly as K1/K2. Caching is never on by default.
    */
   cache?: EnrichmentCache;
+  /**
+   * Opt-in per-source governor (LINK-bergliii, unit K4): a bounded timeout,
+   * token-bucket rate limit, and exponential backoff, all keyed by the enricher's
+   * `<layer>:<id>` token. When supplied, a source that is over its timeout, out of
+   * tokens, or in an open backoff window degrades to `checksSkipped` — one slow or
+   * failing source can never block the verdict. Consulted only on a cache MISS
+   * (see {@link InspectAsyncOptions.cache}): a cache HIT never consumes a token,
+   * starts a timeout, or touches backoff, because no network happened. Absent this
+   * option the pipeline behaves exactly as K1–K3 — governance is never on by
+   * default. See {@link import("./enrichment-governor.js").EnrichmentGovernor}.
+   */
+  governor?: EnrichmentGovernor;
 }
 
 /** The bare per-layer placeholder tokens `inspect()` seeds into `checksSkipped`. */
@@ -88,8 +101,9 @@ export async function inspectAsync(
   const ctx: EnrichmentContext =
     options.signal !== undefined ? { signal: options.signal } : {};
   const cache = options.cache;
+  const governor = options.governor;
   const outcomes = await Promise.all(
-    enrichers.map((enricher) => runEnricher(enricher, base, ctx, cache)),
+    enrichers.map((enricher) => runEnricher(enricher, base, ctx, cache, governor)),
   );
 
   // Stage 3: fold the outcomes back onto the base result.
@@ -171,24 +185,37 @@ export async function inspectAsync(
   };
 }
 
+/** Race sentinel: the bounded timeout fired (or the caller's signal aborted). */
+const TIMED_OUT = Symbol("timed-out");
+
 /**
  * Run a single enricher behind a total guard. Resolves to a `run` outcome with
- * its findings on success, or a `skipped` outcome on cancellation, rejection, or
- * a malformed (non-array) return. Never rejects — graceful degradation is the
- * whole point.
+ * its findings on success, or a `skipped` outcome on cancellation, rejection, a
+ * malformed (non-array) return, a rate-limit/backoff skip, or a bounded-timeout.
+ * Never rejects — graceful degradation is the whole point.
  *
- * Caching (LINK-wtnpkbkf, unit K3) layers on top when a `cache` is supplied and
- * the enricher declares a cacheable slot (see {@link cacheSlotFor}):
- *  - **HIT** → return the cached findings as a `run` outcome WITHOUT calling
- *    `enrich`; a cache hit is still a check that ran.
- *  - **MISS** → run `enrich` as usual; on success, store its findings under the
- *    slot key with the enricher's TTL. Skips/failures are never cached.
+ * Ordering (K3 cache × K4 governor — the interplay matters):
+ *  1. **Already-aborted signal → skip** without touching cache or governor.
+ *  2. **Cache FIRST.** A HIT (LINK-wtnpkbkf, K3) returns the cached findings as a
+ *     `run` outcome WITHOUT calling `enrich`, and MUST NOT consume a rate-limit
+ *     token, start a timeout, or touch backoff — no network happened.
+ *  3. On a cache MISS, **consult the governor** (LINK-bergliii, K4) if supplied:
+ *     rate-limited OR in an open backoff window → skip (never call `enrich`).
+ *     Admission consumes exactly one token.
+ *  4. Otherwise run `enrich` under the bounded timeout. Timeout, throw/reject,
+ *     observed post-abort, or a malformed return → skip AND record a governor
+ *     failure (backoff); the result is NEVER cached. A clean success → record a
+ *     governor success (reset backoff), store in cache, and return `run`.
+ *
+ * With no governor the timeout/rate-limit/backoff machinery is entirely inert, so
+ * this path stays byte-for-byte K1–K3.
  */
 async function runEnricher(
   enricher: Enricher,
   base: InspectResult,
   ctx: EnrichmentContext,
   cache: EnrichmentCache | undefined,
+  governor: EnrichmentGovernor | undefined,
 ): Promise<EnricherOutcome> {
   const token = `${enricher.layer}:${enricher.id}`;
   // A signal already aborted before we start: skip without invoking. Checked
@@ -202,23 +229,101 @@ async function runEnricher(
     const cached = slot.cache.get(slot.key);
     // Cache HIT: a successful prior run stands in for this one. It still counts
     // as run, so its findings flow into reasons/confidence exactly like fresh.
+    // No token is spent and no timeout starts — cache-before-governor is the point.
     if (cached !== undefined) return { kind: "run", token, findings: cached };
   }
 
+  // Cache MISS: consult the governor (if any) before spending a network call.
+  let timeoutMs = enricher.timeoutMs;
+  if (governor !== undefined) {
+    const decision = governor.admit(token);
+    if (!decision.run) return { kind: "skipped", token };
+    // Enricher's own timeout wins; otherwise fall back to the governor default.
+    timeoutMs = enricher.timeoutMs ?? decision.timeoutMs;
+  } else {
+    // No governor → no timeout/rate-limit/backoff at all (K1–K3 path exactly).
+    timeoutMs = undefined;
+  }
+
   try {
-    const findings = await enricher.enrich(base, ctx);
+    const outcome = await runWithTimeout(enricher, base, ctx, timeoutMs);
+    if (outcome === TIMED_OUT) {
+      // The bounded timeout fired (or the signal aborted mid-race): degrade and
+      // record a failure so repeated slowness opens a backoff window.
+      governor?.recordFailure(token);
+      return { kind: "skipped", token };
+    }
     // A completion observed after cancellation is treated as skipped, so an
     // enricher that ignores the signal still degrades rather than leaking. A
-    // cancelled run is NEVER cached.
-    if (ctx.signal?.aborted) return { kind: "skipped", token };
-    if (!Array.isArray(findings)) return { kind: "skipped", token };
-    // Cache MISS resolved: store this successful run under its slot for reuse.
-    if (slot !== null) slot.cache.set(slot.key, findings, slot.ttlMs);
-    return { kind: "run", token, findings };
+    // cancelled run is NEVER cached; it counts as a failure for backoff.
+    if (ctx.signal?.aborted) {
+      governor?.recordFailure(token);
+      return { kind: "skipped", token };
+    }
+    if (!Array.isArray(outcome)) {
+      governor?.recordFailure(token);
+      return { kind: "skipped", token };
+    }
+    // Clean success: reset backoff, then store this run under its slot for reuse.
+    governor?.recordSuccess(token);
+    if (slot !== null) slot.cache.set(slot.key, outcome, slot.ttlMs);
+    return { kind: "run", token, findings: outcome };
   } catch {
-    // Any throw/rejection (including an abort) degrades to a skip — and a failure
-    // is never cached.
+    // Any throw/rejection (including an abort) degrades to a skip — never cached,
+    // and counts as a failure for backoff.
+    governor?.recordFailure(token);
     return { kind: "skipped", token };
+  }
+}
+
+/**
+ * Run `enrich` bounded by `timeoutMs`. Returns the enricher's findings, or the
+ * {@link TIMED_OUT} sentinel when the timeout (or the caller's signal) fires first.
+ *
+ * When a positive, finite timeout is set, a timer-driven {@link AbortController}
+ * is composed with the caller's signal via `AbortSignal.any` (Node 24), and the
+ * composed signal is threaded into the enricher's context so a well-behaved
+ * enricher aborts on time. The runner ALSO races `enrich` against that signal, so
+ * even an enricher that ignores its signal cannot stall the verdict past the
+ * bound — the race is the hard guarantee. A timer-driven controller (rather than
+ * `AbortSignal.timeout`) is used so tests can drive the timeout with fake timers,
+ * never real wall-clock sleeps.
+ *
+ * With no (or a non-positive) timeout this is exactly the K1 call: `enrich(base,
+ * ctx)` with the caller's own context, unbounded.
+ */
+async function runWithTimeout(
+  enricher: Enricher,
+  base: InspectResult,
+  ctx: EnrichmentContext,
+  timeoutMs: number | undefined,
+): Promise<EnricherFinding[] | typeof TIMED_OUT> {
+  if (timeoutMs === undefined || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return enricher.enrich(base, ctx);
+  }
+
+  const timeoutController = new AbortController();
+  const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
+  const signals = ctx.signal
+    ? [ctx.signal, timeoutController.signal]
+    : [timeoutController.signal];
+  const composed = AbortSignal.any(signals);
+  const enrichCtx: EnrichmentContext = { ...ctx, signal: composed };
+
+  const timeoutRace = new Promise<typeof TIMED_OUT>((resolve) => {
+    if (composed.aborted) {
+      resolve(TIMED_OUT);
+      return;
+    }
+    composed.addEventListener("abort", () => resolve(TIMED_OUT), { once: true });
+  });
+
+  try {
+    // Promise.race keeps a reaction attached to the enrich promise even after the
+    // timeout wins, so a late rejection of the abandoned call is never unhandled.
+    return await Promise.race([enricher.enrich(base, enrichCtx), timeoutRace]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 

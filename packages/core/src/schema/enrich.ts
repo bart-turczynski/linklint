@@ -18,10 +18,11 @@
  * of how reliable a probabilistic signal is, min-aggregated into the result's
  * top-level `confidence`. Optional per-source cache metadata (K3, `cacheKey` /
  * `cacheTtlMs`) IS here too — the store itself lives in `enrichment-cache.ts`.
- * Deliberately NOT here (later units, clean seams left open): rate-limit / timeout
- * / backoff policy (K4), allowlist / feedback (K5). {@link EnrichmentContext} is
- * the single extension point those units grow — add fields there without changing
- * `enrich`'s arity.
+ * Per-source governance (K4): the bounded-timeout knob `timeoutMs` IS here; the
+ * rate-limit / backoff state itself lives in `enrichment-governor.ts`.
+ * Deliberately NOT here (clean seam left open): allowlist / feedback (K5).
+ * {@link EnrichmentContext} is the single extension point those units grow — add
+ * fields there without changing `enrich`'s arity.
  */
 
 import type { ReasonCode } from "./reason-codes.js";
@@ -126,4 +127,16 @@ export interface Enricher {
    * stored.
    */
   cacheTtlMs?: number;
+  /**
+   * OPTIONAL per-source bounded timeout, in milliseconds (LINK-bergliii, unit K4).
+   * Takes effect ONLY when a governor is supplied to `inspectAsync`; it OVERRIDES
+   * the governor's default timeout for this source. When present (positive,
+   * finite) the pipeline races {@link enrich} against it: on timeout the enricher
+   * is aborted (its context `signal` fires) and degrades to `checksSkipped`
+   * (`<layer>:<id>`), recording a failure for backoff. A slow enricher can NEVER
+   * stall the verdict past this bound — the race is enforced by the runner, so it
+   * holds even if the enricher ignores its signal. Absent/non-positive falls back
+   * to the governor default; with no governor, no timeout applies (K1–K3 path).
+   */
+  timeoutMs?: number;
 }
