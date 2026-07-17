@@ -19,6 +19,7 @@ linklint/
     architecture.md
     online-runtime-boundary.md # Accepted ownership/packaging decision for online work
     safe-transport.md # L0 authorization, pinning, budget, and outcome contract
+    redirect-chain-resolution.md # L1 redirect/refresh authorization and evidence
     reason-codes.md # Full reason-code registry with detection logic and examples
     scoring.md      # Scoring model, severity bands, weights table (v1.3)
   features/         # Cucumber behavioral specs (critical path + acceptance criteria)
@@ -260,6 +261,15 @@ through `@linklint/online/resolution`. It is separately bounded, never calls a
 vendor decoder service, and re-inspects every recovered destination through the
 offline pipeline. See [`wrapper-decoding.md`](wrapper-decoding.md).
 
+The same subpath exposes bounded redirect and declarative-refresh expansion.
+Every initial request and discovered target receives a separate caller
+authorization decision and passes through one cumulative L0 session. Only
+GET/HEAD and 301/302/303/307/308 are followed; HTTP Refresh and HTML meta refresh
+share byte, MIME, charset, delay, and hop limits, and JavaScript is never
+executed. Every target is inspected offline before the chain continues, ordered
+hop evidence is retained, and only the worst fetched hop projects de-duplicated
+findings. See [`redirect-chain-resolution.md`](redirect-chain-resolution.md).
+
 ## 10. Layer model
 
 The three-layer model is a forward-compatibility contract:
@@ -267,7 +277,7 @@ The three-layer model is a forward-compatibility contract:
 | Layer | Status | Description |
 |-------|--------|-------------|
 | **Lexical** (L1) | **Implemented** | Offline, deterministic, synchronous. 35 checks: 4 structural, 31 parsed, 5 agent-gated. < 5 ms typical. |
-| **Resolution** (L2) | **Partial** | Exact local embedded-wrapper decoding is implemented; authorized redirect/refresh expansion remains roadmap work. Every discovered target is re-inspected through L1. |
+| **Resolution** (L2) | **Partial** | Exact local wrapper decoding and caller-authorized bounded redirect/refresh expansion are implemented; observed correlation/divergence and MIME evidence remain roadmap work. Every discovered target is re-inspected through L1. |
 | **Reputation** (L3) | Roadmap | Threat feeds, RDAP domain age, CT, DNS posture. Privacy-preserving by design. |
 
 L2 and L3 extend `checksRun` / `checksSkipped` — they add to lexical results,

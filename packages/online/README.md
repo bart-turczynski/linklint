@@ -39,6 +39,24 @@ const result = await inspectAsync(wrappedUrl, {
 });
 ```
 
+The same subpath exposes caller-authorized bounded redirect/refresh expansion.
+It uses one L0 session across the chain, requests fresh exact-URL authorization
+for every discovered target, supports GET/HEAD plus 301/302/303/307/308,
+resolves relative `Location` values, and parses HTTP/HTML refresh only under
+finite byte, MIME, charset, delay, hop, and total-transport budgets.
+
+```ts
+import { createRedirectChainEnricher } from "@linklint/online/resolution";
+import { createNodeSafeTransport } from "@linklint/online/transport";
+
+const redirectChain = createRedirectChainEnricher({
+  transport: createNodeSafeTransport(),
+  authorize: ({ url }) => callerApproved(url)
+    ? { kind: "destination-fetch", url }
+    : null,
+});
+```
+
 The repository includes deterministic resolver, connector, HTTP, and clock
 fixtures for transport tests. They are internal test infrastructure rather than
 a supported package export; production code cannot discover or enable them.
@@ -47,4 +65,6 @@ See [`docs/online-runtime-boundary.md`](../../docs/online-runtime-boundary.md)
 for ownership and [`docs/safe-transport.md`](../../docs/safe-transport.md) for
 the complete authorization, address, budget, and outcome contract. Local
 wrapper formats and outcomes are documented in
-[`docs/wrapper-decoding.md`](../../docs/wrapper-decoding.md).
+[`docs/wrapper-decoding.md`](../../docs/wrapper-decoding.md); bounded redirect
+and refresh behavior is documented in
+[`docs/redirect-chain-resolution.md`](../../docs/redirect-chain-resolution.md).

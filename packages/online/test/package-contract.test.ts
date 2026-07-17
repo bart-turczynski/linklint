@@ -36,6 +36,7 @@ describe("@linklint/online package boundary", () => {
     expect(Object.keys(transportExport)).toEqual(["types", "default"]);
     expect(resolution.decodeEmbeddedWrapper).toBeTypeOf("function");
     expect(resolution.createEmbeddedWrapperEnricher).toBeTypeOf("function");
+    expect(resolution.createRedirectChainEnricher).toBeTypeOf("function");
     const resolutionExport = manifest.exports["./resolution"] as Record<string, string>;
     expect(Object.keys(resolutionExport)).toEqual(["types", "default"]);
   });
@@ -63,13 +64,20 @@ describe("@linklint/online package boundary", () => {
 
   it("keeps local wrapper decoding free of network clients and vendor decoder calls", () => {
     const resolutionDir = join(packageRoot, "src", "resolution");
-    const source = readdirSync(resolutionDir)
-      .filter((name) => name.endsWith(".ts"))
-      .map((name) => readFileSync(join(resolutionDir, name), "utf8"))
-      .join("\n");
+    const source = readFileSync(join(resolutionDir, "embedded-wrapper.ts"), "utf8");
 
     expect(source).not.toMatch(/from\s+["']node:(?:dns|net|tls|http|https)["']/);
     expect(source).not.toMatch(/\bfetch\s*\(/);
     expect(source).not.toContain("tap-api-v2.proofpoint.com/v2/url/decode");
+  });
+
+  it("routes redirect expansion through the injected L0 session without concrete clients", () => {
+    const source = readFileSync(
+      join(packageRoot, "src", "resolution", "redirect-chain.ts"),
+      "utf8",
+    );
+    expect(source).not.toMatch(/from\s+["']node:(?:dns|net|tls|http|https)["']/);
+    expect(source).not.toMatch(/\bglobalThis\.fetch\s*\(|\bwindow\.fetch\s*\(/);
+    expect(source).toContain("session.fetch(");
   });
 });

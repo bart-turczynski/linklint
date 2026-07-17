@@ -8,6 +8,15 @@ export {
   createEmbeddedWrapperEnricher,
   decodeEmbeddedWrapper,
 } from "./embedded-wrapper.js";
+export {
+  DEFAULT_REDIRECT_CHAIN_MAX_HOPS,
+  DEFAULT_REFRESH_MAX_BYTES,
+  DEFAULT_REFRESH_MAX_DELAY_MS,
+  MAX_REDIRECT_CHAIN_HOPS,
+  REDIRECT_CHAIN_SOURCE_ID,
+  REDIRECT_CHAIN_SOURCE_VERSION,
+  createRedirectChainEnricher,
+} from "./redirect-chain.js";
 export type {
   DecodeEmbeddedWrapperOptions,
   EmbeddedWrapperDecodeCause,
@@ -22,4 +31,11 @@ export type {
   EmbeddedWrapperOfflineInspection,
   EmbeddedWrapperUnsupported,
   EmbeddedWrapperVendor,
+  RedirectChainAuthorizationReason,
+  RedirectChainAuthorizationRequest,
+  RedirectChainAuthorizer,
+  RedirectChainEnricher,
+  RedirectChainEnricherOptions,
+  RedirectChainOfflineInspection,
+  RedirectChainTransitionKind,
 } from "./types.js";

@@ -41,21 +41,26 @@ and context that should survive individual work sessions.
   exact, version-pinned Microsoft Safe Links and Proofpoint URL Defense formats,
   bounds destination length and nesting, and re-inspects every recovered target
   through offline Layer 1 without calling a vendor or destination service.
+- L1 (`LINK-hvirrwxa`) is done. `@linklint/online/resolution` expands
+  caller-authorized 301/302/303/307/308 and bounded HTTP/HTML refresh chains
+  through one cumulative L0 session, re-inspects discovered targets offline,
+  retains ordered hop evidence, and projects only de-duplicated worst-hop
+  findings.
 
 ## Current execution frontier
 
-The next default task under the coordinator is **claim `LINK-hvirrwxa` (L1)** —
-bounded redirect and declarative-refresh chain expansion. L0 and L2 now satisfy
-its prerequisites. Every network hop must use L0, receive a new exact-URL
-authorization, and be re-inspected offline before the chain continues.
+The next default task under the coordinator is **claim `LINK-rupjqxus` (L3)** —
+correlate lexical `open_redirect_param` suspicion with the observed bounded
+chain without overstating general exploitability or duplicating score. L1 now
+satisfies its prerequisite.
 
 ## Epic L dependency path
 
 ```text
 LT  LINK-jsgadjni
 └─► L0  LINK-cjkdyxau
-    ├─► L1  LINK-hvirrwxa  ◄─ L2 LINK-ehhmrblq
-    │   ├─► L3  LINK-rupjqxus
+    ├─► L1  LINK-hvirrwxa (done)  ◄─ L2 LINK-ehhmrblq
+    │   ├─► L3  LINK-rupjqxus  ◄─ next
     │   ├─► L4  LINK-vpqsjtjt
     │   └─► L5  LINK-tibzpdft  ◄─ L0
     └────────────────────────────────────┐
@@ -118,8 +123,8 @@ When the coordinator is assigned again:
 2. Run `fp tree LINK-ddsnssrd` and `fp issue show` for the proposed child; do not
    trust this document for status if FP has moved on.
 3. Follow the Epic L dependency path above, selecting the first unblocked child
-   in the stated order. With LT, L0, and L2 done, the default frontier is L1
-   chain expansion (`LINK-hvirrwxa`).
+   in the stated order. With LT, L0, L2, and L1 done, the default frontier is L3
+   observed redirect correlation (`LINK-rupjqxus`).
 4. Read [`online-runtime-boundary.md`](online-runtime-boundary.md),
    [`architecture.md`](architecture.md), and
    [`enrichment-outcomes.md`](enrichment-outcomes.md) before defining public
