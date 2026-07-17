@@ -200,9 +200,12 @@ export const VECTORS: CorpusRow[] = [
   },
   {
     input: "999.1.1.1",
-    label: "benign",
-    forbidReasons: ["ip_obfuscation"],
-    notes: "out-of-range octet → treated as a host, not an IP",
+    label: "deceptive",
+    expectReasons: ["ambiguous_numeric_host"],
+    forbidReasons: ["ip_obfuscation", "ip_reserved", "ip_loopback"],
+    notes:
+      "out-of-range octet → no valid canonical IP, so NOT ip_obfuscation; a browser " +
+      "rejects it but a fetcher resolves it as a host (ambiguous_numeric_host, P3)",
     source: "rurl verified host edge cases",
   },
   {
@@ -228,5 +231,129 @@ export const VECTORS: CorpusRow[] = [
     label: "invalid",
     notes: "non-letter symbol host (U+2713) → not a valid reg-name",
     source: "rurl verified host edge cases",
+  },
+
+  // ── P3 (LINK-slcjsjcs): ambiguous_numeric_host ────────────────────────────
+  // Malformed-IPv4-shaped hosts WHATWG rejects (last label numeric/hex/octal,
+  // strict IPv4 parse fails). All score at medium; NEVER ip_obfuscation (no valid
+  // canonical IP). Split by sub-shape for documentation; the harness only asserts
+  // reasons + severity band.
+  //
+  // pure-IP-attempt: every label numeric/hex/octal.
+  {
+    input: "http://256.0.0.1/",
+    label: "deceptive",
+    expectReasons: ["ambiguous_numeric_host"],
+    forbidReasons: ["ip_obfuscation", "ip_reserved"],
+    notes: "octet overflow (256 > 255) → no canonical IP; pure-IP-attempt",
+    source: "P3 / WHATWG IPv4 'ends in a number' rule",
+  },
+  {
+    input: "http://256.256.256.1/",
+    label: "deceptive",
+    expectReasons: ["ambiguous_numeric_host"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "every octet overflows; pure-IP-attempt",
+    source: "P3 / WHATWG IPv4 'ends in a number' rule",
+  },
+  {
+    input: "http://0x100.2.3.4/",
+    label: "deceptive",
+    expectReasons: ["ambiguous_numeric_host"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "hex octet 0x100 = 256 > 255 → overflow; pure-IP-attempt",
+    source: "P3 / WHATWG IPv4 'ends in a number' rule",
+  },
+  {
+    input: "http://1.2.3.4.5/",
+    label: "deceptive",
+    expectReasons: ["ambiguous_numeric_host"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "> 4 parts; pure-IP-attempt",
+    source: "P3 / WHATWG IPv4 'ends in a number' rule",
+  },
+  {
+    input: "http://0x100000000/",
+    label: "deceptive",
+    expectReasons: ["ambiguous_numeric_host"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "dotless hex > 2^32-1 → overflow; pure-IP-attempt",
+    source: "P3 / WHATWG IPv4 'ends in a number' rule",
+  },
+  {
+    input: "http://6442450945/",
+    label: "deceptive",
+    expectReasons: ["ambiguous_numeric_host"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "dotless decimal > 2^32-1 (2^32 + 1) → overflow; pure-IP-attempt",
+    source: "P3 / WHATWG IPv4 'ends in a number' rule",
+  },
+  // name-with-numeric-tail: ≥1 non-numeric label + numeric/hex terminal label.
+  {
+    input: "http://foo.1.2.3.4/",
+    label: "deceptive",
+    expectReasons: ["ambiguous_numeric_host"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "non-numeric leading label but numeric tail → WHATWG IPv4 path; name-with-numeric-tail",
+    source: "P3 / WHATWG IPv4 'ends in a number' rule",
+  },
+  {
+    input: "http://foo.09/",
+    label: "deceptive",
+    expectReasons: ["ambiguous_numeric_host"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "numeric terminal label on a name; name-with-numeric-tail",
+    source: "P3 / WHATWG IPv4 'ends in a number' rule",
+  },
+  {
+    input: "http://foo.0x4/",
+    label: "deceptive",
+    expectReasons: ["ambiguous_numeric_host"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "hex terminal label on a name; name-with-numeric-tail",
+    source: "P3 / WHATWG IPv4 'ends in a number' rule",
+  },
+  {
+    input: "http://foo.09./",
+    label: "deceptive",
+    expectReasons: ["ambiguous_numeric_host"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "trailing root dot normalized → behaves like foo.09; name-with-numeric-tail",
+    source: "P3 / trailing-dot normalization",
+  },
+  // Consistency fix: 1.2.3.08 fired ip_obfuscation; the trailing-dot form now
+  // does too (was silently missed). This is a real (obfuscated) IP, NOT
+  // ambiguous_numeric_host — the strict parse succeeds (canonical 1.2.3.8).
+  {
+    input: "http://1.2.3.08./",
+    label: "deceptive",
+    expectReasons: ["ip_obfuscation"],
+    forbidReasons: ["ambiguous_numeric_host"],
+    notes: "trailing-dot obfuscated IP now recognized like 1.2.3.08 (recognizer normalizes root dot)",
+    source: "P3 / trailing-dot normalization",
+  },
+  // Precision guards: numeric-adjacent hosts that must NOT trip the detector.
+  {
+    input: "https://3.pool.ntp.org/",
+    label: "benign",
+    forbidReasons: ["ambiguous_numeric_host", "ip_obfuscation"],
+    notes: "numeric leading label but non-numeric tail (org) → not the IPv4 path",
+    source: "P3 precision guard",
+  },
+  {
+    input: "http://8.8.8.8/",
+    label: "benign",
+    forbidReasons: ["ambiguous_numeric_host", "ip_obfuscation"],
+    notes: "valid canonical public dotted-quad → not ambiguous, not obfuscated",
+    source: "P3 precision guard",
+  },
+  {
+    input: "http://192.168.1.1/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["ip_private"],
+    forbidReasons: ["ambiguous_numeric_host", "ip_obfuscation"],
+    notes: "valid canonical private IP → ip_private only, never ambiguous_numeric_host",
+    source: "P3 precision guard / no-regression",
   },
 ];
