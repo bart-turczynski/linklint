@@ -56,11 +56,12 @@ metadata.
 
 ### 2. `@linklint/online`: explicit per-inspection online capabilities
 
-The sibling package `packages/online` is scaffolded as `@linklint/online`. It is
-the only built-in library package that may contain concrete network clients.
-Its root is currently side-effect free and intentionally exposes no online
-capability; the internal deterministic transport harness shipped first so L0
-can be implemented without live network access. The package owns:
+The sibling package `packages/online` is `@linklint/online`. It is the only
+built-in library package that may contain concrete network clients. Its root is
+side-effect free and intentionally exposes no ambient capability. The shipped
+`@linklint/online/transport` subpath provides the L0 authorization boundary,
+implemented and verified through the internal deterministic harness. The
+package owns:
 
 - the L0 DNS-pinned HTTP(S) authorization and connection boundary;
 - DNS, TLS, HTTP, redirect, and response-evidence adapters;
@@ -92,8 +93,10 @@ intentionally capability-oriented:
 | `@linklint/online/mirrors` | Caller-owned mirror stores, lookup adapters, and updater APIs |
 
 Only these declared subpaths are public; consumers do not deep-import package
-internals. Concrete symbol names remain with their implementation tickets, but
-the ownership and export categories above are fixed by this decision.
+internals. L0's concrete symbols and behavior are documented in
+[`safe-transport.md`](safe-transport.md). Other symbol names remain with their
+implementation tickets, but the ownership and export categories above are
+fixed by this decision.
 
 ### 3. Monitoring: a separate deployable service
 
@@ -214,8 +217,9 @@ migration notes and contract tests. See
 [`enrichment-outcomes.md`](enrichment-outcomes.md) for the shipped schema,
 validation, degradation, orchestration, and cache contract.
 
-Epic L's deterministic transport harness is shipped. The current delivery
-frontier is the L0 safe transport boundary. See
+Epic L's deterministic transport harness and L0 safe destination boundary are
+shipped. The next delivery frontier is local wrapper decoding followed by L1
+chain expansion. See
 [`online-roadmap.md`](online-roadmap.md) for the resume order and live FP issue
 mapping.
 

@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import * as online from "../src/index.js";
+import * as transport from "../src/transport/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(here, "..");
@@ -22,10 +23,15 @@ describe("@linklint/online package boundary", () => {
     expect(JSON.stringify(manifest.exports)).not.toContain('"browser"');
   });
 
-  it("keeps fixture infrastructure internal and the unfinished root side-effect free", () => {
+  it("keeps fixture infrastructure internal and the root side-effect free", () => {
     expect(Object.keys(online)).toEqual([]);
     expect(manifest.exports).not.toHaveProperty("./testing");
-    expect(manifest.exports).not.toHaveProperty("./transport");
+    expect(manifest.exports).toHaveProperty("./transport");
+    expect(transport.createSafeTransport).toBeTypeOf("function");
+    expect(transport.createNodeSafeTransport).toBeTypeOf("function");
+    expect(transport.classifyTransportAddress).toBeTypeOf("function");
+    const transportExport = manifest.exports["./transport"] as Record<string, string>;
+    expect(Object.keys(transportExport)).toEqual(["types", "default"]);
   });
 
   it("does not grant online authority to the existing CLI or MCP packages", () => {

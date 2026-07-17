@@ -132,6 +132,7 @@ describe("linklint/experimental — curated runtime surface", () => {
         "userinfoPresent",
         "ipObfuscation",
         "ipClassification",
+        "classifyHost",
         "ambiguousNumericHost",
         "embeddedDomain",
         "riskyTld",

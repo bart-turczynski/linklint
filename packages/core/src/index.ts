@@ -104,6 +104,10 @@ export {
 
 // Detector internals (legacy/advanced compatibility)
 export * from "./detectors/registry.js";
+export {
+  classifyHost,
+  type IpClassification,
+} from "./detectors/ip-classification.js";
 export { scanAmbiguousAuthority } from "./detectors/ambiguous-authority.js";
 export { scanSeparatorLookalike } from "./detectors/separator-lookalike.js";
 export { scanIdnaMappingAmbiguity } from "./detectors/idna-mapping-ambiguity.js";

@@ -14,10 +14,11 @@ linklint/
     core/           # linklint npm package — inspect(), 35 checks, scoring, policy, schema
     mcp/            # @linklint/mcp — local-only MCP server (check_url / check_domain)
     cli/            # @linklint/cli — offline CLI (linklint check / batch)
-    online/         # @linklint/online — Node/server boundary; deterministic fixtures shipped
+    online/         # @linklint/online — Node/server safe transport + deterministic fixtures
   docs/
     architecture.md
     online-runtime-boundary.md # Accepted ownership/packaging decision for online work
+    safe-transport.md # L0 authorization, pinning, budget, and outcome contract
     reason-codes.md # Full reason-code registry with detection logic and examples
     scoring.md      # Scoring model, severity bands, weights table (v1.3)
   features/         # Cucumber behavioral specs (critical path + acceptance criteria)
@@ -231,7 +232,7 @@ a caller supplies `{ code, host? }` rules marking a reason a false positive.
 | `packages/core` | `inspect()` library | `linklint` |
 | `packages/mcp` | `check_url` / `check_domain` MCP tools (stdio) | `@linklint/mcp` |
 | `packages/cli` | `linklint check` / `linklint batch` | `@linklint/cli` |
-| `packages/online` | Explicit Node/server capabilities; transport fixtures only so far | `@linklint/online` |
+| `packages/online` | Explicit Node/server capabilities; L0 safe transport shipped | `@linklint/online` |
 
 Planned but not yet built: browser extension, GitHub Action, REST/serverless wrapper. The rule is the same for all of them: call `inspect()`, present the result, enforce policy at the adapter — never fork detector logic.
 
@@ -246,11 +247,13 @@ socket and DNS-pinning controls. The accepted decision, export categories,
 dependency direction, consent, secret, licensing, and migration rules are in
 [`online-runtime-boundary.md`](online-runtime-boundary.md).
 
-The online package currently exposes no network capability. Its internal LT
-harness provides exact-order resolver, pinned connector/TLS identity, streamed
-HTTP, operational-failure, and manually advanced clock fixtures. L0 will use
-that zero-I/O harness to prove the authorization boundary before the transport
-subpath becomes public.
+The online package exposes L0 only through `@linklint/online/transport`. Its
+exact-URL authorization, all-answer address policy, DNS-pinned socket,
+original-host TLS identity, fresh header set, manual redirects, cumulative
+budgets, and structured outcomes are documented in
+[`safe-transport.md`](safe-transport.md). The internal LT harness remains the
+zero-external-network acceptance seam for resolver changes, connector identity,
+streamed HTTP, failures, and deterministic deadlines.
 
 ## 10. Layer model
 

@@ -14,9 +14,10 @@ and context that should survive individual work sessions.
 - `LINK-ryfztgke` is done. The accepted package boundary is:
   - `linklint`: portable contracts, validation, synchronous `inspect()`, and
     pure `inspectAsync()` orchestration;
-  - `@linklint/online`: a scaffolded Node/server package whose deterministic
-    transport fixtures are shipped; future safe transports, resolution adapters,
-    provider clients, and caller-owned mirror integrations remain gated; and
+  - `@linklint/online`: a Node/server package whose deterministic transport
+    fixtures and L0 safe destination boundary are shipped; future resolution
+    adapters, provider clients, and caller-owned mirror integrations remain
+    gated; and
   - a separate deployable monitoring service for durable N state.
 - Epic K (`LINK-tfcbqtoy`) is done.
   - K1-K5 provide the original opt-in async pipeline, confidence, cache seam,
@@ -31,17 +32,19 @@ and context that should survive individual work sessions.
   exact-order resolver address changes, pinned connector/SNI assertions,
   streamed HTTP responses, stable operational failures, and a manually advanced
   shared clock without concrete DNS, socket, TLS, HTTP, or `fetch` calls.
+- L0 (`LINK-cjkdyxau`) is done. `@linklint/online/transport` requires exact-URL
+  authorization for every manual hop, classifies every DNS answer before
+  connecting, pins the selected address with original-host TLS identity, strips
+  ambient headers, and enforces cumulative hop, byte, decompression, and time
+  budgets with structured blocked/incomplete outcomes.
 
 ## Current execution frontier
 
-The next default task under the coordinator is **claim `LINK-cjkdyxau` (L0)** —
-the safe DNS-pinned HTTP(S) authorization and connection boundary. Its packaging,
-literal-IP-classifier, and deterministic-harness dependencies are done.
-
-Do not start a destination fetch implementation before L0. Local deterministic
-wrapper decoding (`LINK-ehhmrblq`) does not itself authorize network access, but
-the default Epic L delivery order still starts with LT and L0 so every later
-transport consumer is built against the same safety harness and boundary.
+The next default task under the coordinator is **claim `LINK-ehhmrblq` (L2)** —
+exact, version-pinned local embedded-wrapper decoding. L2 makes no network call
+or vendor disclosure and unblocks L1 together with the now-shipped L0 boundary.
+After L2, implement `LINK-hvirrwxa` (L1) so every redirect and declarative
+refresh hop uses L0, receives a new authorization, and is re-inspected offline.
 
 ## Epic L dependency path
 
@@ -112,8 +115,8 @@ When the coordinator is assigned again:
 2. Run `fp tree LINK-ddsnssrd` and `fp issue show` for the proposed child; do not
    trust this document for status if FP has moved on.
 3. Follow the Epic L dependency path above, selecting the first unblocked child
-   in the stated order. With LT done, the default frontier is L0
-   (`LINK-cjkdyxau`).
+   in the stated order. With LT and L0 done, the default frontier is local L2
+   wrapper decoding (`LINK-ehhmrblq`), followed by L1 chain expansion.
 4. Read [`online-runtime-boundary.md`](online-runtime-boundary.md),
    [`architecture.md`](architecture.md), and
    [`enrichment-outcomes.md`](enrichment-outcomes.md) before defining public

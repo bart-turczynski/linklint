@@ -365,10 +365,13 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) and [SECURITY.md](./SECURITY.md).
 probabilistic-OR scoring, a caller-configurable policy layer, a stable versioned schema,
 and a local MCP server. Typically < 5 ms per call, zero network.
 
-**Online foundation implemented; concrete capabilities remain roadmap.** The
+**Online foundation and safe destination transport implemented.** The
 opt-in `inspectAsync()` contract now includes versioned structured evidence,
 staged orchestration, bounded degradation, and Promise-capable dynamic caching.
-Core still performs no network I/O and ships no concrete online adapter.
+Core still performs no network I/O. The separate Node-only
+`@linklint/online/transport` subpath now provides exact-URL authorization,
+DNS pinning, original-host TLS validation, credential stripping, and mandatory
+budgets for future resolution adapters.
 
 The next concrete layers are:
 
@@ -376,10 +379,12 @@ The next concrete layers are:
 - **Reputation** — check against threat feeds.
 
 Both extend `checksRun` / `checksSkipped` and structured evidence without
-replacing the offline verdict. The deterministic zero-I/O transport harness is
-shipped; the current execution frontier is the DNS-pinned L0 safe transport. See
+replacing the offline verdict. The deterministic zero-I/O transport harness and
+L0 boundary are shipped; local wrapper decoding is the next Epic L frontier,
+followed by bounded redirect/refresh expansion. See
 [`docs/online-roadmap.md`](./docs/online-roadmap.md),
-[`docs/online-runtime-boundary.md`](./docs/online-runtime-boundary.md), and
+[`docs/online-runtime-boundary.md`](./docs/online-runtime-boundary.md),
+[`docs/safe-transport.md`](./docs/safe-transport.md), and
 [`docs/architecture.md`](./docs/architecture.md).
 
 ## License

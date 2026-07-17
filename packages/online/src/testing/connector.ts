@@ -47,6 +47,7 @@ export type ConnectorCall = ConnectorExpectation & { readonly abortedAtCall: boo
  */
 export class FixtureConnector implements ConnectorPort {
   readonly calls: ConnectorCall[] = [];
+  readonly closedConnectionIds: string[] = [];
   private readonly steps: ConnectorFixtureStep[];
 
   constructor(
@@ -64,6 +65,10 @@ export class FixtureConnector implements ConnectorPort {
     const mismatch = firstMismatch(step.expect, call);
     if (mismatch) throw new UnexpectedFixtureCall("connector", mismatch);
     return runFixtureStep(step, this.clock, request.signal);
+  }
+
+  close(connectionId: string): void {
+    this.closedConnectionIds.push(connectionId);
   }
 
   get remainingStepCount(): number {
