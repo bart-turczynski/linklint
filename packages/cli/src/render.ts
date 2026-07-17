@@ -54,6 +54,15 @@ function renderHuman(result: InspectResult, noColor: boolean): string {
   const lines: string[] = [];
   lines.push(`${badge(result, noColor)}  ${formatScore(result.score)}  ${result.input}`);
 
+  // Advisory: warn only when the PSL trust boundary is actually stale, so normal
+  // output is unchanged (schema 1.2, LINK-rkhuihjx). The registrable-domain
+  // reasoning below rests on this snapshot.
+  if (result.pslSnapshot.stale === true) {
+    lines.push(
+      `  ⚠ PSL snapshot (${result.pslSnapshot.date ?? "unknown date"}) is stale — registrable-domain reasoning may be outdated`,
+    );
+  }
+
   if (result.status === "invalid") {
     lines.push("  not a parseable URL — not checked (do not assume safe)");
     return lines.join("\n");

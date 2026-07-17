@@ -1,5 +1,8 @@
 import { SCHEMA_VERSION, type Layer, type Status, type Severity } from "./base.js";
 import type { ParsedUrl } from "./parsed.js";
+import type { PslSnapshot } from "../data/psl-provenance.js";
+
+export type { PslSnapshot } from "../data/psl-provenance.js";
 
 /**
  * A single named finding. `weight` is the score contribution attached by the
@@ -77,4 +80,12 @@ export interface InspectResult {
   checksRun: string[];
   checksSkipped: string[];
   dataVersions: DataVersions;
+  /**
+   * Provenance of the Public Suffix List snapshot this verdict's registrable-
+   * domain reasoning rests on: the snapshot `date` (deterministic) and a `stale`
+   * advisory flag against the default 180-day freshness window (time-relative;
+   * see {@link PslSnapshot}). Added in schema 1.2 (LINK-rkhuihjx). Consumers
+   * learn the provenance of the trust boundary they are handed.
+   */
+  pslSnapshot: PslSnapshot;
 }

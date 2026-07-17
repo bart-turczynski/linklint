@@ -9,6 +9,7 @@ import type { InspectionContext } from "../detectors/types.js";
 import { aggregate } from "../scoring/score.js";
 import { applySuppressions, suppressionHostContext } from "../scoring/suppress.js";
 import { DATA_VERSIONS } from "../data/versions.js";
+import { currentPslSnapshot } from "../data/psl-provenance.js";
 
 /** A finding collected during detector execution, before final serialization. */
 export interface CollectedFinding {
@@ -65,6 +66,9 @@ export function buildInvalidResult(
       ? ["resolution", "reputation"]
       : ["lexical", "resolution", "reputation"],
     dataVersions: DATA_VERSIONS,
+    // PSL-snapshot provenance + advisory staleness of the trust boundary this
+    // verdict rests on (schema 1.2, LINK-rkhuihjx).
+    pslSnapshot: currentPslSnapshot(),
   };
 }
 
@@ -151,5 +155,8 @@ export function buildOkResult(
     checksRun,
     checksSkipped,
     dataVersions: DATA_VERSIONS,
+    // PSL-snapshot provenance + advisory staleness of the trust boundary this
+    // verdict rests on (schema 1.2, LINK-rkhuihjx).
+    pslSnapshot: currentPslSnapshot(),
   };
 }

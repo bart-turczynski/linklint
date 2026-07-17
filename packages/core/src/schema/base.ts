@@ -5,8 +5,12 @@
  * The shape is identical for the library and the MCP server.
  */
 
-/** Current schema version. Bumped only on a breaking change to this contract. */
-export const SCHEMA_VERSION = "1.1" as const;
+/**
+ * Current schema version. Bumped on every contract change — additive minor
+ * bumps included, so consumers can pin behavior: 1.0→1.1 added `confidence`,
+ * 1.1→1.2 added `pslSnapshot` (both back-compatible field additions).
+ */
+export const SCHEMA_VERSION = "1.2" as const;
 
 /**
  * Conceptual inspection layers. v1 implements `lexical` only.
