@@ -187,25 +187,33 @@ Caller-owned mirrors stay caller-owned and are never silently redistributed.
 Adapters whose terms cannot support the selected mode remain parked rather than
 being enabled with weaker defaults.
 
-## Existing `inspectAsync()` migration
+## Shipped `inspectAsync()` foundation
 
 `inspectAsync()` remains in `linklint`; it is not moved into the online package.
-K6-K9 evolve its pure contract in place:
+K6-K9 completed its pure contract in place:
 
-1. Add versioned structured outcomes/evidence alongside the current flat
-   `EnricherFinding` scoring projection.
-2. Keep existing caller-supplied enrichers working through a documented legacy
-   adapter/deprecation window. Legacy findings must be visibly legacy or
-   provenance-incomplete; the framework must not invent source provenance.
-3. Make new `@linklint/online` adapters emit only the structured contract.
-4. Preserve `inspectAsync()` with no configured work as byte-identical to
-   `inspect()`, and preserve the synchronous public API and offline package
-   exports.
-5. Remove or narrow the legacy shape only through an explicit public-contract
-   release with migration notes and contract tests.
+1. Schema 1.3 carries versioned structured outcomes/evidence alongside the
+   legacy `EnricherFinding` scoring projection.
+2. Deterministic dependency stages expose prior source outcomes and apply
+   subject-aware suppression to discovered destinations.
+3. Every configured source is bounded by default, and provider, governor, cache,
+   and orchestration failures become explicit degradation outcomes.
+4. Promise-capable caches store and revalidate normalized reports and support
+   response-driven positive/no-hit lifetimes.
+5. Existing caller-supplied legacy enrichers remain supported through a
+   documented compatibility window with visibly incomplete provenance.
+6. `inspectAsync()` with no configured work remains byte-identical to
+   `inspect()`, preserving the synchronous API and offline package exports.
 
-This keeps custom caller integrations source-compatible while the result schema
-gains the structured evidence required by resolution and reputation work.
+New `@linklint/online` adapters must emit only the structured contract. Remove or
+narrow the legacy shape only through an explicit public-contract release with
+migration notes and contract tests. See
+[`enrichment-outcomes.md`](enrichment-outcomes.md) for the shipped schema,
+validation, degradation, orchestration, and cache contract.
+
+The current delivery frontier is Epic L's deterministic transport harness and
+L0 safe transport boundary. See [`online-roadmap.md`](online-roadmap.md) for the
+resume order and live FP issue mapping.
 
 ## Enforcement and verification
 

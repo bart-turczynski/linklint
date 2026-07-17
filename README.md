@@ -365,13 +365,22 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) and [SECURITY.md](./SECURITY.md).
 probabilistic-OR scoring, a caller-configurable policy layer, a stable versioned schema,
 and a local MCP server. Typically < 5 ms per call, zero network.
 
-**Roadmap.** Two further layers are designed but not yet built:
+**Online foundation implemented; concrete capabilities remain roadmap.** The
+opt-in `inspectAsync()` contract now includes versioned structured evidence,
+staged orchestration, bounded degradation, and Promise-capable dynamic caching.
+Core still performs no network I/O and ships no concrete online adapter.
+
+The next concrete layers are:
 
 - **Resolution** — follow redirects / expand shorteners (opt-in, network).
 - **Reputation** — check against threat feeds.
 
-Both will surface in `checksRun` / `checksSkipped` and contribute their own reason codes
-on their own layers. See [`docs/architecture.md`](./docs/architecture.md).
+Both extend `checksRun` / `checksSkipped` and structured evidence without
+replacing the offline verdict. The current execution frontier is the deterministic
+transport harness followed by the DNS-pinned L0 safe transport. See
+[`docs/online-roadmap.md`](./docs/online-roadmap.md),
+[`docs/online-runtime-boundary.md`](./docs/online-runtime-boundary.md), and
+[`docs/architecture.md`](./docs/architecture.md).
 
 ## License
 
