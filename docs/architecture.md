@@ -14,8 +14,10 @@ linklint/
     core/           # linklint npm package — inspect(), 35 checks, scoring, policy, schema
     mcp/            # @linklint/mcp — local-only MCP server (check_url / check_domain)
     cli/            # @linklint/cli — offline CLI (linklint check / batch)
+    online/         # planned @linklint/online — explicit Node/server network adapters
   docs/
     architecture.md
+    online-runtime-boundary.md # Accepted ownership/packaging decision for online work
     reason-codes.md # Full reason-code registry with detection logic and examples
     scoring.md      # Scoring model, severity bands, weights table (v1.3)
   features/         # Cucumber behavioral specs (critical path + acceptance criteria)
@@ -227,6 +229,17 @@ a caller supplies `{ code, host? }` rules marking a reason a false positive.
 | `packages/cli` | `linklint check` / `linklint batch` | `@linklint/cli` |
 
 Planned but not yet built: browser extension, GitHub Action, REST/serverless wrapper. The rule is the same for all of them: call `inspect()`, present the result, enforce policy at the adapter — never fork detector logic.
+
+Concrete online work follows a stricter package boundary. Pure enrichment
+contracts and orchestration remain in `linklint`; DNS-pinned destination
+transport, resolution, provider adapters, and caller-owned mirror integrations
+live in the planned Node-only `@linklint/online` sibling package; long-running
+monitoring owns a separate deployable service and durable state. The existing
+CLI and MCP packages remain offline, and browsers delegate authorized online
+work to a caller-owned backend because browser fetch cannot enforce the L0
+socket and DNS-pinning controls. The accepted decision, export categories,
+dependency direction, consent, secret, licensing, and migration rules are in
+[`online-runtime-boundary.md`](online-runtime-boundary.md).
 
 ## 10. Layer model
 
