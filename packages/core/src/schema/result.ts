@@ -11,6 +11,15 @@ export interface Reason {
   layer: Layer;
   detail: string;
   weight: number;
+  /**
+   * Caller escape hatch (see {@link import("./options.js").InspectOptions.suppressReasons}).
+   * Present and `true` only when a caller-supplied suppression rule marked this
+   * reason a false positive: the reason STAYS in `reasons[]` (never silently
+   * deleted) but its `weight` is zeroed so it contributes nothing to `score`.
+   * Absent by default — with no `suppressReasons` option the field never appears,
+   * so default output is byte-for-byte unchanged.
+   */
+  suppressed?: boolean;
 }
 
 /** Which URL component a confusable character was found in. */

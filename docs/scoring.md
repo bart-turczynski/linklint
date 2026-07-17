@@ -45,6 +45,24 @@ A parsed input with zero scoring weight is **benign**: `score: 0`,
 `severity: "info"` — even when informational reasons are present (FR-SCORE-5).
 Invalid input has `score: null` / `severity: null` and is **not** benign.
 
+### Caller false-positive suppression (`suppressReasons`)
+
+The `suppressReasons` option is a caller-owned escape hatch — the general form of
+the single-heuristic `idnPolicy`/`idnAllowlist` opt-out, applied to **every**
+reason code. Each rule marks a reason `code` a false positive, optionally scoped
+to a registrable `host` (omitted host = all hosts; host matching mirrors
+`idnAllowlist` — registrable-domain, case-insensitive, Unicode/punycode
+agnostic). A matched reason **stays in `reasons[]`** annotated `suppressed: true`
+but its `weight` is zeroed, so `aggregate` skips it and `score`/`severity` drop
+exactly as if the signal were absent. Suppressing every scoring reason drives the
+verdict to `score: 0` / `severity: "info"`.
+
+Suppression never hides itself: whenever the option is present (even `[]`) the
+`suppression` token appears in `checksRun`. With the option absent, output is
+byte-for-byte unchanged — the `suppressed` marker never appears, so no
+`SCHEMA_VERSION` bump is needed (the field is additive and absent by default).
+Enricher-layer reasons (`inspectAsync`) are suppressible by the same mechanism.
+
 ## Weights table (v1, hand-tuned — OQ-3)
 
 Weights are hand-tuned and transparent (not learned), so the verdict stays

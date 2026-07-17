@@ -7,6 +7,7 @@ import {
 import { reasonMeta, weightFor, type ReasonCode } from "./reason-codes.js";
 import type { InspectionContext } from "../detectors/types.js";
 import { aggregate } from "../scoring/score.js";
+import { applySuppressions, suppressionHostContext } from "../scoring/suppress.js";
 import { DATA_VERSIONS } from "../data/versions.js";
 
 /** A finding collected during detector execution, before final serialization. */
@@ -84,6 +85,13 @@ export function buildInvalidResult(
  * three run is `["lexical", "policy", "agent"]`. Like `policyRan`, agent-gated
  * checks disabled by `agentMode: false` are NOT recorded in `checksSkipped`, so
  * the default path stays byte-identical.
+ *
+ * `suppressRan` is the caller false-positive escape hatch flag: when
+ * `InspectOptions.suppressReasons` is present, matched reasons are annotated
+ * `suppressed` (weight zeroed, so `aggregate` drops them) and the `suppression`
+ * token is appended to `checksRun` — honest that a caller escape hatch applied.
+ * Absent the option, suppression is inert and the output is byte-for-byte
+ * unchanged.
  */
 export function buildOkResult(
   ctx: InspectionContext,
@@ -92,13 +100,24 @@ export function buildOkResult(
   policyFindings: CollectedFinding[] = [],
   policyRan = false,
   agentRan = false,
+  suppressRan = false,
 ): InspectResult {
-  const reasons: Reason[] = [...findings, ...policyFindings].map((f) => ({
+  const built: Reason[] = [...findings, ...policyFindings].map((f) => ({
     code: f.code,
     layer: reasonMeta(f.code).layer,
     detail: f.detail,
     weight: weightFor(f.code),
   }));
+
+  // Caller false-positive escape hatch: annotate matched reasons `suppressed`
+  // and zero their weight BEFORE sort/aggregate, so the score drops as if the
+  // signal were absent while the reason stays visible. Inert (same array) when no
+  // suppression rule is configured — keeps the default path byte-for-byte.
+  const reasons: Reason[] = applySuppressions(
+    built,
+    ctx.runtime.suppressReasons,
+    suppressionHostContext(ctx.registrableDomain),
+  );
 
   reasons.sort((a, b) => (b.weight - a.weight) || a.code.localeCompare(b.code));
 
@@ -109,11 +128,13 @@ export function buildOkResult(
   const checksSkipped = [...skippedDetectors, "resolution", "reputation"];
 
   // Channel tokens in deterministic order: lexical always; policy when the
-  // policy channel ran; agent when the agent-gated channel ran. Appended in this
-  // fixed order so the default path is exactly ["lexical"].
+  // policy channel ran; agent when the agent-gated channel ran; suppression when
+  // the caller escape hatch was configured. Appended in this fixed order so the
+  // default path is exactly ["lexical"].
   const checksRun = ["lexical"];
   if (policyRan) checksRun.push("policy");
   if (agentRan) checksRun.push("agent");
+  if (suppressRan) checksRun.push("suppression");
 
   return {
     schemaVersion: SCHEMA_VERSION,

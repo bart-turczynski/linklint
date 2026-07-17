@@ -1,3 +1,5 @@
+import type { ReasonCode } from "./reason-codes.js";
+
 /**
  * Options accepted by `inspect()`.
  *
@@ -12,6 +14,25 @@
  * Policy fields are flat and additive — each axis contributes its own
  * optional field here; {@link InspectOptions} stays a single grouping.
  */
+/**
+ * A single caller false-positive suppression rule (see
+ * {@link InspectOptions.suppressReasons}). Suppresses a reason `code`, optionally
+ * scoped to a registrable domain via `host`.
+ */
+export interface SuppressReasonRule {
+  /** The reason code to suppress (any code linklint can emit). */
+  code: ReasonCode;
+  /**
+   * Optional registrable-domain scope. When omitted, the rule suppresses `code`
+   * for ALL hosts. When set, it applies only to inputs whose **registrable
+   * domain** matches — compared like {@link InspectOptions.idnAllowlist}
+   * (case-insensitive, Unicode-canonicalized, leading dot tolerated, covers all
+   * subdomains). IP / hostless inputs have no registrable domain and never match
+   * a host-scoped rule.
+   */
+  host?: string;
+}
+
 export interface InspectOptions {
   /**
    * Maximum number of recursive percent-decode passes. Bounded to keep
@@ -68,6 +89,31 @@ export interface InspectOptions {
    * @example idnAllowlist: ["münchen.de", "日本語.jp"]
    */
   idnAllowlist?: string[];
+
+  /**
+   * Caller false-positive escape hatch — the general form of
+   * {@link idnPolicy}/{@link idnAllowlist}, applied to EVERY heuristic. Each rule
+   * marks a reason `code` a false positive; a matched reason STAYS in `reasons[]`
+   * (annotated `suppressed: true`, never silently deleted) but its scoring weight
+   * is zeroed, so `score`/`severity` drop as if the signal were absent. A
+   * fully-suppressed set can lower the verdict to `severity: "info"` / `score: 0`.
+   *
+   * A rule with no `host` suppresses its `code` for all hosts; a rule with a
+   * `host` applies only to inputs whose registrable domain matches (see
+   * {@link SuppressReasonRule.host}). Rules with an unrecognized/invalid shape are
+   * ignored (inspection is total, never throws).
+   *
+   * Honesty: whenever this field is present (even `[]`), the `suppression` token
+   * appears in `checksRun`, so a result never hides that a caller escape hatch was
+   * applied. When the field is absent, output is byte-for-byte unchanged.
+   *
+   * This is additive and backward-compatible — no `SCHEMA_VERSION` bump: the
+   * `Reason.suppressed` marker is absent by default, so default-off callers see
+   * exactly the pre-existing schema `1.1` output.
+   *
+   * @example suppressReasons: [{ code: "risky_tld" }, { code: "idn_host", host: "münchen.de" }]
+   */
+  suppressReasons?: SuppressReasonRule[];
 
   /**
    * Policy: TLD deny-list (default-allow). When set, a host whose TLD is in this
