@@ -15,8 +15,25 @@ export interface RuntimeConfig {
   idnPolicy: "block" | "allow";
   /** Normalized IDN allow-list: lower-cased, leading-dot-stripped registrable domains exempt under `"block"`. */
   idnAllowlist: ReadonlySet<string>;
+  /**
+   * Normalized caller false-positive suppression rules (default `[]`). Each rule
+   * suppresses a reason `code`, optionally scoped to a registrable-domain `host`
+   * (`null` = all hosts). See {@link import("../scoring/suppress.js").applySuppressions}.
+   */
+  suppressReasons: readonly SuppressionRule[];
   /** Normalized policy configuration derived once per inspection. */
   policy: PolicyRuntimeConfig;
+}
+
+/** A normalized suppression rule carried on the runtime config. */
+export interface SuppressionRule {
+  /** The reason code to suppress. */
+  code: string;
+  /**
+   * Registrable-domain scope, Unicode-canonicalized + lower-cased (like an
+   * `idnAllowlist` entry), or `null` to suppress `code` for all hosts.
+   */
+  host: string | null;
 }
 
 /** Normalized policy list: ordered for detail strings, indexed for matching. */
@@ -60,7 +77,40 @@ export function normalizeOptions(options: InspectOptions): RuntimeConfig {
       .filter((d): d is string => typeof d === "string")
       .map((d) => toUnicode(d.replace(/^\./, "")).toLowerCase()),
   );
-  return { maxDecodeDepth, idnPolicy, idnAllowlist, policy: normalizePolicyOptions(options) };
+  return {
+    maxDecodeDepth,
+    idnPolicy,
+    idnAllowlist,
+    suppressReasons: normalizeSuppressReasons(options.suppressReasons),
+    policy: normalizePolicyOptions(options),
+  };
+}
+
+/**
+ * Normalize caller {@link InspectOptions.suppressReasons} into runtime rules.
+ * Drops entries that are not objects or lack a string `code`. A `host` is
+ * canonicalized to its Unicode, lower-cased, leading-dot-stripped registrable
+ * form — mirroring `idnAllowlist` normalization so a rule's `host` matches an
+ * input's registrable domain regardless of punycode/Unicode presentation. A
+ * missing/blank/non-string `host` becomes `null` (suppress `code` for all hosts).
+ * Never throws — inspection must be total.
+ */
+export function normalizeSuppressReasons(
+  rules: InspectOptions["suppressReasons"],
+): readonly SuppressionRule[] {
+  if (!Array.isArray(rules)) return [];
+  const normalized: SuppressionRule[] = [];
+  for (const rule of rules) {
+    if (typeof rule !== "object" || rule === null) continue;
+    const { code, host } = rule as { code?: unknown; host?: unknown };
+    if (typeof code !== "string") continue;
+    const normalizedHost =
+      typeof host === "string" && host.trim() !== ""
+        ? toUnicode(host.replace(/^\./, "")).toLowerCase()
+        : null;
+    normalized.push({ code, host: normalizedHost });
+  }
+  return normalized;
 }
 
 export function normalizePolicyOptions(options: InspectOptions): PolicyRuntimeConfig {

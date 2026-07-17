@@ -10,6 +10,7 @@ import {
   type CollectedFinding,
 } from "./schema/serialize.js";
 import { policyConfigured, runPolicy } from "./policy/policy.js";
+import { suppressConfigured } from "./scoring/suppress.js";
 import { normalizeOptions } from "./parse/runtime.js";
 import { authorityRegion } from "./parse/authority-region.js";
 
@@ -101,5 +102,20 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRes
     }
   }
 
-  return buildOkResult(ctx, findings, skippedDetectors, policyFindings, policyRan, agentRan);
+  // Caller false-positive escape hatch (FR — architecture §9): a general
+  // suppression channel that annotates matched reasons `suppressed` and zeroes
+  // their scoring weight. Configured whenever `suppressReasons` is present; when
+  // absent the result is byte-identical to today (no `suppression` in checksRun,
+  // no `suppressed` markers). The rules themselves ride on `ctx.runtime`.
+  const suppressRan = suppressConfigured(options);
+
+  return buildOkResult(
+    ctx,
+    findings,
+    skippedDetectors,
+    policyFindings,
+    policyRan,
+    agentRan,
+    suppressRan,
+  );
 }

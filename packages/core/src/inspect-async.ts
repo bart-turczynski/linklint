@@ -13,6 +13,8 @@ import type { EnrichmentGovernor } from "./enrichment-governor.js";
 import { inspect } from "./inspect.js";
 import { reasonMeta, weightFor } from "./schema/reason-codes.js";
 import { aggregate } from "./scoring/score.js";
+import { applySuppressions, suppressionHostContext } from "./scoring/suppress.js";
+import { normalizeSuppressReasons } from "./parse/runtime.js";
 
 /**
  * Options for {@link inspectAsync}. A superset of the synchronous
@@ -129,7 +131,18 @@ export async function inspectAsync(
     detail: f.detail,
     weight: weightFor(f.code),
   }));
-  const reasons: Reason[] = [...base.reasons, ...enrichmentReasons];
+  // Enricher reasons are heuristics too, so the caller false-positive escape
+  // hatch must reach them: re-run suppression over the MERGED set (the sync base
+  // reasons were already suppressed by inspect() with these same rules, so
+  // re-applying is idempotent — only fresh enricher reasons can newly match).
+  // Inert when no rule is configured, preserving the no-enricher/no-option
+  // invariant. The `suppression` marker already rides on base.checksRun.
+  const suppressReasons = normalizeSuppressReasons(options.suppressReasons);
+  const reasons: Reason[] = applySuppressions(
+    [...base.reasons, ...enrichmentReasons],
+    suppressReasons,
+    suppressionHostContext(base.parsed?.registrableDomain ?? null),
+  );
   reasons.sort((a, b) => b.weight - a.weight || a.code.localeCompare(b.code));
 
   const confusables: Confusable[] = [

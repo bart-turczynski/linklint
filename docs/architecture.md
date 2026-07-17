@@ -100,7 +100,7 @@ interface InspectResult {
   score: number | null;            // [0,1] when ok; null when invalid
   severity: 'info' | 'low' | 'medium' | 'high' | 'critical' | null;
   confidence: number;              // [0,1]; 1.0 for deterministic lexical, min-aggregated across enrichers (FR-SCORE-2b)
-  reasons: Reason[];               // { code, layer, detail, weight }
+  reasons: Reason[];               // { code, layer, detail, weight, suppressed? }
   confusables: Confusable[];
   checksRun: string[];             // e.g. ['lexical', 'policy']
   checksSkipped: string[];         // e.g. ['resolution', 'reputation']
@@ -116,6 +116,7 @@ Key invariants:
 - A non-empty `confusables[]` requires a corresponding `confusable_char` or `confusable_in_path` reason, and vice versa.
 - If a lexical scoring detector fails, its ID appears in `checksSkipped` as `lexical:<id>`. The layer stays in `checksRun`; the score is a lower bound. Fail-closed consumers should treat results with `lexical:*` in `checksSkipped` as untrusted rather than benign.
 - `confidence` is `1.0` for every deterministic lexical result (sync `inspect()`, including `status: "invalid"`). It is **independent** of `score`/`weight` and never feeds score aggregation; `inspectAsync()` lowers it to the **minimum** over the lexical base (`1.0`) and each successful probabilistic enricher finding's `confidence` (default `1.0`). With no enrichers it stays `1.0`, so `inspectAsync(url)` remains deep-equal to `inspect(url)`.
+- `Reason.suppressed` is an OPTIONAL marker, present and `true` only when the caller's `suppressReasons` escape hatch (§8) matched that reason. It is **additive** and absent by default, so it needs no `SCHEMA_VERSION` bump: with no `suppressReasons` option every result is byte-for-byte identical to the pre-existing `1.1` output.
 
 ## 7. Scoring
 
@@ -156,6 +157,28 @@ Available axes (all optional, all default-allow):
 Enforcement is the consumer's job — linklint only reports the verdict. Ready-made
 fail-closed wrappers (Claude Code PreToolUse hook, curl/wget shell aliases) live in
 [`docs/enforcement.md`](enforcement.md).
+
+### Caller false-positive escape hatch (`suppressReasons`)
+
+`idnPolicy`/`idnAllowlist` let a caller say "non-ASCII here is fine" for the one
+`idn_host` heuristic. `suppressReasons` generalizes that to **every** heuristic:
+a caller supplies `{ code, host? }` rules marking a reason a false positive.
+
+- **Annotate, don't delete.** A matched reason stays in `reasons[]` marked
+  `suppressed: true`; its scoring `weight` is zeroed so `aggregate` ignores it and
+  `score`/`severity` drop as if the signal were absent. linklint is never silently
+  clean — the finding is still visible, just excluded from the verdict.
+- **Scope.** No `host` = suppress that `code` for all inputs; a `host` limits it to
+  inputs whose registrable domain matches (mirrors `idnAllowlist`: registrable
+  domain, case-insensitive, Unicode/punycode agnostic, covers subdomains).
+- **Honesty.** Whenever the option is present (even `[]`) the `suppression` token
+  is appended to `checksRun` (order: `lexical → policy → agent → suppression`), so
+  a result never hides that a caller escape hatch was applied.
+- **Default-off.** With the option absent, output is byte-for-byte unchanged.
+- **Both paths.** A single shared predicate (`scoring/suppress.ts`) is applied by
+  sync `inspect()` (in `buildOkResult`, before sort/aggregate) and by
+  `inspectAsync`'s re-aggregation, so enricher-layer reasons are equally
+  suppressible.
 
 ## 9. Channels
 
