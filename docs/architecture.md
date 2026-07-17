@@ -14,7 +14,7 @@ linklint/
     core/           # linklint npm package — inspect(), 35 checks, scoring, policy, schema
     mcp/            # @linklint/mcp — local-only MCP server (check_url / check_domain)
     cli/            # @linklint/cli — offline CLI (linklint check / batch)
-    online/         # planned @linklint/online — explicit Node/server network adapters
+    online/         # @linklint/online — Node/server boundary; deterministic fixtures shipped
   docs/
     architecture.md
     online-runtime-boundary.md # Accepted ownership/packaging decision for online work
@@ -231,19 +231,26 @@ a caller supplies `{ code, host? }` rules marking a reason a false positive.
 | `packages/core` | `inspect()` library | `linklint` |
 | `packages/mcp` | `check_url` / `check_domain` MCP tools (stdio) | `@linklint/mcp` |
 | `packages/cli` | `linklint check` / `linklint batch` | `@linklint/cli` |
+| `packages/online` | Explicit Node/server capabilities; transport fixtures only so far | `@linklint/online` |
 
 Planned but not yet built: browser extension, GitHub Action, REST/serverless wrapper. The rule is the same for all of them: call `inspect()`, present the result, enforce policy at the adapter — never fork detector logic.
 
 Concrete online work follows a stricter package boundary. Pure enrichment
 contracts and orchestration remain in `linklint`; DNS-pinned destination
 transport, resolution, provider adapters, and caller-owned mirror integrations
-live in the planned Node-only `@linklint/online` sibling package; long-running
+live in the Node-only `@linklint/online` sibling package; long-running
 monitoring owns a separate deployable service and durable state. The existing
 CLI and MCP packages remain offline, and browsers delegate authorized online
 work to a caller-owned backend because browser fetch cannot enforce the L0
 socket and DNS-pinning controls. The accepted decision, export categories,
 dependency direction, consent, secret, licensing, and migration rules are in
 [`online-runtime-boundary.md`](online-runtime-boundary.md).
+
+The online package currently exposes no network capability. Its internal LT
+harness provides exact-order resolver, pinned connector/TLS identity, streamed
+HTTP, operational-failure, and manually advanced clock fixtures. L0 will use
+that zero-I/O harness to prove the authorization boundary before the transport
+subpath becomes public.
 
 ## 10. Layer model
 

@@ -57,6 +57,12 @@ importers:
         specifier: ^4.0.0
         version: 4.4.3
 
+  packages/online:
+    dependencies:
+      linklint:
+        specifier: workspace:*
+        version: link:../core
+
 packages:
 
   '@babel/code-frame@7.29.7':

@@ -14,8 +14,9 @@ and context that should survive individual work sessions.
 - `LINK-ryfztgke` is done. The accepted package boundary is:
   - `linklint`: portable contracts, validation, synchronous `inspect()`, and
     pure `inspectAsync()` orchestration;
-  - `@linklint/online`: future Node/server transports, resolution adapters,
-    provider clients, and caller-owned mirror integrations; and
+  - `@linklint/online`: a scaffolded Node/server package whose deterministic
+    transport fixtures are shipped; future safe transports, resolution adapters,
+    provider clients, and caller-owned mirror integrations remain gated; and
   - a separate deployable monitoring service for durable N state.
 - Epic K (`LINK-tfcbqtoy`) is done.
   - K1-K5 provide the original opt-in async pipeline, confidence, cache seam,
@@ -26,18 +27,16 @@ and context that should survive individual work sessions.
 - The synchronous product boundary remains unchanged: `inspect()` is
   deterministic and zero-network, and `inspectAsync()` with no configured work
   remains byte-identical to `inspect()`.
+- LT (`LINK-jsgadjni`) is done. The internal `@linklint/online` harness provides
+  exact-order resolver address changes, pinned connector/SNI assertions,
+  streamed HTTP responses, stable operational failures, and a manually advanced
+  shared clock without concrete DNS, socket, TLS, HTTP, or `fetch` calls.
 
 ## Current execution frontier
 
-The next default task under the coordinator is:
-
-1. **Claim `LINK-jsgadjni` (LT)** — deterministic DNS, TLS, HTTP, and clock
-   fixture harness. Its packaging dependency is done. The harness must use no
-   external network and must make transport safety/failure behavior testable in
-   CI.
-2. **Then claim `LINK-cjkdyxau` (L0)** — safe DNS-pinned HTTP(S) authorization
-   and connection boundary. Its packaging and literal-IP-classifier dependencies
-   are done; LT is the remaining prerequisite.
+The next default task under the coordinator is **claim `LINK-cjkdyxau` (L0)** —
+the safe DNS-pinned HTTP(S) authorization and connection boundary. Its packaging,
+literal-IP-classifier, and deterministic-harness dependencies are done.
 
 Do not start a destination fetch implementation before L0. Local deterministic
 wrapper decoding (`LINK-ehhmrblq`) does not itself authorize network access, but
@@ -112,9 +111,9 @@ When the coordinator is assigned again:
 1. Run `fp guide implement` and `fp context LINK-ddsnssrd`.
 2. Run `fp tree LINK-ddsnssrd` and `fp issue show` for the proposed child; do not
    trust this document for status if FP has moved on.
-3. If LT is still todo and unblocked, claim `LINK-jsgadjni`. If LT is done, follow
-   the Epic L dependency path above, selecting the first unblocked child in the
-   stated order.
+3. Follow the Epic L dependency path above, selecting the first unblocked child
+   in the stated order. With LT done, the default frontier is L0
+   (`LINK-cjkdyxau`).
 4. Read [`online-runtime-boundary.md`](online-runtime-boundary.md),
    [`architecture.md`](architecture.md), and
    [`enrichment-outcomes.md`](enrichment-outcomes.md) before defining public

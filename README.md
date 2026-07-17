@@ -376,8 +376,8 @@ The next concrete layers are:
 - **Reputation** — check against threat feeds.
 
 Both extend `checksRun` / `checksSkipped` and structured evidence without
-replacing the offline verdict. The current execution frontier is the deterministic
-transport harness followed by the DNS-pinned L0 safe transport. See
+replacing the offline verdict. The deterministic zero-I/O transport harness is
+shipped; the current execution frontier is the DNS-pinned L0 safe transport. See
 [`docs/online-roadmap.md`](./docs/online-roadmap.md),
 [`docs/online-runtime-boundary.md`](./docs/online-runtime-boundary.md), and
 [`docs/architecture.md`](./docs/architecture.md).

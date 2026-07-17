@@ -56,9 +56,11 @@ metadata.
 
 ### 2. `@linklint/online`: explicit per-inspection online capabilities
 
-A new sibling package, `packages/online`, will be published as
-`@linklint/online`. It is the only built-in library package that may contain
-concrete network clients. It owns:
+The sibling package `packages/online` is scaffolded as `@linklint/online`. It is
+the only built-in library package that may contain concrete network clients.
+Its root is currently side-effect free and intentionally exposes no online
+capability; the internal deterministic transport harness shipped first so L0
+can be implemented without live network access. The package owns:
 
 - the L0 DNS-pinned HTTP(S) authorization and connection boundary;
 - DNS, TLS, HTTP, redirect, and response-evidence adapters;
@@ -78,7 +80,8 @@ socket selection, SNI, and certificate controls required by L0. Browser clients
 run core locally and, when a user explicitly opts in, call a caller-owned
 backend that applies the online boundary.
 
-The planned public export map is intentionally capability-oriented:
+The public export map will expand only as each capability ships and is
+intentionally capability-oriented:
 
 | Export | Ownership |
 |--------|-----------|
@@ -211,9 +214,10 @@ migration notes and contract tests. See
 [`enrichment-outcomes.md`](enrichment-outcomes.md) for the shipped schema,
 validation, degradation, orchestration, and cache contract.
 
-The current delivery frontier is Epic L's deterministic transport harness and
-L0 safe transport boundary. See [`online-roadmap.md`](online-roadmap.md) for the
-resume order and live FP issue mapping.
+Epic L's deterministic transport harness is shipped. The current delivery
+frontier is the L0 safe transport boundary. See
+[`online-roadmap.md`](online-roadmap.md) for the resume order and live FP issue
+mapping.
 
 ## Enforcement and verification
 

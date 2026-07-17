@@ -1,0 +1,29 @@
+{
+  "name": "@linklint/online",
+  "version": "0.1.0-dev.0",
+  "description": "Explicit Node/server online capabilities for linklint.",
+  "keywords": ["url", "security", "linklint", "resolution", "reputation"],
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "linklint": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
