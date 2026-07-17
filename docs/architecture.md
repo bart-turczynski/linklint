@@ -89,16 +89,17 @@ Informational detectors (`confusable_char`, `confusable_in_path`, `normalization
 
 ## 6. Result schema
 
-Every channel returns the same `InspectResult` (schema version `1.0`):
+Every channel returns the same `InspectResult` (schema version `1.1`):
 
 ```ts
 interface InspectResult {
-  schemaVersion: '1.0';
+  schemaVersion: '1.1';
   status: 'ok' | 'invalid';
   input: string;
   parsed: ParsedUrl | null;
   score: number | null;            // [0,1] when ok; null when invalid
   severity: 'info' | 'low' | 'medium' | 'high' | 'critical' | null;
+  confidence: number;              // [0,1]; 1.0 for deterministic lexical, min-aggregated across enrichers (FR-SCORE-2b)
   reasons: Reason[];               // { code, layer, detail, weight }
   confusables: Confusable[];
   checksRun: string[];             // e.g. ['lexical', 'policy']
@@ -114,6 +115,7 @@ Key invariants:
 - `dataVersions` is present on both valid and invalid results for reproducibility.
 - A non-empty `confusables[]` requires a corresponding `confusable_char` or `confusable_in_path` reason, and vice versa.
 - If a lexical scoring detector fails, its ID appears in `checksSkipped` as `lexical:<id>`. The layer stays in `checksRun`; the score is a lower bound. Fail-closed consumers should treat results with `lexical:*` in `checksSkipped` as untrusted rather than benign.
+- `confidence` is `1.0` for every deterministic lexical result (sync `inspect()`, including `status: "invalid"`). It is **independent** of `score`/`weight` and never feeds score aggregation; `inspectAsync()` lowers it to the **minimum** over the lexical base (`1.0`) and each successful probabilistic enricher finding's `confidence` (default `1.0`). With no enrichers it stays `1.0`, so `inspectAsync(url)` remains deep-equal to `inspect(url)`.
 
 ## 7. Scoring
 

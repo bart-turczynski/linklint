@@ -54,6 +54,9 @@ export function buildInvalidResult(
     parsed: null,
     score: null,
     severity: null,
+    // Deterministic lexical verdict: fully confident (FR-SCORE-2b). Probabilistic
+    // enrichers only ever lower this in inspectAsync.
+    confidence: 1,
     reasons,
     confusables: hasFindings ? findings.flatMap((f) => f.confusables ?? []) : [],
     checksRun: hasFindings ? ["lexical"] : [],
@@ -119,6 +122,9 @@ export function buildOkResult(
     parsed: ctx.parsed,
     score,
     severity,
+    // Deterministic lexical verdict: fully confident (FR-SCORE-2b). Probabilistic
+    // enrichers only ever lower this in inspectAsync.
+    confidence: 1,
     reasons,
     confusables,
     checksRun,

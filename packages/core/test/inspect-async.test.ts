@@ -176,6 +176,51 @@ describe("inspectAsync — graceful degradation (load-bearing)", () => {
   });
 });
 
+describe("inspectAsync — confidence aggregation (FR-SCORE-2b)", () => {
+  it("lexical-only (no enrichers) stays fully confident at 1.0", async () => {
+    const r = await inspectAsync(BENIGN, { enrichers: [] });
+    expect(r.confidence).toBe(1);
+    // And the no-enricher path remains deep-equal to sync inspect().
+    expect(r).toEqual(inspect(BENIGN));
+  });
+
+  it("a finding with confidence 0.6 drives the result confidence to 0.6", async () => {
+    const finding: EnricherFinding = { ...PRIVATE_IP_FINDING, confidence: 0.6 };
+    const enricher = new FakeEnricher("dns", "resolution", [finding]);
+    const r = await inspectAsync(BENIGN, { enrichers: [enricher] });
+    expect(r.confidence).toBeCloseTo(0.6, 10);
+    // confidence is independent of score: the score still moves by the weight.
+    expect(r.score).toBeCloseTo(0.2, 10);
+  });
+
+  it("a finding that omits confidence contributes 1.0 (leaves it unchanged)", async () => {
+    const enricher = new FakeEnricher("dns", "resolution", [PRIVATE_IP_FINDING]);
+    const r = await inspectAsync(BENIGN, { enrichers: [enricher] });
+    expect(r.confidence).toBe(1);
+  });
+
+  it("takes the MINIMUM confidence across multiple contributing findings", async () => {
+    const low: EnricherFinding = { ...PRIVATE_IP_FINDING, confidence: 0.4 };
+    const mid: EnricherFinding = {
+      code: "risky_tld",
+      detail: "reputation signal",
+      confidence: 0.7,
+    };
+    const dns = new FakeEnricher("dns", "resolution", [low]);
+    const rep = new FakeEnricher("rep", "reputation", [mid]);
+    const r = await inspectAsync(BENIGN, { enrichers: [dns, rep] });
+    expect(r.confidence).toBeCloseTo(0.4, 10);
+  });
+
+  it("a skipped/failed enricher contributes nothing to confidence", async () => {
+    const bad = new ThrowingEnricher("flaky", "reputation");
+    const r = await inspectAsync(BENIGN, { enrichers: [bad] });
+    // Failure is visible in checksSkipped, not in confidence, which stays 1.0.
+    expect(r.checksSkipped).toContain("reputation:flaky");
+    expect(r.confidence).toBe(1);
+  });
+});
+
 describe("inspectAsync — AbortSignal threading", () => {
   it("passes the caller's signal through to the enricher context", async () => {
     const controller = new AbortController();

@@ -48,8 +48,26 @@ Invalid input has `score: null` / `severity: null` and is **not** benign.
 ## Weights table (v1, hand-tuned — OQ-3)
 
 Weights are hand-tuned and transparent (not learned), so the verdict stays
-explainable. Reliability is encoded in the weight itself — there is no separate
-`confidence` field in v1 (FR-SCORE-2b).
+explainable. Scoring reliability is encoded in the weight itself.
+
+### The `confidence` field (FR-SCORE-2b)
+
+Every result also carries a top-level `confidence` in `[0,1]`, **independent of
+`weight` and `score`**: `weight` drives the deception score, `confidence` is a
+separate advisory measure of how reliable the contributing signals are. It does
+**not** feed the probabilistic-OR aggregation above.
+
+- Deterministic lexical results — everything the synchronous `inspect()`
+  produces, including `status: "invalid"` — are fully deterministic at
+  `confidence: 1.0`.
+- Probabilistic (resolution/reputation) enrichers run via `inspectAsync()` may
+  express a per-finding `confidence`; omitting it means `1.0`.
+- The result's `confidence` is the **minimum** over all contributing signals
+  (the lexical base at `1.0` plus each successful enricher finding's
+  confidence). A verdict is only as confident as its least-confident signal
+  (fail-closed). A skipped/failed enricher contributes nothing — its absence is
+  already visible in `checksSkipped`. With no enrichers, `confidence` stays
+  `1.0`.
 
 A weight of **1.00 is a blocker** — under probabilistic OR the `(1 − w)` factor
 zeroes the product, so the score saturates to 1 (critical) regardless of any other
