@@ -12,6 +12,10 @@
 
 export { inspect } from "./inspect.js";
 
+// Async enrichment framework (opt-in; roadmap resolution/reputation layers).
+// `inspectAsync` runs the sync `inspect()` first, then caller-supplied enrichers.
+export { inspectAsync, type InspectAsyncOptions } from "./inspect-async.js";
+
 // Schema / result contract
 export {
   SCHEMA_VERSION,
@@ -25,6 +29,10 @@ export {
   type Layer,
   type Status,
   type Severity,
+  type Enricher,
+  type EnricherFinding,
+  type EnrichmentContext,
+  type EnrichmentLayer,
 } from "./schema/types.js";
 
 // Reason-code registry + scoring reference data
