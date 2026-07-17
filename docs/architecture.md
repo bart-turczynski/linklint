@@ -89,11 +89,11 @@ Informational detectors (`confusable_char`, `confusable_in_path`, `normalization
 
 ## 6. Result schema
 
-Every channel returns the same `InspectResult` (schema version `1.1`):
+Every channel returns the same `InspectResult` (schema version `1.2`):
 
 ```ts
 interface InspectResult {
-  schemaVersion: '1.1';
+  schemaVersion: '1.2';
   status: 'ok' | 'invalid';
   input: string;
   parsed: ParsedUrl | null;
@@ -105,6 +105,7 @@ interface InspectResult {
   checksRun: string[];             // e.g. ['lexical', 'policy']
   checksSkipped: string[];         // e.g. ['resolution', 'reputation']
   dataVersions: DataVersions;      // PSL, confusables, scripts, IDNA, brands, weights versions
+  pslSnapshot: PslSnapshot;        // { date, stale } — provenance + advisory staleness of the PSL trust boundary (schema 1.2)
 }
 ```
 
@@ -113,10 +114,47 @@ Key invariants:
 - `status: "invalid"` → `score: null`, `severity: null`, `parse_error` reason, `checksRun: []`. Invalid input is **not** benign.
 - `score: 0` → `severity: "info"`. A parsed URL with zero scoring weight is benign even when informational reasons are present.
 - `dataVersions` is present on both valid and invalid results for reproducibility.
+- `pslSnapshot` (schema 1.2) is present on both valid and invalid results. `date` is the deterministic provenance date of the bundled PSL snapshot (the pinned `tldts` release date, a tight upper bound on the true list date); `stale` is an **advisory, time-relative** flag — the one field on the result that reflects wall-clock time — computed against a 180-day freshness window and `null` when the date is unknown. See §6.1.
 - A non-empty `confusables[]` requires a corresponding `confusable_char` or `confusable_in_path` reason, and vice versa.
 - If a lexical scoring detector fails, its ID appears in `checksSkipped` as `lexical:<id>`. The layer stays in `checksRun`; the score is a lower bound. Fail-closed consumers should treat results with `lexical:*` in `checksSkipped` as untrusted rather than benign.
 - `confidence` is `1.0` for every deterministic lexical result (sync `inspect()`, including `status: "invalid"`). It is **independent** of `score`/`weight` and never feeds score aggregation; `inspectAsync()` lowers it to the **minimum** over the lexical base (`1.0`) and each successful probabilistic enricher finding's `confidence` (default `1.0`). With no enrichers it stays `1.0`, so `inspectAsync(url)` remains deep-equal to `inspect(url)`.
 - `Reason.suppressed` is an OPTIONAL marker, present and `true` only when the caller's `suppressReasons` escape hatch (§8) matched that reason. It is **additive** and absent by default, so it needs no `SCHEMA_VERSION` bump: with no `suppressReasons` option every result is byte-for-byte identical to the pre-existing `1.1` output.
+
+### 6.1 PSL snapshot provenance & staleness
+
+linklint's core claim — "the real host is `evil.com`" — is computed from the
+Public Suffix List bundled inside `tldts` (pinned via
+`dataVersions.publicSuffixList`). A silently stale bundled PSL degrades
+embedded-domain / brand-lookalike / ambiguous-authority reasoning with no signal
+to callers, so the trust boundary carries its own provenance:
+
+- **Provenance record** (`src/data/psl-provenance.ts`, `PSL_PROVENANCE`): a
+  hand-captured `{ tldtsVersion, pslListDate, retrievedAt }` verified at
+  dependency-pin time. `pslListDate` is the pinned `tldts` npm-release date used
+  as the snapshot proxy — `tldts` regenerates its bundled list from upstream at
+  release-build time, so the release date is a tight **upper bound** on the
+  snapshot's age (staleness computed from it is conservative). Bump all three
+  fields together with `dataVersions.publicSuffixList` on every `tldts` pin.
+- **`pslOutdated(maxAgeDays = 180)`**: a **pure, offline** check reading only the
+  provenance record → `{ stale, ageDays }`. Unknown/unparseable date →
+  `{ stale: null, ageDays: null }` (undetermined, never assumed either way).
+- **`result.pslSnapshot`**: `{ date, stale }` surfaced on every result so
+  consumers learn the provenance of the boundary they were handed.
+- **Freshness-corpus CI** (`test/freshness-corpus.test.ts`): pins the IMC '23
+  (McQuistin et al., Table 2) multi-tenant eTLDs so a stale bundled PSL can never
+  silently reintroduce the paper's tenant-collapse harm — two distinct tenants
+  of `myshopify.com` etc. must not collapse to one registrable domain.
+
+**Documented tradeoff — `allowPrivateDomains: false`.** `analyzeHost()`
+(`parse/psl.ts`) resolves under ICANN-only rules **deliberately**, so an embedded
+`github.io` is still seen as a registrable domain by FR-D-8. The consequence,
+from the same IMC '23 paper, is that at the linklint layer private-suffix tenants
+*do* collapse onto the ICANN registrable domain (`good.myshopify.com` and
+`evil.myshopify.com` both resolve to `myshopify.com`). This is a conscious
+tradeoff, **not** changed here; the freshness gate probes `tldts` with
+`allowPrivateDomains: true` (the view where these eTLDs live) to test the bundled
+*data's* freshness independently of that policy. A per-detector boundary choice
+is a candidate follow-up.
 
 ## 7. Scoring
 

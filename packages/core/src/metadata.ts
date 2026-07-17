@@ -10,3 +10,10 @@
 export { reasonMeta, weightFor, type ReasonCodeMeta } from "./schema/reason-codes.js";
 export { WEIGHTS, WEIGHTS_VERSION } from "./scoring/weights.js";
 export { DATA_VERSIONS } from "./data/versions.js";
+export {
+  PSL_PROVENANCE,
+  pslOutdated,
+  type PslProvenance,
+  type PslStaleness,
+  type PslSnapshot,
+} from "./data/psl-provenance.js";

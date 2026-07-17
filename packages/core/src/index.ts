@@ -62,6 +62,15 @@ export { WEIGHTS, WEIGHTS_VERSION, severityForScore } from "./scoring/weights.js
 // Data versions
 export { DATA_VERSIONS } from "./data/versions.js";
 
+// PSL snapshot provenance + staleness (schema 1.2, LINK-rkhuihjx)
+export {
+  PSL_PROVENANCE,
+  pslOutdated,
+  type PslProvenance,
+  type PslStaleness,
+  type PslSnapshot,
+} from "./data/psl-provenance.js";
+
 // Detector internals (legacy/advanced compatibility)
 export * from "./detectors/registry.js";
 export { scanAmbiguousAuthority } from "./detectors/ambiguous-authority.js";

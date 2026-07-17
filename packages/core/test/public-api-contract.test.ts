@@ -31,9 +31,9 @@ const thisDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(thisDir, "..", "..", "..");
 
 describe("InspectResult schema contract (schemaVersion + confidence, FR-SCORE-2b)", () => {
-  it("stamps schemaVersion 1.1 on ok and invalid results", () => {
-    expect(inspect("https://www.example.com/").schemaVersion).toBe("1.1");
-    expect(inspect("ht!tp://%%%not a url").schemaVersion).toBe("1.1");
+  it("stamps schemaVersion 1.2 on ok and invalid results", () => {
+    expect(inspect("https://www.example.com/").schemaVersion).toBe("1.2");
+    expect(inspect("ht!tp://%%%not a url").schemaVersion).toBe("1.2");
   });
 
   it("deterministic lexical results (ok AND invalid) carry confidence 1.0", () => {
@@ -48,12 +48,32 @@ describe("InspectResult schema contract (schemaVersion + confidence, FR-SCORE-2b
     expect(invalid.status).toBe("invalid");
     expect(invalid.confidence).toBe(1);
   });
+
+  it("carries the PSL snapshot provenance on ok AND invalid results (schema 1.2)", () => {
+    // Provenance travels even on invalid input, so a parse failure is still
+    // reproducible against a known trust-boundary snapshot (LINK-rkhuihjx).
+    for (const input of ["https://www.example.com/", "ht!tp://%%%not a url"]) {
+      const snap = inspect(input).pslSnapshot;
+      // Deterministic provenance date (the pinned tldts@7.4.3 snapshot).
+      expect(snap.date).toBe("2026-06-15");
+      // Advisory, time-relative staleness against the default 180-day window.
+      expect(typeof snap.stale === "boolean" || snap.stale === null).toBe(true);
+    }
+  });
 });
 
 describe("linklint/metadata — curated runtime surface", () => {
   it("exposes exactly the metadata value exports", () => {
     expect(Object.keys(metadata).sort()).toEqual(
-      ["DATA_VERSIONS", "WEIGHTS", "WEIGHTS_VERSION", "reasonMeta", "weightFor"].sort(),
+      [
+        "DATA_VERSIONS",
+        "PSL_PROVENANCE",
+        "WEIGHTS",
+        "WEIGHTS_VERSION",
+        "pslOutdated",
+        "reasonMeta",
+        "weightFor",
+      ].sort(),
     );
   });
 });
