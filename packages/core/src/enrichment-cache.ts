@@ -18,8 +18,9 @@
  *    `cacheKey(result)`); the framework never derives a key from the full URL. See
  *    the `cacheKey` contract in `schema/enrich.ts`.
  *
- * Not here (clean seams for later units): rate-limit / backoff / timeout (K4),
- * allowlist / feedback (K5). This module is dependency-free.
+ * Not here (clean seams): rate-limit / backoff / timeout live in
+ * `enrichment-governor.ts` (K4); allowlist / feedback (K5). This module is
+ * dependency-free.
  */
 
 import type { EnricherFinding } from "./schema/enrich.js";

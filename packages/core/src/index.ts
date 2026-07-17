@@ -20,6 +20,16 @@ export { inspectAsync, type InspectAsyncOptions } from "./inspect-async.js";
 // The interface is a type; the in-memory default is a runtime class.
 export { InMemoryEnrichmentCache, type EnrichmentCache } from "./enrichment-cache.js";
 
+// Opt-in per-source governor for async enrichers: bounded timeout + token-bucket
+// rate limit + exponential backoff (roadmap L2/L3). The interface + decision +
+// config are types; the in-memory default is a runtime class.
+export {
+  InMemoryEnrichmentGovernor,
+  type EnrichmentGovernor,
+  type EnrichmentGovernorConfig,
+  type GovernorDecision,
+} from "./enrichment-governor.js";
+
 // Schema / result contract
 export {
   SCHEMA_VERSION,
