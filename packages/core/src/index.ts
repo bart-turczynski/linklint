@@ -16,6 +16,10 @@ export { inspect } from "./inspect.js";
 // `inspectAsync` runs the sync `inspect()` first, then caller-supplied enrichers.
 export { inspectAsync, type InspectAsyncOptions } from "./inspect-async.js";
 
+// Opt-in result cache for async enrichers (per-source TTLs; roadmap L2/L3).
+// The interface is a type; the in-memory default is a runtime class.
+export { InMemoryEnrichmentCache, type EnrichmentCache } from "./enrichment-cache.js";
+
 // Schema / result contract
 export {
   SCHEMA_VERSION,
