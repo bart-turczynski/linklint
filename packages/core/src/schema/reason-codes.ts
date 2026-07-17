@@ -115,6 +115,13 @@ export const REASON_CODES = {
     weight: 0.2,
     summary: "Host is a literal reserved/special-use IP (0/8, CGNAT, multicast, 240/4).",
   },
+  ambiguous_numeric_host: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.3,
+    summary:
+      "Host is shaped like a malformed IPv4 (numeric/hex terminal label, no valid canonical IP): a browser rejects it, non-browser clients may resolve it.",
+  },
   embedded_domain_in_subdomain: {
     layer: "lexical",
     scoring: true,

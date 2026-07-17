@@ -10,6 +10,7 @@ import { bidiOverride } from "./bidi-override.js";
 import { userinfoPresent } from "./userinfo-present.js";
 import { ipObfuscation } from "./ip-obfuscation.js";
 import { ipClassification } from "./ip-classification.js";
+import { ambiguousNumericHost } from "./ambiguous-numeric-host.js";
 import { embeddedDomain } from "./embedded-domain.js";
 import { riskyTld } from "./risky-tld.js";
 import { fileExtensionTld } from "./file-extension-tld.js";
@@ -59,6 +60,7 @@ export {
   userinfoPresent,
   ipObfuscation,
   ipClassification,
+  ambiguousNumericHost,
   embeddedDomain,
   riskyTld,
   fileExtensionTld,

@@ -569,6 +569,29 @@ destination is explained.
 - **Why it's a signal:** not a normal public destination. Same low band.
 - **Example:** `http://0.0.0.0/`, `https://[ff02::1]/`.
 
+### `ambiguous_numeric_host` — FR-D-7b (P3) · weight 0.3 (medium)
+
+- **Meaning:** the host's last label is numeric/hex/octal, so a browser tries to
+  read the **whole host as IPv4** and rejects it when that parse fails — but the
+  host has no valid canonical IP. RFC 3986 has no "ends in a number" rule, so
+  `curl` / `requests` / other non-browser clients accept it as a literal hostname
+  and resolve it. The readers disagree; this is the malformed-IPv4 corner of the
+  *yoU-aRe-a-Liar* (SecWeb '22) allow-list-bypass class.
+- **Why it's a signal:** no legitimate site is shaped like this, and it is
+  unvisitable in a browser yet resolvable by a fetcher — an equivocation at the
+  one scope where it is the only signal. Distinct from `ip_obfuscation`
+  (a *decodable* obfuscated IP handed to `ip_classification`): these hosts have
+  no valid canonical IP, so they must not pollute that handoff. Two sub-shapes,
+  same medium band: **pure-IP-attempt** (every label numeric/hex/octal —
+  `256.0.0.1`, `0x100.2.3.4`, dotless overflow `0x100000000`) and
+  **name-with-numeric-tail** (a name with a numeric/hex terminal label —
+  `foo.09`, `foo.0x4`, `foo.1.2.3.4`).
+- **Example:** `http://256.0.0.1/`, `http://1.2.3.4.5/`, `http://0x100000000/`,
+  `http://foo.09/`. A single trailing root dot is normalized first, so
+  `http://foo.09./` behaves identically. Valid IPs (`8.8.8.8`), obfuscated-but-
+  decodable IPs (`0x7f.0.0.1` → `ip_obfuscation`), and numeric-adjacent names
+  (`3.pool.ntp.org`) do **not** trip it.
+
 ### `embedded_domain_in_subdomain` — FR-D-8 · weight 0.5
 
 - **Meaning:** a domain-looking label sequence appears left of the real

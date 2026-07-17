@@ -16,6 +16,7 @@ import { bidiOverride } from "./bidi-override.js";
 import { userinfoPresent } from "./userinfo-present.js";
 import { ipObfuscation } from "./ip-obfuscation.js";
 import { ipClassification } from "./ip-classification.js";
+import { ambiguousNumericHost } from "./ambiguous-numeric-host.js";
 import { embeddedDomain } from "./embedded-domain.js";
 import { riskyTld } from "./risky-tld.js";
 import { fileExtensionTld } from "./file-extension-tld.js";
@@ -40,12 +41,12 @@ import { dataExfiltration } from "./data-exfiltration.js";
 import { ssrfCloudMetadata } from "./ssrf-cloud-metadata.js";
 
 /**
- * THE single descriptor source for all 35 checks. `STRUCTURAL_SCANS`
+ * THE single descriptor source for all 36 checks. `STRUCTURAL_SCANS`
  * (structural.ts) and `DETECTORS` (registry.ts) are both DERIVED from this
  * array — add a check here once and both runtime arrays pick it up.
  *
  * Order matches today's runtime order exactly: the 4 structural scans first
- * (STRUCTURAL_SCANS order), then the 31 parsed detectors (DETECTORS order) —
+ * (STRUCTURAL_SCANS order), then the 32 parsed detectors (DETECTORS order) —
  * the last five of which are `agentGated` and run only when
  * `InspectOptions.agentMode` is true.
  * Each descriptor reuses the existing detector object / scan thunk's `run`;
@@ -168,6 +169,14 @@ export const CHECKS: CheckDescriptor[] = [
     ],
     skipReportable: true,
     run: ipClassification.run,
+  },
+  {
+    id: ambiguousNumericHost.id,
+    layer: ambiguousNumericHost.layer,
+    phase: "parsed",
+    emits: ["ambiguous_numeric_host"],
+    skipReportable: true,
+    run: ambiguousNumericHost.run,
   },
   {
     id: embeddedDomain.id,

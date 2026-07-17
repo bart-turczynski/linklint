@@ -39,10 +39,24 @@ function toDotted(n: number): string {
 }
 
 /**
+ * Strip a SINGLE trailing root dot (the FQDN `example.com.` form). Both IPv4
+ * recognition and the ambiguous-numeric-host detector treat `1.2.3.08.` exactly
+ * like `1.2.3.08` — the root dot is a no-op for the address. A second trailing
+ * dot (`1.2.3.08..`) is genuinely malformed (empty label) and left intact so it
+ * still fails to parse. The bare `"."` root is left as-is (not an address).
+ */
+export function stripTrailingRootDot(host: string): string {
+  return host.length > 1 && host.endsWith(".") ? host.slice(0, -1) : host;
+}
+
+/**
  * Analyze a host as a possible IPv4. Returns null if it is not an IPv4 at all.
  */
 export function analyzeIpv4(host: string): Ipv4Analysis | null {
-  const parts = host.split(".");
+  // A single trailing root dot is an FQDN no-op: `1.2.3.08.` is the same address
+  // as `1.2.3.08`. Normalizing here fixes the inconsistency where the dotted form
+  // was recognized (ip_obfuscation) but the trailing-dot form silently was not.
+  const parts = stripTrailingRootDot(host).split(".");
   if (parts.length === 0 || parts.length > 4) return null;
 
   const parsed = parts.map(parsePart);
