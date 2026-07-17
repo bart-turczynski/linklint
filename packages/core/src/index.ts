@@ -22,7 +22,11 @@ export {
 
 // Opt-in result cache for async enrichers (per-source TTLs; roadmap L2/L3).
 // The interface is a type; the in-memory default is a runtime class.
-export { InMemoryEnrichmentCache, type EnrichmentCache } from "./enrichment-cache.js";
+export {
+  InMemoryEnrichmentCache,
+  type EnrichmentCache,
+  type EnrichmentCacheOperation,
+} from "./enrichment-cache.js";
 
 // Opt-in per-source governor for async enrichers: bounded timeout + token-bucket
 // rate limit + exponential backoff (roadmap L2/L3). The interface + decision +

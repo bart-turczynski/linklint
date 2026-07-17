@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ENRICHMENT_SCHEMA_VERSION,
   InMemoryEnrichmentCache,
   inspect,
   inspectAsync,
@@ -8,9 +9,9 @@ import {
 import type {
   Enricher,
   EnricherFinding,
-  EnricherOutput,
   EnrichmentContext,
   EnrichmentLayer,
+  EnrichmentReport,
   InspectResult,
 } from "../src/schema/types.js";
 
@@ -39,6 +40,36 @@ const PRIVATE_IP_FINDING: EnricherFinding = {
   code: "ip_private",
   detail: "resolved host maps to a private/internal IP",
 };
+
+function structuredReport(
+  sourceId: string,
+  layer: EnrichmentLayer,
+  findings: EnricherFinding[] = [PRIVATE_IP_FINDING],
+): EnrichmentReport {
+  return {
+    schemaVersion: ENRICHMENT_SCHEMA_VERSION,
+    outcomes: [
+      {
+        sourceId,
+        layer,
+        status: findings.length === 0 ? "no-hit" : "success",
+        subject: { kind: "host", value: "example.com" },
+        observedAt: "2026-07-17T08:30:00.000Z",
+        provenance: {
+          kind: "declared",
+          source: { name: "cache.fixture", version: "1.0.0" },
+          data: null,
+        },
+        freshness: {
+          status: "fresh",
+          expiresAt: "2026-07-17T08:35:00.000Z",
+        },
+        evidence: [],
+        findings,
+      },
+    ],
+  };
+}
 
 /**
  * A counting test-double enricher. Records how many times `enrich` actually ran
@@ -278,15 +309,15 @@ describe("enrichment cache — pluggable custom store is honored", () => {
   it("routes get/set through a caller-supplied EnrichmentCache implementation", async () => {
     const gets: string[] = [];
     const sets: Array<{ key: string; ttlMs: number }> = [];
-    const backing = new Map<string, EnricherOutput>();
+    const backing = new Map<string, EnrichmentReport>();
     const custom: EnrichmentCache = {
       get(key) {
         gets.push(key);
         return backing.get(key);
       },
-      set(key, findings, ttlMs) {
+      set(key, report, ttlMs) {
         sets.push({ key, ttlMs });
-        backing.set(key, findings);
+        backing.set(key, report);
       },
     };
 
@@ -301,8 +332,174 @@ describe("enrichment cache — pluggable custom store is honored", () => {
     // The enricher's own TTL is passed through to set(), and the key is
     // namespaced by the check token (never the raw URL).
     expect(sets[0]?.ttlMs).toBe(555);
-    expect(sets[0]?.key.startsWith("resolution:dns")).toBe(true);
+    expect(sets[0]?.key).toContain("resolution:dns");
     expect(sets[0]?.key).not.toContain(BENIGN);
+    expect(backing.values().next().value).toMatchObject({
+      schemaVersion: ENRICHMENT_SCHEMA_VERSION,
+      outcomes: [{ sourceId: "dns", layer: "resolution" }],
+    });
+  });
+
+  it("awaits a Promise-capable external-store double and stores only normalized reports", async () => {
+    const backing = new Map<string, EnrichmentReport>();
+    const operations: string[] = [];
+    const external: EnrichmentCache = {
+      async get(key) {
+        operations.push("get");
+        await Promise.resolve();
+        return backing.get(key);
+      },
+      async set(key, report) {
+        operations.push("set");
+        await Promise.resolve();
+        backing.set(key, report);
+      },
+    };
+    const legacy = new CountingEnricher("dns", "resolution");
+
+    await inspectAsync(BENIGN, { cache: external, enrichers: [legacy] });
+    const cached = await inspectAsync(BENIGN, { cache: external, enrichers: [legacy] });
+
+    expect(operations).toEqual(["get", "set", "get"]);
+    expect(legacy.calls).toBe(1);
+    expect([...backing.values()][0]).toMatchObject({
+      schemaVersion: ENRICHMENT_SCHEMA_VERSION,
+      outcomes: [{ sourceId: "dns", layer: "resolution", status: "success" }],
+    });
+    expect(cached.reasons.some((reason) => reason.code === "ip_private")).toBe(true);
+  });
+});
+
+describe("enrichment cache — dynamic positive and negative lifetimes (K9)", () => {
+  it("passes response-derived TTLs to the store for positive and no-hit reports", async () => {
+    const writes: Array<{ key: string; ttlMs: number; status: string }> = [];
+    const cache: EnrichmentCache = {
+      get: () => undefined,
+      set(key, value, ttlMs) {
+        writes.push({ key, ttlMs, status: value.outcomes[0]!.status });
+      },
+    };
+    const positive: Enricher = {
+      id: "positive.fixture",
+      layer: "resolution",
+      cacheKey: () => "example.com",
+      cacheTtlMsFor: (value) =>
+        value.outcomes.every((outcome) => outcome.status === "no-hit") ? 25 : 250,
+      async enrich() {
+        return structuredReport("positive.fixture", "resolution");
+      },
+    };
+    const negative: Enricher = {
+      id: "negative.fixture",
+      layer: "reputation",
+      cacheKey: () => "example.com",
+      cacheTtlMsFor: (value) =>
+        value.outcomes.every((outcome) => outcome.status === "no-hit") ? 25 : 250,
+      async enrich() {
+        return structuredReport("negative.fixture", "reputation", []);
+      },
+    };
+
+    await inspectAsync(BENIGN, { cache, enrichers: [positive, negative] });
+
+    expect(writes.map(({ ttlMs, status }) => ({ ttlMs, status }))).toEqual([
+      { ttlMs: 250, status: "success" },
+      { ttlMs: 25, status: "no-hit" },
+    ]);
+    expect(writes[0]!.key).not.toBe(writes[1]!.key);
+  });
+
+  it("negative-caches a no-hit until its provider-declared freshness expires", async () => {
+    const expiresAt = Date.parse("2026-07-17T08:35:00.000Z");
+    let now = expiresAt - 100;
+    let calls = 0;
+    const cache = new InMemoryEnrichmentCache(() => now);
+    const noHitReport = structuredReport("feed.fixture", "reputation", []);
+    const enricher: Enricher = {
+      id: "feed.fixture",
+      layer: "reputation",
+      cacheKey: () => "example.com",
+      cacheTtlMsFor(value) {
+        const declaredExpiry = value.outcomes[0]?.freshness.expiresAt;
+        return declaredExpiry === null || declaredExpiry === undefined
+          ? null
+          : Date.parse(declaredExpiry) - now;
+      },
+      async enrich() {
+        calls += 1;
+        return noHitReport;
+      },
+    };
+
+    await inspectAsync(BENIGN, { cache, enrichers: [enricher] });
+    now = expiresAt - 1;
+    const hit = await inspectAsync(BENIGN, { cache, enrichers: [enricher] });
+    expect(calls).toBe(1);
+    expect(hit.enrichment?.outcomes[0]?.status).toBe("no-hit");
+
+    now = expiresAt;
+    await inspectAsync(BENIGN, { cache, enrichers: [enricher] });
+    expect(calls).toBe(2);
+  });
+});
+
+describe("enrichment cache — opaque namespace and privacy guard", () => {
+  it("schema- and source-namespaces caller keys without deriving from the inspected URL", async () => {
+    const keys: string[] = [];
+    const cache: EnrichmentCache = {
+      get(key) {
+        keys.push(key);
+        return undefined;
+      },
+      set() {},
+    };
+    const enricher = new CountingEnricher(
+      "dns.fixture",
+      "resolution",
+      [PRIVATE_IP_FINDING],
+      1000,
+      "example.com",
+    );
+
+    await inspectAsync(BENIGN, { cache, enrichers: [enricher] });
+
+    expect(JSON.parse(keys[0]!) as unknown).toEqual([
+      `linklint:enrichment:${ENRICHMENT_SCHEMA_VERSION}`,
+      "resolution:dns.fixture",
+      "example.com",
+    ]);
+    expect(keys[0]).not.toContain(BENIGN);
+  });
+
+  it("rejects a cache key that directly discloses the full inspected URL", async () => {
+    let cacheCalls = 0;
+    const cache: EnrichmentCache = {
+      get() {
+        cacheCalls += 1;
+        return undefined;
+      },
+      set() {
+        cacheCalls += 1;
+      },
+    };
+    const enricher = new CountingEnricher(
+      "unsafe.fixture",
+      "resolution",
+      [PRIVATE_IP_FINDING],
+      1000,
+      `prefix:${BENIGN}`,
+    );
+
+    const result = await inspectAsync(BENIGN, { cache, enrichers: [enricher] });
+
+    expect(cacheCalls).toBe(0);
+    expect(enricher.calls).toBe(1);
+    expect(
+      result.enrichment?.outcomes.some(
+        (outcome) =>
+          outcome.status === "failure" && outcome.cause.code === "cache-key-error",
+      ),
+    ).toBe(true);
   });
 });
 
@@ -312,8 +509,9 @@ describe("InMemoryEnrichmentCache — unit semantics", () => {
     const cache = new InMemoryEnrichmentCache(() => now);
     expect(cache.get("k")).toBeUndefined();
 
-    cache.set("k", [PRIVATE_IP_FINDING], 100);
-    expect(cache.get("k")).toEqual([PRIVATE_IP_FINDING]);
+    const report = structuredReport("dns", "resolution");
+    cache.set("k", report, 100);
+    expect(cache.get("k")).toEqual(report);
 
     now = 100; // >= expiresAt → expired
     expect(cache.get("k")).toBeUndefined();
@@ -323,9 +521,10 @@ describe("InMemoryEnrichmentCache — unit semantics", () => {
 
   it("refuses to store a non-positive or non-finite TTL", () => {
     const cache = new InMemoryEnrichmentCache(() => 0);
-    cache.set("a", [PRIVATE_IP_FINDING], 0);
-    cache.set("b", [PRIVATE_IP_FINDING], -1);
-    cache.set("c", [PRIVATE_IP_FINDING], Number.POSITIVE_INFINITY);
+    const report = structuredReport("dns", "resolution");
+    cache.set("a", report, 0);
+    cache.set("b", report, -1);
+    cache.set("c", report, Number.POSITIVE_INFINITY);
     expect(cache.get("a")).toBeUndefined();
     expect(cache.get("b")).toBeUndefined();
     expect(cache.get("c")).toBeUndefined();

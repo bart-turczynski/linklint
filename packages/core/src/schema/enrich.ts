@@ -22,7 +22,8 @@
  * Per-finding `confidence` (K2, FR-SCORE-2b) IS here: an optional [0,1] measure
  * of how reliable a probabilistic signal is, min-aggregated into the result's
  * top-level `confidence`. Optional per-source cache metadata (K3, `cacheKey` /
- * `cacheTtlMs`) IS here too — the store itself lives in `enrichment-cache.ts`.
+ * `cacheTtlMs` / `cacheTtlMsFor`) IS here too — the store itself lives in
+ * `enrichment-cache.ts`.
  * Per-source governance (K4/K8): the bounded-timeout override `timeoutMs` IS
  * here; the runner supplies a safe default even without a governor, while the
  * rate-limit / backoff state itself lives in `enrichment-governor.ts`.
@@ -150,6 +151,7 @@ export type EnrichmentFrameworkCauseCode =
   | "invalid-output"
   | "invalid-cached-output"
   | "cache-key-error"
+  | "cache-ttl-error"
   | "cache-read-error"
   | "cache-write-error";
 
@@ -240,6 +242,7 @@ export function isEnrichmentReport(
 ): value is EnrichmentReport {
   try {
     if (!isRecord(value)) return false;
+    if (!isJsonValue(value, new Set())) return false;
     if (value.schemaVersion !== ENRICHMENT_SCHEMA_VERSION) return false;
     if (!Array.isArray(value.outcomes) || value.outcomes.length === 0) return false;
     return value.outcomes.every((outcome) => isEnrichmentOutcome(outcome, expected));
@@ -251,7 +254,9 @@ export function isEnrichmentReport(
 /** Runtime guard for the legacy findings-array compatibility shape. */
 export function isEnricherFindingArray(value: unknown): value is EnricherFinding[] {
   try {
-    return Array.isArray(value) && value.every(isFinding);
+    return Array.isArray(value) &&
+      isJsonValue(value, new Set()) &&
+      value.every(isFinding);
   } catch {
     return false;
   }
@@ -330,8 +335,9 @@ export interface Enricher {
    *
    * Omitting `cacheKey`, or returning `null`, means this enricher is NEVER cached
    * (it runs every call). It is also never cached unless a positive, finite
-   * {@link cacheTtlMs} is declared — a `cacheKey` without a TTL degrades to
-   * "run fresh every time", never to a guessed default.
+   * {@link cacheTtlMs} or a {@link cacheTtlMsFor} resolver is declared — a
+   * `cacheKey` without a TTL policy degrades to "run fresh every time", never to
+   * a guessed default.
    *
    * PRIVACY (umbrella binding constraint, docs/architecture.md §10): the key is
    * ENTIRELY the enricher's responsibility and the framework NEVER derives one
@@ -345,14 +351,31 @@ export interface Enricher {
    */
   cacheKey?(result: InspectResult, ctx: EnrichmentContext): string | null;
   /**
-   * OPTIONAL per-source time-to-live, in milliseconds, for entries this enricher
-   * writes (LINK-wtnpkbkf, unit K3). Applied per `set()`, so each enricher's cache
-   * entries expire on their own schedule ("per-source TTLs"). Required (positive,
-   * finite) for caching to take effect: if {@link cacheKey} yields a key but this
-   * is absent/non-positive, the enricher runs fresh every call and nothing is
-   * stored.
+   * OPTIONAL static fallback time-to-live, in milliseconds, for entries this
+   * enricher writes (LINK-wtnpkbkf, unit K3). Applied per `set()`, so each
+   * enricher's entries expire on their own schedule. A positive finite value
+   * enables caching by itself; {@link cacheTtlMsFor} may replace it per response.
+   * If neither policy can produce a positive finite TTL, the enricher runs fresh
+   * and nothing is stored.
    */
   cacheTtlMs?: number;
+  /**
+   * OPTIONAL response-driven TTL resolver (LINK-xwgzgyfu, K9). It receives the
+   * already runtime-validated, normalized structured report and may choose a
+   * distinct lifetime for every entry — for example a shorter TTL for an all
+   * `no-hit` report, or a provider TTL derived from `freshness.expiresAt`.
+   *
+   * Return a positive finite number of milliseconds to store the report. Return
+   * `null`, `undefined`, zero, or a negative/non-finite number to leave this
+   * response uncached. When both policies are present, a non-`undefined` dynamic
+   * result wins; `undefined` falls back to {@link cacheTtlMs}. A thrown exception
+   * or malformed non-numeric return becomes `cache-ttl-error` while preserving
+   * the valid provider report.
+   */
+  cacheTtlMsFor?(
+    report: Readonly<EnrichmentReport>,
+    ctx: EnrichmentContext,
+  ): number | null | undefined;
   /**
    * OPTIONAL per-source bounded timeout, in milliseconds (LINK-irbdtvrp, K8).
    * Every configured enricher is runner-bounded by default, whether or not a
@@ -395,9 +418,12 @@ function isEnrichmentOutcome(
 
   if (value.status === "success") {
     // An empty successful source is semantically a no-hit, so reject ambiguity.
-    return value.findings.length > 0 || value.evidence.length > 0;
+    return value.cause === undefined &&
+      (value.findings.length > 0 || value.evidence.length > 0);
   }
-  if (value.status === "no-hit") return value.findings.length === 0;
+  if (value.status === "no-hit") {
+    return value.cause === undefined && value.findings.length === 0;
+  }
   if (value.status === "skipped" || value.status === "failure") {
     return value.findings.length === 0 && isCause(value.cause);
   }

@@ -19,10 +19,13 @@ something may be hiding in the URL.**
 
 ## Status
 
-v1 implements lexical (Layer 1) detection only: homograph/confusable analysis,
-script-mixing, invisible/bidi characters, userinfo deception, IP obfuscation,
-embedded-domain subdomains, risky TLDs, percent-encoding obfuscation, and dangerous
-schemes. Resolution (redirects) and reputation (feeds) are roadmap.
+Built-in inspection implements lexical (Layer 1) detection only:
+homograph/confusable analysis, script-mixing, invisible/bidi characters,
+userinfo deception, IP obfuscation, embedded-domain subdomains, risky TLDs,
+percent-encoding obfuscation, and dangerous schemes. The package also ships the
+pure `inspectAsync()` orchestration/contracts for caller-supplied resolution and
+reputation work; concrete network transports and provider adapters remain
+roadmap and do not enter this package.
 
 ## API
 
@@ -39,10 +42,11 @@ and **never throws** — unparseable input returns `status: "invalid"` (which is
 benign). See [`docs/reason-codes.md`](../../docs/reason-codes.md) and
 [`docs/scoring.md`](../../docs/scoring.md) for the full contract.
 
-The stable root API is `inspect()`, the result/schema types, and versioned
-metadata helpers. The root also keeps a legacy advanced compatibility window for
-detector, policy, parser, unicode, and reference-data helpers that existed before
-secondary entry points. New advanced consumers should import from
+The stable root API includes `inspect()`, opt-in `inspectAsync()`, the structured
+enrichment/cache/governor contracts, result/schema types, and versioned metadata
+helpers. The root also keeps a legacy advanced compatibility window for detector,
+policy, parser, unicode, and reference-data helpers that existed before secondary
+entry points. New advanced consumers should import from
 `linklint/experimental`, `linklint/metadata`, or `linklint/data`; those subpaths
 are the documented migration path if the root is narrowed in a future major.
 
@@ -57,6 +61,12 @@ Every configured source has a 5-second runner deadline by default, even without
 a governor; positive finite `timeoutMs` values override it and `null` explicitly
 opts out. Provider, cache, cache-key, and governor exceptions become attributed
 degradation outcomes and cannot reject or indefinitely stall sibling work.
+The opt-in `EnrichmentCache` accepts synchronous or Promise-capable stores,
+stores only validated structured reports, and validates cache hits before use.
+Static `cacheTtlMs` remains supported; `cacheTtlMsFor(report, context)` can derive
+per-response positive/no-hit lifetimes from source freshness. Skipped, failed,
+and partial reports are not cached, and cache key material remains the adapter's
+privacy-safe projection rather than the full URL.
 The synchronous package itself still performs no network I/O. See
 [`docs/enrichment-outcomes.md`](../../docs/enrichment-outcomes.md) for the public
 contract, status semantics, validation rules, and legacy-findings migration.

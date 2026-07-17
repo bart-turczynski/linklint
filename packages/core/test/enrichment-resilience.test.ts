@@ -264,6 +264,137 @@ describe("K8 — cache boundaries are total and visible", () => {
   });
 });
 
+describe("K9 — asynchronous cache and dynamic-TTL boundaries are total", () => {
+  it("maps rejected asynchronous reads and writes without discarding provider evidence", async () => {
+    const rejectedRead: EnrichmentCache = {
+      async get() {
+        await Promise.resolve();
+        throw new Error("read rejection");
+      },
+      set() {},
+    };
+    const rejectedWrite: EnrichmentCache = {
+      get: () => undefined,
+      async set() {
+        await Promise.resolve();
+        throw new Error("write rejection");
+      },
+    };
+    const enricher: Enricher = {
+      id: "async-cache",
+      layer: "resolution",
+      cacheKey: () => "fixture-host",
+      cacheTtlMs: 1000,
+      async enrich() {
+        return [FINDING];
+      },
+    };
+
+    const readResult = await inspectAsync(URL, {
+      cache: rejectedRead,
+      enrichers: [enricher],
+    });
+    const writeResult = await inspectAsync(URL, {
+      cache: rejectedWrite,
+      enrichers: [enricher],
+    });
+
+    expect(outcomeCauses(readResult)).toContain("cache-read-error");
+    expect(outcomeCauses(writeResult)).toContain("cache-write-error");
+    expect(readResult.reasons.some((reason) => reason.code === "ip_private")).toBe(true);
+    expect(writeResult.reasons.some((reason) => reason.code === "ip_private")).toBe(true);
+  });
+
+  it("bounds a never-settling asynchronous cache read before running fresh", async () => {
+    vi.useFakeTimers();
+    let providerCalls = 0;
+    const cache: EnrichmentCache = {
+      get: () => new Promise(() => {}),
+      set() {},
+    };
+    const enricher: Enricher = {
+      id: "slow-cache",
+      layer: "resolution",
+      timeoutMs: 20,
+      cacheKey: () => "fixture-host",
+      cacheTtlMs: 1000,
+      async enrich() {
+        providerCalls += 1;
+        return [FINDING];
+      },
+    };
+
+    const pending = inspectAsync(URL, { cache, enrichers: [enricher] });
+    await vi.advanceTimersByTimeAsync(20);
+    const result = await pending;
+
+    expect(providerCalls).toBe(1);
+    expect(outcomeCauses(result)).toContain("cache-read-error");
+    expect(result.reasons.some((reason) => reason.code === "ip_private")).toBe(true);
+  });
+
+  it("maps a thrown or malformed dynamic TTL without discarding a valid report", async () => {
+    const cache: EnrichmentCache = { get: () => undefined, set() {} };
+    const throwing: Enricher = {
+      id: "throwing-ttl",
+      layer: "resolution",
+      cacheKey: () => "fixture-host",
+      cacheTtlMsFor() {
+        throw new Error("ttl failure");
+      },
+      async enrich() {
+        return [FINDING];
+      },
+    };
+    const malformed: Enricher = {
+      id: "malformed-ttl",
+      layer: "resolution",
+      cacheKey: () => "fixture-host",
+      cacheTtlMsFor: (() => "not-a-number") as never,
+      async enrich() {
+        return [FINDING];
+      },
+    };
+
+    for (const enricher of [throwing, malformed]) {
+      const result = await inspectAsync(URL, { cache, enrichers: [enricher] });
+      expect(outcomeCauses(result)).toContain("cache-ttl-error");
+      expect(result.reasons.some((reason) => reason.code === "ip_private")).toBe(true);
+    }
+  });
+
+  it("isolates the result from TTL resolvers and stores that mutate their arguments", async () => {
+    const cache: EnrichmentCache = {
+      get: () => undefined,
+      set(_key, value) {
+        value.outcomes[0]!.findings[0]!.detail = "store mutation";
+      },
+    };
+    const enricher: Enricher = {
+      id: "mutating-cache",
+      layer: "resolution",
+      cacheKey: () => "fixture-host",
+      cacheTtlMsFor(value) {
+        value.outcomes[0]!.findings[0]!.confidence = 2;
+        value.outcomes[0]!.findings[0]!.detail = "resolver mutation";
+        return 1000;
+      },
+      async enrich() {
+        return [{ ...FINDING, confidence: 0.7 }];
+      },
+    };
+
+    const result = await inspectAsync(URL, { cache, enrichers: [enricher] });
+    const finding = result.enrichment?.outcomes[0]?.findings[0];
+
+    expect(finding).toMatchObject({
+      detail: FINDING.detail,
+      confidence: 0.7,
+    });
+    expect(result.confidence).toBe(0.7);
+  });
+});
+
 describe("K8 — governor boundaries are total and per-source isolated", () => {
   it("fails one source closed when governor admission throws while a sibling completes", async () => {
     let blockedCalls = 0;

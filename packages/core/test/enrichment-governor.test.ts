@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  ENRICHMENT_SCHEMA_VERSION,
   InMemoryEnrichmentCache,
   InMemoryEnrichmentGovernor,
   inspect,
@@ -12,6 +13,7 @@ import type {
   Enricher,
   EnricherFinding,
   EnrichmentLayer,
+  EnrichmentReport,
 } from "../src/schema/types.js";
 
 /**
@@ -132,13 +134,33 @@ describe("governor — cache is consulted BEFORE the governor", () => {
   it("a cache HIT never touches the governor (no admit, no token, no backoff)", async () => {
     // A pre-populated custom cache always hits; a governor that would DENY every
     // admit. The hit must still serve findings, proving cache-before-governor.
-    const backing: EnricherFinding[] = [PRIVATE_IP_FINDING];
+    const findings: EnricherFinding[] = [PRIVATE_IP_FINDING];
+    const backing: EnrichmentReport = {
+      schemaVersion: ENRICHMENT_SCHEMA_VERSION,
+      outcomes: [
+        {
+          sourceId: "dns",
+          layer: "resolution",
+          status: "success",
+          subject: { kind: "host", value: "example.com" },
+          observedAt: "2026-07-17T08:30:00.000Z",
+          provenance: {
+            kind: "declared",
+            source: { name: "cache.fixture", version: "1.0.0" },
+            data: null,
+          },
+          freshness: { status: "fresh", expiresAt: null },
+          evidence: [],
+          findings,
+        },
+      ],
+    };
     const cache: EnrichmentCache = {
       get: () => backing,
       set: () => {},
     };
     const governor = new RecordingGovernor({ run: false });
-    const enricher = new CountingEnricher("dns", "resolution", backing, 1000, "example.com");
+    const enricher = new CountingEnricher("dns", "resolution", findings, 1000, "example.com");
 
     const r = await inspectAsync(BENIGN, { cache, governor, enrichers: [enricher] });
 

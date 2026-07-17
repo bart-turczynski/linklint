@@ -50,11 +50,12 @@ export interface InspectAsyncOptions extends InspectOptions {
    */
   signal?: AbortSignal;
   /**
-   * Opt-in result cache (LINK-wtnpkbkf, unit K3). When supplied, an enricher that
-   * declares a `cacheKey` (+ positive `cacheTtlMs`) is served from the cache on a
-   * hit — its `enrich` is NOT called, yet it still counts as run (`<layer>:<id>`
-   * in `checksRun`). Absent this option, or for an enricher without a `cacheKey`,
-   * the pipeline behaves exactly as K1/K2. Caching is never on by default.
+   * Opt-in result cache (LINK-wtnpkbkf K3, LINK-xwgzgyfu K9). Synchronous and
+   * Promise-capable stores are supported. An enricher that declares a `cacheKey`
+   * plus either static `cacheTtlMs` or dynamic `cacheTtlMsFor` policy is served
+   * from the cache on a hit — its `enrich` is NOT called, yet it still counts as
+   * run (`<layer>:<id>` in `checksRun`). Absent this option, or for an enricher
+   * without a cache key/TTL policy, caching is never enabled implicitly.
    */
   cache?: EnrichmentCache;
   /**
@@ -511,6 +512,9 @@ function findDependencyCycle(
 /** Race sentinel: the bounded timeout fired (or the caller's signal aborted). */
 const TIMED_OUT = Symbol("timed-out");
 
+/** Schema-scoped prefix for opaque store keys; caller key material is never derived by core. */
+const ENRICHMENT_CACHE_NAMESPACE = `linklint:enrichment:${ENRICHMENT_SCHEMA_VERSION}`;
+
 /** A framework-owned operational degradation collected around one source run. */
 interface RuntimeDegradation {
   status: "skipped" | "failure";
@@ -561,9 +565,29 @@ async function runEnricher(
   }
 
   if (slot !== null) {
-    let cached: EnricherOutput | undefined;
+    let cached: unknown;
     try {
-      cached = slot.cache.get(slot.key);
+      const cacheRead = await runBoundedOperation(
+        () => slot.cache.get(slot.key),
+        ctx.signal,
+        effectiveTimeoutMs(enricher.timeoutMs, undefined),
+      );
+      if (cacheRead === TIMED_OUT) {
+        if (ctx.signal?.aborted) {
+          return {
+            token,
+            report: frameworkReport(enricher, base, "skipped", "caller-aborted", false),
+          };
+        }
+        degradations.push({
+          status: "failure",
+          code: "cache-read-error",
+          retryable: true,
+          details: { reason: "timeout" },
+        });
+      } else {
+        cached = cacheRead;
+      }
     } catch {
       degradations.push({
         status: "failure",
@@ -575,7 +599,7 @@ async function runEnricher(
     // Cache HIT: a successful prior run stands in for this one. It still counts
     // as run. Invalid cache data is never trusted or silently treated as a miss.
     if (cached !== undefined) {
-      const cachedReport = normalizeOutput(cached, enricher, base);
+      const cachedReport = normalizeCachedReport(cached, enricher);
       return {
         token,
         report: withDegradations(
@@ -711,21 +735,42 @@ async function runEnricher(
     token,
   );
 
-  // Only wholly completed success/no-hit reports are cached. A write failure does
-  // not erase valid source evidence, but remains a failure outcome and prevents a
-  // dependent stage from mistaking this partially degraded run for wholly clean.
+  // Only wholly completed success/no-hit reports are cache candidates. No-hit is
+  // an explicit negative result and may use a shorter response-derived TTL. A
+  // resolver/write failure does not erase valid source evidence, but remains a
+  // failure outcome and prevents a dependent stage from mistaking this partially
+  // degraded run for wholly clean.
   if (
     slot !== null &&
     report.outcomes.every((item) => item.status === "success" || item.status === "no-hit")
   ) {
-    try {
-      slot.cache.set(slot.key, output, slot.ttlMs);
-    } catch {
-      degradations.push({
-        status: "failure",
-        code: "cache-write-error",
-        retryable: true,
-      });
+    const ttl = cacheTtlFor(enricher, report, ctx, slot.staticTtlMs);
+    if (ttl.degradation !== undefined) degradations.push(ttl.degradation);
+    const ttlMs = ttl.ttlMs;
+    if (ttlMs !== null) {
+      try {
+        const cacheWrite = await runBoundedOperation(
+          () => slot.cache.set(slot.key, cloneEnrichmentReport(report), ttlMs),
+          ctx.signal,
+          effectiveTimeoutMs(enricher.timeoutMs, undefined),
+        );
+        if (cacheWrite === TIMED_OUT) {
+          degradations.push({
+            status: "failure",
+            code: "cache-write-error",
+            retryable: true,
+            details: {
+              reason: ctx.signal?.aborted ? "caller-aborted" : "timeout",
+            },
+          });
+        }
+      } catch {
+        degradations.push({
+          status: "failure",
+          code: "cache-write-error",
+          retryable: true,
+        });
+      }
     }
   }
 
@@ -875,13 +920,56 @@ async function runWithTimeout(
   }
 }
 
+/**
+ * Await a synchronous or Promise-capable infrastructure operation behind the
+ * same safe source deadline used for provider work. `Promise.race` keeps the
+ * abandoned operation observed, so a late external-store rejection is handled.
+ */
+async function runBoundedOperation<T>(
+  operation: () => T | PromiseLike<T>,
+  signal: AbortSignal | undefined,
+  timeoutMs: number | undefined,
+): Promise<T | typeof TIMED_OUT> {
+  if (signal?.aborted) return TIMED_OUT;
+  const hasTimeout =
+    timeoutMs !== undefined && Number.isFinite(timeoutMs) && timeoutMs > 0;
+  if (!hasTimeout && signal === undefined) return await operation();
+
+  const timeoutController = hasTimeout ? new AbortController() : null;
+  const timer =
+    timeoutController === null
+      ? null
+      : setTimeout(() => timeoutController.abort(), timeoutMs);
+  const signals = [
+    ...(signal !== undefined ? [signal] : []),
+    ...(timeoutController !== null ? [timeoutController.signal] : []),
+  ];
+  const composed = signals.length === 1 ? signals[0]! : AbortSignal.any(signals);
+  const timeoutRace = new Promise<typeof TIMED_OUT>((resolve) => {
+    if (composed.aborted) {
+      resolve(TIMED_OUT);
+      return;
+    }
+    composed.addEventListener("abort", () => resolve(TIMED_OUT), { once: true });
+  });
+  const operationPromise = Promise.resolve().then(operation);
+
+  try {
+    return await Promise.race([operationPromise, timeoutRace]);
+  } finally {
+    if (timer !== null) clearTimeout(timer);
+  }
+}
+
 /** Validate structured output or adapt a legacy findings array without inventing provenance. */
 function normalizeOutput(
   output: unknown,
   enricher: Enricher,
   base: InspectResult,
 ): EnrichmentReport | null {
-  if (isEnricherFindingArray(output)) return legacyReport(enricher, base, output);
+  if (isEnricherFindingArray(output)) {
+    return cloneEnrichmentReport(legacyReport(enricher, base, output));
+  }
   if (
     !isEnrichmentReport(output, { sourceId: enricher.id, layer: enricher.layer }) ||
     output.outcomes.some(
@@ -892,7 +980,37 @@ function normalizeOutput(
   ) {
     return null;
   }
-  return output;
+  return cloneEnrichmentReport(output);
+}
+
+/**
+ * Validate untrusted cached data. K9 stores only normalized reports, never raw
+ * legacy arrays. Declared provider provenance and core's legacy compatibility
+ * provenance are both cacheable; framework-unavailable outcomes are not.
+ */
+function normalizeCachedReport(
+  output: unknown,
+  enricher: Enricher,
+): EnrichmentReport | null {
+  if (!isEnrichmentReport(output, { sourceId: enricher.id, layer: enricher.layer })) {
+    return null;
+  }
+  for (const outcome of output.outcomes) {
+    if (outcome.provenance.kind === "unavailable") return null;
+    if (
+      outcome.evidence.some(
+        (evidence) => evidence.provenance.kind !== outcome.provenance.kind,
+      )
+    ) {
+      return null;
+    }
+  }
+  return cloneEnrichmentReport(output);
+}
+
+/** Detach validated JSON-safe data from caller/store-owned mutable references. */
+function cloneEnrichmentReport(report: EnrichmentReport): EnrichmentReport {
+  return JSON.parse(JSON.stringify(report)) as EnrichmentReport;
 }
 
 /** Compatibility adapter for the pre-K6 flat output. Empty arrays remain visibly ambiguous. */
@@ -971,11 +1089,11 @@ function inspectionSubject(base: InspectResult): EnrichmentSubject {
   return { kind: "url", value: base.input };
 }
 
-/** A resolved cache slot: the store, the namespaced key, and the TTL to write. */
+/** A resolved cache slot: the store, opaque namespaced key, and static fallback TTL. */
 interface CacheSlot {
   cache: EnrichmentCache;
   key: string;
-  ttlMs: number;
+  staticTtlMs: number | undefined;
 }
 
 interface CacheSlotResolution {
@@ -985,15 +1103,16 @@ interface CacheSlotResolution {
 
 /**
  * Resolve an enricher's cache slot for this inspection. An enricher is cacheable
- * only when it declares BOTH a `cacheKey`
- * that returns a non-null string AND a positive, finite `cacheTtlMs` — a missing
- * TTL degrades to "run fresh every call", never to a guessed default.
+ * only when it declares a `cacheKey` that returns a non-null string AND either a
+ * positive, finite static `cacheTtlMs` or a dynamic `cacheTtlMsFor` resolver — a
+ * missing TTL policy degrades to "run fresh every call", never to a guessed
+ * default.
  *
- * The returned key is namespaced by the enricher's `<layer>:<id>` check token so
- * two enrichers can never collide on the same caller-supplied key, keeping their
- * entries (and TTLs) independent. `cacheKey` is caller code, so throws and
- * invalid non-string returns are guarded and exposed as `cache-key-error` while
- * the provider proceeds uncached.
+ * The returned key is an opaque JSON tuple namespaced by schema version and the
+ * enricher's `<layer>:<id>` check token, so two sources and incompatible report
+ * schemas cannot collide. `cacheKey` is caller code, so throws, invalid/empty
+ * returns, and direct raw-URL leakage are exposed as `cache-key-error` while the
+ * provider proceeds uncached.
  */
 function cacheSlotFor(
   enricher: Enricher,
@@ -1002,8 +1121,22 @@ function cacheSlotFor(
   cache: EnrichmentCache,
 ): CacheSlotResolution {
   if (typeof enricher.cacheKey !== "function") return { slot: null };
-  const ttlMs = enricher.cacheTtlMs;
-  if (typeof ttlMs !== "number" || !Number.isFinite(ttlMs) || ttlMs <= 0) {
+  const staticTtlMs = isPositiveFinite(enricher.cacheTtlMs)
+    ? enricher.cacheTtlMs
+    : undefined;
+  const rawDynamicTtl: unknown = enricher.cacheTtlMsFor;
+  if (rawDynamicTtl !== undefined && typeof rawDynamicTtl !== "function") {
+    return {
+      slot: null,
+      degradation: {
+        status: "failure",
+        code: "cache-ttl-error",
+        retryable: false,
+        details: { reason: "invalid-resolver" },
+      },
+    };
+  }
+  if (staticTtlMs === undefined && rawDynamicTtl === undefined) {
     return { slot: null };
   }
   let key: unknown;
@@ -1021,7 +1154,7 @@ function cacheSlotFor(
     };
   }
   if (key === null || key === undefined) return { slot: null };
-  if (typeof key !== "string") {
+  if (typeof key !== "string" || key.length === 0) {
     return {
       slot: null,
       degradation: {
@@ -1032,9 +1165,71 @@ function cacheSlotFor(
       },
     };
   }
-  // NUL separator cannot appear in a well-formed check token, so no <layer>:<id>
-  // prefix can bleed into an adjacent enricher's caller-supplied key.
+  const subject = inspectionSubject(base);
+  if (subject.kind === "url" && base.input.length > 0 && key.includes(base.input)) {
+    return {
+      slot: null,
+      degradation: {
+        status: "failure",
+        code: "cache-key-error",
+        retryable: false,
+        details: { reason: "unsafe-full-url" },
+      },
+    };
+  }
   return {
-    slot: { cache, key: `${enricher.layer}:${enricher.id} ${key}`, ttlMs },
+    slot: {
+      cache,
+      key: JSON.stringify([
+        ENRICHMENT_CACHE_NAMESPACE,
+        `${enricher.layer}:${enricher.id}`,
+        key,
+      ]),
+      staticTtlMs,
+    },
   };
+}
+
+interface CacheTtlResolution {
+  ttlMs: number | null;
+  degradation?: RuntimeDegradation;
+}
+
+/** Resolve the dynamic per-entry TTL, falling back to the legacy static value. */
+function cacheTtlFor(
+  enricher: Enricher,
+  report: EnrichmentReport,
+  ctx: EnrichmentContext,
+  staticTtlMs: number | undefined,
+): CacheTtlResolution {
+  let candidate: unknown = undefined;
+  if (typeof enricher.cacheTtlMsFor === "function") {
+    try {
+      candidate = enricher.cacheTtlMsFor(cloneEnrichmentReport(report), ctx);
+    } catch {
+      return {
+        ttlMs: null,
+        degradation: {
+          status: "failure",
+          code: "cache-ttl-error",
+          retryable: false,
+          details: { reason: "threw" },
+        },
+      };
+    }
+  }
+  if (candidate === undefined) candidate = staticTtlMs;
+  if (candidate === null || candidate === undefined) return { ttlMs: null };
+  if (typeof candidate !== "number") {
+    return {
+      ttlMs: null,
+      degradation: {
+        status: "failure",
+        code: "cache-ttl-error",
+        retryable: false,
+        details: { reason: "invalid-return" },
+      },
+    };
+  }
+  return { ttlMs: isPositiveFinite(candidate) ? candidate : null };
 }

@@ -229,6 +229,16 @@ seconds by default without requiring a governor; a positive finite per-source
 cache, cache-key, and governor failures become machine-readable enrichment
 outcomes and cannot reject the aggregate inspection.
 
+Caching remains explicit and caller-owned. `EnrichmentCache` supports both
+in-process and Promise-capable external stores; core writes only validated
+structured reports and validates every hit again. Enrichers may use static
+`cacheTtlMs` or choose a per-response lifetime with
+`cacheTtlMsFor(report, context)`, including shorter negative-cache TTLs for
+explicit `no-hit` outcomes. Skipped, failed, and partial reports are never
+cached. Caller cache keys are schema/source-namespaced and must use a
+privacy-safe projection rather than a full URL. See the caching contract and
+migration examples in [`docs/enrichment-outcomes.md`](./docs/enrichment-outcomes.md).
+
 ## Policy layer — caller-configurable allow/deny
 
 Beyond deception detection, callers can enforce their own org-specific rules. Policy

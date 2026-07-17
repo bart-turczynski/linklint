@@ -29,6 +29,13 @@ import { CHECKS } from "../src/detectors/checks.js";
 const thisDir = dirname(fileURLToPath(import.meta.url));
 // packages/core/test -> repo root is three levels up.
 const repoRoot = join(thisDir, "..", "..", "..");
+const publicReadme = readFileSync(join(repoRoot, "README.md"), "utf8");
+const coreReadme = readFileSync(join(repoRoot, "packages", "core", "README.md"), "utf8");
+const architectureDoc = readFileSync(join(repoRoot, "docs", "architecture.md"), "utf8");
+const enrichmentDoc = readFileSync(
+  join(repoRoot, "docs", "enrichment-outcomes.md"),
+  "utf8",
+);
 
 describe("InspectResult schema contract (schemaVersion + confidence, FR-SCORE-2b)", () => {
   it("stamps schemaVersion 1.3 on ok and invalid results", () => {
@@ -59,6 +66,37 @@ describe("InspectResult schema contract (schemaVersion + confidence, FR-SCORE-2b
       // Advisory, time-relative staleness against the default 180-day window.
       expect(typeof snap.stale === "boolean" || snap.stale === null).toBe(true);
     }
+  });
+});
+
+describe("async enrichment public boundary and documentation contract (K9)", () => {
+  it("exports the runtime orchestration, validation, cache, and version surface", () => {
+    expect(root.SCHEMA_VERSION).toBe("1.3");
+    expect(root.ENRICHMENT_SCHEMA_VERSION).toBe("1.0");
+    expect(root.inspectAsync).toBeTypeOf("function");
+    expect(root.isEnrichmentReport).toBeTypeOf("function");
+    expect(root.InMemoryEnrichmentCache).toBeTypeOf("function");
+    expect(root.InMemoryEnrichmentGovernor).toBeTypeOf("function");
+  });
+
+  it("keeps public schema and async cache documentation aligned with the code", () => {
+    expect(publicReadme).toContain("schemaVersion: '1.3'");
+    expect(publicReadme).toContain("enrichment?: EnrichmentReport");
+    expect(publicReadme).toContain("cacheTtlMsFor(report, context)");
+
+    expect(coreReadme).toContain("inspectAsync()");
+    expect(coreReadme).toContain("Promise-capable stores");
+    expect(coreReadme).toContain("cacheTtlMsFor(report, context)");
+
+    expect(architectureDoc).toContain("schema version `1.3`");
+    expect(architectureDoc).toContain("schemaVersion: '1.3'");
+    expect(architectureDoc).not.toContain("schemaVersion: '1.2';");
+    expect(architectureDoc).toContain("enrichment?: EnrichmentReport");
+
+    expect(enrichmentDoc).toContain("Promise-capable external stores");
+    expect(enrichmentDoc).toContain("cache-ttl-error");
+    expect(enrichmentDoc).toContain("explicit negative result");
+    expect(enrichmentDoc).toContain("invalid-cached-output");
   });
 });
 

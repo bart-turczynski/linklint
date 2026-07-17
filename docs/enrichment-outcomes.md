@@ -171,13 +171,16 @@ Rate limiting and backoff remain opt-in state policies supplied through
 `{ run: false }` remain compatible and produce `governor-denied`.
 
 Every pluggable call is a total boundary. Exceptions from `enrich`, `cacheKey`,
-cache `get`/`set`, or governor admission/lifecycle methods become attributed
-failure outcomes and never reject `inspectAsync()`. Cache-key/read failures let
-the provider run uncached; cache-write and governor lifecycle failures retain
-valid provider evidence and add a failure outcome. Such partial sources appear
-in both `checksRun` and `checksSkipped` and are unavailable as prerequisites,
-which prevents a downstream stage from treating degraded infrastructure as a
-wholly clean source. Thrown error messages are not copied into results.
+`cacheTtlMsFor`, cache `get`/`set`, or governor admission/lifecycle methods become
+attributed failure outcomes and never reject `inspectAsync()`. Cache methods may
+return directly or return a `PromiseLike`; asynchronous operations are awaited
+and hard-bounded by the source timeout policy. Cache-key/read failures let the
+provider run uncached; TTL-resolution, cache-write, and governor lifecycle
+failures retain valid provider evidence and add a failure outcome. Such partial
+sources appear in both `checksRun` and `checksSkipped` and are unavailable as
+prerequisites, which prevents a downstream stage from treating degraded
+infrastructure as a wholly clean source. Thrown error messages are not copied
+into results.
 
 ## Status semantics
 
@@ -209,6 +212,7 @@ Core-generated degradation codes currently include:
 - `invalid-output`
 - `invalid-cached-output`
 - `cache-key-error`
+- `cache-ttl-error`
 - `cache-read-error`
 - `cache-write-error`
 
@@ -276,8 +280,76 @@ migration notes and contract tests.
 
 ## Caching
 
-The enrichment cache stores the complete `EnricherOutput`, not only its scored
-findings. Structured cache hits therefore preserve original observation times,
-provenance, freshness, evidence payloads, and no-hit semantics. Only reports whose
-outcomes are all `success` or `no-hit` are cached; skipped, failed, and partial
-reports are not negative-cached.
+`EnrichmentCache` stores the complete runtime-validated `EnrichmentReport`, not
+raw legacy arrays or only their scored findings. Legacy provider output is first
+adapted to the structured report. Cache hits therefore preserve original
+observation times, provenance, freshness, evidence payloads, findings, and
+no-hit semantics. Cache returns are untrusted and validated again against the
+expected source, layer, schema, shape, registered reason codes, confidence
+ranges, JSON safety, and provenance before they can affect a result. Corruption
+produces `invalid-cached-output`; it never becomes a clean miss.
+
+Cache stores may be synchronous (such as `InMemoryEnrichmentCache`) or
+Promise-capable external stores:
+
+```ts
+import type {
+  EnrichmentCache,
+  EnrichmentReport,
+} from "linklint";
+
+const externalCache: EnrichmentCache = {
+  async get(key): Promise<EnrichmentReport | undefined> {
+    return readValidatedCandidate(key);
+  },
+  async set(key, report, ttlMs): Promise<void> {
+    await writeWithExpiry(key, report, ttlMs);
+  },
+};
+```
+
+An enricher opts in with a privacy-safe `cacheKey` and one or both TTL policies:
+
+- `cacheTtlMs` is the backward-compatible static fallback.
+- `cacheTtlMsFor(report, context)` selects a lifetime from the validated response.
+  A non-`undefined` dynamic result wins; `undefined` falls back to the static
+  value. `null`, zero, negative, `NaN`, and infinity mean “do not store.” A throw
+  or malformed non-numeric value becomes `cache-ttl-error`.
+
+```ts
+import type { Enricher } from "linklint";
+
+const feedEnricher = {
+  // ...id, layer, enrich...
+  cacheKey: () => "example.com", // registrable-domain projection, not the URL
+  cacheTtlMs: 5 * 60_000,
+  cacheTtlMsFor(report) {
+    const negative = report.outcomes.every((outcome) => outcome.status === "no-hit");
+    return negative ? 30_000 : undefined;
+  },
+} satisfies Enricher;
+```
+
+Only reports whose outcomes are all `success` or `no-hit` are cached. `no-hit`
+is an explicit negative result and may be cached with its own shorter TTL; it is
+still not a safety claim. Skipped, failed, and mixed/partial reports are never
+cached.
+
+The framework never derives caller key material from the inspected URL. It wraps
+the caller projection in an opaque schema-and-source namespace so equal keys from
+different adapters cannot collide, and rejects keys that directly contain the
+full URL. Detecting more elaborate disclosures is impossible at this boundary,
+so adapters remain responsible for using registrable-domain, local-mirror ID, or
+one-way hash-prefix projections and never reconstructible URL material. Stores
+must treat the final key as opaque.
+
+### K3 cache migration
+
+Existing synchronous cache implementations remain valid after changing their
+stored value from `EnricherOutput` to `EnrichmentReport`; returning promises is
+optional. `cacheTtlMs` and one-argument `cacheKey(result)` implementations remain
+source-compatible. Core now normalizes legacy finding arrays before `set`, so a
+store must not persist or return raw arrays. The opaque namespace includes the
+enrichment schema version, which naturally misses pre-K9 entries instead of
+interpreting them under the new contract. Persistent stores may delete those old
+entries on their normal retention schedule; no eager migration is required.

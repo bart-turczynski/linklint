@@ -65,6 +65,42 @@ function baseOutcome(
   } as const;
 }
 
+function scoredFixtureReport(): EnrichmentReport {
+  return report([
+    {
+      ...baseOutcome("boundary.fixture", "resolution", {
+        kind: "host",
+        value: "start.example",
+      }),
+      status: "success",
+      evidence: [],
+      findings: [{ code: "ip_private", detail: "validated fixture finding", confidence: 0.8 }],
+    },
+  ]);
+}
+
+function malformedBoundaryReport(
+  kind: "confidence" | "code" | "layer" | "source" | "shape",
+): EnrichmentReport {
+  const candidate = JSON.parse(JSON.stringify(scoredFixtureReport())) as {
+    schemaVersion: string;
+    outcomes: Array<{
+      sourceId: string;
+      layer: string;
+      status: string;
+      cause?: unknown;
+      findings: Array<{ code: string; confidence?: number }>;
+    }>;
+  };
+  const outcome = candidate.outcomes[0]!;
+  if (kind === "confidence") outcome.findings[0]!.confidence = 1.1;
+  if (kind === "code") outcome.findings[0]!.code = "not_registered";
+  if (kind === "layer") outcome.layer = "reputation";
+  if (kind === "source") outcome.sourceId = "other.fixture";
+  if (kind === "shape") outcome.cause = { code: "unexpected-on-success" };
+  return candidate as EnrichmentReport;
+}
+
 describe("K6 — representative L/M/O structured evidence", () => {
   it("round-trips resolution, reputation, and static-content artifacts without losing attribution", async () => {
     const resolution = new StructuredEnricher(
@@ -252,6 +288,69 @@ describe("K6 — outcome status and identity validation", () => {
     expect(outcome?.status === "failure" ? outcome.cause.code : null).toBe("source-error");
     expect(result.checksSkipped).toContain("reputation:rdap.fixture");
   });
+
+  it.each(["confidence", "code", "layer", "source", "shape"] as const)(
+    "rejects malformed fresh %s data at the public enricher boundary",
+    async (kind) => {
+      const malformed = malformedBoundaryReport(kind);
+      const enricher = new StructuredEnricher(
+        "boundary.fixture",
+        "resolution",
+        malformed,
+      );
+
+      expect(
+        isEnrichmentReport(malformed, {
+          sourceId: "boundary.fixture",
+          layer: "resolution",
+        }),
+      ).toBe(false);
+      const result = await inspectAsync(URL, { enrichers: [enricher] });
+      expect(
+        result.enrichment?.outcomes.some(
+          (outcome) =>
+            outcome.status === "failure" && outcome.cause.code === "invalid-output",
+        ),
+      ).toBe(true);
+      expect(result.reasons.some((reason) => reason.detail === "validated fixture finding"))
+        .toBe(false);
+    },
+  );
+
+  it.each(["confidence", "code", "layer", "source", "shape"] as const)(
+    "rejects corrupted cached %s data before it can affect a result",
+    async (kind) => {
+      let providerCalls = 0;
+      const enricher: Enricher = {
+        id: "boundary.fixture",
+        layer: "resolution",
+        cacheKey: () => "start.example",
+        cacheTtlMs: 1000,
+        async enrich() {
+          providerCalls += 1;
+          return scoredFixtureReport();
+        },
+      };
+      const result = await inspectAsync(URL, {
+        cache: {
+          get: () => malformedBoundaryReport(kind),
+          set() {},
+        },
+        enrichers: [enricher],
+      });
+
+      expect(providerCalls).toBe(0);
+      expect(
+        result.enrichment?.outcomes.some(
+          (outcome) =>
+            outcome.status === "failure" &&
+            outcome.cause.code === "invalid-cached-output",
+        ),
+      ).toBe(true);
+      expect(result.reasons.some((reason) => reason.detail === "validated fixture finding"))
+        .toBe(false);
+    },
+  );
 });
 
 describe("K6 — compatibility, caching, and offline invariants", () => {
