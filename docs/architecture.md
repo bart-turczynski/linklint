@@ -232,7 +232,7 @@ a caller supplies `{ code, host? }` rules marking a reason a false positive.
 | `packages/core` | `inspect()` library | `linklint` |
 | `packages/mcp` | `check_url` / `check_domain` MCP tools (stdio) | `@linklint/mcp` |
 | `packages/cli` | `linklint check` / `linklint batch` | `@linklint/cli` |
-| `packages/online` | Explicit Node/server capabilities; L0 safe transport shipped | `@linklint/online` |
+| `packages/online` | Explicit Node/server capabilities; L0 safe transport and L2 local wrappers shipped | `@linklint/online` |
 
 Planned but not yet built: browser extension, GitHub Action, REST/serverless wrapper. The rule is the same for all of them: call `inspect()`, present the result, enforce policy at the adapter — never fork detector logic.
 
@@ -247,13 +247,18 @@ socket and DNS-pinning controls. The accepted decision, export categories,
 dependency direction, consent, secret, licensing, and migration rules are in
 [`online-runtime-boundary.md`](online-runtime-boundary.md).
 
-The online package exposes L0 only through `@linklint/online/transport`. Its
+The online package exposes L0 through `@linklint/online/transport`. Its
 exact-URL authorization, all-answer address policy, DNS-pinned socket,
 original-host TLS identity, fresh header set, manual redirects, cumulative
 budgets, and structured outcomes are documented in
 [`safe-transport.md`](safe-transport.md). The internal LT harness remains the
 zero-external-network acceptance seam for resolver changes, connector identity,
 streamed HTTP, failures, and deterministic deadlines.
+
+Exact local Microsoft Safe Links and Proofpoint URL Defense decoding is exposed
+through `@linklint/online/resolution`. It is separately bounded, never calls a
+vendor decoder service, and re-inspects every recovered destination through the
+offline pipeline. See [`wrapper-decoding.md`](wrapper-decoding.md).
 
 ## 10. Layer model
 
@@ -262,10 +267,12 @@ The three-layer model is a forward-compatibility contract:
 | Layer | Status | Description |
 |-------|--------|-------------|
 | **Lexical** (L1) | **Implemented** | Offline, deterministic, synchronous. 35 checks: 4 structural, 31 parsed, 5 agent-gated. < 5 ms typical. |
-| **Resolution** (L2) | Roadmap | Follow redirects, expand shorteners, re-inspect each hop through L1. |
+| **Resolution** (L2) | **Partial** | Exact local embedded-wrapper decoding is implemented; authorized redirect/refresh expansion remains roadmap work. Every discovered target is re-inspected through L1. |
 | **Reputation** (L3) | Roadmap | Threat feeds, RDAP domain age, CT, DNS posture. Privacy-preserving by design. |
 
-L2 and L3 extend `checksRun` / `checksSkipped` — they add to lexical results, never replace them. Until they are built, the score is always a lower bound over L1 alone.
+L2 and L3 extend `checksRun` / `checksSkipped` — they add to lexical results,
+never replace them. Unconfigured or incomplete sources remain explicit, so a
+score never implies that unfinished resolution or reputation work was clean.
 
 **Result cache (opt-in).** So networked enrichers don't re-hit third parties on every call, `inspectAsync` accepts a pluggable `EnrichmentCache`; `get`/`set` may be synchronous or Promise-capable, and `InMemoryEnrichmentCache` is the dependency-free default. Only runtime-validated structured reports are stored and every hit is revalidated. An enricher opts in with `cacheKey(result, context)` plus a positive static `cacheTtlMs`, a response-driven `cacheTtlMsFor(report, context)`, or both. Dynamic TTLs allow explicit no-hit results to use shorter negative-cache lifetimes; failures, skips, and partial reports are never cached. A hit skips the provider call but still counts as a run (`<layer>:<id>` in `checksRun`). **Privacy:** the framework never derives caller key material from the full URL, rejects direct full-URL leakage, and wraps the caller's projection in an opaque schema/source namespace. The adapter must still use a privacy-preserving projection (registrable domain, local-mirror ID, one-way hash-prefix), never reconstructible URL material.
 

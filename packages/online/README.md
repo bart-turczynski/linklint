@@ -24,10 +24,27 @@ const outcome = await session.fetch({
 });
 ```
 
+The `@linklint/online/resolution` subpath exposes shipped local embedded-wrapper
+decoding. It recognizes only exact, version-pinned Microsoft Safe Links and
+Proofpoint URL Defense formats, applies mandatory length/nesting bounds, and
+never calls a vendor decoder or any other network service. The enricher factory
+re-inspects every recovered target through synchronous core Layer 1.
+
+```ts
+import { inspectAsync } from "linklint";
+import { createEmbeddedWrapperEnricher } from "@linklint/online/resolution";
+
+const result = await inspectAsync(wrappedUrl, {
+  enrichers: [createEmbeddedWrapperEnricher()],
+});
+```
+
 The repository includes deterministic resolver, connector, HTTP, and clock
 fixtures for transport tests. They are internal test infrastructure rather than
 a supported package export; production code cannot discover or enable them.
 
 See [`docs/online-runtime-boundary.md`](../../docs/online-runtime-boundary.md)
 for ownership and [`docs/safe-transport.md`](../../docs/safe-transport.md) for
-the complete authorization, address, budget, and outcome contract.
+the complete authorization, address, budget, and outcome contract. Local
+wrapper formats and outcomes are documented in
+[`docs/wrapper-decoding.md`](../../docs/wrapper-decoding.md).

@@ -15,6 +15,10 @@
     "./transport": {
       "types": "./dist/transport/index.d.ts",
       "default": "./dist/transport/index.js"
+    },
+    "./resolution": {
+      "types": "./dist/resolution/index.d.ts",
+      "default": "./dist/resolution/index.js"
     }
   },
   "files": ["dist", "README.md"],

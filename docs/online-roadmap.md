@@ -37,14 +37,17 @@ and context that should survive individual work sessions.
   connecting, pins the selected address with original-host TLS identity, strips
   ambient headers, and enforces cumulative hop, byte, decompression, and time
   budgets with structured blocked/incomplete outcomes.
+- L2 (`LINK-ehhmrblq`) is done. `@linklint/online/resolution` locally decodes
+  exact, version-pinned Microsoft Safe Links and Proofpoint URL Defense formats,
+  bounds destination length and nesting, and re-inspects every recovered target
+  through offline Layer 1 without calling a vendor or destination service.
 
 ## Current execution frontier
 
-The next default task under the coordinator is **claim `LINK-ehhmrblq` (L2)** —
-exact, version-pinned local embedded-wrapper decoding. L2 makes no network call
-or vendor disclosure and unblocks L1 together with the now-shipped L0 boundary.
-After L2, implement `LINK-hvirrwxa` (L1) so every redirect and declarative
-refresh hop uses L0, receives a new authorization, and is re-inspected offline.
+The next default task under the coordinator is **claim `LINK-hvirrwxa` (L1)** —
+bounded redirect and declarative-refresh chain expansion. L0 and L2 now satisfy
+its prerequisites. Every network hop must use L0, receive a new exact-URL
+authorization, and be re-inspected offline before the chain continues.
 
 ## Epic L dependency path
 
@@ -115,8 +118,8 @@ When the coordinator is assigned again:
 2. Run `fp tree LINK-ddsnssrd` and `fp issue show` for the proposed child; do not
    trust this document for status if FP has moved on.
 3. Follow the Epic L dependency path above, selecting the first unblocked child
-   in the stated order. With LT and L0 done, the default frontier is local L2
-   wrapper decoding (`LINK-ehhmrblq`), followed by L1 chain expansion.
+   in the stated order. With LT, L0, and L2 done, the default frontier is L1
+   chain expansion (`LINK-hvirrwxa`).
 4. Read [`online-runtime-boundary.md`](online-runtime-boundary.md),
    [`architecture.md`](architecture.md), and
    [`enrichment-outcomes.md`](enrichment-outcomes.md) before defining public

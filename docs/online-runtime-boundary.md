@@ -217,8 +217,8 @@ migration notes and contract tests. See
 [`enrichment-outcomes.md`](enrichment-outcomes.md) for the shipped schema,
 validation, degradation, orchestration, and cache contract.
 
-Epic L's deterministic transport harness and L0 safe destination boundary are
-shipped. The next delivery frontier is local wrapper decoding followed by L1
+Epic L's deterministic transport harness, L0 safe destination boundary, and L2
+local embedded-wrapper decoder are shipped. The next delivery frontier is L1
 chain expansion. See
 [`online-roadmap.md`](online-roadmap.md) for the resume order and live FP issue
 mapping.

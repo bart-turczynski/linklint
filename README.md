@@ -365,13 +365,15 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) and [SECURITY.md](./SECURITY.md).
 probabilistic-OR scoring, a caller-configurable policy layer, a stable versioned schema,
 and a local MCP server. Typically < 5 ms per call, zero network.
 
-**Online foundation and safe destination transport implemented.** The
+**Online foundation, safe transport, and local wrapper decoding implemented.** The
 opt-in `inspectAsync()` contract now includes versioned structured evidence,
 staged orchestration, bounded degradation, and Promise-capable dynamic caching.
 Core still performs no network I/O. The separate Node-only
-`@linklint/online/transport` subpath now provides exact-URL authorization,
-DNS pinning, original-host TLS validation, credential stripping, and mandatory
-budgets for future resolution adapters.
+`@linklint/online/transport` subpath provides exact-URL authorization, DNS
+pinning, original-host TLS validation, credential stripping, and mandatory
+budgets. `@linklint/online/resolution` locally decodes exact, version-pinned
+Microsoft Safe Links and Proofpoint URL Defense wrappers and re-inspects every
+recovered target offline without calling a vendor or destination service.
 
 The next concrete layers are:
 
@@ -379,12 +381,13 @@ The next concrete layers are:
 - **Reputation** — check against threat feeds.
 
 Both extend `checksRun` / `checksSkipped` and structured evidence without
-replacing the offline verdict. The deterministic zero-I/O transport harness and
-L0 boundary are shipped; local wrapper decoding is the next Epic L frontier,
-followed by bounded redirect/refresh expansion. See
+replacing the offline verdict. The deterministic zero-I/O transport harness,
+L0 boundary, and L2 local wrapper decoder are shipped; bounded
+redirect/refresh expansion is the next Epic L frontier. See
 [`docs/online-roadmap.md`](./docs/online-roadmap.md),
 [`docs/online-runtime-boundary.md`](./docs/online-runtime-boundary.md),
-[`docs/safe-transport.md`](./docs/safe-transport.md), and
+[`docs/safe-transport.md`](./docs/safe-transport.md),
+[`docs/wrapper-decoding.md`](./docs/wrapper-decoding.md), and
 [`docs/architecture.md`](./docs/architecture.md).
 
 ## License

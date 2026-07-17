@@ -1,0 +1,25 @@
+export {
+  DEFAULT_EMBEDDED_WRAPPER_MAX_DEPTH,
+  DEFAULT_EMBEDDED_WRAPPER_MAX_URL_LENGTH,
+  EMBEDDED_WRAPPER_CATALOG_VERSION,
+  EMBEDDED_WRAPPER_SOURCE_ID,
+  EMBEDDED_WRAPPER_SOURCE_VERSION,
+  MAX_EMBEDDED_WRAPPER_DEPTH,
+  createEmbeddedWrapperEnricher,
+  decodeEmbeddedWrapper,
+} from "./embedded-wrapper.js";
+export type {
+  DecodeEmbeddedWrapperOptions,
+  EmbeddedWrapperDecodeCause,
+  EmbeddedWrapperDecodeCauseCode,
+  EmbeddedWrapperDecodeResult,
+  EmbeddedWrapperDecoded,
+  EmbeddedWrapperEnricher,
+  EmbeddedWrapperEnricherOptions,
+  EmbeddedWrapperFormat,
+  EmbeddedWrapperMalformed,
+  EmbeddedWrapperNotMatched,
+  EmbeddedWrapperOfflineInspection,
+  EmbeddedWrapperUnsupported,
+  EmbeddedWrapperVendor,
+} from "./types.js";
