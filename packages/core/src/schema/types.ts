@@ -12,3 +12,4 @@ export * from "./base.js";
 export * from "./parsed.js";
 export * from "./result.js";
 export * from "./options.js";
+export * from "./enrich.js";
