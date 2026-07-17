@@ -145,6 +145,40 @@ sources to include a privacy-safe projection of prerequisite outcomes in their
 key. Existing one-argument cache-key functions remain compatible. The framework
 still never derives or stores a full-URL key automatically.
 
+## Bounded execution and infrastructure isolation
+
+Every configured enricher is hard-bounded by the runner, even when the caller
+does not supply a governor. The default is exported as
+`DEFAULT_ENRICHMENT_TIMEOUT_MS` and is currently 5000 ms. The effective policy,
+in precedence order, is:
+
+1. `Enricher.timeoutMs: null` explicitly disables the runner deadline for that
+   source. Use this only when an outer runtime already enforces a hard bound.
+2. A positive finite `Enricher.timeoutMs` overrides every default.
+3. An admitted governor decision may supply a positive finite override or
+   `null` as its explicit opt-out.
+4. Otherwise the 5000 ms runner default applies. Zero, negative, `NaN`, and
+   infinite values do not accidentally disable the bound.
+
+The runner aborts the signal passed to the enricher when the deadline expires
+and also races the promise itself, so a provider that ignores cancellation still
+cannot stall the aggregate verdict. The abandoned promise remains observed;
+rejecting after the timeout does not produce an unhandled rejection.
+
+Rate limiting and backoff remain opt-in state policies supplied through
+`EnrichmentGovernor`. The built-in governor identifies its refusal as
+`rate-limited` or `backoff-active`; older custom governors that return only
+`{ run: false }` remain compatible and produce `governor-denied`.
+
+Every pluggable call is a total boundary. Exceptions from `enrich`, `cacheKey`,
+cache `get`/`set`, or governor admission/lifecycle methods become attributed
+failure outcomes and never reject `inspectAsync()`. Cache-key/read failures let
+the provider run uncached; cache-write and governor lifecycle failures retain
+valid provider evidence and add a failure outcome. Such partial sources appear
+in both `checksRun` and `checksSkipped` and are unavailable as prerequisites,
+which prevents a downstream stage from treating degraded infrastructure as a
+wholly clean source. Thrown error messages are not copied into results.
+
 ## Status semantics
 
 | Status | Meaning | Coverage token |
@@ -166,11 +200,17 @@ Core-generated degradation codes currently include:
 - `prerequisite-unavailable`
 - `invalid-plan`
 - `dependency-cycle`
+- `rate-limited`
+- `backoff-active`
 - `governor-denied`
+- `governor-error`
 - `timeout`
 - `source-error`
 - `invalid-output`
 - `invalid-cached-output`
+- `cache-key-error`
+- `cache-read-error`
+- `cache-write-error`
 
 These are operational states, not malicious or benign verdicts.
 

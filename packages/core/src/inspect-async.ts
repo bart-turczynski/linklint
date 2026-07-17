@@ -3,6 +3,7 @@ import type {
   Enricher,
   EnricherFinding,
   EnrichmentContext,
+  EnrichmentFrameworkCauseCode,
   EnrichmentLayer,
   EnrichmentOutcome,
   EnrichmentPayload,
@@ -15,7 +16,7 @@ import type {
   Reason,
 } from "./schema/types.js";
 import type { EnrichmentCache } from "./enrichment-cache.js";
-import type { EnrichmentGovernor } from "./enrichment-governor.js";
+import type { EnrichmentGovernor, GovernorDecision } from "./enrichment-governor.js";
 import { inspect } from "./inspect.js";
 import { reasonMeta, weightFor } from "./schema/reason-codes.js";
 import { aggregate } from "./scoring/score.js";
@@ -57,21 +58,21 @@ export interface InspectAsyncOptions extends InspectOptions {
    */
   cache?: EnrichmentCache;
   /**
-   * Opt-in per-source governor (LINK-bergliii, unit K4): a bounded timeout,
-   * token-bucket rate limit, and exponential backoff, all keyed by the enricher's
-   * `<layer>:<id>` token. When supplied, a source that is over its timeout, out of
-   * tokens, or in an open backoff window degrades to `checksSkipped` — one slow or
-   * failing source can never block the verdict. Consulted only on a cache MISS
-   * (see {@link InspectAsyncOptions.cache}): a cache HIT never consumes a token,
-   * starts a timeout, or touches backoff, because no network happened. Absent this
-   * option the pipeline behaves exactly as K1–K3 — governance is never on by
-   * default. See {@link import("./enrichment-governor.js").EnrichmentGovernor}.
+   * Opt-in per-source governor (LINK-bergliii, K4): token-bucket rate limiting,
+   * exponential backoff, and an optional timeout policy, all keyed by the
+   * enricher's `<layer>:<id>` token. The K8 runner deadline is always active by
+   * default and does not require this option. A cache HIT never consults the
+   * governor because no network happened. See
+   * {@link import("./enrichment-governor.js").EnrichmentGovernor}.
    */
   governor?: EnrichmentGovernor;
 }
 
 /** The bare per-layer placeholder tokens `inspect()` seeds into `checksSkipped`. */
 const LAYER_PLACEHOLDERS: readonly EnrichmentLayer[] = ["resolution", "reputation"];
+
+/** Safe hard deadline applied to every configured enricher unless explicitly disabled. */
+export const DEFAULT_ENRICHMENT_TIMEOUT_MS = 5000;
 
 /** Validated per-enricher report after running (or declining to run) it. */
 interface EnricherRun {
@@ -111,9 +112,13 @@ interface PlannedEnricher {
  *    dependent nodes see prior structured outcomes and run only after every
  *    prerequisite wholly completes. Unavailable prerequisites and invalid/cyclic
  *    plans become attributed skipped outcomes rather than implicit work.
+ *  - **Bounded and total.** Every configured source receives a hard 5s runner
+ *    deadline unless a positive finite override or explicit `null` opt-out is
+ *    declared. Enricher, cache-key, cache, and governor exceptions become
+ *    structured degradation outcomes; they never escape this function.
  *
  * Graceful degradation is load-bearing (FR-D-13 parallel): the runner guards
- * every enricher; a rejection is recorded, not propagated.
+ * every pluggable boundary; a rejection is recorded, not propagated.
  */
 export async function inspectAsync(
   input: string,
@@ -506,27 +511,25 @@ function findDependencyCycle(
 /** Race sentinel: the bounded timeout fired (or the caller's signal aborted). */
 const TIMED_OUT = Symbol("timed-out");
 
+/** A framework-owned operational degradation collected around one source run. */
+interface RuntimeDegradation {
+  status: "skipped" | "failure";
+  code: EnrichmentFrameworkCauseCode;
+  retryable: boolean;
+  details?: EnrichmentPayload;
+}
+
 /**
- * Run a single enricher behind a total guard. Resolves to a validated structured
- * report on success/no-hit or to an explicit skipped/failure report on
- * cancellation, rejection, invalid output, governor refusal, or timeout. Never
- * rejects — graceful degradation is the whole point.
+ * Run a single enricher behind a total guard. This function is the isolation
+ * boundary for caller/provider code and every pluggable cache/governor method;
+ * none of those exceptions may reject the aggregate inspection.
  *
- * Ordering (K3 cache × K4 governor — the interplay matters):
- *  1. **Already-aborted signal → skip** without touching cache or governor.
- *  2. **Cache FIRST.** A HIT (LINK-wtnpkbkf, K3) returns the cached output
- *     WITHOUT calling `enrich`, and MUST NOT consume a rate-limit
- *     token, start a timeout, or touch backoff — no network happened.
- *  3. On a cache MISS, **consult the governor** (LINK-bergliii, K4) if supplied:
- *     rate-limited OR in an open backoff window → skip (never call `enrich`).
- *     Admission consumes exactly one token.
- *  4. Otherwise run `enrich` under the bounded timeout. Timeout, throw/reject,
- *     observed post-abort, or a malformed return → skip AND record a governor
- *     failure (backoff); the result is NEVER cached. A clean success → record a
- *     governor success (reset backoff), and store complete success/no-hit output.
- *
- * With no governor the timeout/rate-limit/backoff machinery is entirely inert, so
- * this path stays byte-for-byte K1–K3.
+ * Ordering remains cache-before-governor. A usable hit performs no admission or
+ * network work. A miss is optionally admitted, then the provider call is always
+ * raced against a hard deadline (the 5s runner default, a positive finite
+ * per-source/governor override, or an explicit `null` opt-out). Auxiliary
+ * infrastructure failures are retained as additional attributed outcomes when
+ * the provider can still run, so successful evidence is not silently discarded.
  */
 async function runEnricher(
   enricher: Enricher,
@@ -536,8 +539,10 @@ async function runEnricher(
   governor: EnrichmentGovernor | undefined,
 ): Promise<EnricherRun> {
   const token = `${enricher.layer}:${enricher.id}`;
-  // A signal already aborted before we start: skip without invoking. Checked
-  // BEFORE the cache so an aborted call never even reads from it.
+  const degradations: RuntimeDegradation[] = [];
+
+  // A signal already aborted before we start: skip without touching cache or
+  // governor, and without invoking caller/provider code.
   if (ctx.signal?.aborted) {
     return {
       token,
@@ -545,106 +550,271 @@ async function runEnricher(
     };
   }
 
-  // Resolve the (optional) cache slot. The key is entirely enricher-supplied —
-  // the framework never derives it from the URL (privacy constraint).
-  const slot = cache !== undefined ? cacheSlotFor(enricher, base, ctx, cache) : null;
+  // Resolve the optional cache slot. cacheKey is caller code and therefore part
+  // of the total boundary: a throw/invalid return disables caching for this run
+  // and remains machine-visible while the source is still allowed to run fresh.
+  let slot: CacheSlot | null = null;
+  if (cache !== undefined) {
+    const resolved = cacheSlotFor(enricher, base, ctx, cache);
+    slot = resolved.slot;
+    if (resolved.degradation !== undefined) degradations.push(resolved.degradation);
+  }
+
   if (slot !== null) {
-    const cached = slot.cache.get(slot.key);
+    let cached: EnricherOutput | undefined;
+    try {
+      cached = slot.cache.get(slot.key);
+    } catch {
+      degradations.push({
+        status: "failure",
+        code: "cache-read-error",
+        retryable: true,
+      });
+    }
+
     // Cache HIT: a successful prior run stands in for this one. It still counts
-    // as run, so its report/findings flow through exactly like fresh output.
-    // No token is spent and no timeout starts — cache-before-governor is the point.
+    // as run. Invalid cache data is never trusted or silently treated as a miss.
     if (cached !== undefined) {
+      const cachedReport = normalizeOutput(cached, enricher, base);
       return {
         token,
-        report:
-          normalizeOutput(cached, enricher, base) ??
-          frameworkReport(enricher, base, "failure", "invalid-cached-output", false),
+        report: withDegradations(
+          cachedReport ??
+            frameworkReport(enricher, base, "failure", "invalid-cached-output", false),
+          enricher,
+          base,
+          degradations,
+        ),
       };
     }
   }
 
-  // Cache MISS: consult the governor (if any) before spending a network call.
-  let timeoutMs = enricher.timeoutMs;
+  // Cache MISS: consult the optional stateful governor. A broken/invalid
+  // admission decision fails this source closed, but cannot affect its siblings.
+  let governorTimeoutMs: number | null | undefined;
   if (governor !== undefined) {
-    const decision = governor.admit(token);
+    let decision: GovernorDecision;
+    try {
+      const candidate: unknown = governor.admit(token);
+      if (!isGovernorDecision(candidate)) {
+        return {
+          token,
+          report: withDegradations(
+            frameworkReport(enricher, base, "failure", "governor-error", true, {
+              operation: "admit",
+              reason: "invalid-decision",
+            }),
+            enricher,
+            base,
+            degradations,
+          ),
+        };
+      }
+      decision = candidate;
+    } catch {
+      return {
+        token,
+        report: withDegradations(
+          frameworkReport(enricher, base, "failure", "governor-error", true, {
+            operation: "admit",
+          }),
+          enricher,
+          base,
+          degradations,
+        ),
+      };
+    }
+
     if (!decision.run) {
       return {
         token,
-        report: frameworkReport(enricher, base, "skipped", "governor-denied", true),
+        report: withDegradations(
+          frameworkReport(
+            enricher,
+            base,
+            "skipped",
+            decision.cause ?? "governor-denied",
+            true,
+          ),
+          enricher,
+          base,
+          degradations,
+        ),
       };
     }
-    // Enricher's own timeout wins; otherwise fall back to the governor default.
-    timeoutMs = enricher.timeoutMs ?? decision.timeoutMs;
-  } else {
-    // No governor → no timeout/rate-limit/backoff at all (K1–K3 path exactly).
-    timeoutMs = undefined;
+    governorTimeoutMs = decision.timeoutMs;
   }
 
+  const timeoutMs = effectiveTimeoutMs(enricher.timeoutMs, governorTimeoutMs);
+  let output: EnricherOutput | typeof TIMED_OUT;
   try {
-    const outcome = await runWithTimeout(enricher, base, ctx, timeoutMs);
-    if (outcome === TIMED_OUT) {
-      // The bounded timeout fired (or the signal aborted mid-race): degrade and
-      // record a failure so repeated slowness opens a backoff window.
-      governor?.recordFailure(token);
-      if (ctx.signal?.aborted) {
-        return {
-          token,
-          report: frameworkReport(enricher, base, "skipped", "caller-aborted", false),
-        };
-      }
-      return {
-        token,
-        report: frameworkReport(enricher, base, "failure", "timeout", true),
-      };
-    }
-    // A completion observed after cancellation is treated as skipped, so an
-    // enricher that ignores the signal still degrades rather than leaking. A
-    // cancelled run is NEVER cached; it counts as a failure for backoff.
-    if (ctx.signal?.aborted) {
-      governor?.recordFailure(token);
-      return {
-        token,
-        report: frameworkReport(enricher, base, "skipped", "caller-aborted", false),
-      };
-    }
-    const report = normalizeOutput(outcome, enricher, base);
-    if (report === null) {
-      governor?.recordFailure(token);
-      return {
-        token,
-        report: frameworkReport(enricher, base, "failure", "invalid-output", false),
-      };
-    }
-    // A source-declared failure feeds backoff; successful/no-hit/skipped reports
-    // are clean protocol completions. Only wholly completed success/no-hit reports
-    // are cached — partial, skipped, and failed reports are never negative-cached.
-    if (report.outcomes.some((item) => item.status === "failure")) {
-      governor?.recordFailure(token);
-    } else {
-      governor?.recordSuccess(token);
-    }
-    if (
-      slot !== null &&
-      report.outcomes.every((item) => item.status === "success" || item.status === "no-hit")
-    ) {
-      slot.cache.set(slot.key, outcome, slot.ttlMs);
-    }
-    return { token, report };
+    output = await runWithTimeout(enricher, base, ctx, timeoutMs);
   } catch {
-    // Any throw/rejection is never cached and is counted for backoff. A caller
-    // abort stays a skip; other source errors become explicit failures.
-    governor?.recordFailure(token);
-    if (ctx.signal?.aborted) {
-      return {
-        token,
-        report: frameworkReport(enricher, base, "skipped", "caller-aborted", false),
-      };
-    }
+    addGovernorRecordDegradation(degradations, governor, "recordFailure", token);
+    const primary = ctx.signal?.aborted
+      ? frameworkReport(enricher, base, "skipped", "caller-aborted", false)
+      : frameworkReport(enricher, base, "failure", "source-error", true);
     return {
       token,
-      report: frameworkReport(enricher, base, "failure", "source-error", true),
+      report: withDegradations(primary, enricher, base, degradations),
     };
   }
+
+  if (output === TIMED_OUT) {
+    addGovernorRecordDegradation(degradations, governor, "recordFailure", token);
+    const primary = ctx.signal?.aborted
+      ? frameworkReport(enricher, base, "skipped", "caller-aborted", false)
+      : frameworkReport(enricher, base, "failure", "timeout", true);
+    return {
+      token,
+      report: withDegradations(primary, enricher, base, degradations),
+    };
+  }
+
+  // A completion observed after caller cancellation remains a skip even when the
+  // provider ignored its signal. It is never cached and feeds governor backoff.
+  if (ctx.signal?.aborted) {
+    addGovernorRecordDegradation(degradations, governor, "recordFailure", token);
+    return {
+      token,
+      report: withDegradations(
+        frameworkReport(enricher, base, "skipped", "caller-aborted", false),
+        enricher,
+        base,
+        degradations,
+      ),
+    };
+  }
+
+  const report = normalizeOutput(output, enricher, base);
+  if (report === null) {
+    addGovernorRecordDegradation(degradations, governor, "recordFailure", token);
+    return {
+      token,
+      report: withDegradations(
+        frameworkReport(enricher, base, "failure", "invalid-output", false),
+        enricher,
+        base,
+        degradations,
+      ),
+    };
+  }
+
+  // A source-declared failure feeds backoff; successful/no-hit/skipped reports
+  // are clean protocol completions. Every lifecycle callback is guarded too.
+  addGovernorRecordDegradation(
+    degradations,
+    governor,
+    report.outcomes.some((item) => item.status === "failure")
+      ? "recordFailure"
+      : "recordSuccess",
+    token,
+  );
+
+  // Only wholly completed success/no-hit reports are cached. A write failure does
+  // not erase valid source evidence, but remains a failure outcome and prevents a
+  // dependent stage from mistaking this partially degraded run for wholly clean.
+  if (
+    slot !== null &&
+    report.outcomes.every((item) => item.status === "success" || item.status === "no-hit")
+  ) {
+    try {
+      slot.cache.set(slot.key, output, slot.ttlMs);
+    } catch {
+      degradations.push({
+        status: "failure",
+        code: "cache-write-error",
+        retryable: true,
+      });
+    }
+  }
+
+  return {
+    token,
+    report: withDegradations(report, enricher, base, degradations),
+  };
+}
+
+/** Positive finite overrides win; `null` is the only way to disable the hard bound. */
+function effectiveTimeoutMs(
+  enricherTimeoutMs: number | null | undefined,
+  governorTimeoutMs: number | null | undefined,
+): number | undefined {
+  if (enricherTimeoutMs === null) return undefined;
+  if (isPositiveFinite(enricherTimeoutMs)) return enricherTimeoutMs;
+  if (governorTimeoutMs === null) return undefined;
+  if (isPositiveFinite(governorTimeoutMs)) return governorTimeoutMs;
+  return DEFAULT_ENRICHMENT_TIMEOUT_MS;
+}
+
+function isPositiveFinite(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+/** Runtime guard for untrusted custom governor decisions. */
+function isGovernorDecision(value: unknown): value is GovernorDecision {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const decision = value as Record<string, unknown>;
+  if (decision.run === false) {
+    return (
+      decision.cause === undefined ||
+      decision.cause === "rate-limited" ||
+      decision.cause === "backoff-active"
+    );
+  }
+  if (decision.run !== true) return false;
+  return (
+    decision.timeoutMs === undefined ||
+    decision.timeoutMs === null ||
+    typeof decision.timeoutMs === "number"
+  );
+}
+
+/** Guard a governor lifecycle callback and retain a machine-readable failure. */
+function addGovernorRecordDegradation(
+  degradations: RuntimeDegradation[],
+  governor: EnrichmentGovernor | undefined,
+  operation: "recordSuccess" | "recordFailure",
+  token: string,
+): void {
+  if (governor === undefined) return;
+  try {
+    governor[operation](token);
+  } catch {
+    degradations.push({
+      status: "failure",
+      code: "governor-error",
+      retryable: true,
+      details: { operation },
+    });
+  }
+}
+
+/** Add framework-owned runtime outcomes after the source's own stable output. */
+function withDegradations(
+  report: EnrichmentReport,
+  enricher: Enricher,
+  base: InspectResult,
+  degradations: readonly RuntimeDegradation[],
+): EnrichmentReport {
+  if (degradations.length === 0) return report;
+  return {
+    schemaVersion: ENRICHMENT_SCHEMA_VERSION,
+    outcomes: [
+      ...report.outcomes,
+      ...degradations.flatMap(
+        (degradation) =>
+          frameworkReport(
+            enricher,
+            base,
+            degradation.status,
+            degradation.code,
+            degradation.retryable,
+            degradation.details,
+          ).outcomes,
+      ),
+    ],
+  };
 }
 
 /**
@@ -660,9 +830,9 @@ async function runEnricher(
  * `AbortSignal.timeout`) is used so tests can drive the timeout with fake timers,
  * never real wall-clock sleeps.
  *
- * With no (or a non-positive) timeout and no caller signal this is exactly the
- * K1 call: `enrich(base, ctx)`, unbounded. A caller signal is always raced even
- * without a governor, so cancellation also settles an enricher that ignores it.
+ * An unbounded call exists only after the explicit `null` timeout policy resolves
+ * to `undefined`. A caller signal is always raced, so cancellation also settles
+ * an enricher that ignores it.
  */
 async function runWithTimeout(
   enricher: Enricher,
@@ -770,7 +940,7 @@ function frameworkReport(
   enricher: Enricher,
   base: InspectResult,
   status: "skipped" | "failure",
-  code: string,
+  code: EnrichmentFrameworkCauseCode,
   retryable: boolean,
   details?: EnrichmentPayload,
 ): EnrichmentReport {
@@ -808,34 +978,63 @@ interface CacheSlot {
   ttlMs: number;
 }
 
+interface CacheSlotResolution {
+  slot: CacheSlot | null;
+  degradation?: RuntimeDegradation;
+}
+
 /**
- * Resolve an enricher's cache slot for this inspection, or `null` if it is not
- * cacheable. An enricher is cacheable only when it declares BOTH a `cacheKey`
+ * Resolve an enricher's cache slot for this inspection. An enricher is cacheable
+ * only when it declares BOTH a `cacheKey`
  * that returns a non-null string AND a positive, finite `cacheTtlMs` — a missing
  * TTL degrades to "run fresh every call", never to a guessed default.
  *
  * The returned key is namespaced by the enricher's `<layer>:<id>` check token so
  * two enrichers can never collide on the same caller-supplied key, keeping their
- * entries (and TTLs) independent. `cacheKey` is caller code, so a throw from it
- * degrades to "not cacheable" rather than failing the call.
+ * entries (and TTLs) independent. `cacheKey` is caller code, so throws and
+ * invalid non-string returns are guarded and exposed as `cache-key-error` while
+ * the provider proceeds uncached.
  */
 function cacheSlotFor(
   enricher: Enricher,
   base: InspectResult,
   ctx: EnrichmentContext,
   cache: EnrichmentCache,
-): CacheSlot | null {
-  if (typeof enricher.cacheKey !== "function") return null;
+): CacheSlotResolution {
+  if (typeof enricher.cacheKey !== "function") return { slot: null };
   const ttlMs = enricher.cacheTtlMs;
-  if (typeof ttlMs !== "number" || !Number.isFinite(ttlMs) || ttlMs <= 0) return null;
-  let key: string | null;
+  if (typeof ttlMs !== "number" || !Number.isFinite(ttlMs) || ttlMs <= 0) {
+    return { slot: null };
+  }
+  let key: unknown;
   try {
     key = enricher.cacheKey(base, ctx);
   } catch {
-    return null;
+    return {
+      slot: null,
+      degradation: {
+        status: "failure",
+        code: "cache-key-error",
+        retryable: false,
+        details: { reason: "threw" },
+      },
+    };
   }
-  if (key === null || key === undefined) return null;
+  if (key === null || key === undefined) return { slot: null };
+  if (typeof key !== "string") {
+    return {
+      slot: null,
+      degradation: {
+        status: "failure",
+        code: "cache-key-error",
+        retryable: false,
+        details: { reason: "invalid-return" },
+      },
+    };
+  }
   // NUL separator cannot appear in a well-formed check token, so no <layer>:<id>
   // prefix can bleed into an adjacent enricher's caller-supplied key.
-  return { cache, key: `${enricher.layer}:${enricher.id} ${key}`, ttlMs };
+  return {
+    slot: { cache, key: `${enricher.layer}:${enricher.id} ${key}`, ttlMs },
+  };
 }

@@ -103,13 +103,13 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("governor — no-governor path is unchanged (K1–K3 preserved)", () => {
+describe("governor — runner bounds are independent from governor state", () => {
   it("supplying a governor but no enrichers leaves the result byte-identical", async () => {
     const governor = new InMemoryEnrichmentGovernor();
     expect(await inspectAsync(BENIGN, { governor, enrichers: [] })).toEqual(inspect(BENIGN));
   });
 
-  it("an enricher's timeoutMs is inert without a governor (never bounds the call)", async () => {
+  it("an enricher's timeoutMs bounds the call without a governor", async () => {
     vi.useFakeTimers();
     const enricher: Enricher = {
       id: "slow",
@@ -117,13 +117,14 @@ describe("governor — no-governor path is unchanged (K1–K3 preserved)", () =>
       timeoutMs: 50,
       enrich: () => new Promise<EnricherFinding[]>(() => {}), // never resolves
     };
-    let settled = false;
-    // No governor → no timeout machinery, so this never settles even long past 50ms.
-    void inspectAsync(BENIGN, { enrichers: [enricher] }).then(() => {
-      settled = true;
+    const pending = inspectAsync(BENIGN, { enrichers: [enricher] });
+    await vi.advanceTimersByTimeAsync(50);
+    const result = await pending;
+    expect(result.checksSkipped).toContain("resolution:slow");
+    expect(result.enrichment?.outcomes[0]).toMatchObject({
+      status: "failure",
+      cause: { code: "timeout" },
     });
-    await vi.advanceTimersByTimeAsync(10_000);
-    expect(settled).toBe(false);
   });
 });
 
@@ -382,7 +383,7 @@ describe("InMemoryEnrichmentGovernor — unit semantics", () => {
     expect(g.admit("resolution:x")).toEqual({ run: true, timeoutMs: 4000 });
     expect(g.admit("resolution:x")).toEqual({ run: true, timeoutMs: 4000 });
     // Capacity 2 exhausted at the same instant → denied.
-    expect(g.admit("resolution:x")).toEqual({ run: false });
+    expect(g.admit("resolution:x")).toEqual({ run: false, cause: "rate-limited" });
     // One refill interval → one token back.
     now = 1000;
     expect(g.admit("resolution:x")).toEqual({ run: true, timeoutMs: 4000 });
@@ -405,7 +406,7 @@ describe("InMemoryEnrichmentGovernor — unit semantics", () => {
     g.recordFailure("resolution:x");
     // Within the window: denied, and (crucially) the lone token is NOT consumed.
     now = 500;
-    expect(g.admit("resolution:x")).toEqual({ run: false });
+    expect(g.admit("resolution:x")).toEqual({ run: false, cause: "backoff-active" });
     // Once the window clears, the still-available token admits the source.
     now = 1000;
     expect(g.admit("resolution:x")).toMatchObject({ run: true });
@@ -420,7 +421,7 @@ describe("InMemoryEnrichmentGovernor — unit semantics", () => {
     });
     g.recordFailure("resolution:x"); // window [0, 1000)
     now = 500;
-    expect(g.admit("resolution:x")).toEqual({ run: false });
+    expect(g.admit("resolution:x")).toEqual({ run: false, cause: "backoff-active" });
     g.recordSuccess("resolution:x"); // clears the window
     expect(g.admit("resolution:x")).toMatchObject({ run: true });
   });
@@ -436,7 +437,7 @@ describe("InMemoryEnrichmentGovernor — unit semantics", () => {
     // Five consecutive failures would raw-schedule 16000ms; the cap holds it at 3000.
     for (let i = 0; i < 5; i++) g.recordFailure("resolution:x");
     now = 2999;
-    expect(g.admit("resolution:x")).toEqual({ run: false });
+    expect(g.admit("resolution:x")).toEqual({ run: false, cause: "backoff-active" });
     now = 3000;
     expect(g.admit("resolution:x")).toMatchObject({ run: true });
   });
@@ -452,7 +453,7 @@ describe("InMemoryEnrichmentGovernor — unit semantics", () => {
     now = 100_000;
     expect(g.admit("resolution:x")).toMatchObject({ run: true });
     expect(g.admit("resolution:x")).toMatchObject({ run: true });
-    expect(g.admit("resolution:x")).toEqual({ run: false });
+    expect(g.admit("resolution:x")).toEqual({ run: false, cause: "rate-limited" });
   });
 });
 

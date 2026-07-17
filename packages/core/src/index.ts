@@ -14,7 +14,11 @@ export { inspect } from "./inspect.js";
 
 // Async enrichment framework (opt-in; roadmap resolution/reputation layers).
 // `inspectAsync` runs the sync `inspect()` first, then caller-supplied enrichers.
-export { inspectAsync, type InspectAsyncOptions } from "./inspect-async.js";
+export {
+  DEFAULT_ENRICHMENT_TIMEOUT_MS,
+  inspectAsync,
+  type InspectAsyncOptions,
+} from "./inspect-async.js";
 
 // Opt-in result cache for async enrichers (per-source TTLs; roadmap L2/L3).
 // The interface is a type; the in-memory default is a runtime class.
@@ -27,6 +31,7 @@ export {
   InMemoryEnrichmentGovernor,
   type EnrichmentGovernor,
   type EnrichmentGovernorConfig,
+  type GovernorDenialCause,
   type GovernorDecision,
 } from "./enrichment-governor.js";
 
@@ -52,6 +57,7 @@ export {
   type EnrichmentCause,
   type EnrichmentEvidence,
   type EnrichmentFreshness,
+  type EnrichmentFrameworkCauseCode,
   type EnrichmentIdentity,
   type EnrichmentJsonValue,
   type EnrichmentOutcome,

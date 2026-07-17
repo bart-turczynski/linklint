@@ -53,6 +53,10 @@ enrichers receive prior structured outcomes through their context. Independent
 work remains parallel, while failed prerequisites become explicit skipped
 outcomes. Host-scoped suppressions are evaluated against each outcome's actual
 subject, so allowing the original host cannot hide a discovered destination.
+Every configured source has a 5-second runner deadline by default, even without
+a governor; positive finite `timeoutMs` values override it and `null` explicitly
+opts out. Provider, cache, cache-key, and governor exceptions become attributed
+degradation outcomes and cannot reject or indefinitely stall sibling work.
 The synchronous package itself still performs no network I/O. See
 [`docs/enrichment-outcomes.md`](../../docs/enrichment-outcomes.md) for the public
 contract, status semantics, validation rules, and legacy-findings migration.

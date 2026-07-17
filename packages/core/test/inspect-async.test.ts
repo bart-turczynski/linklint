@@ -222,11 +222,14 @@ describe("inspectAsync — confidence aggregation (FR-SCORE-2b)", () => {
 });
 
 describe("inspectAsync — AbortSignal threading", () => {
-  it("passes the caller's signal through to the enricher context", async () => {
+  it("threads a signal that follows the caller's signal into the enricher context", async () => {
     const controller = new AbortController();
     const enricher = new FakeEnricher("dns", "resolution", [PRIVATE_IP_FINDING]);
     await inspectAsync(BENIGN, { enrichers: [enricher], signal: controller.signal });
-    expect(enricher.lastCtx?.signal).toBe(controller.signal);
+    expect(enricher.lastCtx?.signal).toBeDefined();
+    expect(enricher.lastCtx?.signal?.aborted).toBe(false);
+    controller.abort();
+    expect(enricher.lastCtx?.signal?.aborted).toBe(true);
   });
 
   it("an already-aborted signal degrades every enricher to a skip (not invoked)", async () => {

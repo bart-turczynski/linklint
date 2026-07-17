@@ -27,8 +27,9 @@ import type { EnricherOutput } from "./schema/enrich.js";
 
 /**
  * A pluggable store the async pipeline consults before running a cacheable
- * enricher. Implementations must be side-effect-safe: `get`/`set` MUST NOT throw
- * (a throwing store is a programming error, not a handled degradation path).
+ * enricher. Implementations should be side-effect-safe and not throw. K8 still
+ * guards both calls: an exception becomes an attributed cache degradation
+ * outcome and never rejects the aggregate inspection.
  *
  * The pipeline treats `get` returning `undefined` as "no usable entry" — both a
  * true miss AND an expired entry collapse to `undefined`, so expiry policy lives

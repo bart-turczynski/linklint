@@ -23,7 +23,8 @@
  * of how reliable a probabilistic signal is, min-aggregated into the result's
  * top-level `confidence`. Optional per-source cache metadata (K3, `cacheKey` /
  * `cacheTtlMs`) IS here too — the store itself lives in `enrichment-cache.ts`.
- * Per-source governance (K4): the bounded-timeout knob `timeoutMs` IS here; the
+ * Per-source governance (K4/K8): the bounded-timeout override `timeoutMs` IS
+ * here; the runner supplies a safe default even without a governor, while the
  * rate-limit / backoff state itself lives in `enrichment-governor.ts`.
  * K7 adds optional dependency tokens and accumulated prior outcomes so the
  * runner can derive deterministic stages without changing `enrich`'s arity.
@@ -128,6 +129,29 @@ export interface EnrichmentCause {
   retryable?: boolean;
   details?: EnrichmentPayload;
 }
+
+/**
+ * Stable degradation codes emitted by the core enrichment runner. Adapters may
+ * use their own source-specific {@link EnrichmentCause.code} values; this union
+ * covers only framework-owned orchestration, cache, governor, and provider-call
+ * boundary states.
+ */
+export type EnrichmentFrameworkCauseCode =
+  | "caller-aborted"
+  | "prerequisite-unavailable"
+  | "invalid-plan"
+  | "dependency-cycle"
+  | "rate-limited"
+  | "backoff-active"
+  | "governor-denied"
+  | "governor-error"
+  | "timeout"
+  | "source-error"
+  | "invalid-output"
+  | "invalid-cached-output"
+  | "cache-key-error"
+  | "cache-read-error"
+  | "cache-write-error";
 
 /**
  * An enricher's output. Structurally identical to a lexical `DetectorFinding`
@@ -330,17 +354,19 @@ export interface Enricher {
    */
   cacheTtlMs?: number;
   /**
-   * OPTIONAL per-source bounded timeout, in milliseconds (LINK-bergliii, unit K4).
-   * Takes effect ONLY when a governor is supplied to `inspectAsync`; it OVERRIDES
-   * the governor's default timeout for this source. When present (positive,
-   * finite) the pipeline races {@link enrich} against it: on timeout the enricher
-   * is aborted (its context `signal` fires) and degrades to `checksSkipped`
-   * (`<layer>:<id>`), recording a failure for backoff. A slow enricher can NEVER
-   * stall the verdict past this bound — the race is enforced by the runner, so it
-   * holds even if the enricher ignores its signal. Absent/non-positive falls back
-   * to the governor default; with no governor, no timeout applies (K1–K3 path).
+   * OPTIONAL per-source bounded timeout, in milliseconds (LINK-irbdtvrp, K8).
+   * Every configured enricher is runner-bounded by default, whether or not a
+   * governor is supplied. A positive finite value overrides that default for this
+   * source. `null` is the explicit opt-out for callers that intentionally provide
+   * an external hard bound; absent, non-positive, and non-finite values retain the
+   * safe runner/governor default and never disable it accidentally.
+   *
+   * On timeout the runner aborts the context signal and emits a `failure` outcome
+   * with `cause.code: "timeout"`. The promise race is the hard guarantee, so the
+   * verdict settles even if the enricher ignores its signal; late rejections stay
+   * observed and cannot become unhandled rejections.
    */
-  timeoutMs?: number;
+  timeoutMs?: number | null;
 }
 
 /**

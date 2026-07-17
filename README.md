@@ -223,7 +223,11 @@ The full registry of reason codes lives in
 stages; independent sources still run in parallel, and downstream enrichers see
 prior source-attributed outcomes through `context.previousOutcomes`. The runner
 does not perform network I/O itself, and an empty/absent plan remains
-byte-identical to `inspect()`.
+byte-identical to `inspect()`. Every configured source is hard-bounded at 5
+seconds by default without requiring a governor; a positive finite per-source
+`timeoutMs` overrides the budget and `null` is the explicit opt-out. Provider,
+cache, cache-key, and governor failures become machine-readable enrichment
+outcomes and cannot reject the aggregate inspection.
 
 ## Policy layer — caller-configurable allow/deny
 

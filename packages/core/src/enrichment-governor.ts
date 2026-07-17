@@ -3,19 +3,19 @@
  *
  * Networked enrichers (roadmap resolution/reputation layers — docs/architecture.md
  * §10) talk to third parties that can be slow, flaky, or rate-limited. This module
- * gives the async pipeline a pluggable, per-source *governor* that enforces three
- * mechanisms — a bounded timeout, a token-bucket rate limit, and exponential
- * backoff — so that **one slow or failing source can never block a verdict**. A
+ * gives the async pipeline a pluggable, per-source *governor* for timeout policy,
+ * token-bucket rate limiting, and exponential backoff. The runner itself owns the
+ * hard default deadline, so **one slow or failing source can never block a
+ * verdict** even when this governor is absent. A
  * governed source that is over budget, spent, or in an open backoff window
  * degrades to `checksSkipped` (`<layer>:<id>`); the rest of the enrichers and the
  * lexical verdict proceed unchanged. This extends the K1 graceful-degradation
  * guarantee.
  *
  * Design (mirrors the K3 cache in `enrichment-cache.ts`):
- *  - **Opt-in.** The governor is nothing until a caller supplies one via
- *    `inspectAsync(..., { governor })`. With no governor the pipeline behaves
- *    exactly as K1/K2/K3 — none of the three mechanisms engage. Governance is NOT
- *    on by default.
+ *  - **Opt-in state policy.** Rate limiting and backoff are nothing until a caller
+ *    supplies a governor via `inspectAsync(..., { governor })`. K8 makes the hard
+ *    runner deadline independent of this optional stateful policy.
  *  - **Per-source.** All state is keyed by the enricher's `<layer>:<id>` check
  *    token, so each source has an independent token bucket and backoff schedule.
  *  - **Injectable clock.** `InMemoryEnrichmentGovernor` takes a `now` function so
@@ -24,9 +24,9 @@
  *  - **State persists across `inspectAsync` calls** — share one instance to make
  *    the rate limit and backoff meaningful across inspections.
  *
- * The bounded-timeout *value* lives here (a governor default, overridable per
- * enricher via `Enricher.timeoutMs`); the actual timeout race / abort composition
- * is orchestration and lives in `inspect-async.ts`.
+ * A governor may still supply a timeout policy (overridable per enricher via
+ * `Enricher.timeoutMs`); the actual timeout race / abort composition and the safe
+ * fallback value live in `inspect-async.ts`.
  *
  * Not here (clean seam for K5): allowlist / feedback. This module is
  * dependency-free.
@@ -35,20 +35,26 @@
 /**
  * The governor's verdict for a single enricher, returned by {@link EnrichmentGovernor.admit}.
  *
- *  - `{ run: false }` — SKIP: the source is rate-limited (no token available) or in
- *    an open backoff window. `enrich` MUST NOT be called; nothing is consumed.
+ *  - `{ run: false, cause? }` — SKIP: the source is rate-limited (no token
+ *    available) or in an open backoff window. Built-in decisions identify the
+ *    exact cause; the optional field preserves compatibility with older custom
+ *    governors. `enrich` MUST NOT be called; nothing is consumed.
  *  - `{ run: true, timeoutMs? }` — ADMITTED: a rate-limit token has been consumed
  *    and the caller should run `enrich` bounded by `timeoutMs` (a positive, finite
- *    ms budget, or `undefined` for "no bound"). An enricher's own `timeoutMs` takes
- *    precedence over this default.
+ *    ms budget, `null` for an explicit opt-out, or `undefined` to retain the
+ *    runner default). An enricher's own `timeoutMs` takes precedence.
  */
-export type GovernorDecision = { run: false } | { run: true; timeoutMs?: number };
+export type GovernorDenialCause = "rate-limited" | "backoff-active";
+
+export type GovernorDecision =
+  | { run: false; cause?: GovernorDenialCause }
+  | { run: true; timeoutMs?: number | null };
 
 /**
  * A pluggable per-source policy the async pipeline consults on a cache MISS,
- * before running an enricher. Implementations must be side-effect-safe: none of
- * these methods may throw (a throwing governor is a programming error, not a
- * handled degradation path).
+ * before running an enricher. Implementations should be side-effect-safe and not
+ * throw. K8 nevertheless guards every method: an exception becomes an attributed
+ * `governor-error` outcome and never rejects the aggregate inspection.
  *
  * Lifecycle per governed enricher run (see `inspect-async.ts`):
  *  1. {@link admit} is called exactly once. On `{ run: true }` a token is consumed;
@@ -85,10 +91,11 @@ export interface EnrichmentGovernorConfig {
   now?: () => number;
   /**
    * Default bounded timeout (ms) returned in an admit decision. `enrich` is raced
-   * against this unless the enricher declares its own `timeoutMs`. A non-positive
-   * or non-finite value means "no default bound". Default: 5000.
+   * against this unless the enricher declares its own `timeoutMs`. `null` is the
+   * explicit opt-out; a non-positive/non-finite value omits the governor override
+   * and therefore retains the runner's safe default. Default: 5000.
    */
-  defaultTimeoutMs?: number;
+  defaultTimeoutMs?: number | null;
   /**
    * Token-bucket capacity per source: the maximum burst of admitted runs, and the
    * value each bucket starts full at. Default: 10.
@@ -154,7 +161,7 @@ const DEFAULTS = {
 export class InMemoryEnrichmentGovernor implements EnrichmentGovernor {
   private readonly states = new Map<string, SourceState>();
   private readonly now: () => number;
-  private readonly defaultTimeoutMs: number;
+  private readonly defaultTimeoutMs: number | null;
   private readonly capacity: number;
   private readonly refillIntervalMs: number;
   private readonly backoffBaseMs: number;
@@ -162,7 +169,10 @@ export class InMemoryEnrichmentGovernor implements EnrichmentGovernor {
 
   constructor(config: EnrichmentGovernorConfig = {}) {
     this.now = config.now ?? Date.now;
-    this.defaultTimeoutMs = config.defaultTimeoutMs ?? DEFAULTS.defaultTimeoutMs;
+    this.defaultTimeoutMs =
+      config.defaultTimeoutMs === undefined
+        ? DEFAULTS.defaultTimeoutMs
+        : config.defaultTimeoutMs;
     this.capacity = positiveOr(config.capacity, DEFAULTS.capacity);
     this.refillIntervalMs = config.refillIntervalMs ?? DEFAULTS.refillIntervalMs;
     this.backoffBaseMs = positiveOr(config.backoffBaseMs, DEFAULTS.backoffBaseMs);
@@ -175,13 +185,14 @@ export class InMemoryEnrichmentGovernor implements EnrichmentGovernor {
 
     // Backoff FIRST: a source in an open window is skipped without spending a
     // token — there is no point charging a call we will not make.
-    if (state.backoffUntil > now) return { run: false };
+    if (state.backoffUntil > now) return { run: false, cause: "backoff-active" };
 
     // Then the token bucket: refill by elapsed time, then try to spend one.
     this.refill(state, now);
-    if (state.tokens < 1) return { run: false };
+    if (state.tokens < 1) return { run: false, cause: "rate-limited" };
     state.tokens -= 1;
 
+    if (this.defaultTimeoutMs === null) return { run: true, timeoutMs: null };
     const timeoutMs =
       Number.isFinite(this.defaultTimeoutMs) && this.defaultTimeoutMs > 0
         ? this.defaultTimeoutMs
