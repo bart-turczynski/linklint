@@ -15,8 +15,8 @@
  *    Two enrichers therefore expire independently — that is what "per-source TTLs"
  *    means.
  *  - **Privacy.** The cache key is ENTIRELY enricher-supplied (an enricher's
- *    `cacheKey(result)`); the framework never derives a key from the full URL. See
- *    the `cacheKey` contract in `schema/enrich.ts`.
+ *    `cacheKey(result, context)`); the framework never derives a key from the
+ *    full URL. See the `cacheKey` contract in `schema/enrich.ts`.
  *
  * Not here (clean seams): rate-limit / backoff / timeout live in
  * `enrichment-governor.ts` (K4); allowlist / feedback (K5). This module is

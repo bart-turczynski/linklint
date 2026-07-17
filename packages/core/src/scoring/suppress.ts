@@ -1,5 +1,7 @@
-import type { InspectOptions, Reason } from "../schema/types.js";
+import type { EnrichmentSubject, InspectOptions, Reason } from "../schema/types.js";
 import type { SuppressionRule } from "../parse/runtime.js";
+import { deriveHostFacts } from "../parse/host-facts.js";
+import { parse } from "../parse/parse.js";
 import { toUnicode } from "../unicode/idna.js";
 
 /**
@@ -35,6 +37,26 @@ export function suppressConfigured(options: InspectOptions): boolean {
 export function suppressionHostContext(registrableDomain: string | null): string | null {
   if (!registrableDomain) return null;
   return toUnicode(registrableDomain).toLowerCase();
+}
+
+/**
+ * Resolve the host scope for a structured enrichment subject. Host subjects are
+ * decomposed directly; URL subjects go through the same deterministic parser as
+ * `inspect()`. Invalid/hostless subjects return `null`, so global rules can still
+ * apply but a host-scoped rule can never match by guesswork.
+ */
+export function suppressionSubjectHostContext(
+  subject: EnrichmentSubject,
+): string | null {
+  try {
+    const registrableDomain =
+      subject.kind === "host"
+        ? deriveHostFacts(subject.value).psl.registrableDomain
+        : parse(subject.value)?.registrableDomain ?? null;
+    return suppressionHostContext(registrableDomain);
+  } catch {
+    return null;
+  }
 }
 
 /**

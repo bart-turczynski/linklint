@@ -5,6 +5,8 @@ import type {
   EnrichmentContext,
   EnrichmentLayer,
   EnrichmentOutcome,
+  EnrichmentPayload,
+  EnrichmentPlan,
   EnrichmentReport,
   EnrichmentSubject,
   EnricherOutput,
@@ -17,7 +19,7 @@ import type { EnrichmentGovernor } from "./enrichment-governor.js";
 import { inspect } from "./inspect.js";
 import { reasonMeta, weightFor } from "./schema/reason-codes.js";
 import { aggregate } from "./scoring/score.js";
-import { applySuppressions, suppressionHostContext } from "./scoring/suppress.js";
+import { applySuppressions, suppressionSubjectHostContext } from "./scoring/suppress.js";
 import { normalizeSuppressReasons } from "./parse/runtime.js";
 import {
   ENRICHMENT_SCHEMA_VERSION,
@@ -32,11 +34,14 @@ import {
  */
 export interface InspectAsyncOptions extends InspectOptions {
   /**
-   * Caller-supplied async enrichers to run after the synchronous lexical pass.
+   * Caller-ordered enrichment plan to run after the synchronous lexical pass.
+   * An enricher may declare `dependsOn` check tokens; the runner derives stable
+   * sequential stages while executing independent steps within a stage in
+   * parallel. With no dependencies this is the original flat parallel runner.
    * Enrichment is opt-in: with none supplied (or an empty array) the result is
    * byte-for-byte identical to `inspect(input, options)`.
    */
-  enrichers?: Enricher[];
+  enrichers?: EnrichmentPlan;
   /**
    * Cancellation signal, threaded into every enricher's {@link EnrichmentContext}.
    * An already-aborted signal, or an enricher that rejects on abort, degrades to
@@ -74,6 +79,15 @@ interface EnricherRun {
   report: EnrichmentReport;
 }
 
+/** One caller-ordered node in the dependency execution plan. */
+interface PlannedEnricher {
+  index: number;
+  token: string;
+  enricher: Enricher;
+  dependencies: readonly string[];
+  dependencyShapeValid: boolean;
+}
+
 /**
  * Async, opt-in enrichment entry point (LINK-iprlxqxb, unit K1).
  *
@@ -93,6 +107,10 @@ interface EnricherRun {
  *    degrades to a `<layer>:<id>` entry in `checksSkipped` — one enricher failing
  *    never fails the whole call. A layer with NO enricher supplied keeps its bare
  *    `resolution`/`reputation` placeholder in `checksSkipped`.
+ *  - **Dependencies are explicit.** Independent plan nodes run concurrently;
+ *    dependent nodes see prior structured outcomes and run only after every
+ *    prerequisite wholly completes. Unavailable prerequisites and invalid/cyclic
+ *    plans become attributed skipped outcomes rather than implicit work.
  *
  * Graceful degradation is load-bearing (FR-D-13 parallel): the runner guards
  * every enricher; a rejection is recorded, not propagated.
@@ -108,20 +126,26 @@ export async function inspectAsync(
   const enrichers = options.enrichers ?? [];
   if (enrichers.length === 0) return base;
 
-  // Stage 2: run every enricher under a guard so one failure can't abort the
-  // call. Order is the caller's supply order, keeping the output deterministic.
-  const ctx: EnrichmentContext =
-    options.signal !== undefined ? { signal: options.signal } : {};
+  // Stage 2: derive deterministic topological stages from optional dependency
+  // tokens. Independent steps run concurrently; downstream steps receive a
+  // stable snapshot of all outcomes accumulated by prior stages.
   const cache = options.cache;
   const governor = options.governor;
-  const runs = await Promise.all(
-    enrichers.map((enricher) => runEnricher(enricher, base, ctx, cache, governor)),
+  const runs = await executeEnrichmentPlan(
+    enrichers,
+    base,
+    options.signal,
+    cache,
+    governor,
   );
 
   // Stage 3: fold the outcomes back onto the base result.
   const configuredLayers = new Set<EnrichmentLayer>(enrichers.map((e) => e.layer));
 
-  const enrichmentFindings: EnricherFinding[] = [];
+  const enrichmentFindings: Array<{
+    finding: EnricherFinding;
+    subject: EnrichmentSubject;
+  }> = [];
   const enrichmentOutcomes: EnrichmentOutcome[] = [];
   const runTokens: string[] = [];
   const skippedTokens: string[] = [];
@@ -136,35 +160,42 @@ export async function inspectAsync(
     if (completed) runTokens.push(run.token);
     if (incomplete) skippedTokens.push(run.token);
     for (const outcome of run.report.outcomes) {
-      if (outcome.status === "success") enrichmentFindings.push(...outcome.findings);
+      if (outcome.status === "success") {
+        enrichmentFindings.push(
+          ...outcome.findings.map((finding) => ({ finding, subject: outcome.subject })),
+        );
+      }
     }
   }
 
   // Merge findings into reasons via the SAME registry-driven path serialize.ts
   // uses: layer + weight come from the reason code, never from the enricher.
-  const enrichmentReasons: Reason[] = enrichmentFindings.map((f) => ({
-    code: f.code,
-    layer: reasonMeta(f.code).layer,
-    detail: f.detail,
-    weight: weightFor(f.code),
-  }));
-  // Enricher reasons are heuristics too, so the caller false-positive escape
-  // hatch must reach them: re-run suppression over the MERGED set (the sync base
-  // reasons were already suppressed by inspect() with these same rules, so
-  // re-applying is idempotent — only fresh enricher reasons can newly match).
-  // Inert when no rule is configured, preserving the no-enricher/no-option
-  // invariant. The `suppression` marker already rides on base.checksRun.
   const suppressReasons = normalizeSuppressReasons(options.suppressReasons);
-  const reasons: Reason[] = applySuppressions(
-    [...base.reasons, ...enrichmentReasons],
-    suppressReasons,
-    suppressionHostContext(base.parsed?.registrableDomain ?? null),
-  );
+  const enrichmentReasons: Reason[] = enrichmentFindings.map(({ finding, subject }) => {
+    const projected: Reason = {
+      code: finding.code,
+      layer: reasonMeta(finding.code).layer,
+      detail: finding.detail,
+      weight: weightFor(finding.code),
+    };
+    return applySuppressions(
+      [projected],
+      suppressReasons,
+      suppressionSubjectHostContext(subject),
+    )[0]!;
+  });
+  // Enricher reasons are heuristics too, so the caller false-positive escape
+  // hatch must reach them. The synchronous base reasons were already evaluated
+  // against the original input by `inspect()`; each structured finding above is
+  // evaluated separately against its OUTCOME subject. This prevents an
+  // allowlist for the original host from suppressing a discovered destination.
+  // The `suppression` marker already rides on base.checksRun.
+  const reasons: Reason[] = [...base.reasons, ...enrichmentReasons];
   reasons.sort((a, b) => b.weight - a.weight || a.code.localeCompare(b.code));
 
   const confusables: Confusable[] = [
     ...base.confusables,
-    ...enrichmentFindings.flatMap((f) => f.confusables ?? []),
+    ...enrichmentFindings.flatMap(({ finding }) => finding.confusables ?? []),
   ];
 
   // Re-aggregate scoring only for parseable input. Invalid input stays
@@ -185,7 +216,7 @@ export async function inspectAsync(
   // this stays base.confidence (1.0), preserving the no-enricher invariant.
   const confidence = Math.min(
     base.confidence,
-    ...enrichmentFindings.map((f) => f.confidence ?? 1),
+    ...enrichmentFindings.map(({ finding }) => finding.confidence ?? 1),
   );
 
   // A configured layer is no longer wholesale-skipped: drop its bare placeholder
@@ -217,6 +248,259 @@ export async function inspectAsync(
       outcomes: enrichmentOutcomes,
     },
   };
+}
+
+/**
+ * Execute a caller-ordered dependency plan without allowing completion timing to
+ * affect serialized order. Root/independent steps share a stage and run through
+ * `Promise.all`; a later step is admitted only after every declared prerequisite
+ * has wholly completed (`success`/`no-hit`).
+ */
+async function executeEnrichmentPlan(
+  plan: EnrichmentPlan,
+  base: InspectResult,
+  signal: AbortSignal | undefined,
+  cache: EnrichmentCache | undefined,
+  governor: EnrichmentGovernor | undefined,
+): Promise<EnricherRun[]> {
+  const steps: PlannedEnricher[] = plan.map((enricher, index) => {
+    const rawDependencies: unknown = enricher.dependsOn;
+    const dependencyShapeValid =
+      rawDependencies === undefined ||
+      (Array.isArray(rawDependencies) &&
+        rawDependencies.every(
+          (dependency) => typeof dependency === "string" && dependency.trim() !== "",
+        ));
+    const dependencies =
+      dependencyShapeValid && Array.isArray(rawDependencies)
+        ? [...new Set(rawDependencies as readonly string[])]
+        : [];
+    return {
+      index,
+      token: checkToken(enricher),
+      enricher,
+      dependencies,
+      dependencyShapeValid,
+    };
+  });
+
+  const tokenCounts = new Map<string, number>();
+  for (const step of steps) {
+    tokenCounts.set(step.token, (tokenCounts.get(step.token) ?? 0) + 1);
+  }
+  const tokenToIndex = new Map<string, number>();
+  for (const step of steps) {
+    if (tokenCounts.get(step.token) === 1) tokenToIndex.set(step.token, step.index);
+  }
+
+  const runs: Array<EnricherRun | undefined> = new Array(steps.length);
+  const pending = new Set<number>();
+
+  // Preflight errors are explicit skipped outcomes. They are framework/config
+  // states, not provider failures and certainly not benign or malicious verdicts.
+  for (const step of steps) {
+    let details: EnrichmentPayload | null = null;
+    if ((tokenCounts.get(step.token) ?? 0) > 1) {
+      details = { reason: "duplicate-check-token", token: step.token };
+    } else if (!step.dependencyShapeValid) {
+      details = { reason: "invalid-prerequisite-token" };
+    } else {
+      const unknown = step.dependencies.filter(
+        (dependency) => !tokenToIndex.has(dependency),
+      );
+      if (unknown.length > 0) {
+        details = { reason: "unknown-prerequisite", prerequisites: unknown };
+      }
+    }
+
+    if (details !== null) {
+      runs[step.index] = {
+        token: step.token,
+        report: frameworkReport(
+          step.enricher,
+          base,
+          "skipped",
+          "invalid-plan",
+          false,
+          details,
+        ),
+      };
+    } else {
+      pending.add(step.index);
+    }
+  }
+
+  while (pending.size > 0) {
+    // Cancellation is the direct cause for every not-yet-started step. Do not
+    // relabel it as a prerequisite failure merely because an earlier step also
+    // observed the same cancellation.
+    if (signal?.aborted) {
+      for (const index of pending) {
+        const step = steps[index]!;
+        runs[index] = {
+          token: step.token,
+          report: frameworkReport(
+            step.enricher,
+            base,
+            "skipped",
+            "caller-aborted",
+            false,
+          ),
+        };
+      }
+      pending.clear();
+      break;
+    }
+
+    const ready = [...pending].filter((index) => {
+      const step = steps[index]!;
+      return step.dependencies.every((dependency) => {
+        const dependencyIndex = tokenToIndex.get(dependency);
+        const dependencyRun =
+          dependencyIndex === undefined ? undefined : runs[dependencyIndex];
+        return dependencyRun !== undefined && runIsAvailable(dependencyRun);
+      });
+    });
+
+    if (ready.length > 0) {
+      const previousOutcomes = Object.freeze(
+        runs.flatMap((run) => run?.report.outcomes ?? []),
+      );
+      const ctx: EnrichmentContext = {
+        ...(signal !== undefined ? { signal } : {}),
+        previousOutcomes,
+      };
+      const stageRuns = await Promise.all(
+        ready.map((index) =>
+          runEnricher(steps[index]!.enricher, base, ctx, cache, governor),
+        ),
+      );
+      for (let offset = 0; offset < ready.length; offset += 1) {
+        const index = ready[offset]!;
+        runs[index] = stageRuns[offset]!;
+        pending.delete(index);
+      }
+      continue;
+    }
+
+    const blocked = [...pending].filter((index) => {
+      const step = steps[index]!;
+      return step.dependencies.some((dependency) => {
+        const dependencyIndex = tokenToIndex.get(dependency);
+        const dependencyRun =
+          dependencyIndex === undefined ? undefined : runs[dependencyIndex];
+        return dependencyRun !== undefined && !runIsAvailable(dependencyRun);
+      });
+    });
+
+    if (blocked.length > 0) {
+      for (const index of blocked) {
+        const step = steps[index]!;
+        const unavailable = step.dependencies.filter((dependency) => {
+          const dependencyIndex = tokenToIndex.get(dependency);
+          const dependencyRun =
+            dependencyIndex === undefined ? undefined : runs[dependencyIndex];
+          return dependencyRun !== undefined && !runIsAvailable(dependencyRun);
+        });
+        runs[index] = {
+          token: step.token,
+          report: frameworkReport(
+            step.enricher,
+            base,
+            "skipped",
+            "prerequisite-unavailable",
+            false,
+            { prerequisites: unavailable },
+          ),
+        };
+        pending.delete(index);
+      }
+      continue;
+    }
+
+    // With no ready or blocked node, the remaining graph contains a cycle. Mark
+    // only one actual cycle per pass; nodes downstream of it then receive the
+    // truthful `prerequisite-unavailable` state on the next pass.
+    const cycle = findDependencyCycle(pending, steps, tokenToIndex);
+    const cycleIndexes = cycle.length > 0 ? cycle : [[...pending][0]!];
+    for (const index of cycleIndexes) {
+      const step = steps[index]!;
+      runs[index] = {
+        token: step.token,
+        report: frameworkReport(
+          step.enricher,
+          base,
+          "skipped",
+          "dependency-cycle",
+          false,
+          { prerequisites: [...step.dependencies] },
+        ),
+      };
+      pending.delete(index);
+    }
+  }
+
+  // Every slot is settled above. The defensive fallback keeps this total even
+  // if a future plan branch is added incorrectly, while preserving plan order.
+  return steps.map((step) =>
+    runs[step.index] ?? {
+      token: step.token,
+      report: frameworkReport(
+        step.enricher,
+        base,
+        "skipped",
+        "invalid-plan",
+        false,
+        { reason: "unsettled-plan-node" },
+      ),
+    },
+  );
+}
+
+function checkToken(enricher: Enricher): string {
+  return `${enricher.layer}:${enricher.id}`;
+}
+
+function runIsAvailable(run: EnricherRun): boolean {
+  return run.report.outcomes.every(
+    (outcome) => outcome.status === "success" || outcome.status === "no-hit",
+  );
+}
+
+/** Find one dependency cycle among pending plan nodes, preserving plan order. */
+function findDependencyCycle(
+  pending: ReadonlySet<number>,
+  steps: readonly PlannedEnricher[],
+  tokenToIndex: ReadonlyMap<string, number>,
+): number[] {
+  const state = new Map<number, "visiting" | "visited">();
+  const stack: number[] = [];
+
+  const visit = (index: number): number[] | null => {
+    state.set(index, "visiting");
+    stack.push(index);
+    for (const dependency of steps[index]!.dependencies) {
+      const dependencyIndex = tokenToIndex.get(dependency);
+      if (dependencyIndex === undefined || !pending.has(dependencyIndex)) continue;
+      if (state.get(dependencyIndex) === "visiting") {
+        return stack.slice(stack.indexOf(dependencyIndex));
+      }
+      if (state.get(dependencyIndex) === undefined) {
+        const found = visit(dependencyIndex);
+        if (found !== null) return found;
+      }
+    }
+    stack.pop();
+    state.set(index, "visited");
+    return null;
+  };
+
+  for (const index of pending) {
+    if (state.get(index) !== undefined) continue;
+    const found = visit(index);
+    if (found !== null) return found;
+  }
+  return [];
 }
 
 /** Race sentinel: the bounded timeout fired (or the caller's signal aborted). */
@@ -263,7 +547,7 @@ async function runEnricher(
 
   // Resolve the (optional) cache slot. The key is entirely enricher-supplied —
   // the framework never derives it from the URL (privacy constraint).
-  const slot = cache !== undefined ? cacheSlotFor(enricher, base, cache) : null;
+  const slot = cache !== undefined ? cacheSlotFor(enricher, base, ctx, cache) : null;
   if (slot !== null) {
     const cached = slot.cache.get(slot.key);
     // Cache HIT: a successful prior run stands in for this one. It still counts
@@ -376,8 +660,9 @@ async function runEnricher(
  * `AbortSignal.timeout`) is used so tests can drive the timeout with fake timers,
  * never real wall-clock sleeps.
  *
- * With no (or a non-positive) timeout this is exactly the K1 call: `enrich(base,
- * ctx)` with the caller's own context, unbounded.
+ * With no (or a non-positive) timeout and no caller signal this is exactly the
+ * K1 call: `enrich(base, ctx)`, unbounded. A caller signal is always raced even
+ * without a governor, so cancellation also settles an enricher that ignores it.
  */
 async function runWithTimeout(
   enricher: Enricher,
@@ -385,16 +670,22 @@ async function runWithTimeout(
   ctx: EnrichmentContext,
   timeoutMs: number | undefined,
 ): Promise<EnricherOutput | typeof TIMED_OUT> {
-  if (timeoutMs === undefined || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+  const hasTimeout =
+    timeoutMs !== undefined && Number.isFinite(timeoutMs) && timeoutMs > 0;
+  if (!hasTimeout && ctx.signal === undefined) {
     return enricher.enrich(base, ctx);
   }
 
-  const timeoutController = new AbortController();
-  const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
-  const signals = ctx.signal
-    ? [ctx.signal, timeoutController.signal]
-    : [timeoutController.signal];
-  const composed = AbortSignal.any(signals);
+  const timeoutController = hasTimeout ? new AbortController() : null;
+  const timer =
+    timeoutController === null
+      ? null
+      : setTimeout(() => timeoutController.abort(), timeoutMs);
+  const signals = [
+    ...(ctx.signal !== undefined ? [ctx.signal] : []),
+    ...(timeoutController !== null ? [timeoutController.signal] : []),
+  ];
+  const composed = signals.length === 1 ? signals[0]! : AbortSignal.any(signals);
   const enrichCtx: EnrichmentContext = { ...ctx, signal: composed };
 
   const timeoutRace = new Promise<typeof TIMED_OUT>((resolve) => {
@@ -410,7 +701,7 @@ async function runWithTimeout(
     // timeout wins, so a late rejection of the abandoned call is never unhandled.
     return await Promise.race([enricher.enrich(base, enrichCtx), timeoutRace]);
   } finally {
-    clearTimeout(timer);
+    if (timer !== null) clearTimeout(timer);
   }
 }
 
@@ -481,6 +772,7 @@ function frameworkReport(
   status: "skipped" | "failure",
   code: string,
   retryable: boolean,
+  details?: EnrichmentPayload,
 ): EnrichmentReport {
   return {
     schemaVersion: ENRICHMENT_SCHEMA_VERSION,
@@ -495,7 +787,7 @@ function frameworkReport(
         freshness: { status: "unknown", expiresAt: null },
         evidence: [],
         findings: [],
-        cause: { code, retryable },
+        cause: { code, retryable, ...(details !== undefined ? { details } : {}) },
       },
     ],
   };
@@ -530,6 +822,7 @@ interface CacheSlot {
 function cacheSlotFor(
   enricher: Enricher,
   base: InspectResult,
+  ctx: EnrichmentContext,
   cache: EnrichmentCache,
 ): CacheSlot | null {
   if (typeof enricher.cacheKey !== "function") return null;
@@ -537,7 +830,7 @@ function cacheSlotFor(
   if (typeof ttlMs !== "number" || !Number.isFinite(ttlMs) || ttlMs <= 0) return null;
   let key: string | null;
   try {
-    key = enricher.cacheKey(base);
+    key = enricher.cacheKey(base, ctx);
   } catch {
     return null;
   }

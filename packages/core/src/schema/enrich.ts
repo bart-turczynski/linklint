@@ -1,5 +1,5 @@
 /**
- * Async enrichment contract (LINK-iprlxqxb K1 through LINK-isytbvjy K6).
+ * Async enrichment contract (LINK-iprlxqxb K1 through LINK-uauoskuf K7).
  *
  * The FRAMEWORK for the roadmap resolution (L2) and reputation (L3) layers —
  * see docs/architecture.md §10. An {@link Enricher} is a caller-supplied,
@@ -25,9 +25,10 @@
  * `cacheTtlMs`) IS here too — the store itself lives in `enrichment-cache.ts`.
  * Per-source governance (K4): the bounded-timeout knob `timeoutMs` IS here; the
  * rate-limit / backoff state itself lives in `enrichment-governor.ts`.
- * Deliberately NOT here (clean seam left open): allowlist / feedback (K5).
- * {@link EnrichmentContext} is the single extension point those units grow — add
- * fields there without changing `enrich`'s arity.
+ * K7 adds optional dependency tokens and accumulated prior outcomes so the
+ * runner can derive deterministic stages without changing `enrich`'s arity.
+ * Caller allowlist / feedback remains an inspection option (K5), applied by the
+ * runner to each structured outcome's actual subject.
  */
 
 import { REASON_CODES, type ReasonCode } from "./reason-codes.js";
@@ -41,6 +42,9 @@ import type { InspectResult } from "./result.js";
  * the caller-configured advisory channel — neither is enrichable.
  */
 export type EnrichmentLayer = Extract<Layer, "resolution" | "reputation">;
+
+/** Stable `<layer>:<id>` identity used by checks, dependencies, cache, and governance. */
+export type EnrichmentCheckToken = `${EnrichmentLayer}:${string}`;
 
 /** Version of the structured enrichment report nested in schema 1.3 results. */
 export const ENRICHMENT_SCHEMA_VERSION = "1.0" as const;
@@ -231,9 +235,9 @@ export function isEnricherFindingArray(value: unknown): value is EnricherFinding
 
 /**
  * Context handed to every enricher. The single forward-compatibility seam:
- * later units (cache, rate limiter, feedback) add fields here without changing
- * the `enrich` signature. For K1 it carries only the caller's `AbortSignal`,
- * threaded through from the async inspection options.
+ * cache, rate limiter, feedback, and orchestration state can travel here without
+ * changing the `enrich` signature. It carries the caller's `AbortSignal` and the
+ * K7 snapshot of outcomes completed by earlier dependency stages.
  *
  * An enricher SHOULD reject (throw) when `signal.aborted` becomes true; the
  * runner also treats an already-aborted signal as a skip before invoking the
@@ -243,6 +247,16 @@ export function isEnricherFindingArray(value: unknown): value is EnricherFinding
 export interface EnrichmentContext {
   /** Cancellation signal wired through from the caller's inspection options. */
   signal?: AbortSignal;
+  /**
+   * Structured outcomes accumulated from every earlier execution stage, in the
+   * caller's stable plan order. Independent enrichers in the same stage receive
+   * the same snapshot and never observe one another's in-flight output.
+   *
+   * The array is empty for root enrichers and for every enricher in a legacy
+   * flat plan. Outcomes include success, no-hit, skipped, and failure states so
+   * downstream code never mistakes missing evidence for a clean result.
+   */
+  previousOutcomes: readonly EnrichmentOutcome[];
 }
 
 /**
@@ -263,6 +277,19 @@ export interface Enricher {
   id: string;
   /** The network-backed layer this enricher contributes to. */
   layer: EnrichmentLayer;
+  /**
+   * OPTIONAL prerequisite check tokens (LINK-uauoskuf, K7). The runner derives
+   * stable topological stages from these edges: prerequisites complete first,
+   * while independent enrichers in a stage run concurrently. Every token must
+   * name exactly one configured enricher.
+   *
+   * A prerequisite is available only when all of its outcomes are `success` or
+   * `no-hit`. A skipped, failed, or partial prerequisite prevents this enricher
+   * from running and produces an explicit `prerequisite-unavailable` skipped
+   * outcome. Missing, duplicate, or cyclic plan edges also degrade explicitly;
+   * they never cause an implicit run or reject the aggregate inspection.
+   */
+  dependsOn?: readonly EnrichmentCheckToken[];
   /**
    * Run the enrichment. Receives the synchronous inspection result (carrying the
    * original `input` and `parsed` components an enricher needs) and the
@@ -287,8 +314,12 @@ export interface Enricher {
    * from the full URL. An enricher MUST key on a privacy-preserving projection —
    * e.g. the registrable domain or a hash-prefix — and MUST NOT return the full
    * URL (or anything from which it can be reconstructed) as the key.
+   *
+   * K7 passes the current {@link EnrichmentContext} as a second argument so a
+   * dependent enricher can include a privacy-safe projection of prerequisite
+   * outcomes in its key. Existing one-argument implementations remain valid.
    */
-  cacheKey?(result: InspectResult): string | null;
+  cacheKey?(result: InspectResult, ctx: EnrichmentContext): string | null;
   /**
    * OPTIONAL per-source time-to-live, in milliseconds, for entries this enricher
    * writes (LINK-wtnpkbkf, unit K3). Applied per `set()`, so each enricher's cache
@@ -311,6 +342,13 @@ export interface Enricher {
    */
   timeoutMs?: number;
 }
+
+/**
+ * Caller-ordered enrichment execution plan. With no `dependsOn` declarations it
+ * is the K1-compatible single parallel stage; dependency edges split it into
+ * deterministic sequential stages while final serialization remains plan-ordered.
+ */
+export type EnrichmentPlan = readonly Enricher[];
 
 function isEnrichmentOutcome(
   value: unknown,
