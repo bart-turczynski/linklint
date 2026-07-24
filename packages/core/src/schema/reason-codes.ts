@@ -324,6 +324,13 @@ export const REASON_CODES = {
     summary:
       "The exact URL matches a record in a caller-owned URLhaus mirror snapshot that is currently listed online AND the snapshot is within its declared freshness — an authoritative, subject-tied malware-distribution match. The match is exact-URL only (never broadened to the host), so an offline/expired record or a stale snapshot stays evidence-only and a path/query mismatch is a no-hit; absence is never a safety claim.",
   },
+  verified_phish_listed: {
+    layer: "reputation",
+    scoring: true,
+    weight: 1,
+    summary:
+      "The exact URL matches a record in a caller-owned PhishTank mirror snapshot that is human-verified AND currently online AND the snapshot is within its declared freshness — an authoritative, subject-tied phishing match. The match is exact-URL only (never broadened to the host), so an unverified/offline/removed record or a stale snapshot stays evidence-only and a path/query mismatch is a no-hit; absence is never a safety claim.",
+  },
 
   // ── Policy (caller-configured, weight 0) ─────────────────────────────────
   tld_denied: {

@@ -555,6 +555,33 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 - **Scoring:** weight 1.0 (blocker), reputation layer. Online evidence is additive
   and extends — never replaces — the lexical verdict.
 
+### `verified_phish_listed` — Epic M (M5b) · reputation layer, weight 1.0 (blocker)
+
+- **Meaning:** the Layer 3 PhishTank mirror lookup (`@linklint/online/mirrors`)
+  found the **exact inspected URL** in a caller-owned PhishTank *online-valid*
+  snapshot, the record is **human-verified** AND currently **online**, and the
+  snapshot is **within its declared freshness**. PhishTank verifies phishing URLs,
+  so an exact match is authoritative, subject-tied evidence that this specific URL
+  is a confirmed phishing page.
+- **Why it's a signal:** like `malware_url_listed`, an exact-URL match against a
+  human-verified abuse feed is a confirmed listing — the strongest reputation
+  signal linklint carries. Lookup happens against a local snapshot with **no
+  network I/O at check time**.
+- **Exact-URL only:** the URL is canonicalized (scheme/host lower-cased, IDN to
+  A-label, default port dropped, fragment removed) and compared **exactly**,
+  including path and query. The match is never broadened to the host.
+- **Evidence vs. finding:** every match emits a `phishtank.match` evidence artifact
+  (phish id, URL, target/brand, verified, online, submission/verification times,
+  snapshot time). The scored finding is raised **only** when the record is
+  verified AND online AND the snapshot is fresh. An unverified, offline, removed
+  (absent), or stale entry stays evidence-only.
+- **Absence is not safety:** a miss — including a URL removed after a
+  false-positive correction — is a completed `no-hit` against one feed at one
+  time, never a clean-verdict claim. A missing or stale snapshot degrades to
+  `skipped`/evidence, never to safe.
+- **Scoring:** weight 1.0 (blocker), reputation layer. Online evidence is additive
+  and extends — never replaces — the lexical verdict.
+
 ### `invisible_char` — FR-D-4 · weight 1.0 (blocker)
 
 - **Meaning:** invisible, zero-width, or control characters appear anywhere in
