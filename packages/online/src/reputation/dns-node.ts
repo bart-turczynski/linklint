@@ -26,6 +26,8 @@ import type {
   DnsObservation,
   DnsQuery,
   DnsResolverPort,
+  DnssecAnswer,
+  DnssecQuery,
 } from "./dns-types.js";
 
 const DEFAULT_RESOLVER_NAME = "node:dns";
@@ -67,6 +69,25 @@ export function createNodeDnsResolver(options: NodeDnsResolverOptions = {}): Dns
       } finally {
         request.signal?.removeEventListener("abort", onAbort);
       }
+    },
+
+    // Async to satisfy the port's Promise contract; no I/O is honest here (see below).
+    async validateDnssec(request: DnssecQuery): Promise<DnssecAnswer> {
+      const observation: DnsObservation = { observedAt: now().toISOString(), resolver: resolverName };
+
+      // HONEST LIMITATION: Node's `dns/promises` stub resolver neither exposes the
+      // AD (Authenticated Data) bit nor performs DNSSEC chain validation, and it
+      // offers no way to request DO/CD or read RRSIG/DNSKEY through this API. There
+      // is therefore no observation that could prove `secure` or `bogus`, and we
+      // must NOT fabricate one. The only honest verdict a non-validating stub can
+      // give is `indeterminate` with `resolverValidates: false`. A validating
+      // provider (a DoH/DoT resolver, or a dedicated validating stub) would be a
+      // separate port implementation; the injected-port abstraction is what lets
+      // tests exercise all four states via deterministic fixtures.
+      if (request.signal?.aborted === true) {
+        return { state: "indeterminate", name: request.name, resolverValidates: false, unresolved: "aborted", observation };
+      }
+      return { state: "indeterminate", name: request.name, resolverValidates: false, observation };
     },
   };
 }

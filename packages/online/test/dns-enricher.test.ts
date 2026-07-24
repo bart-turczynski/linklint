@@ -9,6 +9,8 @@ import {
   type DnsQuery,
   type DnsQueryType,
   type DnsResolverPort,
+  type DnssecAnswer,
+  type DnssecQuery,
 } from "../src/reputation/index.js";
 
 const NOW = new Date("2026-07-24T00:00:00.000Z");
@@ -51,7 +53,11 @@ function neg(type: DnsQueryType, state: Exclude<DnsAnswerState, "ok">): DnsAnswe
 /** A deterministic, injectable DNS resolver. No `node:dns`, no real network. */
 class FakeDnsResolver implements DnsResolverPort {
   readonly queries: { name: string; type: DnsQueryType }[] = [];
-  constructor(private readonly script: Script) {}
+  readonly dnssecQueries: string[] = [];
+  constructor(
+    private readonly script: Script,
+    private readonly dnssec?: DnssecAnswer,
+  ) {}
 
   async query(request: DnsQuery): Promise<DnsAnswer> {
     this.queries.push({ name: request.name, type: request.type });
@@ -59,6 +65,23 @@ class FakeDnsResolver implements DnsResolverPort {
       return { type: request.type, state: "aborted", observation: OBS };
     }
     return this.script[request.type] ?? neg(request.type, "nodata");
+  }
+
+  async validateDnssec(request: DnssecQuery): Promise<DnssecAnswer> {
+    this.dnssecQueries.push(request.name);
+    if (request.signal?.aborted === true) {
+      return {
+        state: "indeterminate",
+        name: request.name,
+        resolverValidates: false,
+        unresolved: "aborted",
+        observation: OBS,
+      };
+    }
+    // Default: an honest non-validating resolver reports `indeterminate`.
+    return (
+      this.dnssec ?? { state: "indeterminate", name: request.name, resolverValidates: false, observation: OBS }
+    );
   }
 }
 
@@ -112,11 +135,17 @@ describe("createDnsStateEnricher — evidence", () => {
       subject: { kind: "host", value: "example.com" },
       findings: [],
     });
-    expect(outcome.evidence).toHaveLength(1);
+    expect(outcome.evidence).toHaveLength(2);
     expect(outcome.evidence[0]).toMatchObject({
       type: "dns.records",
       subject: { kind: "host", value: "example.com" },
       provenance: { kind: "declared", source: { name: DNS_SOURCE_ID } },
+    });
+    // The second artifact is the DNSSEC validation state, evidence-only.
+    expect(outcome.evidence[1]).toMatchObject({
+      type: "dns.dnssec",
+      subject: { kind: "host", value: "example.com" },
+      payload: { name: "example.com", validationState: "indeterminate", resolverValidates: false },
     });
     expect(outcome.evidence[0]!.payload).toMatchObject({
       resolvable: true,
@@ -276,7 +305,7 @@ describe("createDnsStateEnricher — degraded outcomes are never safety claims",
     });
     const outcome = (await run(resolver, HOST_INPUT)).outcomes[0]!;
     expect(outcome.status).toBe("success");
-    expect(outcome.evidence).toHaveLength(1);
+    expect(outcome.evidence).toHaveLength(2);
     expect((outcome.evidence[0]!.payload.aaaa as { state: string }).state).toBe("servfail");
   });
 });

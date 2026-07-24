@@ -92,8 +92,10 @@ relate to the score:
 
 Example evidence types: `rdap.domain` (RDAP, conjunctive), `urlhaus.match` and
 `phishtank.match` (caller-owned mirrors, conjunctive), `tls.certificate`
-(live TLS, **evidence-only**), and `dns.records` (live DNS A/AAAA/NS/MX state,
-**evidence-only**). The live TLS source (M7) inspects the original
+(live TLS, **evidence-only**), `dns.records` (live DNS A/AAAA/NS/MX state,
+**evidence-only**), and `dns.dnssec` (live DNSSEC validation state —
+secure/insecure/bogus/indeterminate — **evidence-only**; an unsigned zone is not
+risk and even a `bogus` verdict is only an anomaly). The live TLS source (M7) inspects the original
 HTTPS hostname through the L0 observational transport and records the normalized
 leaf certificate with its three independent validation axes (chain trust,
 hostname match, validity window), DNS SANs, and certificate-policy OIDs including

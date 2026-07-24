@@ -6,11 +6,13 @@
  * the registrable domain (the zone apex where delegation and mail live), then
  * normalizes the four answers into one `dns.records` evidence artifact: the
  * per-type answer state, addresses, nameservers, mail exchanges, the derived mail
- * semantic (explicit / null / implicit-A / none), and record TTLs.
+ * semantic (explicit / null / implicit-A / none), and record TTLs. It also emits a
+ * second `dns.dnssec` artifact carrying the zone's DNSSEC validation state
+ * (secure / insecure / bogus / indeterminate) and whether the resolver validates.
  *
  * This slice is evidence-only. DNS state is neutral on its own — an NXDOMAIN
- * answer or a null MX is neither safe nor malicious — so NO finding is ever
- * projected. Evidence is emitted whenever at least one query returned an
+ * answer, a null MX, an unsigned (`insecure`) or even validation-failed (`bogus`)
+ * zone is neither safe nor malicious — so NO finding is ever projected. Evidence is emitted whenever at least one query returned an
  * authoritative answer (including authoritative negatives). When NO query could
  * be answered (all SERVFAIL / REFUSED / timeout / abort / error), the outcome is
  * an explicit `skipped`/`failure` with a structured cause and empty evidence,
@@ -33,12 +35,18 @@ import {
 
 import { freshnessFor } from "../sources/index.js";
 import {
+  DNS_DNSSEC_EVIDENCE_TYPE,
   DNS_RECORDS_EVIDENCE_TYPE,
   DNS_SOURCE_DESCRIPTOR,
   DNS_SOURCE_ID,
   DNS_SOURCE_VERSION,
 } from "./dns-descriptor.js";
-import type { DnsAnswer, DnsResolverPort, DnsUnresolvedState } from "./dns-types.js";
+import type {
+  DnsAnswer,
+  DnsResolverPort,
+  DnsUnresolvedState,
+  DnssecAnswer,
+} from "./dns-types.js";
 import { normalizeDnsState, type NormalizedDnsState } from "./dns-normalize.js";
 
 export interface DnsStateEnricherOptions {
@@ -88,11 +96,17 @@ export function createDnsStateEnricher(options: DnsStateEnricherOptions): Enrich
       const zone = result.parsed?.registrableDomain ?? host;
       const signal = ctx.signal;
 
-      const [a, aaaa, ns, mx] = await Promise.all([
+      // DNSSEC validation is evaluated on the zone (the apex where signing lives)
+      // in the same parallel batch. Its port resolves for every outcome — an
+      // unknown state collapses to `indeterminate`, never a rejection — so it can
+      // never fail the whole enrichment; the record queries alone govern the
+      // skipped/failure disposition below.
+      const [a, aaaa, ns, mx, dnssec] = await Promise.all([
         options.resolver.query({ name: host, type: "A", ...signalOpt(signal) }),
         options.resolver.query({ name: host, type: "AAAA", ...signalOpt(signal) }),
         options.resolver.query({ name: zone, type: "NS", ...signalOpt(signal) }),
         options.resolver.query({ name: zone, type: "MX", ...signalOpt(signal) }),
+        options.resolver.validateDnssec({ name: zone, ...signalOpt(signal) }),
       ]);
 
       const state = normalizeDnsState({ host, zone, a, aaaa, ns, mx });
@@ -108,7 +122,7 @@ export function createDnsStateEnricher(options: DnsStateEnricherOptions): Enrich
         );
       }
 
-      return report(observedOutcome(subject, observedAt, state));
+      return report(observedOutcome(subject, observedAt, state, dnssec));
     },
   };
 }
@@ -117,6 +131,7 @@ function observedOutcome(
   subject: EnrichmentSubject,
   observedAt: Date,
   state: NormalizedDnsState,
+  dnssec: DnssecAnswer,
 ): EnrichmentOutcome {
   const observedIso = observedAt.toISOString();
   const freshness = freshnessFor(DNS_SOURCE_DESCRIPTOR.freshness, observedAt, null);
@@ -157,7 +172,27 @@ function observedOutcome(
     },
   };
 
-  // Evidence-only: DNS state is neutral, so no finding is ever projected.
+  // A second attributed artifact for the zone's DNSSEC validation state. This is
+  // neutral evidence: `insecure`/absence is NOT risk, and even `bogus` is only an
+  // anomaly (often a misconfiguration), so it is recorded — never scored. When the
+  // state could not be determined it is faithfully `indeterminate`; that does not
+  // fail the outcome, because the DNS records were still authoritatively observed.
+  const dnssecEvidence: EnrichmentEvidence = {
+    type: DNS_DNSSEC_EVIDENCE_TYPE,
+    subject,
+    observedAt: observedIso,
+    provenance: provenance(),
+    freshness,
+    payload: {
+      name: dnssec.name,
+      validationState: dnssec.state,
+      resolverValidates: dnssec.resolverValidates,
+      ...(dnssec.unresolved !== undefined ? { unresolved: dnssec.unresolved } : {}),
+    },
+  };
+
+  // Evidence-only: DNS state (records + DNSSEC) is neutral, so no finding is ever
+  // projected — not even for a `bogus` DNSSEC verdict.
   return {
     sourceId: DNS_SOURCE_ID,
     layer: "reputation",
@@ -166,7 +201,7 @@ function observedOutcome(
     observedAt: observedIso,
     provenance: provenance(),
     freshness,
-    evidence: [evidence],
+    evidence: [evidence, dnssecEvidence],
     findings: [],
   };
 }
