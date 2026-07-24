@@ -164,3 +164,73 @@ export interface RedirectChainOfflineInspection extends EnrichmentPayload {
   readonly dataVersions: Readonly<Record<string, string>>;
   readonly pslSnapshot: Readonly<Record<string, string | boolean | null>>;
 }
+
+/**
+ * One controlled request variant probed by the L4 divergence enricher. Only the
+ * request headers vary between variants (never the URL); the caller-visible
+ * `label` names the variant in evidence and authorization requests. Referer is
+ * never set — L0 strips caller Referer by design and only User-Agent is varied.
+ */
+export interface DivergenceProbeVariant {
+  readonly label: string;
+  readonly headers: Readonly<Record<string, string>>;
+}
+
+/** Why an exact destination URL is being presented for per-variant authorization. */
+export interface DivergenceProbeAuthorizationRequest {
+  readonly url: string;
+  readonly hop: number;
+  readonly method: TransportMethod;
+  readonly reason: "variant-probe";
+  /** The variant label whose controlled headers this fetch would carry. */
+  readonly variant: string;
+}
+
+/**
+ * Per-variant consent boundary. Returning `null` refuses that variant only; a
+ * returned authorization is still checked for an exact URL match by L0. Each
+ * variant is authorized separately so the caller consents to the amplification.
+ */
+export type DivergenceProbeAuthorizer = (
+  request: DivergenceProbeAuthorizationRequest,
+) =>
+  | DestinationFetchAuthorization
+  | null
+  | PromiseLike<DestinationFetchAuthorization | null>;
+
+export interface DivergenceProbeEnricherOptions {
+  /** The only transport allowed to connect to an inspected destination. */
+  readonly transport: SafeTransport;
+  /** Called separately for every controlled variant fetch. */
+  readonly authorize: DivergenceProbeAuthorizer;
+  /** GET by default. HEAD is allowed but then carries no body markers/essence. */
+  readonly method?: TransportMethod;
+  /** Fixed, bounded variant set. Defaults to the exported default variants. */
+  readonly variants?: readonly DivergenceProbeVariant[];
+  /** Maximum response prefix inspected for sniffing and challenge markers. */
+  readonly maxBodyBytes?: number;
+  /** Options used when a Location target is re-inspected through synchronous Layer 1. */
+  readonly inspectOptions?: InspectOptions;
+  /** Injectable clock for deterministic pre-transport and stop observations. */
+  readonly now?: () => Date;
+}
+
+/** The public factory return is named for discoverability while remaining a core Enricher. */
+export type DivergenceProbeEnricher = Enricher;
+
+/**
+ * JSON-safe per-variant response summary. Emitted as evidence only — destination
+ * divergence is informational (legitimate personalization is common), so a
+ * summary never becomes a scored finding or an independent cloaking claim.
+ */
+export interface DivergenceProbeVariantSummary extends EnrichmentPayload {
+  readonly label: string;
+  readonly status: number;
+  readonly statusClass: number;
+  /** Registrable domain of a 3xx Location target, else `null`. */
+  readonly location: string | null;
+  readonly declaredEssence: string | null;
+  readonly computedEssence: string | null;
+  /** Challenge/CAPTCHA marker id when the body is gated, else `null`. */
+  readonly challenge: string | null;
+}
