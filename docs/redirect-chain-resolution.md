@@ -93,3 +93,20 @@ findings into the top-level verdict. Each reason code is projected at most once,
 and codes already present on the original offline result are not projected
 again. This makes the chain's worst observed hop visible without multiplying
 the same lexical evidence merely because it appeared at several redirects.
+
+## Privacy disclosure (Layer 2 sources)
+
+Layer 2 adds two network-touching resolution sources and one purely local one.
+This section states, per source id, exactly what leaves the machine so callers
+can reason about egress before enabling a source.
+
+| Source id | Network egress | What is sent |
+| --- | --- | --- |
+| `redirect-chain.http` | Caller-authorized HTTP(S) to the destination | One request per chain hop, each separately authorized via `authorize()`. Requests are `GET` or caller-selected `HEAD` with no body, no cookie jar, and no credentials. L0 strips ambient credential and `Referer` headers; only `Host`, `Accept`, `Accept-Encoding`, and `User-Agent` are sent. Fragments are removed before the request. |
+| `divergence-probe.http` | Caller-authorized HTTP(S) to the destination | One request per bounded variant (default two: baseline and a fixed synthetic desktop `User-Agent`), each separately authorized. Same header discipline as above — L0 strips ambient credential and `Referer` headers, and only `Host`, `Accept`, `Accept-Encoding`, and `User-Agent` are sent. The alternate `User-Agent` is a fixed benign string, never derived from ambient request state. |
+| `embedded-wrapper.local` | None | Nothing leaves the machine. Trusted wrapper formats (Microsoft Safe Links, Proofpoint URL Defense v1/v2/v3) are decoded purely and locally; no network call, no shortener/vendor decode service, and no DNS. |
+
+Construction is never consent for the two `*.http` sources: each hop and each
+variant is authorized individually, and returning `null` from `authorize()`
+stops before any DNS or network I/O. `embedded-wrapper.local` performs no I/O at
+all and is safe to run with no network authority.
