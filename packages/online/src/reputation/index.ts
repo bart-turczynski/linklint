@@ -18,6 +18,12 @@ export {
 } from "./rdap-client.js";
 export { normalizeRdapDomain } from "./rdap-normalize.js";
 export { RDAP_SOURCE_DESCRIPTOR } from "./rdap-descriptor.js";
+export {
+  createRdapAgeEnricher,
+  DEFAULT_YOUNG_DOMAIN_THRESHOLD_DAYS,
+  RDAP_BRAND_CORROBORATION_CODES,
+} from "./rdap-enricher.js";
+export type { RdapAgeEnricherOptions } from "./rdap-enricher.js";
 export type {
   FetchRdapDomainOptions,
   RdapBootstrapRegistry,

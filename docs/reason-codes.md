@@ -502,6 +502,32 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   content-type spoofing observation without adding a probabilistic score, and is
   not proof of exploitation.
 
+### `young_domain_brand_risk` — Epic M (M1b) · reputation layer, weight 0.5
+
+- **Meaning:** the Layer 3 RDAP registration-age enricher (`@linklint/online`
+  `@linklint/online/reputation`) resolved the ICANN registrable domain's
+  registration event, computed its age, and found it **below the young-domain
+  threshold** (default 90 days) **while the lexical result already carries a
+  brand-impersonation signal** — `brand_homoglyph`, `brand_lookalike`,
+  `homograph_skeleton_collision`, `homograph_latin_skeleton`, `brand_soundsquat`,
+  `brand_bitsquat`, or `api_endpoint_impersonation`.
+- **Why it's a signal:** a brand look-alike domain registered very recently is
+  the dominant phishing-campaign pattern — a two-axis age × brand check that is
+  far more specific than either axis alone.
+- **Evidence vs. finding:** the RDAP record (registration/last-changed dates,
+  registrar, nameservers, DNSSEC, redaction, computed age) is always emitted as
+  a `rdap.domain` evidence artifact. This scored finding is raised **only** when
+  the age is young AND a non-suppressed corroborating brand reason is present.
+  Age, registrar, nameservers, and country alone stay evidence-only.
+- **Shared-hosting safety:** age is computed on the registrable domain, so a
+  phishing subdomain under an ancient shared-hosting parent inherits the parent's
+  old age and never reads as young. Missing or redacted registration events stay
+  unknown and never fabricate a young or old claim.
+- **Non-duplication:** the finding uses this distinct reputation code and never
+  re-emits the lexical brand reason, so corroboration does not double-count.
+- **Scoring:** weight 0.5, reputation layer. It corroborates rather than proves;
+  online evidence is additive and never replaces the lexical verdict.
+
 ### `invisible_char` — FR-D-4 · weight 1.0 (blocker)
 
 - **Meaning:** invisible, zero-width, or control characters appear anywhere in
