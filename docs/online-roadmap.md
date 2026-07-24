@@ -86,9 +86,14 @@ done: `@linklint/online` ships the source-contract root export (descriptor
 validation, terms/attribution construction gate, credential/disclosure runtime
 skips, `OnlineSecret` BYOK wrapper, freshness helper, and evidence-vs-score
 policy), documented in [`online-source-contract.md`](online-source-contract.md)
-and enforced by a shared contract-test kit. RDAP (M1) and caller-owned local
-mirrors (M4/M5) may now proceed; M7 live TLS additionally depends on L0 (done).
-Epic N remains a separate service, lowest priority.
+and enforced by a shared contract-test kit. **RDAP M1 (`LINK-tqlqshlt`) is now
+done**: `@linklint/online/reputation` ships bootstrap routing + a bounded
+domain-lookup client with read-through caching and normalization (M1a), and the
+`createRdapAgeEnricher` conjunctive finding — `young_domain_brand_risk` fires
+only when the registrable domain's RDAP age is below the young-domain threshold
+(default 90d) AND a lexical brand-impersonation signal is present (M1b).
+Caller-owned local mirrors (M4/M5) may proceed next; M7 live TLS additionally
+depends on L0 (done). Epic N remains a separate service, lowest priority.
 
 ## Epic L dependency path (delivered)
 
@@ -121,8 +126,9 @@ LT + L1 + L2 + L3 + L4 + L5 ───────────► L6 LINK-pzuppjn
 - Epic M (`LINK-aclentcb`) is source-attributed reputation/infrastructure.
   `LINK-nlnyqofz` (M2 privacy, licensing, provenance, and BYOK contract) is
   **done** — see [`online-source-contract.md`](online-source-contract.md). M
-  provider adapters (M1 RDAP, M4/M5 mirrors, M7 TLS, M9a DNS) build on it; M7
-  live TLS also depends on L0.
+  provider adapters build on it; **M1 RDAP (`LINK-tqlqshlt`) is done** (M1a
+  client + M1b conjunctive `young_domain_brand_risk` finding). Remaining: M4/M5
+  caller-owned mirrors, M7 TLS (depends on L0, done), M9a DNS, M10 gate.
 - Epic N (`LINK-ioctupur`) is a separate service, not an `inspectAsync()` loop.
   Its foundation starts at `LINK-pjyhavkg` (N0 durable runtime, state, and
   tenancy). N consumes specific contracts and does not depend on all of M.

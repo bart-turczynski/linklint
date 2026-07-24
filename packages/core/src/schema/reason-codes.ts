@@ -309,6 +309,15 @@ export const REASON_CODES = {
       "A resolved response's bytes sniff to an active/executable type (html/xml) that diverges from the declared Content-Type with no nosniff — resolution-time content-type-spoofing corroboration, informational (weight 0).",
   },
 
+  // ── Reputation (Layer 3 source-attributed, conjunctive) ──────────────────
+  young_domain_brand_risk: {
+    layer: "reputation",
+    scoring: true,
+    weight: 0.5,
+    summary:
+      "RDAP registration age for the ICANN registrable domain is below the young-domain threshold AND the domain already carries a lexical brand-impersonation signal (homoglyph/lookalike/skeleton/soundsquat/bitsquat/api-endpoint) — a conjunctive age × brand risk. Age alone is only evidence; this fires only with lexical corroboration, computes age on the registrable domain so ancient shared-hosting parents never read as young, and never duplicates the lexical brand reason.",
+  },
+
   // ── Policy (caller-configured, weight 0) ─────────────────────────────────
   tld_denied: {
     layer: "policy",
