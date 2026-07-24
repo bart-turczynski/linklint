@@ -47,6 +47,9 @@ export {
   PHISHTANK_SOURCE_ID,
   PHISHTANK_SOURCE_VERSION,
 } from "./phishtank-descriptor.js";
+export { createPhishTankIndex } from "./phishtank-index.js";
+export { createPhishTankEnricher } from "./phishtank-enricher.js";
+export type { PhishTankEnricherOptions } from "./phishtank-enricher.js";
 export { parsePhishTankCsv } from "./phishtank-parse.js";
 export { updatePhishTankSnapshot } from "./phishtank-updater.js";
 export type {

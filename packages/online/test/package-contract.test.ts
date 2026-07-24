@@ -60,6 +60,8 @@ describe("@linklint/online package boundary", () => {
     expect(mirrors.URLHAUS_SOURCE_DESCRIPTOR).toBeTypeOf("object");
     expect(mirrors.updatePhishTankSnapshot).toBeTypeOf("function");
     expect(mirrors.parsePhishTankCsv).toBeTypeOf("function");
+    expect(mirrors.createPhishTankIndex).toBeTypeOf("function");
+    expect(mirrors.createPhishTankEnricher).toBeTypeOf("function");
     expect(mirrors.PHISHTANK_SOURCE_DESCRIPTOR).toBeTypeOf("object");
     const mirrorsExport = manifest.exports["./mirrors"] as Record<string, string>;
     expect(Object.keys(mirrorsExport)).toEqual(["types", "default"]);
