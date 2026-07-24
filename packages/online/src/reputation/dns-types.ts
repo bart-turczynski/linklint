@@ -109,11 +109,67 @@ export type DnsAnswer =
     });
 
 /**
+ * DNSSEC validation state for a name, per RFC 4035 §5.
+ *
+ * - `secure`: the name is signed and the resolver validated the chain of trust.
+ * - `insecure`: an unsigned / opt-out delegation — the resolver PROVED there is
+ *   no DNSSEC for this name. This is NEUTRAL, never risk: absence of DNSSEC is a
+ *   deliberate and common operational choice.
+ * - `bogus`: signatures were present but validation FAILED. An anomaly worth
+ *   recording, but even bogus may be a misconfiguration (expired RRSIG, key
+ *   rollover), NEVER proof of malice.
+ * - `indeterminate`: the state could not be determined — the resolver does not
+ *   validate, the trust path is unknown, or an operational non-answer intervened.
+ *   A non-validating resolver is `indeterminate`, NOT `insecure`.
+ */
+export type DnssecValidationState = "secure" | "insecure" | "bogus" | "indeterminate";
+
+/**
+ * The operational reasons a DNSSEC validation could not resolve to an
+ * authoritative state and therefore collapsed to `indeterminate`. This mirrors
+ * the operational subset of {@link DnsAnswerState} that DNSSEC evaluation can hit.
+ */
+export type DnssecUnresolvedState = "servfail" | "timeout" | "aborted" | "error";
+
+/** A single DNSSEC validation request. `signal` cancels an in-flight lookup. */
+export interface DnssecQuery {
+  /** The name whose DNSSEC validation state is evaluated (typically the zone). */
+  readonly name: string;
+  readonly signal?: AbortSignal;
+}
+
+/**
+ * A DNSSEC validation observation. It carries exactly the four-valued
+ * {@link DnssecValidationState}, whether the answering resolver validates at all,
+ * and — when an operational failure forced `indeterminate` — the reason. Absence
+ * of DNSSEC surfaces as an authoritative `insecure`, never as a failure.
+ */
+export interface DnssecAnswer {
+  readonly state: DnssecValidationState;
+  /** The name that was validated. */
+  readonly name: string;
+  /** Whether the answering resolver performs DNSSEC validation at all. */
+  readonly resolverValidates: boolean;
+  /** Present only when an operational non-answer forced `state: "indeterminate"`. */
+  readonly unresolved?: DnssecUnresolvedState;
+  readonly observation: DnsObservation;
+}
+
+/**
  * Provider-scoped DNS resolver port. Injected into the enricher; a deterministic
  * fake in tests, a bounded `node:dns/promises` client in production. Resolves —
  * never rejects — for every DNS-level outcome; only a programming error should
  * throw. Cancellation surfaces as a `state: "aborted"` answer.
+ *
+ * {@link validateDnssec} extends the same injected port with DNSSEC
+ * validation-state evidence (M9a2). It is a distinct method rather than another
+ * {@link DnsQueryType} because DNSSEC reports a validation verdict, not a record
+ * set, and — like {@link query} — it resolves for every outcome: operational
+ * non-answers and cancellation collapse to `indeterminate` (with `unresolved`
+ * recorded), never a rejection. DNSSEC state is evidence-only and neutral: only
+ * `bogus` is an anomaly, and even that is never a scored finding.
  */
 export interface DnsResolverPort {
   query(request: DnsQuery): Promise<DnsAnswer>;
+  validateDnssec(request: DnssecQuery): Promise<DnssecAnswer>;
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DNS_DNSSEC_EVIDENCE_TYPE,
   DNS_RECORDS_EVIDENCE_TYPE,
   DNS_SOURCE_DESCRIPTOR,
   DNS_SOURCE_ID,
@@ -50,7 +51,10 @@ describe("DNS_SOURCE_DESCRIPTOR", () => {
     expect(DNS_SOURCE_DESCRIPTOR.disclosure.consentRequired).toEqual([]);
     expect(DNS_SOURCE_DESCRIPTOR.credentials).toEqual({ kind: "none" });
     expect(DNS_SOURCE_DESCRIPTOR.scoring).toBe("evidence-only");
-    expect(DNS_SOURCE_DESCRIPTOR.evidenceScope).toEqual([DNS_RECORDS_EVIDENCE_TYPE]);
+    expect(DNS_SOURCE_DESCRIPTOR.evidenceScope).toEqual([
+      DNS_RECORDS_EVIDENCE_TYPE,
+      DNS_DNSSEC_EVIDENCE_TYPE,
+    ]);
     // A live DNS snapshot declares no honest expiry (TTL is evidence data only).
     expect(DNS_SOURCE_DESCRIPTOR.freshness).toEqual({ declaresExpiry: false, staleWhenExpired: false });
     expect(DNS_SOURCE_DESCRIPTOR.noMatchSemantics).toBe("absence-is-not-safety");

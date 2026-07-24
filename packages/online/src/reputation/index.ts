@@ -33,6 +33,7 @@ export {
 export { createTlsCertificateEnricher } from "./tls-enricher.js";
 export type { TlsCertificateEnricherOptions } from "./tls-enricher.js";
 export {
+  DNS_DNSSEC_EVIDENCE_TYPE,
   DNS_RECORDS_EVIDENCE_TYPE,
   DNS_SOURCE_DESCRIPTOR,
   DNS_SOURCE_ID,
@@ -62,6 +63,10 @@ export type {
   DnsQueryType,
   DnsResolverPort,
   DnsUnresolvedState,
+  DnssecAnswer,
+  DnssecQuery,
+  DnssecUnresolvedState,
+  DnssecValidationState,
 } from "./dns-types.js";
 export type {
   FetchRdapDomainOptions,

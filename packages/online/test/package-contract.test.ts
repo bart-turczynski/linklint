@@ -64,6 +64,7 @@ describe("@linklint/online package boundary", () => {
     expect(reputation.createDnsStateEnricher).toBeTypeOf("function");
     expect(reputation.DNS_SOURCE_DESCRIPTOR).toBeTypeOf("object");
     expect(reputation.DNS_RECORDS_EVIDENCE_TYPE).toBe("dns.records");
+    expect(reputation.DNS_DNSSEC_EVIDENCE_TYPE).toBe("dns.dnssec");
     const reputationExport = manifest.exports["./reputation"] as Record<string, string>;
     expect(Object.keys(reputationExport)).toEqual(["types", "default"]);
     expect(mirrors.updateUrlhausSnapshot).toBeTypeOf("function");

@@ -14,6 +14,11 @@
  * routed, which nameservers are delegated — is neutral on its own. A domain with
  * a null MX or an NXDOMAIN answer is neither safe nor malicious by that fact, so
  * this source emits attributed `dns.records` evidence and NEVER a scored finding.
+ *
+ * The same source also reports the zone's DNSSEC validation state as attributed
+ * `dns.dnssec` evidence (M9a2). This too is neutral: an unsigned/`insecure` zone
+ * is not risk, and even a `bogus` (validation-failed) zone is only an anomaly —
+ * often a misconfiguration — so it stays evidence-only and NEVER a scored finding.
  */
 
 import type { OnlineSourceDescriptor } from "../sources/index.js";
@@ -24,12 +29,19 @@ export const DNS_SOURCE_VERSION = "1.0.0" as const;
 /** Stable evidence type this source emits. */
 export const DNS_RECORDS_EVIDENCE_TYPE = "dns.records" as const;
 
+/**
+ * Stable evidence type for the DNSSEC validation state (M9a2). Evidence-only and
+ * neutral: `insecure`/absence is never risk and only `bogus` is an anomaly, yet
+ * even bogus is emitted as attributed evidence, never a scored finding.
+ */
+export const DNS_DNSSEC_EVIDENCE_TYPE = "dns.dnssec" as const;
+
 export const DNS_SOURCE_DESCRIPTOR: OnlineSourceDescriptor = {
   id: DNS_SOURCE_ID,
   displayName: "DNS record state",
   version: DNS_SOURCE_VERSION,
   layer: "reputation",
-  evidenceScope: [DNS_RECORDS_EVIDENCE_TYPE],
+  evidenceScope: [DNS_RECORDS_EVIDENCE_TYPE, DNS_DNSSEC_EVIDENCE_TYPE],
   disclosure: {
     recipient: "dns.resolver",
     sends: ["registrable-domain", "host"],
