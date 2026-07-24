@@ -27,6 +27,7 @@ import type {
   RedirectChainOfflineInspection,
   RedirectChainTransitionKind,
 } from "./types.js";
+import { MIME_SNIFF_PREFIX_BYTES, sniffMimeType } from "./mime-sniff.js";
 
 export const REDIRECT_CHAIN_SOURCE_ID = "redirect-chain.http" as const;
 export const REDIRECT_CHAIN_SOURCE_VERSION = "1.0.0" as const;
@@ -69,6 +70,19 @@ interface OpenRedirectCorrelation {
   readonly hop: ChainHop;
   readonly finding: EnricherFinding;
   readonly evidence: EnrichmentEvidence;
+}
+
+/**
+ * Per-hop declared-vs-computed MIME evidence (L5, `LINK-tibzpdft`). Every successfully
+ * fetched hop carries a `resolution.mime-evidence` record. The `active` case —
+ * a declared/computed essence mismatch that a nosniff-absent consumer would
+ * sniff into an executable html/xml type — additionally raises the informational
+ * (weight 0) `content_type_mismatch` finding. Hops that cannot be classified
+ * (HEAD, empty body) record an explicit incomplete status and emit no finding.
+ */
+interface MimeEvidence {
+  readonly evidence: EnrichmentEvidence;
+  readonly finding: EnricherFinding | null;
 }
 
 type TransitionDecision =
@@ -280,6 +294,7 @@ export function createRedirectChainEnricher(
         hop,
         hop === worst ? offlineFindings(hop.offline, hop.hop, baseCodes) : [],
         correlation !== null && correlation.hop === hop ? correlation : null,
+        mimeEvidenceFor(hop),
       ));
       outcomes.push(...stops);
       return report(outcomes);
@@ -418,6 +433,7 @@ function hopOutcome(
   hop: ChainHop,
   findings: EnricherFinding[],
   correlation: OpenRedirectCorrelation | null,
+  mime: MimeEvidence,
 ): EnrichmentOutcome {
   const subject = { kind: "url" as const, value: hop.url };
   const provenance = declaredProvenance();
@@ -455,8 +471,95 @@ function hopOutcome(
         },
       },
       ...(correlation === null ? [] : [correlation.evidence]),
+      mime.evidence,
     ],
-    findings: correlation === null ? findings : [...findings, correlation.finding],
+    findings: [
+      ...findings,
+      ...(correlation === null ? [] : [correlation.finding]),
+      ...(mime.finding === null ? [] : [mime.finding]),
+    ],
+  };
+}
+
+/**
+ * Build the per-hop declared-vs-computed MIME evidence record, and — only for
+ * the active script-injection-via-sniffing case — an informational finding.
+ *
+ * A hop that cannot be classified (HEAD request, or an empty body with nothing
+ * to sniff) records an explicit `incomplete` status and emits no finding.
+ * Otherwise the byte prefix is sniffed independently of the declared essence:
+ * a mismatch is recorded, and marked `active` when a nosniff-absent consumer
+ * would sniff an executable html/xml type from a resource declared as something
+ * non-executable. `active` is the only case that carries a finding.
+ */
+function mimeEvidenceFor(hop: ChainHop): MimeEvidence {
+  const subject = { kind: "url" as const, value: hop.url };
+  const provenance = declaredProvenance();
+  const declared = singleHeaderValue(hop.response.headers, "content-type");
+  const noSniff =
+    (singleHeaderValue(hop.response.headers, "x-content-type-options") ?? "")
+      .trim()
+      .toLowerCase() === "nosniff";
+  const body = hop.response.body;
+
+  if (hop.method === "HEAD" || body.byteLength === 0) {
+    return {
+      finding: null,
+      evidence: {
+        type: "resolution.mime-evidence",
+        subject,
+        observedAt: hop.observedAt,
+        provenance,
+        freshness: FRESHNESS,
+        payload: {
+          hop: hop.hop,
+          declaredEssence: declared,
+          noSniff,
+          status: "incomplete",
+          cause: "no-body",
+        },
+      },
+    };
+  }
+
+  const sniff = sniffMimeType(body, declared);
+  const mismatch =
+    sniff.declaredEssence !== null && sniff.declaredEssence !== sniff.computedEssence;
+  const active =
+    mismatch &&
+    !noSniff &&
+    (sniff.computedEssence === "text/html" || sniff.computedEssence === "text/xml") &&
+    sniff.declaredEssence !== "text/html" &&
+    sniff.declaredEssence !== "text/xml";
+
+  return {
+    finding: active
+      ? {
+          code: "content_type_mismatch",
+          detail:
+            `Hop ${hop.hop} response declared '${sniff.declaredEssence}' but its bytes sniff to ` +
+            `'${sniff.computedEssence}' with no nosniff — a content-type mismatch a sniffing ` +
+            `consumer could execute; informational corroboration, not proof of exploitation.`,
+        }
+      : null,
+    evidence: {
+      type: "resolution.mime-evidence",
+      subject,
+      observedAt: hop.observedAt,
+      provenance,
+      freshness: FRESHNESS,
+      payload: {
+        hop: hop.hop,
+        declaredEssence: sniff.declaredEssence,
+        computedEssence: sniff.computedEssence,
+        rule: sniff.rule,
+        noSniff,
+        sniffedBytes: Math.min(body.byteLength, MIME_SNIFF_PREFIX_BYTES),
+        status: "classified",
+        mismatch,
+        active,
+      },
+    },
   };
 }
 

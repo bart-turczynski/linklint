@@ -476,6 +476,32 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   `open_redirect_param` suspicion and NEVER adds a second probabilistic score for
   the same open redirect.
 
+### `content_type_mismatch` — Epic L (L5) · resolution layer, weight 0
+
+- **Meaning:** the Layer 2 resolution enricher (`@linklint/online` redirect
+  chain) independently sniffed a resolved hop's response bytes (WHATWG MIME
+  Sniffing) and found the byte-derived essence diverges from the declared
+  `Content-Type`. Every classifiable hop records a `resolution.mime-evidence`
+  record; this finding is raised only for the executable subset.
+- **Why it's a signal:** a resource served with a benign declared type (e.g.
+  `image/png`) whose bytes actually sniff to an executable type (`text/html` /
+  `text/xml`) is the classic content-type-spoofing / MIME-confusion vector — a
+  consumer that sniffs rather than trusts the header could execute markup the
+  server labelled as inert.
+- **Evidence vs. finding:** the mismatch is always recorded as evidence, but is
+  marked `active` (and only then carries this finding) when the consuming context
+  actually supports execution: `x-content-type-options: nosniff` is absent AND
+  the computed essence is `text/html`/`text/xml` while the declared essence is
+  neither. A mismatch under `nosniff`, or one that does not sniff to an
+  executable type, stays evidence-only with `active: false`.
+- **Incomplete classification:** hops that cannot be classified — a HEAD request
+  or an empty body with nothing to sniff — record an explicit `status:
+  "incomplete"` (`cause: "no-body"`) and emit no finding, so absence of a signal
+  is never confused with a clean classification.
+- **Scoring:** informational, weight 0, resolution layer. It corroborates a
+  content-type spoofing observation without adding a probabilistic score, and is
+  not proof of exploitation.
+
 ### `invisible_char` — FR-D-4 · weight 1.0 (blocker)
 
 - **Meaning:** invisible, zero-width, or control characters appear anywhere in
