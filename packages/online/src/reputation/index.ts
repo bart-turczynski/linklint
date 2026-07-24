@@ -32,6 +32,37 @@ export {
 } from "./tls-descriptor.js";
 export { createTlsCertificateEnricher } from "./tls-enricher.js";
 export type { TlsCertificateEnricherOptions } from "./tls-enricher.js";
+export {
+  DNS_RECORDS_EVIDENCE_TYPE,
+  DNS_SOURCE_DESCRIPTOR,
+  DNS_SOURCE_ID,
+  DNS_SOURCE_VERSION,
+} from "./dns-descriptor.js";
+export { createNodeDnsResolver } from "./dns-node.js";
+export type { NodeDnsResolverOptions } from "./dns-node.js";
+export { normalizeDnsState } from "./dns-normalize.js";
+export type {
+  DnsMailSemantic,
+  NormalizedAddressAnswer,
+  NormalizedDnsState,
+  NormalizedMxAnswer,
+  NormalizedNsAnswer,
+  NormalizeDnsInput,
+} from "./dns-normalize.js";
+export { createDnsStateEnricher } from "./dns-enricher.js";
+export type { DnsStateEnricherOptions } from "./dns-enricher.js";
+export type {
+  DnsAddressRecord,
+  DnsAnswer,
+  DnsAnswerState,
+  DnsMxRecord,
+  DnsNsRecord,
+  DnsObservation,
+  DnsQuery,
+  DnsQueryType,
+  DnsResolverPort,
+  DnsUnresolvedState,
+} from "./dns-types.js";
 export type {
   FetchRdapDomainOptions,
   RdapBootstrapRegistry,
