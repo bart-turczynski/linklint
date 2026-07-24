@@ -340,6 +340,115 @@ describe("L1 bounded declarative refresh expansion", () => {
   });
 });
 
+describe("L3 observed open-redirect correlation", () => {
+  const start = "https://example.com/login?next=https://evil.com/phish";
+  const landing = "https://evil.com/phish";
+
+  it("gates on the lexical open_redirect_param actually firing on the input", () => {
+    expect(inspect(start).reasons.map((reason) => reason.code)).toContain("open_redirect_param");
+  });
+
+  it("confirms the payload landing with a distinct weight-0 resolution record", async () => {
+    const { harness, enricher } = fixtureEnricher([
+      { url: start, status: 302, headers: { location: landing } },
+      { url: landing, status: 200, headers: { "content-type": "text/plain" }, body: "x" },
+    ]);
+
+    const result = await inspectAsync(start, { enrichers: [enricher] });
+    const outcomes = result.enrichment?.outcomes ?? [];
+    const landingOutcome = outcomes.find((outcome) => outcome.subject.value === landing);
+
+    expect(landingOutcome?.findings.map((finding) => finding.code)).toContain(
+      "open_redirect_observed",
+    );
+    const evidence = landingOutcome?.evidence.find(
+      (item) => item.type === "resolution.open-redirect-observed",
+    );
+    expect(evidence?.payload).toMatchObject({
+      param: "next",
+      payloadRegistrableDomain: "evil.com",
+      observedRegistrableDomain: "evil.com",
+      inputRegistrableDomain: "example.com",
+      hop: 2,
+      consistent: true,
+    });
+
+    // The lexical suspicion is preserved, and the observed record is additive.
+    expect(result.reasons.map((reason) => reason.code)).toContain("open_redirect_param");
+    expect(result.reasons.map((reason) => reason.code)).toContain("open_redirect_observed");
+    harness.assertExhausted();
+  });
+
+  it("does not add a second probabilistic score for the same open redirect", async () => {
+    const { harness, enricher } = fixtureEnricher([
+      { url: start, status: 302, headers: { location: landing } },
+      { url: landing, status: 200, headers: { "content-type": "text/plain" }, body: "x" },
+    ]);
+
+    const result = await inspectAsync(start, { enrichers: [enricher] });
+
+    // Exactly one scoring open_redirect_param reason; the observed record is
+    // informational (weight 0, resolution layer) so it never re-scores.
+    expect(result.reasons.filter((reason) => reason.code === "open_redirect_param")).toHaveLength(1);
+    const observed = result.reasons.find((reason) => reason.code === "open_redirect_observed");
+    expect(observed?.weight).toBe(0);
+    expect(observed?.layer).toBe("resolution");
+    expect(result.confidence).toBe(1);
+    harness.assertExhausted();
+  });
+
+  it("stays inconclusive when a hop cap cuts the chain before the payload domain", async () => {
+    const { harness, enricher } = fixtureEnricher(
+      [{ url: start, status: 302, headers: { location: landing } }],
+      { maxHops: 1 },
+    );
+
+    const result = await inspectAsync(start, { enrichers: [enricher] });
+    const codes = (result.enrichment?.outcomes ?? []).flatMap((outcome) =>
+      outcome.findings.map((finding) => finding.code),
+    );
+
+    expect(codes).not.toContain("open_redirect_observed");
+    expect(result.reasons.map((reason) => reason.code)).not.toContain("open_redirect_observed");
+    // The lexical suspicion is untouched by the incomplete resolution.
+    expect(result.reasons.map((reason) => reason.code)).toContain("open_redirect_param");
+    expect(result.enrichment?.outcomes.at(-1)?.cause?.code).toBe("hop-limit");
+    harness.assertExhausted();
+  });
+
+  it("does not confirm when the observed landing diverges from the decoded payload", async () => {
+    const elsewhere = "https://other.example/ok";
+    const { harness, enricher } = fixtureEnricher([
+      { url: start, status: 302, headers: { location: elsewhere } },
+      { url: elsewhere, status: 200, headers: { "content-type": "text/plain" }, body: "x" },
+    ]);
+
+    const result = await inspectAsync(start, { enrichers: [enricher] });
+
+    expect(result.reasons.map((reason) => reason.code)).not.toContain("open_redirect_observed");
+    // The off-site landing is still recorded as an ordinary chain hop.
+    expect(result.enrichment?.outcomes.map((outcome) => outcome.subject.value)).toEqual([
+      start,
+      elsewhere,
+    ]);
+    harness.assertExhausted();
+  });
+
+  it("does not correlate an off-site landing when the input carries no redirect param", async () => {
+    const plain = "https://example.com/start";
+    const { harness, enricher } = fixtureEnricher([
+      { url: plain, status: 302, headers: { location: landing } },
+      { url: landing, status: 200, headers: { "content-type": "text/plain" }, body: "x" },
+    ]);
+
+    const result = await inspectAsync(plain, { enrichers: [enricher] });
+
+    expect(result.reasons.map((reason) => reason.code)).not.toContain("open_redirect_param");
+    expect(result.reasons.map((reason) => reason.code)).not.toContain("open_redirect_observed");
+    harness.assertExhausted();
+  });
+});
+
 describe("L1 explicit stop and degradation outcomes", () => {
   it.each([
     {

@@ -452,6 +452,30 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   `https://example.com/?redirect=//evil.com`.
 - **Scoring:** scoring, weight 0.4.
 
+### `open_redirect_observed` — Epic L (L3) · resolution layer, weight 0
+
+- **Meaning:** the Layer 2 resolution enricher (`@linklint/online` redirect
+  chain) followed a caller-authorized redirect chain and OBSERVED it leave the
+  input's registrable domain and land on the exact domain named by an
+  `open_redirect_param` payload. It is the resolution-time confirmation the
+  lexical detector deliberately leaves to Phase 2.
+- **Why it's a signal:** the lexical `open_redirect_param` sees only the payload
+  inside the parameter; it cannot know whether the server actually honors it.
+  When the observed chain lands on that same registrable domain, the redirect is
+  confirmed to fire — a distinct, additive evidence record.
+- **Premise:** registrable-domain divergence, NOT full-origin comparison — the
+  same premise `open_redirect_param` uses. The observed landing must be on a
+  registrable domain that both differs from the input's and matches a decoded
+  redirect-parameter payload target.
+- **Not a proof of exploitability:** the record states the redirect was observed
+  to fire off-site consistent with the payload, not that the open redirect is
+  generally controllable by an attacker. Incomplete resolution (a chain cut short
+  by a hop cap, transport failure, or denied authorization before reaching the
+  payload domain) stays inconclusive and emits nothing.
+- **Scoring:** informational, weight 0. It preserves the lexical
+  `open_redirect_param` suspicion and NEVER adds a second probabilistic score for
+  the same open redirect.
+
 ### `invisible_char` — FR-D-4 · weight 1.0 (blocker)
 
 - **Meaning:** invisible, zero-width, or control characters appear anywhere in

@@ -293,6 +293,15 @@ export const REASON_CODES = {
       "URL query carries a data-exfiltration shape: an exfil-marker parameter (data=/exfil=/beacon=/dump=/leak=/payload=) with a value, or any parameter carrying an abnormally long opaque base64/hex-style token — context/secrets smuggled out in the URL. Agent-gated (emits only under agentMode).",
   },
 
+  // ── Resolution (Layer 2 observed corroboration, weight 0) ────────────────
+  open_redirect_observed: {
+    layer: "resolution",
+    scoring: false,
+    weight: 0,
+    summary:
+      "A resolved redirect chain was observed to leave the input's registrable domain and land on the domain named by an open_redirect_param payload — resolution-time corroboration of the lexical suspicion, not proof of general exploitability. Informational (weight 0): it never re-scores the lexical open_redirect_param signal.",
+  },
+
   // ── Policy (caller-configured, weight 0) ─────────────────────────────────
   tld_denied: {
     layer: "policy",
