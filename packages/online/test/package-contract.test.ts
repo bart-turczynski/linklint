@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import * as online from "../src/index.js";
+import * as reputation from "../src/reputation/index.js";
 import * as resolution from "../src/resolution/index.js";
 import * as transport from "../src/transport/index.js";
 
@@ -33,6 +34,7 @@ describe("@linklint/online package boundary", () => {
     expect(manifest.exports).not.toHaveProperty("./testing");
     expect(manifest.exports).toHaveProperty("./transport");
     expect(manifest.exports).toHaveProperty("./resolution");
+    expect(manifest.exports).toHaveProperty("./reputation");
     expect(transport.createSafeTransport).toBeTypeOf("function");
     expect(transport.createNodeSafeTransport).toBeTypeOf("function");
     expect(transport.classifyTransportAddress).toBeTypeOf("function");
@@ -43,6 +45,11 @@ describe("@linklint/online package boundary", () => {
     expect(resolution.createRedirectChainEnricher).toBeTypeOf("function");
     const resolutionExport = manifest.exports["./resolution"] as Record<string, string>;
     expect(Object.keys(resolutionExport)).toEqual(["types", "default"]);
+    expect(reputation.fetchRdapDomain).toBeTypeOf("function");
+    expect(reputation.resolveRdapBase).toBeTypeOf("function");
+    expect(reputation.RDAP_SOURCE_DESCRIPTOR).toBeTypeOf("object");
+    const reputationExport = manifest.exports["./reputation"] as Record<string, string>;
+    expect(Object.keys(reputationExport)).toEqual(["types", "default"]);
   });
 
   it("does not grant online authority to the existing CLI or MCP packages", () => {

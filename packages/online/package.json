@@ -19,6 +19,10 @@
     "./resolution": {
       "types": "./dist/resolution/index.d.ts",
       "default": "./dist/resolution/index.js"
+    },
+    "./reputation": {
+      "types": "./dist/reputation/index.d.ts",
+      "default": "./dist/reputation/index.js"
     }
   },
   "files": ["dist", "README.md"],
