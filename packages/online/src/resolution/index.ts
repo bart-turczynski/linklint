@@ -9,6 +9,13 @@ export {
   decodeEmbeddedWrapper,
 } from "./embedded-wrapper.js";
 export {
+  DEFAULT_DIVERGENCE_PROBE_MAX_BODY_BYTES,
+  DEFAULT_DIVERGENCE_VARIANTS,
+  DIVERGENCE_PROBE_SOURCE_ID,
+  DIVERGENCE_PROBE_SOURCE_VERSION,
+  createDivergenceProbeEnricher,
+} from "./divergence-probe.js";
+export {
   MIME_SNIFF_PREFIX_BYTES,
   sniffMimeType,
 } from "./mime-sniff.js";
@@ -25,6 +32,14 @@ export type {
   SniffMimeRule,
   SniffedMimeType,
 } from "./mime-sniff.js";
+export type {
+  DivergenceProbeAuthorizationRequest,
+  DivergenceProbeAuthorizer,
+  DivergenceProbeEnricher,
+  DivergenceProbeEnricherOptions,
+  DivergenceProbeVariant,
+  DivergenceProbeVariantSummary,
+} from "./types.js";
 export type {
   DecodeEmbeddedWrapperOptions,
   EmbeddedWrapperDecodeCause,
