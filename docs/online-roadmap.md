@@ -55,26 +55,50 @@ and context that should survive individual work sessions.
   stays inconclusive. The payload-target extraction is the shared core helper
   `openRedirectParamTargets`, the single source of truth the lexical detector and
   the enricher both use.
+- L5 (`LINK-tibzpdft`) is done. A pure WHATWG MIME-sniff primitive
+  (`sniffMimeType`) computes an independent byte-derived essence; the
+  redirect-chain enricher records `resolution.mime-evidence` per hop (declared vs
+  computed, `nosniff`, incomplete on HEAD/empty body) and raises the informational
+  `content_type_mismatch` code only for the active sniff-to-executable case.
+- L4 (`LINK-vpqsjtjt`) is done. `createDivergenceProbeEnricher` resolves the
+  destination under a bounded set of controlled User-Agent variants; destination
+  divergence is evidence-only (`resolution.divergence`, no score, no cloaking
+  claim) and reliable challenge/CAPTCHA markers degrade to an explicit
+  `challenge-gate` resolution-incomplete outcome. Referer stays absent (L0 strips
+  it); the synthetic same-origin Referer variant is parked as `LINK-wlyoafto`.
+- L6 (`LINK-pzuppjnt`) is done. The deterministic acceptance gate: a Cucumber
+  protocol/safety/partial-state matrix (`features/resolution.feature`), a labeled
+  corpus with per-family precision/recall (wrapper/divergence/challenge/mime), and
+  contract pins for the evidence schema, per-source evidence types + check tokens,
+  machine-readable causes on every non-success outcome, and per-source privacy
+  disclosure. No live network in CI.
 
 ## Current execution frontier
 
-With LT, L0, L2, L1, and L3 done, the next default Epic L tasks are the
-remaining observed-evidence leaves — **`LINK-vpqsjtjt` (L4)** informational
-divergence / resolution-incomplete hints and **`LINK-tibzpdft` (L5)** response
-MIME evidence — before **`LINK-pzuppjnt` (L6)**, the deterministic corpus and
-acceptance gate.
+**Epic L is complete** (LT, L0–L6). The zero-external-network acceptance gate
+passes: `pnpm check` green at 1707 Vitest tests and 49 Cucumber scenarios. One
+optional low-priority follow-up is parked: **`LINK-wlyoafto` (L4b)** synthetic
+same-origin Referer variant (needs a dedicated same-origin L0 channel; must not
+regress the strip-private-Referer invariant).
 
-## Epic L dependency path
+The next default coordinator stream is **Epic M** (`LINK-aclentcb`,
+source-attributed reputation/infrastructure): complete the blocking privacy /
+licensing / provenance / BYOK contract **`LINK-nlnyqofz` (M2)** before any
+provider adapter. RDAP (M1) and caller-owned local mirrors may proceed after M2;
+M7 live TLS additionally depends on L0 (now done). Epic N remains a separate
+service, lowest priority.
+
+## Epic L dependency path (delivered)
 
 ```text
-LT  LINK-jsgadjni
-└─► L0  LINK-cjkdyxau
-    ├─► L1  LINK-hvirrwxa (done)  ◄─ L2 LINK-ehhmrblq
+LT  LINK-jsgadjni (done)
+└─► L0  LINK-cjkdyxau (done)
+    ├─► L1  LINK-hvirrwxa (done)  ◄─ L2 LINK-ehhmrblq (done)
     │   ├─► L3  LINK-rupjqxus (done)
-    │   ├─► L4  LINK-vpqsjtjt  ◄─ next
-    │   └─► L5  LINK-tibzpdft  ◄─ L0, next
+    │   ├─► L4  LINK-vpqsjtjt (done)  ─▶ L4b LINK-wlyoafto (parked)
+    │   └─► L5  LINK-tibzpdft (done)  ◄─ L0
     └────────────────────────────────────┐
-LT + L1 + L2 + L3 + L4 + L5 ───────────► L6 LINK-pzuppjnt
+LT + L1 + L2 + L3 + L4 + L5 ───────────► L6 LINK-pzuppjnt (done)
 ```
 
 - LT supplies deterministic resolver/connector/protocol fixtures.
@@ -132,10 +156,10 @@ When the coordinator is assigned again:
 1. Run `fp guide implement` and `fp context LINK-ddsnssrd`.
 2. Run `fp tree LINK-ddsnssrd` and `fp issue show` for the proposed child; do not
    trust this document for status if FP has moved on.
-3. Follow the Epic L dependency path above, selecting the first unblocked child
-   in the stated order. With LT, L0, L2, L1, and L3 done, the default frontier is
-   L4 informational divergence (`LINK-vpqsjtjt`) and L5 response MIME evidence
-   (`LINK-tibzpdft`), then the L6 acceptance gate (`LINK-pzuppjnt`).
+3. Epic L is complete. The next default stream is Epic M (`LINK-aclentcb`):
+   complete the blocking M2 privacy/licensing/provenance/BYOK contract
+   (`LINK-nlnyqofz`) before any provider adapter, then RDAP (M1) and caller-owned
+   local mirrors. Only the parked L4b (`LINK-wlyoafto`) remains under Epic L.
 4. Read [`online-runtime-boundary.md`](online-runtime-boundary.md),
    [`architecture.md`](architecture.md), and
    [`enrichment-outcomes.md`](enrichment-outcomes.md) before defining public
