@@ -317,6 +317,13 @@ export const REASON_CODES = {
     summary:
       "RDAP registration age for the ICANN registrable domain is below the young-domain threshold AND the domain already carries a lexical brand-impersonation signal (homoglyph/lookalike/skeleton/soundsquat/bitsquat/api-endpoint) — a conjunctive age × brand risk. Age alone is only evidence; this fires only with lexical corroboration, computes age on the registrable domain so ancient shared-hosting parents never read as young, and never duplicates the lexical brand reason.",
   },
+  malware_url_listed: {
+    layer: "reputation",
+    scoring: true,
+    weight: 1,
+    summary:
+      "The exact URL matches a record in a caller-owned URLhaus mirror snapshot that is currently listed online AND the snapshot is within its declared freshness — an authoritative, subject-tied malware-distribution match. The match is exact-URL only (never broadened to the host), so an offline/expired record or a stale snapshot stays evidence-only and a path/query mismatch is a no-hit; absence is never a safety claim.",
+  },
 
   // ── Policy (caller-configured, weight 0) ─────────────────────────────────
   tld_denied: {
