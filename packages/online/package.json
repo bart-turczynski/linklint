@@ -23,6 +23,10 @@
     "./reputation": {
       "types": "./dist/reputation/index.d.ts",
       "default": "./dist/reputation/index.js"
+    },
+    "./mirrors": {
+      "types": "./dist/mirrors/index.d.ts",
+      "default": "./dist/mirrors/index.js"
     }
   },
   "files": ["dist", "README.md"],

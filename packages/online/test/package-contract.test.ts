@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
+import * as mirrors from "../src/mirrors/index.js";
 import * as online from "../src/index.js";
 import * as reputation from "../src/reputation/index.js";
 import * as resolution from "../src/resolution/index.js";
@@ -35,6 +36,7 @@ describe("@linklint/online package boundary", () => {
     expect(manifest.exports).toHaveProperty("./transport");
     expect(manifest.exports).toHaveProperty("./resolution");
     expect(manifest.exports).toHaveProperty("./reputation");
+    expect(manifest.exports).toHaveProperty("./mirrors");
     expect(transport.createSafeTransport).toBeTypeOf("function");
     expect(transport.createNodeSafeTransport).toBeTypeOf("function");
     expect(transport.classifyTransportAddress).toBeTypeOf("function");
@@ -50,6 +52,11 @@ describe("@linklint/online package boundary", () => {
     expect(reputation.RDAP_SOURCE_DESCRIPTOR).toBeTypeOf("object");
     const reputationExport = manifest.exports["./reputation"] as Record<string, string>;
     expect(Object.keys(reputationExport)).toEqual(["types", "default"]);
+    expect(mirrors.updateUrlhausSnapshot).toBeTypeOf("function");
+    expect(mirrors.parseUrlhausCsv).toBeTypeOf("function");
+    expect(mirrors.URLHAUS_SOURCE_DESCRIPTOR).toBeTypeOf("object");
+    const mirrorsExport = manifest.exports["./mirrors"] as Record<string, string>;
+    expect(Object.keys(mirrorsExport)).toEqual(["types", "default"]);
   });
 
   it("does not grant online authority to the existing CLI or MCP packages", () => {
