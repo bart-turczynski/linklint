@@ -111,8 +111,12 @@ never leak into the fail-closed fetch path), and `normalizeTlsCertificate` with
 independent chain-trust/hostname/validity axes plus certificate-policy OIDs parsed
 from DER — and an evidence-only `tls.certificate` enricher/descriptor on
 `@linklint/online/reputation` (M7b) that never scores a finding. **M9a DNS/DNSSEC
-(`LINK-cmexavqu`) is the next Epic M task**, then M10 the cross-source gate last.
-Epic N remains a separate service, lowest priority.
+(`LINK-cmexavqu`) is now done**: an evidence-only DNS state adapter emitting
+`dns.records` evidence (A/AAAA/NS/MX state and mail semantics incl. RFC 7505
+null-MX, via an injected provider DNS port distinct from the L0 resolver) and
+`dns.dnssec` DNSSEC validation-state evidence, neither ever scoring a finding.
+**M10 the cross-source gate is now the last remaining Epic M task.** Epic N
+remains a separate service, lowest priority.
 
 ## Epic L dependency path (delivered)
 
@@ -152,7 +156,10 @@ LT + L1 + L2 + L3 + L4 + L5 ───────────► L6 LINK-pzuppjn
   (M5a app-key feed updater + M5b `verified_phish_listed` finding), and **M7 live
   TLS (`LINK-glysjdaa`) is done** (M7a observational TLS transport +
   `normalizeTlsCertificate`, M7b evidence-only `tls.certificate`
-  enricher/descriptor). Remaining: M9a DNS/DNSSEC (`LINK-cmexavqu`), then M10 gate.
+  enricher/descriptor), and **M9a DNS/DNSSEC (`LINK-cmexavqu`) is done** (M9a1
+  evidence-only DNS state adapter emitting `dns.records`, M9a2 evidence-only
+  `dns.dnssec` validation-state). **M10 the cross-source gate is the last
+  remaining Epic M task.**
 - Epic N (`LINK-ioctupur`) is a separate service, not an `inspectAsync()` loop.
   Its foundation starts at `LINK-pjyhavkg` (N0 durable runtime, state, and
   tenancy). N consumes specific contracts and does not depend on all of M.
