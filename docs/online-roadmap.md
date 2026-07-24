@@ -101,9 +101,18 @@ within-freshness exact match, never broadened to the host (M4b). **PhishTank M5
 app-key online-valid feed updater (path-keyed download, hourly/ETag refresh,
 429/509 throttle, atomic replacement — M5a) and the exact-URL lookup enricher
 whose `verified_phish_listed` finding fires only on a verified, online,
-within-freshness exact match (M5b). **M7 live TLS (`LINK-glysjdaa`) is the next
-Epic M task**; it uses the L0 safe transport (done). Epic N remains a separate
-service, lowest priority.
+within-freshness exact match (M5b). **M7 live TLS (`LINK-glysjdaa`) is now done**:
+an observational TLS capability on `@linklint/online/transport` (M7a) — a shared
+`pinDestination` seam so the fetch and observe paths make one SSRF/DNS-pinning
+decision, `createSafeTlsInspector`/`createNodeSafeTlsInspector` that connect with
+original-host SNI and `rejectUnauthorized:false` to OBSERVE certificates (a
+separate port with no HTTP layer, socket destroyed after capture, so observe can
+never leak into the fail-closed fetch path), and `normalizeTlsCertificate` with
+independent chain-trust/hostname/validity axes plus certificate-policy OIDs parsed
+from DER — and an evidence-only `tls.certificate` enricher/descriptor on
+`@linklint/online/reputation` (M7b) that never scores a finding. **M9a DNS/DNSSEC
+(`LINK-cmexavqu`) is the next Epic M task**, then M10 the cross-source gate last.
+Epic N remains a separate service, lowest priority.
 
 ## Epic L dependency path (delivered)
 
@@ -139,9 +148,11 @@ LT + L1 + L2 + L3 + L4 + L5 ───────────► L6 LINK-pzuppjn
   provider adapters build on it; **M1 RDAP (`LINK-tqlqshlt`) is done** (M1a
   client + M1b conjunctive `young_domain_brand_risk` finding), **M4 URLhaus
   (`LINK-zccpgjsa`) is done** (M4a Auth-Key mirror updater + M4b exact-URL
-  `malware_url_listed` finding), and **M5 PhishTank (`LINK-tvpdfgtw`) is done**
-  (M5a app-key feed updater + M5b `verified_phish_listed` finding). Remaining:
-  M7 TLS (depends on L0, done), M9a DNS, M10 gate.
+  `malware_url_listed` finding), **M5 PhishTank (`LINK-tvpdfgtw`) is done**
+  (M5a app-key feed updater + M5b `verified_phish_listed` finding), and **M7 live
+  TLS (`LINK-glysjdaa`) is done** (M7a observational TLS transport +
+  `normalizeTlsCertificate`, M7b evidence-only `tls.certificate`
+  enricher/descriptor). Remaining: M9a DNS/DNSSEC (`LINK-cmexavqu`), then M10 gate.
 - Epic N (`LINK-ioctupur`) is a separate service, not an `inspectAsync()` loop.
   Its foundation starts at `LINK-pjyhavkg` (N0 durable runtime, state, and
   tenancy). N consumes specific contracts and does not depend on all of M.
