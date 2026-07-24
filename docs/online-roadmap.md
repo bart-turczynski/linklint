@@ -115,8 +115,15 @@ from DER — and an evidence-only `tls.certificate` enricher/descriptor on
 `dns.records` evidence (A/AAAA/NS/MX state and mail semantics incl. RFC 7505
 null-MX, via an injected provider DNS port distinct from the L0 resolver) and
 `dns.dnssec` DNSSEC validation-state evidence, neither ever scoring a finding.
-**M10 the cross-source gate is now the last remaining Epic M task.** Epic N
-remains a separate service, lowest priority.
+**M10 the cross-source gate (`LINK-lbhcpjkj`) is now done**: a deterministic,
+zero-live-network Layer-3 acceptance gate — the cross-source descriptor contract
+fan-in, the per-source acceptance corpus at 1.0 precision/recall, and the
+cross-source composition properties — proving the five shipped sources (RDAP,
+URLhaus, PhishTank, TLS, DNS) compose additively, attribute honestly, and do not
+over-score. The documented model is
+[`layer3-reputation-model.md`](layer3-reputation-model.md). **Epic M's active
+scope is now complete** — the parked commercial providers live in Epic P (below).
+Epic N remains a separate service, lowest priority.
 
 ## Epic L dependency path (delivered)
 
@@ -158,11 +165,14 @@ LT + L1 + L2 + L3 + L4 + L5 ───────────► L6 LINK-pzuppjn
   `normalizeTlsCertificate`, M7b evidence-only `tls.certificate`
   enricher/descriptor), and **M9a DNS/DNSSEC (`LINK-cmexavqu`) is done** (M9a1
   evidence-only DNS state adapter emitting `dns.records`, M9a2 evidence-only
-  `dns.dnssec` validation-state). **M10 the cross-source gate is the last
-  remaining Epic M task, and is now unblocked**: it depends only on the five
-  shipped sources (M1 RDAP, M4 URLhaus, M5 PhishTank, M7 TLS, M9a DNS) — the
-  parked commercial providers were moved out to Epic P (below) and no longer
-  gate it.
+  `dns.dnssec` validation-state), and **M10 the cross-source gate
+  (`LINK-lbhcpjkj`) is done** (a deterministic zero-live-network Layer-3
+  acceptance gate — descriptor contract fan-in + per-source corpus at 1.0
+  precision/recall + cross-source composition — proving the five shipped sources
+  M1 RDAP, M4 URLhaus, M5 PhishTank, M7 TLS, M9a DNS compose without over-scoring;
+  see [`layer3-reputation-model.md`](layer3-reputation-model.md)). **Epic M's
+  shipped scope is complete**; the parked commercial providers were moved out to
+  Epic P (below) and are the only remaining M-adjacent work.
 - Epic N (`LINK-ioctupur`) is a separate service, not an `inspectAsync()` loop.
   Its foundation starts at `LINK-pjyhavkg` (N0 durable runtime, state, and
   tenancy). N consumes specific contracts and does not depend on all of M.
