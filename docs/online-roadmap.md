@@ -96,9 +96,14 @@ only when the registrable domain's RDAP age is below the young-domain threshold
 caller-owned Auth-Key dump updater (cadence/conditional refresh, 429 backoff,
 atomic snapshot replacement, secret-safe logging — M4a) and the exact-URL local
 lookup enricher whose `malware_url_listed` finding fires only on an online,
-within-freshness exact match, never broadened to the host (M4b). PhishTank M5
-(`LINK-tvpdfgtw`) is the next caller-owned mirror; M7 live TLS additionally
-depends on L0 (done). Epic N remains a separate service, lowest priority.
+within-freshness exact match, never broadened to the host (M4b). **PhishTank M5
+(`LINK-tvpdfgtw`) is now done** on the same caller-owned-mirror pattern: an
+app-key online-valid feed updater (path-keyed download, hourly/ETag refresh,
+429/509 throttle, atomic replacement — M5a) and the exact-URL lookup enricher
+whose `verified_phish_listed` finding fires only on a verified, online,
+within-freshness exact match (M5b). **M7 live TLS (`LINK-glysjdaa`) is the next
+Epic M task**; it uses the L0 safe transport (done). Epic N remains a separate
+service, lowest priority.
 
 ## Epic L dependency path (delivered)
 
@@ -132,9 +137,10 @@ LT + L1 + L2 + L3 + L4 + L5 ───────────► L6 LINK-pzuppjn
   `LINK-nlnyqofz` (M2 privacy, licensing, provenance, and BYOK contract) is
   **done** — see [`online-source-contract.md`](online-source-contract.md). M
   provider adapters build on it; **M1 RDAP (`LINK-tqlqshlt`) is done** (M1a
-  client + M1b conjunctive `young_domain_brand_risk` finding) and **M4 URLhaus
+  client + M1b conjunctive `young_domain_brand_risk` finding), **M4 URLhaus
   (`LINK-zccpgjsa`) is done** (M4a Auth-Key mirror updater + M4b exact-URL
-  `malware_url_listed` finding). Remaining: M5 PhishTank caller-owned mirror,
+  `malware_url_listed` finding), and **M5 PhishTank (`LINK-tvpdfgtw`) is done**
+  (M5a app-key feed updater + M5b `verified_phish_listed` finding). Remaining:
   M7 TLS (depends on L0, done), M9a DNS, M10 gate.
 - Epic N (`LINK-ioctupur`) is a separate service, not an `inspectAsync()` loop.
   Its foundation starts at `LINK-pjyhavkg` (N0 durable runtime, state, and
