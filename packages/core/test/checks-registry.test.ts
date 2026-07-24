@@ -14,12 +14,17 @@ const registryCodeSet = new Set<string>(registryCodes);
 // REVERSE coverage invariant must NOT expect a detector to own them:
 //   • policy-layer codes (tld_denied, host_denied, scheme_denied, …) are produced
 //     by the caller-configured policy channel, not by any detector in CHECKS.
+//   • resolution/reputation-layer codes (open_redirect_observed, …) are emitted by
+//     the opt-in @linklint/online enrichers over network evidence, not by any
+//     synchronous, zero-network detector in CHECKS.
 //   • `parse_error` is a lexical META code emitted on the invalid/unparseable path
 //     (when there is no URL to run detectors over), not by any check.
 // Derived programmatically from REASON_CODES — never a hardcoded literal list — so
 // the expected detector-owned set tracks the registry automatically.
 const detectorOwnedCodes = registryCodes.filter(
-  (code) => REASON_CODES[code].layer !== "policy" && code !== "parse_error",
+  (code) =>
+    REASON_CODES[code].layer === "lexical" &&
+    code !== "parse_error",
 );
 
 describe("CHECKS registry ⇄ REASON_CODES coverage invariants", () => {

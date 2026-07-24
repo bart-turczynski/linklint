@@ -112,6 +112,10 @@ export { scanAmbiguousAuthority } from "./detectors/ambiguous-authority.js";
 export { scanSeparatorLookalike } from "./detectors/separator-lookalike.js";
 export { scanIdnaMappingAmbiguity } from "./detectors/idna-mapping-ambiguity.js";
 export { scanControlChar } from "./detectors/control-char.js";
+export {
+  openRedirectParamTargets,
+  type OpenRedirectTarget,
+} from "./detectors/open-redirect-param.js";
 export type { Detector, DetectorFinding, InspectionContext } from "./detectors/types.js";
 
 // Policy channel (advanced consumers)

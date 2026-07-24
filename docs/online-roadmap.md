@@ -46,13 +46,23 @@ and context that should survive individual work sessions.
   through one cumulative L0 session, re-inspects discovered targets offline,
   retains ordered hop evidence, and projects only de-duplicated worst-hop
   findings.
+- L3 (`LINK-rupjqxus`) is done. The redirect-chain enricher correlates a lexical
+  `open_redirect_param` suspicion with the observed chain: when a resolved hop is
+  observed to leave the input's registrable domain and land on the domain named
+  by a decoded redirect-parameter payload, it emits a distinct, informational
+  `open_redirect_observed` resolution record (weight 0, so it never re-scores the
+  lexical signal). Incomplete resolution that never reaches the payload domain
+  stays inconclusive. The payload-target extraction is the shared core helper
+  `openRedirectParamTargets`, the single source of truth the lexical detector and
+  the enricher both use.
 
 ## Current execution frontier
 
-The next default task under the coordinator is **claim `LINK-rupjqxus` (L3)** —
-correlate lexical `open_redirect_param` suspicion with the observed bounded
-chain without overstating general exploitability or duplicating score. L1 now
-satisfies its prerequisite.
+With LT, L0, L2, L1, and L3 done, the next default Epic L tasks are the
+remaining observed-evidence leaves — **`LINK-vpqsjtjt` (L4)** informational
+divergence / resolution-incomplete hints and **`LINK-tibzpdft` (L5)** response
+MIME evidence — before **`LINK-pzuppjnt` (L6)**, the deterministic corpus and
+acceptance gate.
 
 ## Epic L dependency path
 
@@ -60,9 +70,9 @@ satisfies its prerequisite.
 LT  LINK-jsgadjni
 └─► L0  LINK-cjkdyxau
     ├─► L1  LINK-hvirrwxa (done)  ◄─ L2 LINK-ehhmrblq
-    │   ├─► L3  LINK-rupjqxus  ◄─ next
-    │   ├─► L4  LINK-vpqsjtjt
-    │   └─► L5  LINK-tibzpdft  ◄─ L0
+    │   ├─► L3  LINK-rupjqxus (done)
+    │   ├─► L4  LINK-vpqsjtjt  ◄─ next
+    │   └─► L5  LINK-tibzpdft  ◄─ L0, next
     └────────────────────────────────────┐
 LT + L1 + L2 + L3 + L4 + L5 ───────────► L6 LINK-pzuppjnt
 ```
@@ -123,8 +133,9 @@ When the coordinator is assigned again:
 2. Run `fp tree LINK-ddsnssrd` and `fp issue show` for the proposed child; do not
    trust this document for status if FP has moved on.
 3. Follow the Epic L dependency path above, selecting the first unblocked child
-   in the stated order. With LT, L0, L2, and L1 done, the default frontier is L3
-   observed redirect correlation (`LINK-rupjqxus`).
+   in the stated order. With LT, L0, L2, L1, and L3 done, the default frontier is
+   L4 informational divergence (`LINK-vpqsjtjt`) and L5 response MIME evidence
+   (`LINK-tibzpdft`), then the L6 acceptance gate (`LINK-pzuppjnt`).
 4. Read [`online-runtime-boundary.md`](online-runtime-boundary.md),
    [`architecture.md`](architecture.md), and
    [`enrichment-outcomes.md`](enrichment-outcomes.md) before defining public

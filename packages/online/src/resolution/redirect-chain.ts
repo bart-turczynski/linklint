@@ -2,6 +2,7 @@ import {
   ENRICHMENT_SCHEMA_VERSION,
   REASON_CODES,
   inspect,
+  openRedirectParamTargets,
   type EnricherFinding,
   type EnrichmentEvidence,
   type EnrichmentFreshness,
@@ -56,6 +57,18 @@ interface FollowTransition {
   readonly kind: RedirectChainTransitionKind;
   readonly targetUrl: string;
   readonly delayMs: number | null;
+}
+
+/**
+ * A confirmed correlation between the lexical `open_redirect_param` suspicion and
+ * an observed chain hop that actually landed on the payload's registrable domain
+ * (L3, `LINK-rupjqxus`). The finding is informational (weight 0), so it preserves
+ * the lexical signal without adding a second probabilistic score.
+ */
+interface OpenRedirectCorrelation {
+  readonly hop: ChainHop;
+  readonly finding: EnricherFinding;
+  readonly evidence: EnrichmentEvidence;
 }
 
 type TransitionDecision =
@@ -257,9 +270,16 @@ export function createRedirectChainEnricher(
       const baseCodes = new Set(
         base.reasons.filter((item) => item.suppressed !== true).map((item) => item.code),
       );
+      const correlation = correlateOpenRedirect(
+        base,
+        hops,
+        baseCodes,
+        inspectOptions.maxDecodeDepth,
+      );
       const outcomes = hops.map((hop) => hopOutcome(
         hop,
         hop === worst ? offlineFindings(hop.offline, hop.hop, baseCodes) : [],
+        correlation !== null && correlation.hop === hop ? correlation : null,
       ));
       outcomes.push(...stops);
       return report(outcomes);
@@ -394,7 +414,11 @@ function resolveTransition(
   };
 }
 
-function hopOutcome(hop: ChainHop, findings: EnricherFinding[]): EnrichmentOutcome {
+function hopOutcome(
+  hop: ChainHop,
+  findings: EnricherFinding[],
+  correlation: OpenRedirectCorrelation | null,
+): EnrichmentOutcome {
   const subject = { kind: "url" as const, value: hop.url };
   const provenance = declaredProvenance();
   return {
@@ -430,8 +454,9 @@ function hopOutcome(hop: ChainHop, findings: EnricherFinding[]): EnrichmentOutco
           offlineInspection: offlineInspection(hop.offline),
         },
       },
+      ...(correlation === null ? [] : [correlation.evidence]),
     ],
-    findings,
+    findings: correlation === null ? findings : [...findings, correlation.finding],
   };
 }
 
@@ -503,6 +528,85 @@ function worstHop(hops: readonly ChainHop[]): ChainHop | undefined {
     }
   }
   return worst;
+}
+
+/**
+ * Correlate a lexical `open_redirect_param` suspicion with the observed chain.
+ *
+ * Only fires when the base offline result actually raised `open_redirect_param`
+ * AND a resolved hop was observed to leave the input's registrable domain and
+ * land on a registrable domain named by a decoded redirect-parameter payload —
+ * the same registrable-domain-divergence premise the lexical detector uses, not
+ * a full-origin comparison. Incomplete resolution that never reaches a payload
+ * domain returns `null` (inconclusive: nothing is emitted). The result is an
+ * informational, weight-0 corroboration, never a duplicate probabilistic score.
+ */
+function correlateOpenRedirect(
+  base: InspectResult,
+  hops: readonly ChainHop[],
+  baseCodes: ReadonlySet<string>,
+  maxDecodeDepth: number | undefined,
+): OpenRedirectCorrelation | null {
+  if (!baseCodes.has("open_redirect_param")) return null;
+
+  const inputDomainLower = base.parsed?.registrableDomain?.toLowerCase() ?? null;
+  const targets = openRedirectParamTargets(
+    base.parsed?.query ?? null,
+    inputDomainLower,
+    maxDecodeDepth,
+  );
+  if (targets.length === 0) return null;
+
+  // First matched payload wins per landing domain; mirrors the lexical detector's
+  // left-to-right precedence when multiple redirect parameters are present.
+  const paramByDomain = new Map<string, string>();
+  for (const target of targets) {
+    const key = target.registrableDomain.toLowerCase();
+    if (!paramByDomain.has(key)) paramByDomain.set(key, target.param);
+  }
+
+  for (const hop of hops) {
+    const observed = hop.offline.parsed?.registrableDomain ?? null;
+    if (observed === null) continue;
+    const observedLower = observed.toLowerCase();
+    // An on-site hop is not an off-site landing. Payload domains already exclude
+    // the input domain, so this only guards a null/blank input domain.
+    if (observedLower === inputDomainLower) continue;
+    const param = paramByDomain.get(observedLower);
+    if (param === undefined) continue;
+
+    const subject = { kind: "url" as const, value: hop.url };
+    const provenance = declaredProvenance();
+    const payload: EnrichmentPayload = {
+      param,
+      payloadRegistrableDomain: observed,
+      observedRegistrableDomain: observed,
+      inputRegistrableDomain: base.parsed?.registrableDomain ?? null,
+      hop: hop.hop,
+      consistent: true,
+    };
+    return {
+      hop,
+      finding: {
+        code: "open_redirect_observed",
+        detail:
+          `Observed redirect chain left '${base.parsed?.registrableDomain ?? "(none)"}' and landed ` +
+          `on '${observed}' at hop ${hop.hop}, matching the open_redirect_param payload in ` +
+          `parameter '${param}' — resolution-time corroboration of the lexical suspicion, not ` +
+          `proof of general exploitability`,
+      },
+      evidence: {
+        type: "resolution.open-redirect-observed",
+        subject,
+        observedAt: hop.observedAt,
+        provenance,
+        freshness: FRESHNESS,
+        payload,
+      },
+    };
+  }
+
+  return null;
 }
 
 function offlineFindings(
