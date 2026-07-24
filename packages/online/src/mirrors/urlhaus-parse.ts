@@ -14,6 +14,7 @@
  * failure and never overwrites a good snapshot with garbage.
  */
 
+import { parseCsvRow, splitCsvLines } from "./csv.js";
 import type { UrlhausRecord, UrlhausUrlStatus } from "./types.js";
 
 /** Expected data column count of a URLhaus CSV row. */
@@ -26,12 +27,10 @@ const URLHAUS_COLUMN_COUNT = 9;
 export function parseUrlhausCsv(body: string): { readonly records: UrlhausRecord[] } | null {
   if (typeof body !== "string" || body.trim() === "") return null;
 
-  const lines = body.split(/\r\n|\r|\n/);
   let recognized = false;
   const records: UrlhausRecord[] = [];
 
-  for (const line of lines) {
-    if (line.trim() === "") continue;
+  for (const line of splitCsvLines(body)) {
     if (line.startsWith("#")) {
       // The abuse.ch header block signs the file as a genuine URLhaus export.
       if (/urlhaus/i.test(line)) recognized = true;
@@ -73,43 +72,6 @@ function toRecord(fields: readonly string[]): UrlhausRecord | null {
     tags,
     reporter: nonEmpty(fields[8]),
   };
-}
-
-/**
- * Split one RFC 4180-style CSV line into fields. Fields may be double-quoted,
- * with `""` escaping a literal quote. Returns `null` on an unterminated quote.
- */
-function parseCsvRow(line: string): string[] | null {
-  const fields: string[] = [];
-  let field = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i]!;
-    if (inQuotes) {
-      if (char === '"') {
-        if (line[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        field += char;
-      }
-    } else if (char === '"') {
-      inQuotes = true;
-    } else if (char === ",") {
-      fields.push(field);
-      field = "";
-    } else {
-      field += char;
-    }
-  }
-
-  if (inQuotes) return null;
-  fields.push(field);
-  return fields;
 }
 
 function urlStatus(value: string | undefined): UrlhausUrlStatus {

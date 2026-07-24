@@ -38,3 +38,29 @@ export type {
   UrlhausUpdateResult,
   UrlhausUrlStatus,
 } from "./types.js";
+
+export {
+  PHISHTANK_DATA_BASE_URL,
+  PHISHTANK_DEFAULT_CADENCE_MS,
+  PHISHTANK_ONLINE_VALID_FEED,
+  PHISHTANK_SOURCE_DESCRIPTOR,
+  PHISHTANK_SOURCE_ID,
+  PHISHTANK_SOURCE_VERSION,
+} from "./phishtank-descriptor.js";
+export { parsePhishTankCsv } from "./phishtank-parse.js";
+export { updatePhishTankSnapshot } from "./phishtank-updater.js";
+export type {
+  PhishTankCause,
+  PhishTankCauseCode,
+  PhishTankClock,
+  PhishTankHttpClient,
+  PhishTankHttpRequest,
+  PhishTankHttpResponse,
+  PhishTankIndex,
+  PhishTankRecord,
+  PhishTankSnapshot,
+  PhishTankSnapshotMetadata,
+  PhishTankSnapshotStore,
+  PhishTankUpdateResult,
+  UpdatePhishTankSnapshotOptions,
+} from "./phishtank-types.js";
