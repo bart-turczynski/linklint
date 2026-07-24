@@ -159,16 +159,24 @@ LT + L1 + L2 + L3 + L4 + L5 ───────────► L6 LINK-pzuppjn
   enricher/descriptor), and **M9a DNS/DNSSEC (`LINK-cmexavqu`) is done** (M9a1
   evidence-only DNS state adapter emitting `dns.records`, M9a2 evidence-only
   `dns.dnssec` validation-state). **M10 the cross-source gate is the last
-  remaining Epic M task.**
+  remaining Epic M task, and is now unblocked**: it depends only on the five
+  shipped sources (M1 RDAP, M4 URLhaus, M5 PhishTank, M7 TLS, M9a DNS) — the
+  parked commercial providers were moved out to Epic P (below) and no longer
+  gate it.
 - Epic N (`LINK-ioctupur`) is a separate service, not an `inspectAsync()` loop.
   Its foundation starts at `LINK-pjyhavkg` (N0 durable runtime, state, and
   tenancy). N consumes specific contracts and does not depend on all of M.
-- Google Safe Browsing M3, VirusTotal M6, and licensed hosting M9b remain parked
-  pending explicit product/terms decisions. Former Epic O is outside this
-  implementation roadmap.
+- Epic P (`LINK-mklsgmyn`, low) collects the third-party commercial/licensed
+  reputation integrations — Google Safe Browsing M3 (`LINK-ygnmxxxv`), VirusTotal
+  M6 (`LINK-yeyefxak`), and licensed hosting ASN/geo M9b (`LINK-brnpohdw`). Each
+  is blocked on a product/terms/licensing decision, not on any code, so they were
+  split out of Epic M and stay parked until an explicit decision unparks them.
+  None gates M10 or the offline core; when one ships it extends the M10 gate.
+  Former Epic O is outside this implementation roadmap.
 
 The default coordinator priority is Epic L (high), then active M work (medium),
-then N (low), unless the user explicitly selects another stream.
+then N and the parked Epic P (low), unless the user explicitly selects another
+stream.
 
 ## Binding invariants
 
