@@ -56,6 +56,10 @@ describe("@linklint/online package boundary", () => {
     expect(reputation.fetchRdapDomain).toBeTypeOf("function");
     expect(reputation.resolveRdapBase).toBeTypeOf("function");
     expect(reputation.RDAP_SOURCE_DESCRIPTOR).toBeTypeOf("object");
+    // M7b: live TLS certificate evidence enricher.
+    expect(reputation.createTlsCertificateEnricher).toBeTypeOf("function");
+    expect(reputation.TLS_SOURCE_DESCRIPTOR).toBeTypeOf("object");
+    expect(reputation.TLS_CERTIFICATE_EVIDENCE_TYPE).toBe("tls.certificate");
     const reputationExport = manifest.exports["./reputation"] as Record<string, string>;
     expect(Object.keys(reputationExport)).toEqual(["types", "default"]);
     expect(mirrors.updateUrlhausSnapshot).toBeTypeOf("function");
