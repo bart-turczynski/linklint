@@ -528,6 +528,33 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 - **Scoring:** weight 0.5, reputation layer. It corroborates rather than proves;
   online evidence is additive and never replaces the lexical verdict.
 
+### `malware_url_listed` — Epic M (M4b) · reputation layer, weight 1.0 (blocker)
+
+- **Meaning:** the Layer 3 URLhaus mirror lookup (`@linklint/online/mirrors`)
+  found the **exact inspected URL** in a caller-owned URLhaus snapshot, the record
+  is currently listed **online**, and the snapshot is **within its declared
+  freshness**. URLhaus curates direct malware-distribution URLs, so an exact match
+  is authoritative, subject-tied evidence that this specific URL serves malware.
+- **Why it's a signal:** unlike a lexical heuristic, an exact-URL match against a
+  curated abuse feed is a confirmed listing of that URL — the strongest reputation
+  signal linklint carries. Lookup happens against a local snapshot with **no
+  network I/O at check time**.
+- **Exact-URL only:** the URL is canonicalized (scheme/host lower-cased, IDN to
+  A-label, default port dropped, fragment removed) and compared **exactly**,
+  including path and query. The match is never broadened to the host, so a
+  different path or query is a `no-hit` and a subdomain/parent is never a match —
+  broadening cannot manufacture a finding.
+- **Evidence vs. finding:** every match emits a `urlhaus.match` evidence artifact
+  (record id, URL, status, threat, tags, dateAdded/lastOnline, snapshot time).
+  The scored finding is raised **only** when the record is online AND the snapshot
+  is fresh. An offline or expired record, or a stale/unknown-freshness snapshot,
+  stays evidence-only.
+- **Absence is not safety:** a miss is a completed `no-hit` against one feed at
+  one time, never a clean-verdict claim. A missing, empty, or stale snapshot
+  degrades to `skipped`/evidence, never to safe.
+- **Scoring:** weight 1.0 (blocker), reputation layer. Online evidence is additive
+  and extends — never replaces — the lexical verdict.
+
 ### `invisible_char` — FR-D-4 · weight 1.0 (blocker)
 
 - **Meaning:** invisible, zero-width, or control characters appear anywhere in

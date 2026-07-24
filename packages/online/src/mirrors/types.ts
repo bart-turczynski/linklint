@@ -103,6 +103,20 @@ export interface UrlhausSnapshot {
 }
 
 /**
+ * A read-only exact-URL lookup view over a snapshot, built once by
+ * `createUrlhausIndex`. `lookup` canonicalizes its argument the same way the
+ * indexed records were canonicalized and returns the matching record or `null` —
+ * an exact match only, never broadened to the host. Used by the M4b enricher at
+ * check time with no network I/O.
+ */
+export interface UrlhausIndex {
+  /** The freshness/identity metadata of the snapshot this index was built from. */
+  readonly metadata: UrlhausSnapshotMetadata;
+  /** Exact-URL lookup. Returns the matching record, or `null` on a miss/uncanonicalizable input. */
+  lookup(url: string): UrlhausRecord | null;
+}
+
+/**
  * Caller-owned snapshot store. The caller supplies the concrete storage
  * (directory, database, object store). `replace` MUST swap the snapshot
  * atomically — a reader never observes a partial dataset — and the updater only

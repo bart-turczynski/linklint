@@ -54,6 +54,9 @@ describe("@linklint/online package boundary", () => {
     expect(Object.keys(reputationExport)).toEqual(["types", "default"]);
     expect(mirrors.updateUrlhausSnapshot).toBeTypeOf("function");
     expect(mirrors.parseUrlhausCsv).toBeTypeOf("function");
+    expect(mirrors.createUrlhausIndex).toBeTypeOf("function");
+    expect(mirrors.createUrlhausEnricher).toBeTypeOf("function");
+    expect(mirrors.canonicalizeUrl).toBeTypeOf("function");
     expect(mirrors.URLHAUS_SOURCE_DESCRIPTOR).toBeTypeOf("object");
     const mirrorsExport = manifest.exports["./mirrors"] as Record<string, string>;
     expect(Object.keys(mirrorsExport)).toEqual(["types", "default"]);
