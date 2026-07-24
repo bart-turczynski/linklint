@@ -1,8 +1,12 @@
 /**
  * Explicit Node/server online capabilities for linklint.
  *
- * Capability exports are added only when their authorization and evidence
- * contracts ship. Importing this package has no side effects and performs no
- * network I/O.
+ * The package root owns public online configuration, consent, source metadata,
+ * and composition APIs (see docs/online-runtime-boundary.md). It ships the
+ * blocking online-source contract (M2) that every provider adapter must declare
+ * and satisfy. Concrete transport, resolution, and provider capabilities live
+ * under their own subpaths. Importing this package has no side effects and
+ * performs no network I/O.
  */
-export {};
+
+export * from "./sources/index.js";
