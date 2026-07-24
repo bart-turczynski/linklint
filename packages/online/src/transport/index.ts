@@ -14,7 +14,44 @@ export {
   createNodeSafeTransport,
   type CreateNodeSafeTransportOptions,
 } from "./node.js";
+export {
+  createSafeTlsInspector,
+  type CreateSafeTlsInspectorOptions,
+} from "./tls-inspect.js";
+export {
+  createNodeSafeTlsInspector,
+  type CreateNodeSafeTlsInspectorOptions,
+} from "./tls-node.js";
+export {
+  DEFAULT_TLS_INSPECTION_POLICY,
+  normalizeTlsCertificate,
+  resolveTlsInspectionPolicy,
+  TlsCertificateAnalysisError,
+  type NormalizeContext,
+  type TlsCertificateAnalysisCode,
+} from "./tls-certificate.js";
+export { DerParseError, readCertificatePolicyOids } from "./tls-der.js";
 export { SystemClock } from "./system-clock.js";
+export type {
+  CertificateAssuranceLevel,
+  NormalizedCertificate,
+  NormalizedTlsObservation,
+  SafeTlsInspector,
+  TlsCertificateDefect,
+  TlsCertificateValidation,
+  TlsHandshakeObservation,
+  TlsInspectionPolicy,
+  TlsInspectRequest,
+  TlsObservationBlocked,
+  TlsObservationCause,
+  TlsObservationCauseCode,
+  TlsObservationEvidence,
+  TlsObservationIncomplete,
+  TlsObservationOutcome,
+  TlsObservationPort,
+  TlsObserved,
+  TlsObserveConnectRequest,
+} from "./tls-types.js";
 export type {
   ClockPort,
   ConnectRequest,

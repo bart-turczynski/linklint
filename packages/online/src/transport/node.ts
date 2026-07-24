@@ -1,4 +1,3 @@
-import { lookup } from "node:dns/promises";
 import {
   request as nodeHttpRequest,
   type IncomingHttpHeaders,
@@ -16,17 +15,16 @@ import {
   type TLSSocket,
 } from "node:tls";
 
+import { NodeResolver, systemErrorCode } from "./node-resolver.js";
 import { createSafeTransport } from "./safe-transport.js";
 import { SystemClock } from "./system-clock.js";
 import type { TransportPolicy } from "./policy.js";
 import type {
   ConnectRequest,
   ConnectorPort,
-  DnsAddress,
   HttpPort,
   HttpRequest,
   HttpResponse,
-  ResolveRequest,
   ResolverPort,
   SafeTransport,
   TransportConnection,
@@ -44,30 +42,6 @@ class NodeAbortError extends Error {
   constructor() {
     super("node transport operation aborted");
     this.name = "AbortError";
-  }
-}
-
-class NodeResolver implements ResolverPort {
-  async resolve(request: ResolveRequest): Promise<readonly DnsAddress[]> {
-    try {
-      const pending = lookup(request.hostname, { all: true, verbatim: true });
-      const answers = await abortable(pending, request.signal);
-      return answers.map((answer) => ({
-        address: answer.address,
-        family: answer.family === 6 ? 6 : 4,
-        ttlSeconds: 0,
-      }));
-    } catch (error) {
-      if (error instanceof NodeAbortError) throw error;
-      const code = systemErrorCode(error);
-      if (code === "ENOTFOUND" || code === "ENODATA") {
-        throw new NodePortFailure("dns-not-found");
-      }
-      if (code === "EAI_AGAIN" || code === "ETIMEOUT") {
-        throw new NodePortFailure("dns-timeout");
-      }
-      throw new NodePortFailure("dns-error");
-    }
   }
 }
 
@@ -257,12 +231,6 @@ function peerDnsNames(certificate: PeerCertificate): readonly string[] {
     .map((entry) => entry.slice(4));
 }
 
-function systemErrorCode(error: unknown): string | null {
-  return typeof error === "object" && error !== null && "code" in error
-    ? String(error.code)
-    : null;
-}
-
 function isCertificateError(code: string | null): boolean {
   return code !== null && (
     code.startsWith("ERR_TLS_CERT") ||
@@ -272,20 +240,4 @@ function isCertificateError(code: string | null): boolean {
     code === "CERT_HAS_EXPIRED" ||
     code === "ERR_TLS_CERT_ALTNAME_INVALID"
   );
-}
-
-async function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
-  if (!signal) return promise;
-  if (signal.aborted) throw new NodeAbortError();
-  let onAbort: (() => void) | undefined;
-  const aborted = new Promise<never>((_resolve, reject) => {
-    onAbort = () => reject(new NodeAbortError());
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
-  try {
-    return await Promise.race([promise, aborted]);
-  } finally {
-    if (onAbort) signal.removeEventListener("abort", onAbort);
-    void promise.catch(() => undefined);
-  }
 }
