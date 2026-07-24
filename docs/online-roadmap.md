@@ -81,12 +81,14 @@ optional low-priority follow-up is parked: **`LINK-wlyoafto` (L4b)** synthetic
 same-origin Referer variant (needs a dedicated same-origin L0 channel; must not
 regress the strip-private-Referer invariant).
 
-The next default coordinator stream is **Epic M** (`LINK-aclentcb`,
-source-attributed reputation/infrastructure): complete the blocking privacy /
-licensing / provenance / BYOK contract **`LINK-nlnyqofz` (M2)** before any
-provider adapter. RDAP (M1) and caller-owned local mirrors may proceed after M2;
-M7 live TLS additionally depends on L0 (now done). Epic N remains a separate
-service, lowest priority.
+**Epic M is now unblocked.** The blocking contract **`LINK-nlnyqofz` (M2)** is
+done: `@linklint/online` ships the source-contract root export (descriptor
+validation, terms/attribution construction gate, credential/disclosure runtime
+skips, `OnlineSecret` BYOK wrapper, freshness helper, and evidence-vs-score
+policy), documented in [`online-source-contract.md`](online-source-contract.md)
+and enforced by a shared contract-test kit. RDAP (M1) and caller-owned local
+mirrors (M4/M5) may now proceed; M7 live TLS additionally depends on L0 (done).
+Epic N remains a separate service, lowest priority.
 
 ## Epic L dependency path (delivered)
 
@@ -117,8 +119,10 @@ LT + L1 + L2 + L3 + L4 + L5 ───────────► L6 LINK-pzuppjn
 ## Other active streams
 
 - Epic M (`LINK-aclentcb`) is source-attributed reputation/infrastructure.
-  `LINK-nlnyqofz` (M2 privacy, licensing, provenance, and BYOK contract) must be
-  completed before any M provider adapter. M7 live TLS also depends on L0.
+  `LINK-nlnyqofz` (M2 privacy, licensing, provenance, and BYOK contract) is
+  **done** — see [`online-source-contract.md`](online-source-contract.md). M
+  provider adapters (M1 RDAP, M4/M5 mirrors, M7 TLS, M9a DNS) build on it; M7
+  live TLS also depends on L0.
 - Epic N (`LINK-ioctupur`) is a separate service, not an `inspectAsync()` loop.
   Its foundation starts at `LINK-pjyhavkg` (N0 durable runtime, state, and
   tenancy). N consumes specific contracts and does not depend on all of M.

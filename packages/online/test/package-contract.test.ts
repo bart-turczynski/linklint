@@ -24,8 +24,12 @@ describe("@linklint/online package boundary", () => {
     expect(JSON.stringify(manifest.exports)).not.toContain('"browser"');
   });
 
-  it("keeps fixture infrastructure internal and the root side-effect free", () => {
-    expect(Object.keys(online)).toEqual([]);
+  it("exposes the source contract at the root and keeps fixtures internal", () => {
+    // The root owns public source metadata, consent, and BYOK contract (M2).
+    expect(online.preflightOnlineSource).toBeTypeOf("function");
+    expect(online.assertValidSourceDescriptor).toBeTypeOf("function");
+    expect(online.createOnlineSecret).toBeTypeOf("function");
+    expect(online.OnlineSourceConfigError).toBeTypeOf("function");
     expect(manifest.exports).not.toHaveProperty("./testing");
     expect(manifest.exports).toHaveProperty("./transport");
     expect(manifest.exports).toHaveProperty("./resolution");
