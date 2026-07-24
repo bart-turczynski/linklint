@@ -301,6 +301,13 @@ export const REASON_CODES = {
     summary:
       "A resolved redirect chain was observed to leave the input's registrable domain and land on the domain named by an open_redirect_param payload — resolution-time corroboration of the lexical suspicion, not proof of general exploitability. Informational (weight 0): it never re-scores the lexical open_redirect_param signal.",
   },
+  content_type_mismatch: {
+    layer: "resolution",
+    scoring: false,
+    weight: 0,
+    summary:
+      "A resolved response's bytes sniff to an active/executable type (html/xml) that diverges from the declared Content-Type with no nosniff — resolution-time content-type-spoofing corroboration, informational (weight 0).",
+  },
 
   // ── Policy (caller-configured, weight 0) ─────────────────────────────────
   tld_denied: {

@@ -449,6 +449,124 @@ describe("L3 observed open-redirect correlation", () => {
   });
 });
 
+describe("L5 response MIME evidence", () => {
+  const start = "https://origin.example/asset";
+  const scriptBody = "<script>alert(document.cookie)</script>";
+
+  function mimeEvidence(result: Awaited<ReturnType<typeof inspectAsync>>) {
+    const outcome = result.enrichment?.outcomes.find(
+      (item) => item.subject.value === start,
+    );
+    return {
+      outcome,
+      record: outcome?.evidence.find((item) => item.type === "resolution.mime-evidence"),
+    };
+  }
+
+  it("flags an active mismatch when declared PNG bytes sniff to executable HTML without nosniff", async () => {
+    const { harness, enricher } = fixtureEnricher([
+      { url: start, status: 200, headers: { "content-type": "image/png" }, body: scriptBody },
+    ]);
+
+    const result = await inspectAsync(start, { enrichers: [enricher] });
+    const { outcome, record } = mimeEvidence(result);
+
+    expect(record?.payload).toMatchObject({
+      hop: 1,
+      status: "classified",
+      declaredEssence: "image/png",
+      computedEssence: "text/html",
+      mismatch: true,
+      active: true,
+      noSniff: false,
+    });
+    expect(outcome?.findings.map((finding) => finding.code)).toContain("content_type_mismatch");
+    const observed = result.reasons.find((reason) => reason.code === "content_type_mismatch");
+    expect(observed?.weight).toBe(0);
+    harness.assertExhausted();
+  });
+
+  it("records the mismatch but stays inactive with no finding under nosniff", async () => {
+    const { harness, enricher } = fixtureEnricher([
+      {
+        url: start,
+        status: 200,
+        headers: { "content-type": "image/png", "x-content-type-options": "nosniff" },
+        body: scriptBody,
+      },
+    ]);
+
+    const result = await inspectAsync(start, { enrichers: [enricher] });
+    const { outcome, record } = mimeEvidence(result);
+
+    expect(record?.payload).toMatchObject({
+      status: "classified",
+      mismatch: true,
+      active: false,
+      noSniff: true,
+    });
+    expect(outcome?.findings.map((finding) => finding.code)).not.toContain("content_type_mismatch");
+    expect(result.reasons.map((reason) => reason.code)).not.toContain("content_type_mismatch");
+    harness.assertExhausted();
+  });
+
+  it("does not flag a well-formed declared/computed match", async () => {
+    const { harness, enricher } = fixtureEnricher([
+      {
+        url: start,
+        status: 200,
+        headers: { "content-type": "text/html; charset=utf-8" },
+        body: "<html><body>hello</body></html>",
+      },
+    ]);
+
+    const result = await inspectAsync(start, { enrichers: [enricher] });
+    const { outcome, record } = mimeEvidence(result);
+
+    expect(record?.payload).toMatchObject({
+      status: "classified",
+      declaredEssence: "text/html",
+      computedEssence: "text/html",
+      mismatch: false,
+      active: false,
+    });
+    expect(outcome?.findings.map((finding) => finding.code)).not.toContain("content_type_mismatch");
+    harness.assertExhausted();
+  });
+
+  it("marks a HEAD hop as incomplete with no body to sniff", async () => {
+    const { harness, enricher } = fixtureEnricher(
+      [{
+        url: start,
+        method: "HEAD",
+        status: 200,
+        headers: { "content-type": "image/png" },
+        body: scriptBody,
+      }],
+      { method: "HEAD" },
+    );
+
+    const result = await inspectAsync(start, { enrichers: [enricher] });
+    const { outcome, record } = mimeEvidence(result);
+
+    expect(record?.payload).toMatchObject({ status: "incomplete", cause: "no-body" });
+    expect(outcome?.findings.map((finding) => finding.code)).not.toContain("content_type_mismatch");
+    harness.assertExhausted();
+  });
+
+  it("keeps the chain-hop evidence record first", async () => {
+    const { harness, enricher } = fixtureEnricher([
+      { url: start, status: 200, headers: { "content-type": "image/png" }, body: scriptBody },
+    ]);
+
+    const result = await inspectAsync(start, { enrichers: [enricher] });
+    const { outcome } = mimeEvidence(result);
+
+    expect(outcome?.evidence[0]?.type).toBe("resolution.chain-hop");
+    harness.assertExhausted();
+  });
+});
+
 describe("L1 explicit stop and degradation outcomes", () => {
   it.each([
     {
