@@ -91,8 +91,9 @@ relate to the score:
   freshness-degraded observation stays evidence-only. Absence is never safety.
 
 Example evidence types: `rdap.domain` (RDAP, conjunctive), `urlhaus.match` and
-`phishtank.match` (caller-owned mirrors, conjunctive), and `tls.certificate`
-(live TLS, **evidence-only**). The live TLS source (M7) inspects the original
+`phishtank.match` (caller-owned mirrors, conjunctive), `tls.certificate`
+(live TLS, **evidence-only**), and `dns.records` (live DNS A/AAAA/NS/MX state,
+**evidence-only**). The live TLS source (M7) inspects the original
 HTTPS hostname through the L0 observational transport and records the normalized
 leaf certificate with its three independent validation axes (chain trust,
 hostname match, validity window), DNS SANs, and certificate-policy OIDs including
