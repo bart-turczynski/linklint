@@ -40,6 +40,12 @@ describe("@linklint/online package boundary", () => {
     expect(transport.createSafeTransport).toBeTypeOf("function");
     expect(transport.createNodeSafeTransport).toBeTypeOf("function");
     expect(transport.classifyTransportAddress).toBeTypeOf("function");
+    // M7a: observational TLS inspection over the same safe pinned transport.
+    expect(transport.createSafeTlsInspector).toBeTypeOf("function");
+    expect(transport.createNodeSafeTlsInspector).toBeTypeOf("function");
+    expect(transport.normalizeTlsCertificate).toBeTypeOf("function");
+    expect(transport.readCertificatePolicyOids).toBeTypeOf("function");
+    expect(transport.DEFAULT_TLS_INSPECTION_POLICY).toBeTypeOf("object");
     const transportExport = manifest.exports["./transport"] as Record<string, string>;
     expect(Object.keys(transportExport)).toEqual(["types", "default"]);
     expect(resolution.decodeEmbeddedWrapper).toBeTypeOf("function");

@@ -1,6 +1,4 @@
-import { isIP } from "node:net";
-
-import { addressesEqual, classifyTransportAddress } from "./address.js";
+import { addressesEqual } from "./address.js";
 import {
   ContentDecompressionError,
   decodeResponseBody,
@@ -8,12 +6,12 @@ import {
   UnsupportedContentEncodingError,
 } from "./decompression.js";
 import { destinationHeaders } from "./headers.js";
+import { pinDestination } from "./pin.js";
 import {
   resolveTransportPolicy,
   type TransportPolicy,
 } from "./policy.js";
 import type {
-  DnsAddress,
   SafeFetchBlocked,
   SafeFetchIncomplete,
   SafeFetchOutcome,
@@ -177,23 +175,22 @@ class SafeSession implements SafeTransportSession {
     state.hostname = unbracket(url.hostname);
     state.port = effectivePort(url);
 
-    const addresses = await this.resolveAddresses(state.hostname, signal);
+    const pin = await wrapOperation(
+      "dns",
+      pinDestination(this.ports.resolver, state.hostname, signal),
+    );
     if (signal.aborted) throw new OperationError("dns", { code: "dns-timeout" });
-    state.resolvedAddresses = addresses.map(({ address }) => address);
-    const malformed = validateAddresses(addresses);
-    if (malformed) throw new OperationError("dns", { code: "dns-malformed" });
-
-    for (const answer of addresses) {
-      const decision = classifyTransportAddress(answer.address);
-      if (!decision.allowed) {
-        return this.blocked(state, "prohibited-address", {
-          address: answer.address,
-          category: decision.category ?? "invalid",
-        });
-      }
+    state.resolvedAddresses = pin.resolvedAddresses;
+    if (pin.kind === "dns-not-found") throw new OperationError("dns", { code: "dns-not-found" });
+    if (pin.kind === "dns-malformed") throw new OperationError("dns", { code: "dns-malformed" });
+    if (pin.kind === "prohibited") {
+      return this.blocked(state, "prohibited-address", {
+        address: pin.address,
+        category: pin.category,
+      });
     }
 
-    const selected = addresses[0]!;
+    const selected = pin.selected;
     state.selectedAddress = selected.address;
     let connectionId: string | undefined;
     try {
@@ -280,22 +277,6 @@ class SafeSession implements SafeTransportSession {
     }
   }
 
-  private async resolveAddresses(
-    hostname: string,
-    signal: AbortSignal,
-  ): Promise<readonly DnsAddress[]> {
-    const family = isIP(hostname);
-    if (family === 4 || family === 6) {
-      return [{ address: hostname, family, ttlSeconds: 0 }];
-    }
-    const addresses = await wrapOperation(
-      "dns",
-      this.ports.resolver.resolve({ hostname, signal }),
-    );
-    if (addresses.length === 0) throw new OperationError("dns", { code: "dns-not-found" });
-    return addresses;
-  }
-
   private async readEncodedBody(body: AsyncIterable<Uint8Array>): Promise<Uint8Array> {
     const chunks: Uint8Array[] = [];
     let responseBytes = 0;
@@ -377,18 +358,6 @@ async function wrapOperation<T>(phase: OperationPhase, promise: Promise<T>): Pro
     if (error instanceof OperationError || error instanceof BudgetError) throw error;
     throw new OperationError(phase, error);
   }
-}
-
-function validateAddresses(addresses: readonly DnsAddress[]): boolean {
-  return addresses.some((answer) => {
-    const family = isIP(answer.address);
-    return (
-      family !== answer.family ||
-      (family !== 4 && family !== 6) ||
-      !Number.isFinite(answer.ttlSeconds) ||
-      answer.ttlSeconds < 0
-    );
-  });
 }
 
 function effectivePort(url: URL): number {

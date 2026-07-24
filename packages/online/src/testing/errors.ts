@@ -24,9 +24,9 @@ export class FixtureFailure extends Error {
 
 /** Raised when code under test makes a call that the fixture did not script. */
 export class UnexpectedFixtureCall extends Error {
-  readonly port: "resolver" | "connector" | "http";
+  readonly port: "resolver" | "connector" | "http" | "tls-observer";
 
-  constructor(port: "resolver" | "connector" | "http", detail: string) {
+  constructor(port: "resolver" | "connector" | "http" | "tls-observer", detail: string) {
     super(`unexpected ${port} fixture call: ${detail}`);
     this.name = "UnexpectedFixtureCall";
     this.port = port;

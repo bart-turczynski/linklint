@@ -36,6 +36,12 @@ export {
   type HttpResponseFixture,
 } from "./http.js";
 export {
+  FixtureTlsObserver,
+  type TlsObserveExpectation,
+  type TlsObserverCall,
+  type TlsObserverFixtureStep,
+} from "./tls-observer.js";
+export {
   TransportFixtureHarness,
   type TransportFixtureScript,
 } from "./harness.js";

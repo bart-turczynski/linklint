@@ -96,3 +96,33 @@ address. Runtime-specific exception messages are not copied into causes.
 These are transport outcomes, not phishing verdicts. L1 maps them into the
 versioned enrichment contract, re-inspects every discovered hop through the
 offline pipeline, and preserves incomplete or blocked coverage honestly.
+
+## Observational TLS inspection
+
+`createSafeTlsInspector` / `createNodeSafeTlsInspector` add a strictly
+observational capability that captures the certificate an HTTPS host presents,
+without fetching anything. It reuses the exact SSRF/DNS-pinning decision the
+fetch path uses (`pinDestination`), connects to the pinned address with the
+original-host SNI, and reads the peer certificate with socket validation
+**disabled** (`rejectUnauthorized: false`) so that an expired, not-yet-valid,
+hostname-mismatched, or untrusted/self-signed certificate can be **observed**
+rather than refused. The observe socket is read once and destroyed; it is never
+reused, never handed to the HTTP layer, and never treated as a trusted
+connection. The observe port is deliberately separate from the fetch connector,
+so observe mode cannot leak into the fail-closed fetch path.
+
+A successful observation is **non-authoritative**: it records what the peer
+presented and how it validates, and never implies a normal fetch would be
+allowed. `normalizeTlsCertificate` turns a raw handshake into evidence with three
+independent axes — chain trust (from the handshake), validity window (from the
+certificate's own notBefore/notAfter versus the observation instant), and
+hostname identity (recomputed with Node's standard identity checker) — plus the
+DNS SANs and certificate-policy OIDs (`readCertificatePolicyOids`, parsed from
+preserved DER because Node's high-level APIs omit them). Chain depth, certificate
+size, handshake time, and parsing are all bounded.
+
+`TlsObservationOutcome.status` is `observed`, `blocked`, or `incomplete`.
+`blocked` is reserved for transport-policy refusal (a prohibited pinned address);
+DNS, connection, handshake, certificate-analysis, timeout, and cancellation
+failures are `incomplete` with a typed cause. A TLS failure is never a safety
+claim. `notBefore` is a validity start, **not** reliable issuance age.
