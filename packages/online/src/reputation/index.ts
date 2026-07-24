@@ -24,6 +24,14 @@ export {
   RDAP_BRAND_CORROBORATION_CODES,
 } from "./rdap-enricher.js";
 export type { RdapAgeEnricherOptions } from "./rdap-enricher.js";
+export {
+  TLS_CERTIFICATE_EVIDENCE_TYPE,
+  TLS_SOURCE_DESCRIPTOR,
+  TLS_SOURCE_ID,
+  TLS_SOURCE_VERSION,
+} from "./tls-descriptor.js";
+export { createTlsCertificateEnricher } from "./tls-enricher.js";
+export type { TlsCertificateEnricherOptions } from "./tls-enricher.js";
 export type {
   FetchRdapDomainOptions,
   RdapBootstrapRegistry,

@@ -90,6 +90,16 @@ relate to the score:
   affirmative, subject-tied, within-freshness evidence. A no-match or a
   freshness-degraded observation stays evidence-only. Absence is never safety.
 
+Example evidence types: `rdap.domain` (RDAP, conjunctive), `urlhaus.match` and
+`phishtank.match` (caller-owned mirrors, conjunctive), and `tls.certificate`
+(live TLS, **evidence-only**). The live TLS source (M7) inspects the original
+HTTPS hostname through the L0 observational transport and records the normalized
+leaf certificate with its three independent validation axes (chain trust,
+hostname match, validity window), DNS SANs, and certificate-policy OIDs including
+DV/OV/EV posture. Certificate state is neutral on its own — DV alone is not risk —
+so it emits `tls.certificate` evidence and never a scored finding; a connection or
+validation problem is a `skipped`/`failure` outcome, never a safety claim.
+
 ## The shared contract-test kit
 
 `assertOnlineSourceContract(descriptor, options)` (test-only, not shipped) is the
