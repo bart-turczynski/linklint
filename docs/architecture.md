@@ -273,6 +273,40 @@ still *fail* under this profile and 2,210 must *succeed*, of which 1,661 succeed
 only because a flag is off. A relaxation rule that had quietly swallowed the
 corpus would also report 100%, so the split is asserted too.
 
+**Decision — compatibility folds get no signal distinct from `normalization_delta`.**
+Investigated and **declined** (`LINK-qrktkbtg`). A host label can contain
+compatibility-decomposable characters that fold to a different ASCII string than
+they display as — `ﬁle.com` → `file.com`, `ｅxample.com` → `example.com`,
+`ex⓪ample.com` → `ex0ample.com`. All currently score `info` 0.00 with
+`normalization_delta` + `idna_mapping_ambiguity`, both weight 0. Three findings:
+
+1. **The existing design already draws the right line, and it is finer than
+   "contains a compatibility character".** The discriminator is *disagreement
+   between standards*, not exotic input. A label that folds to the legitimate
+   target under **both** IDNA2003 and UTS-46 reaches the genuine site and must
+   not escalate (`ｇｏｏｇｌｅ.com` → the real `google.com`, pinned `info` in
+   `corpus.ts` as J9 Group B). A label that folds *differently* depending on the
+   standard, landing exactly on a watchlist brand, already escalates via
+   `brand_idna_collapse` at weight 0.5 (`wordpreß.com` → `wordpress.com` under
+   IDNA2003 but `xn--wordpre-6va.com` under UTS-46).
+2. **The narrow alternative was tried and the corpus rejected it.** Making
+   `idn_host` fire when the raw registrable domain is non-ASCII even though it
+   folds to ASCII (`detectors/idn-host.ts` uses `toUnicode`, whose UTS-46 mapping
+   erases the evidence) moved `ｇｏｏｇｌｅ.com` from 0.00 to 0.70 — one false
+   positive, precision 1 → 0.992. That row is a deliberate decision, not an
+   oversight, so the change is wrong rather than merely inconvenient.
+3. Raising `normalization_delta` is not an option: weight 0 is required by
+   FR-D-15, since every IDN trips it and a legitimate single-script IDN must stay
+   benign.
+
+**Accepted limitation.** A compatibility spelling of an *ASCII-homoglyph*
+lookalike is not detected: `paypa１.com` (fullwidth digit one) scores 0.00 while
+its folded twin `paypa1.com` scores 0.60 via `brand_homoglyph` + `ascii_homoglyph`.
+Closing it would mean running the digit-fold homoglyph comparison on the
+compat-folded host — stacking two fuzzy transforms, which is precisely the
+combination whose false positives forced the `LINK-blgvypxk` rollback. Same
+accepted class as `paypal-login.com` scoring 0.00.
+
 **Unicode baseline.** The bundled tr46 carries **Unicode 17.0** data, evidenced
 by CJK Extension J (`U+323B0..U+3347B`, assigned in 17.0, `disallowed` in 16.0):
 running the 16.0 corpus against it produces exactly 13 failures at those code
