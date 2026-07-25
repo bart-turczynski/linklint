@@ -316,6 +316,17 @@ before the corpus is refreshed. Note this is a **newer** Unicode release than th
 confusables table (16.0.0, `tools/build-confusables.mjs`); the two data sets are
 independent and are pinned separately.
 
+**The confusables pin deliberately stays at 16.0.0.** Aligning it to 17.0 was
+measured and **declined** (`LINK-tydjfmci`). Unicode 17.0 adds `þ → p`, so a
+Latin-script host whose only non-ASCII character is `þ` skeletons entirely to
+ASCII and trips `homograph_latin_skeleton` (critical, weight 1.0):
+`þingvellir.is` — a real Icelandic UNESCO site — goes from `info` 0.00 to
+`critical` 1.00. The whole suite passed under the 17.0 table apart from the drift
+guard, because the curated corpus contains no Icelandic: a hand-curated benign
+corpus *confirmed* a bump that breaks real browsing, the same self-confirming
+failure mode recorded after `brand_combosquat` (`LINK-cqdrdvfu`).
+`confusables-drift.test.ts` carries the tripwire.
+
 ### 6.3 Pin-bump gate — diffing linklint's own answers
 
 §6.1 and §6.2 both ask *"does linklint still agree with upstream?"*. Neither asks
