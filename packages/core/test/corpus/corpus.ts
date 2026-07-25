@@ -1001,21 +1001,38 @@ export const CORPUS: CorpusRow[] = [
     forbidReasons: ["ip_obfuscation", "ip_reserved", "ip_loopback", "ip_private"],
     notes: "S1 precision guard — IPv4-compatible 8.8.8.8",
   },
-  // S1 out-of-scope transition prefixes: 6to4 and Teredo do NOT carry the IPv4
-  // in the low 32 bits, so reading it there would decode garbage. Unwrapping
-  // them is a separate decision; until then they must stay unclassified rather
-  // than be given a wrong verdict.
+  // LINK-evooubiz — 6to4 and Teredo stay unclassified by DECISION, not by gap:
+  // the IPv4 they embed is a router / relay, not the destination, so unwrapping
+  // it would assert something false about where the request goes.
   {
     input: "https://[2002:a9fe:a9fe::]/",
     label: "benign",
     forbidReasons: ["ip_cloud_metadata", "ip_link_local", "ip_reserved"],
-    notes: "S1 scope boundary — 6to4 2002::/16 embeds a GATEWAY v4 in hextets 1-2, not the low 32 bits",
+    notes: "LINK-evooubiz — 6to4 2002::/16 embeds the encapsulating ROUTER's v4, not the destination",
   },
+  // LINK-evooubiz reverses this row deliberately: the RFC 8215 /48 is reserved
+  // for translation and its embedded IPv4 IS the destination, exactly as under
+  // the well-known prefix, so it now scores like one.
   {
     input: "https://[64:ff9b:1::a9fe:a9fe]/",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "LINK-evooubiz — RFC 8215 local-use NAT64 64:ff9b:1::/96 base, metadata endpoint",
+  },
+  {
+    input: "https://[64:ff9b:1::808:808]/",
     label: "benign",
-    forbidReasons: ["ip_cloud_metadata", "ip_link_local", "ip_reserved"],
-    notes: "S1 scope boundary — RFC 8215 local-use NAT64 64:ff9b:1::/48 is not the well-known prefix",
+    forbidReasons: ["ip_obfuscation", "ip_reserved", "ip_loopback", "ip_private"],
+    notes: "LINK-evooubiz precision guard — RFC 8215 wrapping public 8.8.8.8 manufactures nothing",
+  },
+  {
+    input: "https://[64:ff9b:1:0:a9:fea9:fe00:0]/",
+    label: "benign",
+    forbidReasons: ["ip_cloud_metadata", "ip_reserved", "ip_link_local"],
+    notes:
+      "LINK-evooubiz precision guard — RFC 8215 /64 layout; a blanket low-32 read of the /48 would decode its zero suffix as 254.0.0.0 and manufacture ip_reserved",
   },
 
   // ── Imported IDN / PSL / host test vectors (E6) ─────────────────────────

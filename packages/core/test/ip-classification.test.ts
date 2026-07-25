@@ -201,6 +201,8 @@ describe("ip_classification — literal-IP range buckets", () => {
         ["64:ff9b::7f00:1", "64:ff9b::127.0.0.1", "ip_loopback"],
         ["::7f00:1", "::127.0.0.1", "ip_loopback"],
         ["64:ff9b::a00:1", "64:ff9b::10.0.0.1", "ip_private"],
+        ["64:ff9b:1::a9fe:a9fe", "64:ff9b:1::169.254.169.254", "ip_cloud_metadata"],
+        ["64:ff9b:1::7f00:1", "64:ff9b:1::127.0.0.1", "ip_loopback"],
       ];
       for (const [hex, dotted, bucket] of pairs) {
         expect(classify(hex)).toEqual([bucket]);
@@ -216,21 +218,48 @@ describe("ip_classification — literal-IP range buckets", () => {
     });
 
     it("S1 a wrapper around an ORDINARY public IPv4 stays unclassified", () => {
-      for (const h of ["::ffff:808:808", "64:ff9b::808:808", "::808:808", "::ffff:8.8.8.8"]) {
+      for (const h of [
+        "::ffff:808:808",
+        "64:ff9b::808:808",
+        "::808:808",
+        "::ffff:8.8.8.8",
+        "64:ff9b:1::808:808",
+      ]) {
         expect(classify(h)).toEqual([]);
       }
     });
 
-    it("S1 out-of-scope transition prefixes are untouched", () => {
-      // 6to4 / Teredo / RFC 8215 local-use NAT64 do NOT carry the v4 in the low
-      // 32 bits; unwrapping them is a separate decision, so no bucket here.
-      const outOfScope = [
+    it("LINK-evooubiz names the RFC 8215 prefix in the detail too", () => {
+      const [f] = ipClassification.run({ host: "64:ff9b:1::a9fe:a9fe" } as InspectionContext);
+      expect(f?.code).toBe("ip_cloud_metadata");
+      expect(f?.detail).toContain("169.254.169.254");
+      expect(f?.detail).toContain("NAT64 local-use prefix 64:ff9b:1::/48 (RFC 8215)");
+    });
+
+    it("LINK-evooubiz declined transition prefixes are untouched", () => {
+      // 6to4's v4 is the encapsulating ROUTER and Teredo's two candidates are a
+      // server and a bit-complemented client — in neither case is the embedded
+      // IPv4 the destination, so they get no bucket. This is a decision, not a
+      // gap: both are now distinguishable in the range table (S3).
+      const declined = [
         "2002:a9fe:a9fe::", // 6to4
         "2001:0:4136:e378:8000:63bf:3fff:fdd2", // Teredo
-        "64:ff9b:1::a9fe:a9fe", // RFC 8215 local-use NAT64
       ];
-      for (const h of outOfScope) {
+      for (const h of declined) {
         expect(classify(h)).toEqual([]);
+      }
+    });
+
+    it("LINK-evooubiz RFC 6052 network-specific prefixes are never speculatively unwrapped", () => {
+      // These are ordinary-looking addresses that WOULD decode to a sensitive
+      // IPv4 if the network-specific layouts were tried. Speculating costs 14%
+      // of random addresses a spurious bucket, so nothing here may classify.
+      for (const h of [
+        "2001:db8::a9fe:a9fe", // /96 layout — v4 sits in the low 32 bits
+        "2001:db8:122:344:a9:fea9:fe00::", // /64 layout, u-byte zero
+        "2001:db8:c0a8:1::", // /32 layout carrying 192.168.0.1
+      ]) {
+        expect(classify(h), h).toEqual([]);
       }
     });
 
