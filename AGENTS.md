@@ -16,10 +16,17 @@ The pre-push hook runs `pnpm check` (the same chain as CI). This is the stand-in
 
 ## Online roadmap handoff
 
-When assigned `LINK-ddsnssrd` or one of its K/L/M/N descendants, read
+When assigned `LINK-ddsnssrd` or one of its K/L/M descendants, read
 [`docs/online-roadmap.md`](docs/online-roadmap.md) before selecting work, then
 confirm live status and dependencies with `fp context`, `fp issue show`, and
 `fp tree`. FP is the status/dependency source of truth; the committed roadmap is
 the durable architecture and resume-order guide.
+
+`LINK-ddsnssrd` is **done**: Epics K, L, and M are complete through their
+acceptance gates. Epic N (monitoring service) and Epic P (licensed third-party
+providers) were its two remaining branches; both are now **parked** under
+`LINK-illixeqw` and are no longer coordinator scope. Do not propose or start
+either without an explicit instruction — when asked what is available, report
+only that this work is parked until further notice.
 
 @FP_AGENTS.md

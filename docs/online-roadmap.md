@@ -1,8 +1,16 @@
 # Online backend roadmap handoff
 
-**Coordinator:** `LINK-ddsnssrd`
+**Coordinator:** `LINK-ddsnssrd` — **done** (2026-07-25)
 
-**Durable state reconciled:** 2026-07-17
+**Durable state reconciled:** 2026-07-25
+
+> **Status.** The coordinator's implementable scope is complete: Epics K, L, and
+> M all landed through their acceptance gates. Its two remaining branches, Epic N
+> (`LINK-ioctupur`, monitoring service) and Epic P (`LINK-mklsgmyn`, licensed
+> third-party providers), were moved out to the parked umbrella `LINK-illixeqw`
+> and are no longer coordinator scope. Neither is available work: do not propose
+> or start either without an explicit instruction to begin. The architecture and
+> constraints below remain durable reference for whenever they are unparked.
 
 This document is the committed resume map for online resolution, reputation,
 and monitoring work. FP remains the live source of truth for issue status and
@@ -127,7 +135,7 @@ URLhaus, PhishTank, TLS, DNS) compose additively, attribute honestly, and do not
 over-score. The documented model is
 [`layer3-reputation-model.md`](layer3-reputation-model.md). **Epic M's active
 scope is now complete** — the parked commercial providers live in Epic P (below).
-Epic N remains a separate service, lowest priority.
+Epic N remains a separate service, and is now parked alongside P.
 
 ## Epic L dependency path (delivered)
 
@@ -155,7 +163,7 @@ LT + L1 + L2 + L3 + L4 + L5 ───────────► L6 LINK-pzuppjn
   content.
 - L6 is the deterministic, zero-live-network acceptance gate.
 
-## Other active streams
+## Epic M (delivered)
 
 - Epic M (`LINK-aclentcb`) is source-attributed reputation/infrastructure.
   `LINK-nlnyqofz` (M2 privacy, licensing, provenance, and BYOK contract) is
@@ -177,20 +185,33 @@ LT + L1 + L2 + L3 + L4 + L5 ───────────► L6 LINK-pzuppjn
   see [`layer3-reputation-model.md`](layer3-reputation-model.md)). **Epic M's
   shipped scope is complete**; the parked commercial providers were moved out to
   Epic P (below) and are the only remaining M-adjacent work.
+
+## Parked streams (no longer coordinator scope)
+
+Both branches below moved out to the parked umbrella `LINK-illixeqw` on
+2026-07-25. They are **not available work**. When asked what can be worked on,
+report only that this work is parked until further notice; do not enumerate the
+individual issues or propose them as candidates. Surface detail only on an
+explicit instruction naming the epic or one of its descendants.
+
 - Epic N (`LINK-ioctupur`) is a separate service, not an `inspectAsync()` loop.
   Its foundation starts at `LINK-pjyhavkg` (N0 durable runtime, state, and
   tenancy). N consumes specific contracts and does not depend on all of M.
+  Parked because committing to it is a product-direction decision — it makes
+  linklint a library *plus* a running service.
 - Epic P (`LINK-mklsgmyn`, low) collects the third-party commercial/licensed
   reputation integrations — Google Safe Browsing M3 (`LINK-ygnmxxxv`), VirusTotal
   M6 (`LINK-yeyefxak`), and licensed hosting ASN/geo M9b (`LINK-brnpohdw`). Each
   is blocked on a product/terms/licensing decision, not on any code, so they were
   split out of Epic M and stay parked until an explicit decision unparks them.
   None gates M10 or the offline core; when one ships it extends the M10 gate.
-  Former Epic O is outside this implementation roadmap.
 
-The default coordinator priority is Epic L (high), then active M work (medium),
-then N and the parked Epic P (low), unless the user explicitly selects another
-stream.
+Former Epic O (`LINK-aertgfpq`) is a separately parked product-discovery branch
+and was never part of this implementation roadmap.
+
+With K, L, and M delivered and N and P parked, the coordinator has no remaining
+priority order — it is done. Any future online work resumes by unparking a
+stream explicitly.
 
 ## Binding invariants
 
@@ -214,19 +235,23 @@ stream.
 
 ## Resume procedure
 
-When the coordinator is assigned again:
+The coordinator is **done** — there is no default next stream to pick up. K, L,
+and M are delivered through their acceptance gates; N and P are parked. This
+section applies only when a parked stream is **explicitly unparked**:
 
-1. Run `fp guide implement` and `fp context LINK-ddsnssrd`.
-2. Run `fp tree LINK-ddsnssrd` and `fp issue show` for the proposed child; do not
-   trust this document for status if FP has moved on.
-3. Epic L is complete, L4b included; nothing remains parked under it. The next
-   default stream is Epic M (`LINK-aclentcb`): complete the blocking M2
-   privacy/licensing/provenance/BYOK contract (`LINK-nlnyqofz`) before any
-   provider adapter, then RDAP (M1) and caller-owned local mirrors.
+1. Confirm the instruction is explicit. Parked work is never selected by an agent
+   choosing "what is next" — see *Parked streams* above.
+2. Run `fp guide implement` and `fp context` on the unparked epic
+   (`LINK-ioctupur` for N, `LINK-mklsgmyn` for P), plus `fp issue show` for the
+   proposed child; do not trust this document for status if FP has moved on.
+3. For Epic N, start at `LINK-pjyhavkg` (N0 durable runtime, state, tenancy) —
+   nothing else in N should begin before that design lands. For Epic P, the
+   terms/licensing decision is the gate, not code.
 4. Read [`online-runtime-boundary.md`](online-runtime-boundary.md),
    [`architecture.md`](architecture.md), and
    [`enrichment-outcomes.md`](enrichment-outcomes.md) before defining public
-   package or evidence contracts.
+   package or evidence contracts. The *Binding invariants* above still apply in
+   full to any unparked work.
 5. Record start, implementation milestones, verification, and completion in FP.
 6. Run `pnpm check` and `git diff --check` before closing an implementation task.
 
