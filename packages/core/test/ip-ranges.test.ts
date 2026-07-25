@@ -39,9 +39,17 @@ describe("ip-ranges.generated.ts is reproducible from the committed registries",
   // can drift silently. This closes that gap for the IP ranges: the two IANA
   // CSVs are committed under tools/data/, so regeneration is byte-reproducible
   // OFFLINE and drift fails CI instead of being discovered in production.
-  it("--check passes: re-rendering the committed CSVs reproduces the artifact", () => {
-    expect(() => execFileSync(process.execPath, [GENERATOR, "--check"], { stdio: "pipe" })).not.toThrow();
-  });
+  // Explicit timeout for the same reason as confusables-drift.test.ts — see the
+  // note there (LINK-hhzehdsm). Any test that spawns a subprocess is timed
+  // against machine load rather than its own work, so the 5000 ms default is the
+  // wrong budget even though this one costs ~60 ms idle.
+  it(
+    "--check passes: re-rendering the committed CSVs reproduces the artifact",
+    () => {
+      expect(() => execFileSync(process.execPath, [GENERATOR, "--check"], { stdio: "pipe" })).not.toThrow();
+    },
+    60_000,
+  );
 
   it("the committed snapshots exist and are the parsed inputs (sha256 recorded)", () => {
     const artifact = readFileSync(ARTIFACT, "utf8");
