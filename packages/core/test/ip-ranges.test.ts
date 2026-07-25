@@ -199,7 +199,7 @@ describe("curated NO-BUCKET classes (registry rows that deliberately earn nothin
     for (const host of [
       "::ffff:808:808", // IPv4-mapped 8.8.8.8
       "64:ff9b::808:808", // NAT64 well-known prefix, public target
-      "64:ff9b:1::a9fe:a9fe", // RFC 8215 local-use NAT64 (not unwrapped)
+      "64:ff9b:1::808:808", // RFC 8215 local-use NAT64, public target (unwrapped, no bucket)
       "2002:a9fe:a9fe::", // 6to4 (not unwrapped)
       "2001:0:4136:e378:8000:63bf:3fff:fdd2", // Teredo (not unwrapped)
     ]) {

@@ -127,12 +127,18 @@ interface EmbeddedIpv4 {
  * `hextets` fixes the upper 96 bits; a literal matches when hextets 0-5 are
  * exactly these values.
  *
- * DELIBERATELY EXCLUDED (they do NOT put the IPv4 in the low 32 bits, so the
- * same read would decode garbage): 6to4 `2002::/16` (gateway IPv4 in hextets
- * 1-2), Teredo `2001::/32` (server IPv4 after the prefix, client IPv4
- * bit-complemented at the tail), the RFC 6052 network-specific prefixes at
- * /32../64 (IPv4 straddles the reserved u-byte at octet 8) and the RFC 8215
- * local-use NAT64 prefix `64:ff9b:1::/48`.
+ * DELIBERATELY EXCLUDED, for reasons that differ per mechanism (LINK-evooubiz):
+ *
+ * - 6to4 `2002::/16` and Teredo `2001::/32` — the embedded IPv4 is not the
+ *   DESTINATION. 6to4's V4ADDR is the encapsulating router, and Teredo carries
+ *   two candidates (a server after the prefix, a bit-complemented client at the
+ *   tail) of which neither is unambiguously the target. Both are deprecated
+ *   (RFC 7526, RFC 8190).
+ * - RFC 6052 NETWORK-SPECIFIC prefixes — unrecognizable by construction. They
+ *   come from operator address space with no registry, so unwrapping one means
+ *   speculatively decoding every IPv6 address at all six permitted lengths;
+ *   measured, that hands a spurious bucket to 14% of random addresses even with
+ *   the u-byte enforced. See docs/reason-codes.md.
  */
 const LOW32_WRAPPERS: ReadonlyArray<{
   hextets: readonly [number, number, number, number, number, number];
@@ -151,6 +157,21 @@ const LOW32_WRAPPERS: ReadonlyArray<{
   {
     hextets: [0x64, 0xff9b, 0, 0, 0, 0],
     mechanism: "NAT64 well-known prefix 64:ff9b::/96 (RFC 6052)",
+  },
+  // RFC 8215 local-use NAT64 — the same semantics as the well-known prefix (the
+  // IPv4 is the DESTINATION), on a prefix that is equally recognizable because
+  // the whole /48 is reserved for translation.
+  //
+  // Matched at its BASE /96 ONLY: hextets 2-5 must be exactly `1:0:0:0`. RFC 6052
+  // also permits /48, /56 and /64 layouts inside the reserved /48, and those put
+  // the IPv4 somewhere other than the low 32 bits — a blanket low-32 read of the
+  // /48 would decode a /64 deployment's all-zero suffix as `254.0.0.0` (inside
+  // 240/4) and manufacture `ip_reserved`. Requiring the three zero hextets
+  // excludes every such form, because any real non-/96 embedding puts a non-zero
+  // IPv4 octet in hextet 4 or 5.
+  {
+    hextets: [0x64, 0xff9b, 0x1, 0, 0, 0],
+    mechanism: "NAT64 local-use prefix 64:ff9b:1::/48 (RFC 8215)",
   },
   // RFC 4291 §2.5.5.1 IPv4-compatible — deprecated, still parsed and still routed.
   {

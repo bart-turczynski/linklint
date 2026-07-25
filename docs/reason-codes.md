@@ -838,12 +838,35 @@ Two boundaries are deliberate:
 - **A wrapper never manufactures a verdict.** `[64:ff9b::808:808]` is NAT64
   doing its ordinary job for public `8.8.8.8` — no bucket, no reason.
 
-Other transition mechanisms put the IPv4 **somewhere other than the low 32
-bits** — 6to4 (`2002::/16`) carries a *gateway* address in hextets 1-2, Teredo
-(`2001::/32`) carries a *server* address and bit-complements the client address
-at the tail, and the RFC 6052 network-specific prefixes straddle the reserved
-u-byte at octet 8. Reading the low 32 bits of those would decode garbage, so
-they are not unwrapped and emit no bucket.
+Four further transition mechanisms were evaluated (LINK-evooubiz). One is
+unwrapped; the other three are declined, for reasons that differ per mechanism.
+
+- **RFC 8215 local-use `64:ff9b:1::/48` — unwrapped, at its base `/96` only.**
+  The whole /48 is reserved for translation and the embedded IPv4 is the
+  *destination*, exactly as under the well-known prefix, so
+  `[64:ff9b:1::a9fe:a9fe]` is `ip_cloud_metadata`. Only `64:ff9b:1::/96`
+  matches. RFC 6052 also permits /48, /56 and /64 layouts inside that /48, and
+  those put the IPv4 elsewhere — a blanket low-32 read of the whole /48 would
+  decode a /64 deployment's all-zero suffix as `254.0.0.0`, inside `240/4`, and
+  manufacture `ip_reserved`. Requiring hextets 2-5 to be exactly `1:0:0:0`
+  excludes every such form.
+- **6to4 `2002::/16` and Teredo `2001::/32` — not unwrapped, because the
+  embedded IPv4 is not the destination.** 6to4's V4ADDR is the *encapsulating
+  router*: a request to `[2002:a9fe:a9fe::1]` sends protocol-41 traffic to
+  169.254.169.254, it does not make an HTTP request to it. Teredo carries two
+  candidates — a *server* after the prefix and a bit-complemented *client* at
+  the tail — and neither is unambiguously the target. Unwrapping either would
+  assert something false about where the request goes. Both mechanisms are also
+  deprecated (RFC 7526, RFC 8190).
+- **RFC 6052 network-specific prefixes — not unwrapped, because they cannot be
+  recognized.** They are drawn from operator address space and have no registry,
+  so unwrapping one means speculatively decoding *every* IPv6 address at all six
+  permitted prefix lengths. Measured over 20 000 random addresses, that hands a
+  spurious bucket to **59.2%** of them; enforcing the reserved u-byte at octet 8,
+  which must be zero, cuts it to **14.0%**. The residue is almost entirely the
+  `/96` layout, which has no u-byte to check and reads the low 32 bits directly —
+  so the u-byte is what makes the *other* five lengths tractable, not what rules
+  them out. Against a `precision === 1` corpus gate, 14% is disqualifying.
 
 ### `ip_cloud_metadata` — V1a · weight 0.75 (high)
 

@@ -82,6 +82,11 @@ describe("J5 analyzeIpv6", () => {
       ["::ffff:7f00:1", "127.0.0.1", "IPv4-mapped prefix ::ffff:0:0/96"],
       ["64:ff9b::a9fe:a9fe", "169.254.169.254", "NAT64 well-known prefix 64:ff9b::/96 (RFC 6052)"],
       ["::7f00:1", "127.0.0.1", "IPv4-compatible prefix ::/96 (deprecated by RFC 4291)"],
+      [
+        "64:ff9b:1::a9fe:a9fe",
+        "169.254.169.254",
+        "NAT64 local-use prefix 64:ff9b:1::/48 (RFC 8215)",
+      ],
     ];
     for (const [host, address, via] of cases) {
       expect(analyzeIpv6(host)).toEqual({
@@ -115,16 +120,39 @@ describe("J5 analyzeIpv6", () => {
     }
   });
 
-  it("S1 leaves the out-of-scope transition prefixes alone (separate decision)", () => {
+  it("S1 leaves the declined transition prefixes alone (LINK-evooubiz)", () => {
     // 6to4 embeds a GATEWAY v4 in hextets 1-2 and Teredo bit-complements the
-    // client v4 at the tail — neither is a low-32 read, so neither is unwrapped.
-    const outOfScope = [
+    // client v4 at the tail — neither is the destination, so neither is
+    // unwrapped even though both are now distinguishable in the range table.
+    const declined = [
       "2002:a9fe:a9fe::", // 6to4
       "2001:0:4136:e378:8000:63bf:3fff:fdd2", // Teredo
-      "64:ff9b:1::a9fe:a9fe", // RFC 8215 local-use NAT64
     ];
-    for (const host of outOfScope) {
+    for (const host of declined) {
       expect(analyzeIpv6(host)?.embeddedIpv4).toBeNull();
+    }
+  });
+
+  // LINK-evooubiz — RFC 8215 is unwrapped at its BASE /96 only. These are the
+  // forms that make the narrow match correct rather than merely conservative:
+  // each would decode to a DIFFERENT and wrong IPv4 under a blanket low-32 read
+  // of the whole reserved /48.
+  it("RFC 8215 is matched at its base /96 only, never across the whole /48", () => {
+    const notTheBase: Array<[string, string]> = [
+      // /64 layout for prefix 64:ff9b:1:0::/64 carrying 169.254.169.254. A
+      // blanket low-32 read sees the all-zero suffix as 254.0.0.0 (in 240/4)
+      // and would manufacture ip_reserved.
+      ["64:ff9b:1:0:a9:fea9:fe00:0", "/64 layout — low 32 bits are the suffix"],
+      // /48 layout for the same IPv4: the v4 straddles the reserved u-byte.
+      ["64:ff9b:1:a9fe:a9fe::", "/48 layout — v4 straddles the u-byte"],
+      // Inside the reserved /48 but not its base /96 — an operator-chosen subnet
+      // whose layout we cannot know.
+      ["64:ff9b:1:1::a9fe:a9fe", "subnet of the /48, layout unknown"],
+      // Outside the reservation entirely.
+      ["64:ff9b:2::a9fe:a9fe", "not the RFC 8215 prefix at all"],
+    ];
+    for (const [host, why] of notTheBase) {
+      expect(analyzeIpv6(host)?.embeddedIpv4, why).toBeNull();
     }
   });
 
