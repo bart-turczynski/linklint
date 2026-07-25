@@ -133,7 +133,10 @@ interface EmbeddedIpv4 {
  *   DESTINATION. 6to4's V4ADDR is the encapsulating router, and Teredo carries
  *   two candidates (a server after the prefix, a bit-complemented client at the
  *   tail) of which neither is unambiguously the target. Both are deprecated
- *   (RFC 7526, RFC 8190).
+ *   (RFC 7526, RFC 8190). A narrower follow-up — flagging a 6to4 literal whose
+ *   V4ADDR is not globally routable (malformed per RFC 3056 §2) as an ANOMALY
+ *   rather than a destination — was evaluated separately and also declined
+ *   (LINK-gxwyxkyg); see docs/reason-codes.md before re-proposing it.
  * - RFC 6052 NETWORK-SPECIFIC prefixes — unrecognizable by construction. They
  *   come from operator address space with no registry, so unwrapping one means
  *   speculatively decoding every IPv6 address at all six permitted lengths;
