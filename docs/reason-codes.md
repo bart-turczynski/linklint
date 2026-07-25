@@ -868,6 +868,50 @@ unwrapped; the other three are declined, for reasons that differ per mechanism.
   so the u-byte is what makes the *other* five lengths tractable, not what rules
   them out. Against a `precision === 1` corpus gate, 14% is disqualifying.
 
+#### Declined: a malformed-6to4 anomaly code (LINK-gxwyxkyg)
+
+A **narrower and weaker** follow-up to the 6to4 decline above was evaluated
+separately and is also declined. It is recorded here because the two are easy to
+confuse, and because the argument that kills it is *not* the argument that kills
+unwrapping.
+
+The proposal: RFC 3056 §2 requires a 6to4 V4ADDR to be a globally routable
+unicast IPv4, so `2002:a9fe:a9fe::` (V4ADDR `169.254.169.254`) is a **malformed**
+6to4 address, as are `2002:a00:1::` (`10.0.0.1`) and `2002:7f00:1::`
+(`127.0.0.1`). That is an *anomaly* claim about the literal's well-formedness,
+not a *destination* claim about where the request goes — so it sidesteps the
+objection that sank unwrapping. Teredo has the analogous property (RFC 4380
+requires a globally routable server address), so it would be both or neither.
+
+Declined for two reasons, neither of which is "6to4 is rare":
+
+- **It is not reachable, so it is not a threat.** With the anycast relay
+  deprecated (RFC 7526) and 6to4 disabled by default across mainstream stacks, a
+  malformed 6to4 literal does not resolve to the embedded address or anywhere
+  else. It is an oddity, not a target — the same reachability argument that
+  declined unwrapping, which is why both dispositions agree.
+- **The cheap implementation path is closed.** Folding this into
+  `ip_obfuscation` would contradict that code's documented carve-out — *"wrapping
+  an IPv4 in a transition prefix is not by itself obfuscation"* (see
+  `ip_obfuscation` above). So the only route is a **new reason code**, with the
+  registry, docs-validation, acceptance-coverage and corpus work that implies,
+  plus a deliberate update to the existing benign corpus row for
+  `https://[2002:a9fe:a9fe::]/` — whose `forbidReasons` list does not name a new
+  code and so would **not** have caught the change automatically.
+
+**The counterargument is real and was not overlooked.** Because legitimate 6to4
+usage is negligible, the false-positive cost is close to zero, and nobody writes
+`[2002:a9fe:a9fe::]` by accident — a URL containing one was hand-crafted, which
+makes it a fair *intent* signal. Note that low usage argues **for** this code
+(cheap precision), not against it; an argument of the form "6to4 is dead, so skip
+it" is inverted and should not be reused. The decline rests on reachability and
+implementation cost, not on rarity.
+
+**Do not re-propose without new evidence.** What would change the answer: field
+evidence of malformed 6to4 or Teredo literals used in real phishing or SSRF-filter
+bypass, or a redesign that lets an anomaly of this shape reuse an existing code
+instead of minting one. Absent either, this stays closed.
+
 ### `ip_cloud_metadata` — V1a · weight 0.75 (high)
 
 - **Meaning:** the host is a cloud instance-metadata endpoint, matched against a
