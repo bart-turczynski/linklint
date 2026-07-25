@@ -60,6 +60,46 @@ only reasons are informational is **benign** (`score: 0`, `severity: "info"`).
   on the brainstorm's OQ-J9b: informational until the brand list lands.)
 - **Scoring:** informational, weight 0.
 
+### `locale_case_ambiguity` — `LINK-ynsgmybj`
+
+- **Meaning:** the host carries a character that a **Turkish/Azeri lowercase
+  erases into a plain ASCII letter**, so a component that case-normalizes with an
+  ambient locale reads a *different, fully ASCII* domain than the one the request
+  reaches. Same validate-then-transform shape as `idna_mapping_ambiguity`, but
+  keyed on the ambient **locale** rather than on the IDNA standard.
+- **Detection:** the host is lowercased under an explicit `tr`/`az` tailoring and
+  the result compared against its UTS-46 ASCII form. It fires only when the
+  tailored form is **entirely ASCII** and differs from what the resolver reaches:
+
+  ```text
+  https://İstanbul.com/
+    tr/az lowercase (a validator):  istanbul.com
+    UTS-46 (the resolver):          xn--stanbul-1cb.com
+  ```
+
+- **Trigger set:** exactly two host forms, both collapsing to `i` —
+  **U+0130 (İ)** and **`I` + U+0307** (the SpecialCasing `After_I` rule, the
+  decomposed spelling of the same thing). An exhaustive codepoint sweep confirms
+  U+0130 is the *only* codepoint in Unicode whose tailored lowercase is pure
+  ASCII while its default lowercase is not. Lithuanian never collapses — its
+  tailoring only *adds* combining dots.
+- **Why informational (weight 0):** `İ` is ordinary Turkish orthography
+  (`İstanbul` is a real word) and `İ`-bearing IDNs are legitimately registrable,
+  so the base signal must not raise severity (SC-2). The escalation is
+  `brand_locale_collapse`, below — that is where the value is.
+- **Why the opposite direction is absent:** the mirror case (`WIKI.com` under a
+  Turkish lowercase becoming the attacker's `wıkı.com`) is deliberately not
+  detected here. A detector on the input would trigger on "host contains `I`",
+  firing on essentially every uppercase host — and it needs none, because U+0131
+  (ı) *is* in the UTS#39 table, so the domain an attacker must register already
+  scores 1.0 via `homograph_latin_skeleton`.
+- **See also:** [`locale-case-mapping.md`](locale-case-mapping.md) for the full
+  audit, the D1/D2 direction analysis, and the UTS#39 gap that makes a
+  confusable-based detector impossible here (neither U+0130 nor U+0307 appears
+  anywhere in `confusables.txt`).
+- **Example:** `https://İstanbul.com/`, `https://İnbox.com/`.
+- **Scoring:** informational, weight 0.
+
 ## Scoring codes
 
 These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
@@ -205,6 +245,45 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 - **Example:** `https://сһаѕе.com` (→ `chase.com`); `https://ехреԁіа.com`
   (→ `expedia.com`).
 - **Scoring:** scoring, weight 0.5 (provisional — re-tuned with the brand family).
+
+### `brand_locale_collapse` — `LINK-ynsgmybj` · weight 0.5
+
+- **Meaning:** the registrable domain **collapses to exactly a watchlist brand
+  domain under a Turkish/Azeri lowercase**, while UTS-46 — and therefore the
+  actual request — resolves it somewhere else:
+
+  ```text
+  https://tİktok.com/
+    validator, ambient tr locale:  tiktok.com          <- exact brand match
+    resolver, UTS-46 (mandatory):  xn--tiktok-qyd.com  <- the attacker
+  ```
+
+- **Why it's a signal:** nothing non-ASCII survives the validator's view, so
+  every downstream "is this an IDN?" heuristic sees a clean ASCII brand and waves
+  it through. An allowlist keyed on the normalized host matches the brand; the
+  request still reaches a different domain. This is the same bug class as the
+  Java `toLowerCase()` / .NET `ToLower()` allowlist-bypass CVEs, and it is
+  **client-state-dependent** — it only manifests where the validator's ambient
+  locale is `tr` or `az`, so it evades reproduction on the analyst's machine.
+- **Why UTS#39 cannot catch it:** neither U+0130 nor U+0307 appears anywhere in
+  Unicode `confusables.txt`, so `skeleton("tİktok")` keeps the combining dot,
+  stays non-ASCII, and fails `homograph_latin_skeleton`'s all-ASCII requirement.
+  The gap is upstream in UTS#39, not in linklint's curation — re-curating the
+  table cannot close it. See [`locale-case-mapping.md`](locale-case-mapping.md).
+- **Detection & precision (SC-2):** the escalation of `locale_case_ambiguity`.
+  The collapsed form must equal a `BRAND_DOMAINS` entry **exactly, byte for
+  byte** — the same evidentiary bar as `homograph_skeleton_collision`, hence the
+  same weight. The two codes are mutually exclusive per input: a collapse onto a
+  brand reports here, everything else falls back to the weight-0 annotation.
+- **Brand list:** the Epic G watchlist (`BRAND_DOMAINS`), version-pinned via
+  `dataVersions.brands`.
+- **See also:** `locale_case_ambiguity` — the weight-0 annotation this escalates;
+  `homograph_skeleton_collision` (E3) — the skeleton-keyed sibling at the same
+  weight; `idna_mapping_ambiguity` (J9) — the same validate-then-transform shape
+  keyed on IDNA standard instead of locale. This code ships for the locale axis
+  the brand escalation that J9 still only describes.
+- **Example:** `https://tİktok.com/` (→ `tiktok.com`).
+- **Scoring:** scoring, weight 0.5.
 
 ### `homograph_latin_skeleton` — weight 1.0 (blocker)
 

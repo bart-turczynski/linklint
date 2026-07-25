@@ -65,6 +65,12 @@ const CYR_ACCESS = cyr(0x0430, 0x0441, 0x0441, 0x0435, 0x0455, 0x0455) + ".com";
 // analysis — orthogonal to the policy block — so they run with idnPolicy "allow"
 // to stay benign/info; the default-block behavior is covered by idn-policy.test.ts.
 const ALLOW_IDN: InspectOptions = { idnPolicy: "allow" };
+// Locale case-collapse fixtures (LINK-ynsgmybj). Built from codepoints because
+// the two spellings are visually identical and must not be normalized by an
+// editor: U+0130 is the precomposed İ, U+0307 the combining dot that makes the
+// decomposed `I` + dot form the SpecialCasing After_I rule absorbs.
+const DOTTED_I = String.fromCodePoint(0x0130); // İ
+const COMBINING_DOT = String.fromCodePoint(0x0307);
 
 export const CORPUS: CorpusRow[] = [
   // ── Deceptive: canonical scoring attack set (SC-1) ──────────────────────
@@ -643,6 +649,52 @@ export const CORPUS: CorpusRow[] = [
     forbidReasons: ["mixed_script", "homograph_skeleton_collision", "brand_homoglyph", "brand_lookalike"],
     notes: "target-LESS: all-Cyrillic ассеѕѕ.com folds to the non-brand word 'access' — pure-Latin skeleton blocks with NO brand match",
   },
+
+  // Deceptive — brand_locale_collapse (LINK-ynsgmybj, weight 0.5): the host
+  // collapses to EXACTLY a brand under a tr/az lowercase while UTS-46 resolves
+  // it elsewhere. The forbid list is the point: every existing homograph/brand
+  // detector genuinely misses this, because UTS#39 confusables.txt has no row
+  // for U+0130 or U+0307, so the skeleton keeps the combining dot and never
+  // folds to ASCII. See docs/locale-case-mapping.md.
+  {
+    input: `https://t${DOTTED_I}ktok.com/`,
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["brand_locale_collapse"],
+    forbidReasons: [
+      "homograph_latin_skeleton",
+      "homograph_skeleton_collision",
+      "brand_homoglyph",
+      "brand_lookalike",
+      "mixed_script",
+    ],
+    notes: "tİktok.com (U+0130) -> 'tiktok.com' under a tr/az lowercase, but resolves to xn--tiktok-qyd.com — a Turkish-locale validator approves it as the brand",
+  },
+  {
+    input: `https://I${COMBINING_DOT}nstagram.com/`,
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["brand_locale_collapse"],
+    forbidReasons: ["homograph_latin_skeleton", "brand_homoglyph", "mixed_script"],
+    notes: "DECOMPOSED spelling: I + U+0307 collapses to 'i' under the SpecialCasing After_I rule — same attack, different encoding, so the detector must read the RAW host (registrableDomain has already been default-lowercased, destroying the After_I context)",
+  },
+
+  // Informational (SC-1a/SC-2): a real Turkish word carrying İ. The collapse is
+  // genuine and worth annotating, but `İstanbul` is ordinary orthography, so the
+  // base signal stays weight 0 and must NOT escalate.
+  {
+    input: `https://${DOTTED_I}stanbul.com/`,
+    label: "info",
+    options: ALLOW_IDN,
+    expectReasons: ["locale_case_ambiguity", "normalization_delta"],
+    forbidReasons: ["brand_locale_collapse", "homograph_latin_skeleton", "mixed_script"],
+    notes: "SC-2: İstanbul.com collapses to the non-brand 'istanbul.com' — annotate at weight 0, never escalate",
+  },
+
+  // Benign (SC-2): the locale-collapse family must NOT over-flag these.
+  { input: "https://münchen.de/", label: "benign", options: ALLOW_IDN, forbidReasons: ["locale_case_ambiguity", "brand_locale_collapse"], notes: "locale guard: a legitimate IDN with no İ still carries ü after a tr lowercase — the collapse must be TOTAL to fire" },
+  { input: "https://WIKI.com/", label: "benign", forbidReasons: ["locale_case_ambiguity", "brand_locale_collapse"], notes: "locale guard: the MIRROR direction (I -> ı) is deliberately out of scope — it would fire on essentially every uppercase host" },
+  { input: "https://xn--tiktok-qyd.com/", label: "benign", options: ALLOW_IDN, forbidReasons: ["locale_case_ambiguity", "brand_locale_collapse"], notes: "locale guard: the ACE form is already pure ASCII, so no case-normalizer can collapse it — presenting punycode carries no locale hazard" },
 
   // Benign (SC-2): the G family must NOT over-flag these.
   { input: "https://paypal.com", label: "benign", forbidReasons: ["brand_lookalike", "brand_homoglyph", "homograph_skeleton_collision"], notes: "G2/E3 guard: exact brand domain is the brand, never fires" },
