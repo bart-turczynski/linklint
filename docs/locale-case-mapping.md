@@ -23,8 +23,10 @@ Three outcomes, in descending confidence:
    `en-US` one. That contradicted the documented determinism guarantee.
 3. **A detector for the "manufacture a confusable by case-mapping" direction is
    NOT worth building; a detector for the opposite direction is.** The reasoning
-   is in [§4](#4-should-linklint-detect-this) and the gap is characterized in
-   [§5](#5-the-residual-gap-u0130). Implementation is deferred to a follow-up.
+   is in [§4](#4-should-linklint-detect-this) and the gap it closes is in
+   [§5](#5-the-u0130-gap-closed-by-locale_case_ambiguity--brand_locale_collapse).
+   **Shipped** as `locale_case_ambiguity` / `brand_locale_collapse`
+   (`LINK-ynsgmybj`).
 
 ## 1. The mechanism
 
@@ -144,20 +146,19 @@ gets confused rather than the victim's resolver:
    `xn--tiktok-qyd.com` — the attacker's domain.
 
 This is precisely the Java `toLowerCase()` allowlist-bypass shape, and the
-trigger set is small and enumerable (U+0130, plus the Lithuanian combining-dot
-sequences) rather than "every host with an `I`". That makes it a viable
-detector, unlike D1.
+trigger set is small and enumerable — it turned out to be exactly two host forms
+(§5) rather than "every host with an `I`". That makes it a viable detector,
+unlike D1.
 
 Its natural home is alongside `idna_mapping_ambiguity`, which already implements
 exactly this shape one axis over: it flags hosts that *different IDNA standards*
 map differently. D2 is the same validate-then-transform split keyed on **locale**
 instead of standard.
 
-**Recommendation:** build it, as a follow-up. It is a new reason code with
-scoring, corpus, and documentation obligations, which is more than a research
-spike should land.
+**Built** as `LINK-ynsgmybj` — see §5 for what it does and why nothing existing
+could cover it.
 
-## 5. The residual gap (U+0130)
+## 5. The U+0130 gap, closed by `locale_case_ambiguity` / `brand_locale_collapse`
 
 Answering the spike's question about whether the confusables corpus carries the
 `i`/`ı`/`İ` family as a case-derived pair: **it carries `ı` but not `İ`, and the
@@ -183,33 +184,60 @@ skeleton("tİktok") -> "tİktok"   no collision — U+0307 survives, stays non-A
 surviving combining dot suppresses it. Consequently:
 
 ```
-https://tİktok.com/   score 0.7   idn_host(0.7), normalization_delta(0)
+https://tİktok.com/   score 0.7   idn_host(0.7), normalization_delta(0)   (before)
 ```
 
-`tİktok.com` scores identically to a legitimate IDN such as `münchen.de`, and
-carries no brand-impersonation signal at all. Note also that UTS-46 does *not*
+`tİktok.com` scored identically to a legitimate IDN such as `münchen.de`, and
+carried no brand-impersonation signal at all. Note also that UTS-46 does *not*
 neutralize the distinction before the registrable-domain comparison — it maps
 `İ` to `i` + U+0307 and punycodes the result, preserving a domain that the
 tailored mapping collapses to plain ASCII.
 
-`packages/core/test/locale-independence.test.ts` pins all of this as
-characterization tests, so closing the gap is a deliberate, visible change.
+Because the gap is unreachable from UTS-39, it needs a bespoke detector rather
+than a data fix. That is what shipped.
 
-### Sketch for the follow-up
+### What shipped
 
-A structural scan in the shape of `scanIdnaMappingAmbiguity`:
+`packages/core/src/detectors/locale-case-collapse.ts` — one detector emitting two
+codes, strongest first:
 
-- Trigger set: U+0130, and `I`/`J`/`Į` followed by a combining dot above
-  (the `lt` tailoring).
-- Compare the host's UTS-46 ASCII form against its ASCII form after an explicit
-  `tr`/`az`/`lt` lowercase. Emit only when the two differ.
-- Informational (weight 0) on its own — a lone `İ` is legitimate in Turkish
-  (`İstanbul` is a real word, and `İ`-bearing IDNs are legitimately registrable),
-  so the base signal must not raise severity (SC-2).
-- Escalate via the brand-aware layer, exactly as `idna_mapping_ambiguity` does:
-  when the locale-collapsed form equals a known brand (`tİktok` → `tiktok`), it
-  becomes an impersonation signal. That escalation, not the base annotation, is
-  where the value is.
+| Code | Weight | Fires when |
+|------|--------|-----------|
+| `brand_locale_collapse` | 0.5 | the collapsed form equals a watchlist brand domain **exactly** |
+| `locale_case_ambiguity` | 0 | it collapses to pure ASCII, but not onto a brand |
+
+```text
+https://tİktok.com/     0.85  brand_locale_collapse(0.5), idn_host(0.7), normalization_delta(0)
+https://İstanbul.com/   0.70  idn_host(0.7), locale_case_ambiguity(0), normalization_delta(0)
+```
+
+Design points worth keeping:
+
+- **Trigger set is exactly two host forms**, both collapsing to `i`: U+0130 (İ)
+  and `I` + U+0307 (the SpecialCasing `After_I` rule — the decomposed spelling of
+  the same thing). An exhaustive sweep of every codepoint in Unicode confirms
+  U+0130 is the **only** one whose tailored lowercase is pure ASCII while its
+  default lowercase is not. Lithuanian never collapses: its tailoring only *adds*
+  combining dots.
+- **The tr/az mapping is hand-rolled, not `toLocaleLowerCase("tr")`.** Two
+  reasons: `toLocaleLowerCase` reads ICU data, so behavior varies with the
+  runtime's ICU build (`small-icu` Node, browsers, workers) — a detector that
+  silently stops firing on some runtimes is worse than none; and it keeps the
+  drift-lock in §2 unconditional. A test asserts the hand-rolled mapping agrees
+  with the platform tailoring wherever ICU is available.
+- **It reads the RAW host, not `registrableDomain`.** The latter has already been
+  default-lowercased, which turns `I` + U+0307 into `i` + U+0307 and destroys the
+  `After_I` context before the detector can see it. A tr-locale validator
+  lowercases the URL as written, so that is what must be modeled.
+- **Informational unless it lands on a brand.** `İstanbul` is ordinary Turkish
+  orthography and `İ`-bearing IDNs are legitimately registrable, so the base
+  signal must never raise severity on its own (SC-2). The exact-brand escalation
+  is the same evidentiary bar as `homograph_skeleton_collision`, hence the same
+  weight. This ships, for the locale axis, the brand escalation that
+  `idna_mapping_ambiguity` still only describes.
+- **The ACE form does not fire.** `xn--tiktok-qyd.com` is already pure ASCII, so
+  no case-normalizer can collapse it; presenting punycode carries no locale
+  hazard.
 
 ## 6. Prior art consulted
 

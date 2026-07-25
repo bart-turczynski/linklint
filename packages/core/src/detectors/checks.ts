@@ -26,6 +26,7 @@ import { confusableInPath } from "./confusable-in-path.js";
 import { brandLookalike } from "./brand-lookalike.js";
 import { skeletonCollision } from "./skeleton-collision.js";
 import { latinSkeletonHomograph } from "./latin-skeleton-homograph.js";
+import { localeCaseCollapse } from "./locale-case-collapse.js";
 import { idnHost } from "./idn-host.js";
 import { soundsquatting } from "./soundsquatting.js";
 import { bitsquatting } from "./bitsquatting.js";
@@ -41,12 +42,12 @@ import { dataExfiltration } from "./data-exfiltration.js";
 import { ssrfCloudMetadata } from "./ssrf-cloud-metadata.js";
 
 /**
- * THE single descriptor source for all 36 checks. `STRUCTURAL_SCANS`
+ * THE single descriptor source for all 37 checks. `STRUCTURAL_SCANS`
  * (structural.ts) and `DETECTORS` (registry.ts) are both DERIVED from this
  * array — add a check here once and both runtime arrays pick it up.
  *
  * Order matches today's runtime order exactly: the 4 structural scans first
- * (STRUCTURAL_SCANS order), then the 32 parsed detectors (DETECTORS order) —
+ * (STRUCTURAL_SCANS order), then the 33 parsed detectors (DETECTORS order) —
  * the last five of which are `agentGated` and run only when
  * `InspectOptions.agentMode` is true.
  * Each descriptor reuses the existing detector object / scan thunk's `run`;
@@ -249,6 +250,14 @@ export const CHECKS: CheckDescriptor[] = [
     emits: ["homograph_latin_skeleton"],
     skipReportable: true,
     run: latinSkeletonHomograph.run,
+  },
+  {
+    id: localeCaseCollapse.id,
+    layer: localeCaseCollapse.layer,
+    phase: "parsed",
+    emits: ["locale_case_ambiguity", "brand_locale_collapse"],
+    skipReportable: true,
+    run: localeCaseCollapse.run,
   },
   {
     id: idnHost.id,

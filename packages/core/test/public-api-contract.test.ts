@@ -143,6 +143,7 @@ describe("linklint/experimental — curated runtime surface", () => {
         "brandLookalike",
         "skeletonCollision",
         "latinSkeletonHomograph",
+        "localeCaseCollapse",
         "idnHost",
         "soundsquatting",
         "bitsquatting",

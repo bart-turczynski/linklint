@@ -175,20 +175,19 @@ describe("inspect() is stable under the Turkish-I case tailorings", () => {
 });
 
 /**
- * Characterization of the residual gap, NOT an endorsement of it.
+ * Why the U+0130 (İ) direction needs a BESPOKE detector.
  *
- * U+0130 (İ) is the mirror image of U+0131: a tr/az lowercase collapses it to a
- * plain ASCII `i`, so a validator running under an ambient Turkish locale reads
- * `tİktok.com` as the brand `tiktok.com`, while UTS-46 — and therefore the
- * resolver — reads `xn--tiktok-qyd.com`. That is a validate-then-transform split
- * in the attacker's favor.
+ * These assertions are the standing justification for `locale-case-collapse.ts`
+ * existing at all: they prove no confusable-derived detector could ever cover
+ * this case, so if someone later proposes deleting that detector as redundant
+ * with the skeleton machinery, this block is the answer.
  *
- * UTS-39 confusables.txt 16.0.0 contains NO row for U+0130 or U+0307, so the
- * skeleton cannot fold it and no confusable-derived detector can fire. These
- * assertions pin today's behavior so that closing the gap is a visible,
- * deliberate change rather than an accident. See docs/locale-case-mapping.md.
+ * UTS-39 confusables.txt 16.0.0 contains NO row for U+0130 or U+0307 — verified
+ * against the published file, as source or target. The gap is upstream, not in
+ * linklint's curation, so re-curating `tools/build-confusables.mjs` cannot close
+ * it. See docs/locale-case-mapping.md §5.
  */
-describe("KNOWN GAP: the U+0130 (İ) ASCII-collapse direction is not detected", () => {
+describe("the U+0130 (İ) collapse is unreachable from UTS-39, hence the bespoke detector", () => {
   it("UTS-46 keeps İ distinct from i while a tr lowercase collapses it", () => {
     expect(toAscii("tİktok.com")).toBe("xn--tiktok-qyd.com");
     expect(toAscii("tiktok.com")).toBe("tiktok.com");
@@ -196,16 +195,19 @@ describe("KNOWN GAP: the U+0130 (İ) ASCII-collapse direction is not detected", 
     expect("tİktok.com".toLocaleLowerCase("tr")).toBe("tiktok.com");
   });
 
-  it("the UTS-39 skeleton does not fold İ to i", () => {
+  it("the UTS-39 skeleton does not fold İ to i, so no skeleton detector can fire", () => {
     expect(skeleton("tİktok".toLowerCase())).not.toBe("tiktok");
   });
 
-  it("İ-brand impersonation currently scores as an ordinary IDN", () => {
+  // The gap this file used to merely characterize is now closed (LINK-ynsgmybj).
+  it("İ-brand impersonation is caught by brand_locale_collapse, not by the skeleton family", () => {
     const result = inspect("https://tİktok.com/");
     expect(result.status).toBe("ok");
     const codes = result.reasons.map((r) => r.code);
-    expect(codes).toContain("idn_host");
+    expect(codes).toContain("brand_locale_collapse");
+    // Still absent, and that is exactly why the bespoke detector is required.
     expect(codes).not.toContain("homograph_latin_skeleton");
+    expect(codes).not.toContain("homograph_skeleton_collision");
     expect(codes).not.toContain("brand_lookalike");
   });
 });

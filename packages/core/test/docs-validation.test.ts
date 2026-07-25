@@ -67,9 +67,9 @@ describe("README detector count matches the computed total", () => {
     const parsed = CHECKS.filter((c) => c.phase === "parsed").length;
     const agentGated = CHECKS.filter((c) => c.agentGated === true).length;
 
-    expect(total).toBe(36);
+    expect(total).toBe(37);
     expect(structural).toBe(4);
-    expect(parsed).toBe(32);
+    expect(parsed).toBe(33);
     expect(agentGated).toBe(5);
     expect(DETECTORS.length).toBe(parsed);
     expect(STRUCTURAL_SCANS.length).toBe(structural);

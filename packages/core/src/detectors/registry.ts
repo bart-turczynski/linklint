@@ -20,6 +20,7 @@ import { confusableInPath } from "./confusable-in-path.js";
 import { brandLookalike } from "./brand-lookalike.js";
 import { skeletonCollision } from "./skeleton-collision.js";
 import { latinSkeletonHomograph } from "./latin-skeleton-homograph.js";
+import { localeCaseCollapse } from "./locale-case-collapse.js";
 import { idnHost } from "./idn-host.js";
 import { soundsquatting } from "./soundsquatting.js";
 import { bitsquatting } from "./bitsquatting.js";
@@ -70,6 +71,7 @@ export {
   brandLookalike,
   skeletonCollision,
   latinSkeletonHomograph,
+  localeCaseCollapse,
   idnHost,
   soundsquatting,
   bitsquatting,

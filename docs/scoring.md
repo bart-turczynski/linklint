@@ -112,6 +112,7 @@ signal. Reserved for patterns with no legitimate use.
 | `userinfo_present`             | 0.50   | yes      |
 | `embedded_domain_in_subdomain` | 0.50   | yes      |
 | `homograph_skeleton_collision` | 0.50   | yes      |
+| `brand_locale_collapse`        | 0.50   | yes      |
 | `ip_obfuscation`               | 0.40   | yes      |
 | `file_extension_tld`           | 0.40   | yes      |
 | `open_redirect_param`          | 0.40   | yes      |
@@ -126,6 +127,7 @@ signal. Reserved for patterns with no legitimate use.
 | `confusable_char`              | 0.00   | info     |
 | `confusable_in_path`           | 0.00   | info     |
 | `idna_mapping_ambiguity`       | 0.00   | info     |
+| `locale_case_ambiguity`        | 0.00   | info     |
 | `parse_error`                  | 0.00   | meta     |
 
 Each scoring detector lands at `severity ≥ medium` on its own, satisfying SC-1

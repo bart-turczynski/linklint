@@ -88,8 +88,8 @@ Each reason is fully self-describing:
 
 ## What linklint protects against
 
-linklint runs **36 offline detectors** grouped into the families below: 4 structural
-scans and 32 parsed-context detectors, including 5 agent-mode detectors
+linklint runs **37 offline detectors** grouped into the families below: 4 structural
+scans and 33 parsed-context detectors, including 5 agent-mode detectors
 (prompt-injection, API-endpoint-impersonation, credential-harvesting, data-exfiltration,
 and cloud-metadata SSRF) that are opt-in via `agentMode` and off by default. Every
 example is real output. A clean URL like `https://github.com` returns `score: 0`,
@@ -361,7 +361,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) and [SECURITY.md](./SECURITY.md).
 
 ## Status & roadmap
 
-**v1 — implemented.** The lexical layer is complete: 36 offline, deterministic detectors,
+**v1 — implemented.** The lexical layer is complete: 37 offline, deterministic detectors,
 probabilistic-OR scoring, a caller-configurable policy layer, a stable versioned schema,
 and a local MCP server. Typically < 5 ms per call, zero network.
 
