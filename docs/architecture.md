@@ -163,6 +163,32 @@ tradeoff, **not** changed here; the freshness gate probes `tldts` with
 `allowPrivateDomains: true` (the view where these eTLDs live) to test the bundled
 *data's* freshness independently of that policy.
 
+**Upstream conformance corpus (U2).** The freshness gate above answers "is the
+bundled list recent?"; it does not answer "does the list still resolve the way it
+did?". `test/psl-conformance.test.ts` closes that gap by running the **entire**
+upstream `tests/tests.txt` (78 rows, vendored at
+`test/data/psl-tests.txt` and pinned by `sha256`) against `analyzeHost()` on
+every check — wildcards (`*.mm`, `*.ck`), exceptions (`!www.ck`, `!city.kobe.jp`),
+deep nesting (`k12.ak.us`), uppercase, unlisted TLDs, and IDN labels in both
+U-label and A-label form. **71 of 77 host rows match upstream verbatim (92.2%).**
+The 6 that do not are enumerated in an exact ledger — an undeclared divergence
+*and* a ledger entry that stopped diverging both fail — in two classes, each with
+a positive proof rather than an allowlist entry:
+
+1. **PRIVATE-section suffixes** (4 rows, the `uk.com` family). Upstream exercises
+   the full list; linklint is ICANN-only per the tradeoff above. Proven to be
+   exactly that flag: re-running those rows with `allowPrivateDomains: true`
+   reproduces every upstream expectation.
+2. **Leading empty label** (2 rows, `.example.com` / `.example.example`). `tldts`
+   tolerates a leading dot; linklint's parser rejects an empty label first
+   (`parse/raw-parts.ts`), so the input never reaches the PSL layer. Proven by
+   asserting `inspect()` returns `status: "invalid"` for both — while a single
+   *trailing* root dot still parses.
+
+Neither class is a defect, and neither is silently allowlisted. A `tldts` pin
+bump that moves any other row fails here, before it can surface downstream as an
+unexplained scoring change.
+
 **Decision — the boundary stays global, and the brand family stays ICANN-only.**
 A per-detector boundary choice was investigated and **declined**. Three findings,
 in order of weight:
