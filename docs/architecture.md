@@ -239,6 +239,49 @@ mechanically easy, but adds a second PSL lookup to every `inspect()` against the
 sub-5 ms budget for no current consumer. Build the seam when a detector needs
 it — the same rule applied to the `parse.ts` split.
 
+### 6.2 IDNA / UTS-46 conformance & the normalization flag profile
+
+Every verdict that rests on *"what host is this really"* flows through
+`src/unicode/idna.ts`, backed by `tr46` (pinned as `dataVersions.idna`). tr46
+embeds its own UTS-46 and Unicode data and releases on its own cadence, so the
+same silent-drift exposure the PSL has applies here.
+
+**Flag profile.** `idna.ts` passes only `transitionalProcessing`; every other
+tr46 option keeps its default of `false` — **CheckBidi, CheckHyphens,
+CheckJoiners, UseSTD3ASCIIRules and VerifyDnsLength are all off**. This is
+deliberate: `inspect()` must *classify* hostile input, not reject it, so
+normalization stays maximally permissive and the detectors decide what is
+suspicious. A bidi-violating or over-long host is a finding, not a parse failure.
+
+**Conformance gate (U1).** `test/idna-conformance.test.ts` runs the **entire**
+upstream `IdnaTestV2.txt` (6,391 rows, Unicode 17.0, vendored at
+`test/data/IdnaTestV2.txt` and pinned by `sha256`) against `toAsciiUnder()`
+(both transitional and nontransitional), `toUnicode()`, `toAscii()` and
+`hasMalformedPunycode()` on every check.
+
+Rows are triaged using the corpus's **own** relaxation table, not a linklint
+allowlist — the file's header states that an implementation leaving a flag false
+"would ignore the corresponding status codes" (`VerifyDnsLength: A4_1, A4_2` ·
+`CheckHyphens: V2, V3` · `CheckJoiners: Cn` · `CheckBidi: Bn` ·
+`UseSTD3ASCIIRules: U1`, plus `X4_2` as the toUnicode counterpart of `A4_2`).
+Every remaining code (`P*`, `V1`, `V4`, `V6`, `V7`, `A3`) is a hard error
+linklint must still reproduce.
+
+**Result: 100.00% on all three operations — zero divergences to document.** The
+figure is kept honest by pinning the corpus shape alongside it: 4,181 rows must
+still *fail* under this profile and 2,210 must *succeed*, of which 1,661 succeed
+only because a flag is off. A relaxation rule that had quietly swallowed the
+corpus would also report 100%, so the split is asserted too.
+
+**Unicode baseline.** The bundled tr46 carries **Unicode 17.0** data, evidenced
+by CJK Extension J (`U+323B0..U+3347B`, assigned in 17.0, `disallowed` in 16.0):
+running the 16.0 corpus against it produces exactly 13 failures at those code
+points, and the 17.0 corpus produces none. Two assertions pin that baseline
+directly, so a `tr46` pin that moves to a different Unicode release fails even
+before the corpus is refreshed. Note this is a **newer** Unicode release than the
+confusables table (16.0.0, `tools/build-confusables.mjs`); the two data sets are
+independent and are pinned separately.
+
 ## 7. Scoring
 
 Probabilistic-OR aggregation over scoring reasons:

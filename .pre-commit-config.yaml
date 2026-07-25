@@ -4,8 +4,15 @@ repos:
     hooks:
       - id: check-added-large-files
         args: ['--maxkb=5120']
+      # Vendored upstream conformance corpora are committed BYTE-FOR-BYTE so their
+      # pinned sha256 can be re-verified against the publisher with a plain
+      # `shasum`. These two hooks rewrite content (IdnaTestV2.txt carries trailing
+      # whitespace on 7 lines), which would silently break that pin — the same
+      # class of hazard as the mixed-line-ending incident on the IANA CSVs.
       - id: end-of-file-fixer
+        exclude: '^packages/core/test/data/'
       - id: trailing-whitespace
+        exclude: '^packages/core/test/data/'
       - id: check-merge-conflict
       - id: check-yaml
       - id: check-toml
