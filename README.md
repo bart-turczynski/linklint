@@ -211,6 +211,17 @@ interface InspectResult {
 }
 ```
 
+> **Gating? `status: "invalid"` must be checked separately — a numeric gate fails open.**
+> `score` is `null` whenever `status` is `"invalid"`, and structural scans emit real
+> scoring weight on inputs that then fail to parse: `http://169.254.169.254/` scores
+> `0.75`, but the same host written with fullwidth dots is `invalid` / `score: null`
+> while still carrying `separator_lookalike` (weight 0.5) — and still reaching the same
+> cloud-metadata endpoint. Treat `invalid` as blocking:
+> `if (r.status === 'invalid') block();` before comparing severity. See
+> [`docs/scoring.md`](docs/scoring.md#gating-on-results--status-invalid-must-be-handled-explicitly)
+> for the full predicate. The CLI (`--allow-invalid` opts out) and the MCP tool contract
+> already fail closed this way.
+
 `checksSkipped` makes the boundary explicit: today linklint runs the **lexical** layer
 (and **policy**, if configured). When only lexical checks run, the score is a
 **lower bound** — resolution and reputation layers are roadmap.

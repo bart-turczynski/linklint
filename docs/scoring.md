@@ -45,6 +45,58 @@ A parsed input with zero scoring weight is **benign**: `score: 0`,
 `severity: "info"` — even when informational reasons are present (FR-SCORE-5).
 Invalid input has `score: null` / `severity: null` and is **not** benign.
 
+### Gating on results — `status: "invalid"` must be handled explicitly
+
+**The obvious gate fails open.** `score` is `null` whenever `status` is
+`"invalid"`, so a numeric comparison silently lets those inputs through:
+
+```ts
+// WRONG — fails OPEN on every invalid result (null >= 0.7 is false).
+if (result.score !== null && result.score >= 0.7) block();
+if (result.score >= 0.7) block();   // same bug, TypeScript rejects it
+```
+
+This is not a theoretical edge. Structural scans run **before** parsing and do
+emit scoring-weight findings on inputs that then fail to parse, so the weight is
+real and is discarded:
+
+| Input | `status` | `score` | Reasons (weight) |
+|---|---|---|---|
+| `http://169.254.169.254/` | `ok` | **0.75** | `ip_cloud_metadata` (0.75) |
+| the same host with fullwidth dots `．` | `invalid` | **`null`** | `separator_lookalike` (**0.5**), `idna_mapping_ambiguity` (0) |
+| `https:///evil.com` | `invalid` | **`null`** | `ambiguous_authority` (**0.65**) |
+
+The first row is blocked by a numeric gate; the second reaches the identical
+cloud-metadata endpoint and is not.
+
+**The correct predicate** treats `invalid` as blocking in its own right:
+
+```ts
+const RANK = { info: 0, low: 1, medium: 2, high: 3, critical: 4 } as const;
+
+function shouldBlock(result: InspectResult, failOn: keyof typeof RANK = "high") {
+  // Fail CLOSED: unparseable input is "not checked", never "checked and clean".
+  if (result.status === "invalid") return true;
+  return RANK[result.severity!] >= RANK[failOn];
+}
+```
+
+`packages/core/test/invalid-gate-contract.test.ts` pins both halves — that the
+naive gate fails open on these exact inputs, and that this predicate does not.
+
+Both shipped enforcement surfaces already do this: the CLI exits `1` on any
+invalid result unless `--allow-invalid` is passed (`cli/src/policy.ts`, "an
+invalid URL is never assumed safe"), and the MCP tool contract instructs callers
+to treat `status: "invalid"` as not-checked.
+
+**Why `score` stays `null` rather than carrying a lower bound.** Surfacing a
+partial score for invalid results was considered and rejected: it would make
+`score >= threshold` *sometimes* correct, which is worse than reliably wrong. A
+`parse_error`-only result would carry a lower bound of `0`, so the naive gate
+would still fail open on it while now appearing to work on the two rows above —
+the bug would survive, harder to find. `null` forces the caller to confront the
+contract once, and `status` is the field that answers "was this checked at all".
+
 ### Caller false-positive suppression (`suppressReasons`)
 
 The `suppressReasons` option is a caller-owned escape hatch — the general form of
