@@ -23,11 +23,20 @@ node tools/build-confusables.mjs --check
 
 (Also available as `pnpm data:confusables` from the repo root.)
 
-**Pinned source.** Unicode **16.0.0**, to match the IDNA/tldts baseline:
+**Pinned source.** Unicode **16.0.0**:
 `https://www.unicode.org/Public/security/16.0.0/confusables.txt`. The generated
 file records the source URL, version, and a `sha256` of the exact bytes parsed,
 so any regeneration is verifiable. Bump `UNICODE_VERSION` in the script to move
 to a newer release (e.g. 17.0.0) deliberately.
+
+> **Baseline note.** This pin no longer matches the IDNA baseline. The bundled
+> `tr46@6.0.0` carries **Unicode 17.0** data — established by the U1 conformance
+> run (`packages/core/test/idna-conformance.test.ts`), which passes 6,391/6,391
+> against the 17.0 `IdnaTestV2.txt` and fails 13 rows against the 16.0 one, at
+> CJK Extension J code points assigned in 17.0. The two data sets are independent
+> (confusables drive `confusable_char`; the IDNA mapping table drives
+> normalization), so the skew is not a defect — but aligning confusables to 17.0
+> is a deliberate, verdict-affecting data change and is tracked separately.
 
 **Curated subset (OQ-1 / NFR-DATA-2/3).** Rather than ship the full ~6,300-row
 table, the script filters to the high-risk cross-script subset that drives domain
