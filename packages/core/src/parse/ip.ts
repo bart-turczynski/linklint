@@ -278,7 +278,15 @@ export function analyzeIpv6(host: string): Ipv6Analysis | null {
   let groups: number[];
   const dbl = host.indexOf("::");
   if (dbl !== -1) {
-    const left = parseHextets(host.slice(0, dbl));
+    // LINK-gyywyvtn — a dotted quad is legal ONLY as the final 32 bits (RFC 4291
+    // §2.2). `parseHextets` enforces that per colon-run, but the two runs around
+    // `::` are parsed independently, so a quad ending the LEFT run would be
+    // accepted despite not being final for the address as a whole: `1.2.3.4::`,
+    // `1.2.3.4::5`, `1:2:3.4.5.6::`. Dots appear in no other IPv6 construct
+    // (zone IDs are already rejected above), so any dot left of `::` is invalid.
+    const leftText = host.slice(0, dbl);
+    if (leftText.includes(".")) return null;
+    const left = parseHextets(leftText);
     const right = parseHextets(host.slice(dbl + 2));
     if (!left || !right) return null;
     const missing = 8 - (left.length + right.length);

@@ -287,6 +287,8 @@ export const CORPUS: CorpusRow[] = [
   { input: "   ", label: "invalid" },
   { input: "http://", label: "invalid" },
   { input: "http://exa mple.com", label: "invalid", notes: "space in host" },
+  { input: "http://[1.2.3.4::]/", label: "invalid", notes: "LINK-gyywyvtn — dotted quad left of `::` is not the final 32 bits (RFC 4291 §2.2); previously parsed as 102:304::" },
+  { input: "http://[1:2:3.4.5.6::]/", label: "invalid", notes: "LINK-gyywyvtn — same defect with the quad after a hextet" },
   { input: "@@@@@", label: "invalid" },
   { input: "file:// /etc/passwd", label: "invalid", notes: "regression: hostless file: special-case must not rescue a malformed (whitespace) authority" },
 
