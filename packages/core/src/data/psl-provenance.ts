@@ -127,6 +127,15 @@ export interface PslSnapshot {
    * (`date` and every other field are deterministic). It flips only when the
    * snapshot actually crosses the window — which is exactly when callers should
    * be told the trust boundary they were handed has gone stale.
+   *
+   * READ THIS AS AGE, NOT AS VERIFICATION. `stale: false` means "the bundled
+   * snapshot is under 180 days old" — it does NOT mean "confirmed current
+   * against publicsuffix.org". linklint has no network path and never contacts
+   * the upstream list, so a snapshot can be `stale: false` and still be missing
+   * rules added last week. pslr retired its boolean `psl_outdated()` in 1.1.1
+   * for exactly this conflation (PSLR-cowbpwsy); linklint keeps the boolean
+   * because the offline-only contract makes the weaker claim unambiguous, and
+   * documents it here rather than letting a caller over-read it.
    */
   stale: boolean | null;
 }

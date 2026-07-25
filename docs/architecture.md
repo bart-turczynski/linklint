@@ -282,6 +282,51 @@ before the corpus is refreshed. Note this is a **newer** Unicode release than th
 confusables table (16.0.0, `tools/build-confusables.mjs`); the two data sets are
 independent and are pinned separately.
 
+### 6.3 Pin-bump gate — diffing linklint's own answers
+
+§6.1 and §6.2 both ask *"does linklint still agree with upstream?"*. Neither asks
+the question that actually matters when bumping `tldts` or `tr46`: **did this
+bump move an answer for a host linklint reasons about?** A change can be
+perfectly conformant upstream — a genuinely new PSL rule, a newly-assigned code
+point — and still silently redraw the registrable domain of a watchlist brand.
+
+`test/boundary-baseline.ts` (run via `pnpm data:boundary`) records linklint's own
+answers for a fixed, fully committed input set of **255 hosts**: every
+`BRAND_DOMAINS` entry, every corpus vector host (extracted with linklint's own
+parser, so U-labels survive), every host in the vendored upstream PSL corpus, and
+the IMC '23 multi-tenant eTLDs with a tenant under each. For each host it records
+both PSL views and both normalization modes:
+
+| Recorded | Why |
+|---|---|
+| ICANN-only domain / suffix / subdomain | the view `inspect()` actually reasons with |
+| PRIVATE-inclusive domain / suffix | the freshness-gated view (§6.1) |
+| `isIcann` — **which section** the rule came from | a rule crossing the ICANN/PRIVATE boundary moves one view while leaving the other intact |
+| U-label, toASCII transitional + nontransitional | `tr46` owns all three |
+
+`pnpm data:boundary --check` diffs the committed baseline against what the
+current pins produce and prints a **reviewable list of what moved** — section
+moves called out first and separately — then exits non-zero.
+`boundary-baseline.test.ts` runs it on every check, so an unreviewed bump cannot
+land quietly, and its own negative-control tests mutate a cloned baseline to
+prove each change class is really detected. Accepting a bump means regenerating
+the baseline in the same commit; the bump checklist is in `CONTRIBUTING.md`.
+
+This is the pattern pslr shipped as `psl_diff` (PSLR-ayahzscr) after surveying
+PSL libraries across ten language ecosystems and finding none that offered
+snapshot-to-snapshot diffing.
+
+**On `pslSnapshot.stale` semantics.** pslr retired its boolean `psl_outdated()`
+in 1.1.1 because a boolean conflates *content age* with *knowledge of the remote
+endpoint*. linklint keeps the boolean, and the distinction is load-bearing:
+`stale: false` means **"the bundled snapshot is under 180 days old"** — it does
+**not** mean "verified current against publicsuffix.org". linklint has no network
+path and never contacts the upstream list, so a bundled snapshot can be
+`stale: false` and still be missing rules added last week. `stale: true` is a
+prompt to consider bumping the pin; `stale: false` is *not* a freshness
+guarantee, and `null` means the snapshot date is unknown — undetermined, never
+assumed either way.
+
 ## 7. Scoring
 
 Probabilistic-OR aggregation over scoring reasons:
