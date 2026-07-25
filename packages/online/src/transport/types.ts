@@ -94,6 +94,21 @@ export interface SafeFetchRequest {
   readonly signal?: AbortSignal;
 }
 
+/**
+ * Why a destination address was refused.
+ *
+ * The `ip_*` members come from core's classifier; the rest from this package's
+ * supplemental table (`transport/address.ts`). Core is consulted FIRST, so a
+ * range covered by both reports core's label.
+ *
+ * `benchmark` and `discard` are currently UNREACHABLE for that reason — since S3
+ * core's IANA-derived table covers every range that would produce them. They are
+ * retained because the supplemental rules behind them are a deliberate
+ * fail-closed backstop, not because they can be observed today. Which layer
+ * answers for each range is pinned in
+ * `test/address-table-consistency.test.ts` (LINK-cmstadju), so this comment
+ * cannot quietly go stale.
+ */
 export type TransportAddressCategory =
   | "ip_cloud_metadata"
   | "ip_loopback"
