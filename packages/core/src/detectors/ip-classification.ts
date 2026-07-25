@@ -1,6 +1,7 @@
 import type { Detector, DetectorFinding } from "./types.js";
 import type { ReasonCode } from "../schema/reason-codes.js";
 import { analyzeIpv4, analyzeIpv6 } from "../parse/ip.js";
+import { CLOUD_METADATA_ENDPOINTS } from "../data/cloud-metadata.js";
 
 /**
  * Literal-IP range classifier. Scoring. Classifies a literal IP host into
@@ -23,6 +24,13 @@ type Bucket =
   | "ip_private"
   | "ip_reserved";
 
+/** A bucket decision, carrying the provider attribution when one applies. */
+interface BucketMatch {
+  bucket: Bucket;
+  /** Cloud vendor owning a matched metadata endpoint; absent for range buckets. */
+  provider?: string;
+}
+
 /** Parse a canonical dotted-decimal IPv4 (a.b.c.d) into a 32-bit unsigned int. */
 function dottedToInt(dotted: string): number {
   const parts = dotted.split(".");
@@ -31,56 +39,93 @@ function dottedToInt(dotted: string): number {
   return n >>> 0;
 }
 
+/**
+ * The curated cloud-metadata table (`data/cloud-metadata.ts`), indexed by the
+ * PARSED address so lookups compare decoded bits, never text. Each row is run
+ * through the same IPv4/IPv6 parser applied to the host under inspection, so an
+ * alternate spelling of a row (`fd00:0ec2::254`) or of the host both collapse to
+ * the same key. Built once at module load — per-call cost is one Map lookup.
+ *
+ * A row that fails to parse is skipped rather than thrown on: `inspect()` must
+ * never throw, and importing the library must not fail on a data typo. The
+ * table-integrity test asserts every row parses, so a typo fails CI loudly
+ * instead of degrading silently at runtime.
+ */
+const METADATA_IPV4 = new Map<number, string>();
+const METADATA_IPV6 = new Map<string, string>();
+for (const endpoint of CLOUD_METADATA_ENDPOINTS) {
+  const v4 = analyzeIpv4(endpoint.address);
+  if (v4) {
+    METADATA_IPV4.set(dottedToInt(v4.canonical), endpoint.provider);
+    continue;
+  }
+  const v6 = analyzeIpv6(endpoint.address);
+  if (v6) METADATA_IPV6.set(v6.canonical, endpoint.provider);
+}
+
 /** Classify a canonical dotted-decimal IPv4 into one bucket, or null if public. */
-function classifyIpv4(dotted: string): Bucket | null {
+function classifyIpv4(dotted: string): BucketMatch | null {
   const n = dottedToInt(dotted);
   const a = (n >>> 24) & 0xff;
   const b = (n >>> 16) & 0xff;
 
-  // Cloud-metadata endpoint (most specific): 169.254.169.254/32.
-  if (n === 0xa9fea9fe) return "ip_cloud_metadata";
+  // Cloud-metadata endpoint (most specific): the curated per-provider table.
+  // Runs FIRST so an endpoint inside a broader special-use range (169.254.169.254
+  // in link-local, 100.100.100.200 in CGNAT) classifies as metadata, not range.
+  const metadata = METADATA_IPV4.get(n);
+  if (metadata !== undefined) return { bucket: "ip_cloud_metadata", provider: metadata };
 
   // Loopback: 127.0.0.0/8.
-  if (a === 127) return "ip_loopback";
+  if (a === 127) return { bucket: "ip_loopback" };
 
   // Link-local: 169.254.0.0/16.
-  if (a === 169 && b === 254) return "ip_link_local";
+  if (a === 169 && b === 254) return { bucket: "ip_link_local" };
 
   // Private (RFC 1918): 10/8, 172.16/12, 192.168/16.
-  if (a === 10) return "ip_private";
-  if (a === 172 && b >= 16 && b <= 31) return "ip_private";
-  if (a === 192 && b === 168) return "ip_private";
+  if (a === 10) return { bucket: "ip_private" };
+  if (a === 172 && b >= 16 && b <= 31) return { bucket: "ip_private" };
+  if (a === 192 && b === 168) return { bucket: "ip_private" };
 
   // Reserved / special-use: 0/8, 100.64/10 (CGNAT), multicast 224/4, 240/4.
-  if (a === 0) return "ip_reserved";
-  if (a === 100 && b >= 64 && b <= 127) return "ip_reserved";
-  if (a >= 224) return "ip_reserved"; // 224/4 multicast + 240/4 future-use
+  if (a === 0) return { bucket: "ip_reserved" };
+  if (a === 100 && b >= 64 && b <= 127) return { bucket: "ip_reserved" };
+  if (a >= 224) return { bucket: "ip_reserved" }; // 224/4 multicast + 240/4 future-use
 
   // Otherwise an ordinary public IPv4 — no bucket.
   return null;
 }
 
 /** Classify a canonical RFC 5952 IPv6 string into exactly one bucket, or null. */
-function classifyIpv6(canonical: string): Bucket | null {
+function classifyIpv6(canonical: string): BucketMatch | null {
   const c = canonical.toLowerCase();
   const head = c.split(":")[0] ?? "";
 
-  // Cloud-metadata IPv6 endpoint (most specific): fd00:ec2::254.
-  if (c === "fd00:ec2::254") return "ip_cloud_metadata";
+  // Cloud-metadata IPv6 endpoint (most specific): the curated per-provider
+  // table, keyed by the RFC 5952 canonical form. Both sides of the comparison
+  // are parsed and re-rendered, so `fd00:0ec2::254` and `FD00:EC2:0:0:0:0:0:254`
+  // match the same row as `fd00:ec2::254` — a text prefix test would not.
+  const metadata = METADATA_IPV6.get(c);
+  if (metadata !== undefined) return { bucket: "ip_cloud_metadata", provider: metadata };
 
   // Loopback: ::1/128.
-  if (c === "::1") return "ip_loopback";
+  if (c === "::1") return { bucket: "ip_loopback" };
 
   // Link-local: fe80::/10 — first hextet in fe80..febf.
   const headVal = /^[0-9a-f]{1,4}$/.test(head) ? parseInt(head, 16) : NaN;
-  if (!Number.isNaN(headVal) && headVal >= 0xfe80 && headVal <= 0xfebf) return "ip_link_local";
+  if (!Number.isNaN(headVal) && headVal >= 0xfe80 && headVal <= 0xfebf) {
+    return { bucket: "ip_link_local" };
+  }
 
   // Unique-local (private): fc00::/7 — first hextet in fc00..fdff.
-  if (!Number.isNaN(headVal) && headVal >= 0xfc00 && headVal <= 0xfdff) return "ip_private";
+  if (!Number.isNaN(headVal) && headVal >= 0xfc00 && headVal <= 0xfdff) {
+    return { bucket: "ip_private" };
+  }
 
   // Reserved: unspecified ::/128, multicast ff00::/8 (first hextet ff00..ffff).
-  if (c === "::") return "ip_reserved";
-  if (!Number.isNaN(headVal) && headVal >= 0xff00 && headVal <= 0xffff) return "ip_reserved";
+  if (c === "::") return { bucket: "ip_reserved" };
+  if (!Number.isNaN(headVal) && headVal >= 0xff00 && headVal <= 0xffff) {
+    return { bucket: "ip_reserved" };
+  }
 
   // Anything else (e.g. 2001:db8::1) is public/unclassified — no bucket.
   return null;
@@ -101,6 +146,12 @@ export interface IpClassification {
   shown: string;
   /** Canonical address that determined the bucket. */
   canonical: string;
+  /**
+   * Cloud vendor owning the matched metadata endpoint, from the curated
+   * `data/cloud-metadata.ts` table. Present only on `ip_cloud_metadata`; the
+   * generic range buckets have no provider.
+   */
+  provider?: string;
 }
 
 /**
@@ -113,19 +164,19 @@ export function classifyHost(host: string): IpClassification | null {
 
   const ip4 = analyzeIpv4(host);
   if (ip4) {
-    const bucket = classifyIpv4(ip4.canonical);
-    return bucket ? { bucket, shown: host, canonical: ip4.canonical } : null;
+    const m = classifyIpv4(ip4.canonical);
+    return m ? { ...m, shown: host, canonical: ip4.canonical } : null;
   }
 
   const ip6 = analyzeIpv6(host);
   if (ip6) {
     // IPv4-in-IPv6 embedding: classify by the embedded IPv4 (SSRF masquerade).
     if (ip6.embeddedIpv4) {
-      const bucket = classifyIpv4(ip6.embeddedIpv4);
-      return bucket ? { bucket, shown: `[${host}]`, canonical: ip6.embeddedIpv4 } : null;
+      const m = classifyIpv4(ip6.embeddedIpv4);
+      return m ? { ...m, shown: `[${host}]`, canonical: ip6.embeddedIpv4 } : null;
     }
-    const bucket = classifyIpv6(ip6.canonical);
-    if (bucket) return { bucket, shown: `[${host}]`, canonical: ip6.canonical };
+    const m = classifyIpv6(ip6.canonical);
+    if (m) return { ...m, shown: `[${host}]`, canonical: ip6.canonical };
   }
 
   return null;
@@ -136,13 +187,25 @@ export const ipClassification: Detector = {
   layer: "lexical",
   run(ctx): DetectorFinding[] {
     const c = classifyHost(ctx.host);
-    return c ? [finding(c.bucket, c.shown, c.canonical)] : [];
+    return c ? [finding(c)] : [];
   },
 };
 
-function finding(bucket: Bucket, shown: string, canonical: string): DetectorFinding {
+/**
+ * Bucket wording for the detail string. A matched metadata endpoint names the
+ * owning cloud provider so the reader learns WHOSE credentials are at stake;
+ * every other bucket keeps its generic phrasing.
+ */
+function summaryFor(c: IpClassification): string {
+  if (c.bucket === "ip_cloud_metadata" && c.provider !== undefined) {
+    return `the ${c.provider} instance-metadata endpoint (SSRF target)`;
+  }
+  return SUMMARY[c.bucket];
+}
+
+function finding(c: IpClassification): DetectorFinding {
   return {
-    code: bucket as ReasonCode,
-    detail: `host '${shown}' resolves to ${SUMMARY[bucket]} (${canonical})`,
+    code: c.bucket as ReasonCode,
+    detail: `host '${c.shown}' resolves to ${summaryFor(c)} (${c.canonical})`,
   };
 }
