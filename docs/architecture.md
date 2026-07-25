@@ -161,8 +161,57 @@ from the same IMC '23 paper, is that at the linklint layer private-suffix tenant
 `evil.myshopify.com` both resolve to `myshopify.com`). This is a conscious
 tradeoff, **not** changed here; the freshness gate probes `tldts` with
 `allowPrivateDomains: true` (the view where these eTLDs live) to test the bundled
-*data's* freshness independently of that policy. A per-detector boundary choice
-is a candidate follow-up.
+*data's* freshness independently of that policy.
+
+**Decision — the boundary stays global, and the brand family stays ICANN-only.**
+A per-detector boundary choice was investigated and **declined**. Three findings,
+in order of weight:
+
+1. **Switching the brand family to the PRIVATE-inclusive view fires nothing.**
+   `brand_lookalike` compares the *whole* registrable domain against the whole
+   brand domain under a bounded edit distance (`MAX_DISTANCE = 2`), and
+   `brand_homoglyph` requires the digit-folded string to be an exact
+   `BRAND_DOMAINS` member. Handed the PRIVATE-inclusive view, `paypa1.vercel.app`
+   is edit-distance far above 2 from `paypal.com`, and folds to
+   `paypal.vercel.app`, which is not a watchlist domain. The widening on its own
+   is inert — it would only *look* like coverage.
+2. **Making it fire means comparing the tenant label, which reopens a closed
+   decision.** Reducing to the tenant label (`paypa1` → `paypal`) does match, but
+   the same mechanism matches *any* tenant whose label is a brand label — and
+   roughly two dozen of the 106 entries in `BRAND_LABEL_SET` are ordinary English
+   words: `apple`, `amazon`, `visa`, `chase`, `oracle`, `uber`, `ledger`,
+   `discord`, `telegram`, `blockchain`, `kraken`, `ups`, `stripe`, `slack`,
+   `zoom`, `box`, `cash`, `live`, `meta`, `target`, `booking`, `wise`, plus the
+   single character `x`. On platforms whose whole purpose is cheap tenant
+   namespaces, `target.myshopify.com` and `cash.github.io` are unremarkable. That
+   is the false-positive surface `LINK-blgvypxk` closed by deleting
+   `brand_in_path` and `brand_combosquat` outright, and it would return by
+   another route. Note that the generic-word guard which used to live in the
+   `keywords` field of `data/brands.ts` was deleted alongside `BRAND_KEYWORDS`,
+   while `BRAND_DOMAINS` kept those brands — so nothing currently prevents this.
+3. **The exclusion list that would make it safe is itself a judgment call.**
+   Which labels count as "ordinary words" cannot be settled by reading the list;
+   it needs an adversarial corpus of unseen tenant labels, because a
+   hand-curated benign set is self-confirming — precisely how the
+   `brand_combosquat` false-positive surface stayed hidden until it was probed
+   against unseen hosts (`LINK-cqdrdvfu`).
+
+**Accepted limitation.** A brand-impersonating tenant on a PSL PRIVATE-section
+platform is **not** detected: `paypal.myshopify.com` and `paypa1.vercel.app`
+score `0.00`/`info` and `0.20`/`low` respectively, where `paypa1.com` scores
+`0.60`/`high`. This is the same accepted-limitation class as `paypal-login.com`
+scoring `0.00` — deliberate, and preferred over a detector that flags legitimate
+tenants. The IMC '23 multi-tenant rows in `test/corpus/vectors.ts` (which forbid
+`brand_lookalike` on legitimate tenants) are the standing tripwire against
+reintroducing this by another route.
+
+**Unchanged:** FR-D-8 / `embedded_domain_in_subdomain` keeps ICANN-only
+semantics, which is what the tradeoff above exists to protect.
+
+**Deferred, not rejected:** exposing *both* boundaries on `HostFacts` is
+mechanically easy, but adds a second PSL lookup to every `inspect()` against the
+sub-5 ms budget for no current consumer. Build the seam when a detector needs
+it — the same rule applied to the `parse.ts` split.
 
 ## 7. Scoring
 
