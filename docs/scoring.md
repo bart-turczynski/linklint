@@ -113,6 +113,7 @@ signal. Reserved for patterns with no legitimate use.
 | `embedded_domain_in_subdomain` | 0.50   | yes      |
 | `homograph_skeleton_collision` | 0.50   | yes      |
 | `brand_locale_collapse`        | 0.50   | yes      |
+| `brand_idna_collapse`          | 0.50   | yes      |
 | `ip_obfuscation`               | 0.40   | yes      |
 | `file_extension_tld`           | 0.40   | yes      |
 | `open_redirect_param`          | 0.40   | yes      |

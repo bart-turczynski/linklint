@@ -233,8 +233,8 @@ Design points worth keeping:
   orthography and `İ`-bearing IDNs are legitimately registrable, so the base
   signal must never raise severity on its own (SC-2). The exact-brand escalation
   is the same evidentiary bar as `homograph_skeleton_collision`, hence the same
-  weight. This ships, for the locale axis, the brand escalation that
-  `idna_mapping_ambiguity` still only describes.
+  weight. This shipped the brand escalation for the locale axis first; the IDNA
+  axis followed the same pattern in `brand_idna_collapse` (`LINK-vpajgxxm`).
 - **The ACE form does not fire.** `xn--tiktok-qyd.com` is already pure ASCII, so
   no case-normalizer can collapse it; presenting punycode carries no locale
   hazard.

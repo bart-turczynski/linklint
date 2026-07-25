@@ -7,16 +7,63 @@ const detail = (input: string): string =>
   scanIdnaMappingAmbiguity(input)[0]?.detail ?? "";
 
 describe("J9 idna_mapping_ambiguity — Group A (deviation chars differ across standards)", () => {
-  it("eszett ß resolves to a different ASCII domain (wordpreß → wordpress)", () => {
-    const r = inspect("http://wordpreß.com");
+  // straße.de is the Group A shape on a NON-brand domain, so it stays on the
+  // base informational code. The brand-bearing Group A hosts (wordpreß.com,
+  // g<ZWJ>oogle.com) escalate — covered in the brand_idna_collapse block below.
+  it("eszett ß resolves to a different ASCII domain (straße → strasse)", () => {
+    const r = inspect("http://straße.de");
     expect(r.reasons.map((x) => x.code)).toContain("idna_mapping_ambiguity");
-    const d = detail("http://wordpreß.com");
-    expect(d).toContain("wordpress.com"); // the IDNA2003 reading
+    const d = detail("http://straße.de");
+    expect(d).toContain("strasse.de"); // the IDNA2003 reading
     expect(d).toContain("IDNA2003");
   });
 
-  it("ZWJ (U+200D) — IDNA2003 strips it, UTS-46 encodes it", () => {
-    expect(codes("http://g‍oogle.com")).toContain("idna_mapping_ambiguity");
+  it("ZWNJ (U+200C) on a non-brand host — IDNA2003 strips it, UTS-46 encodes it", () => {
+    expect(codes("http://ex‌ample.de")).toContain("idna_mapping_ambiguity");
+  });
+});
+
+describe("J9 brand_idna_collapse — the IDNA2003 form IS a brand exactly", () => {
+  it("wordpreß.com: validator reads wordpress.com, resolver reaches the attacker", () => {
+    const r = inspect("http://wordpreß.com", { idnPolicy: "allow" });
+    const codeList = r.reasons.map((x) => x.code);
+    expect(codeList).toContain("brand_idna_collapse");
+    // Mutually exclusive with the base code — one finding per input.
+    expect(codeList).not.toContain("idna_mapping_ambiguity");
+
+    const reason = r.reasons.find((x) => x.code === "brand_idna_collapse")!;
+    expect(reason.weight).toBe(0.5);
+    expect(reason.detail).toContain("wordpress.com"); // what the validator sees
+    expect(reason.detail).toContain("xn--wordpre-6va.com"); // where the request lands
+  });
+
+  it("escalates through the ZWJ deviation route too", () => {
+    expect(codes("http://g‍oogle.com")).toContain("brand_idna_collapse");
+  });
+
+  it("escalates on a subdomain — a validator checking the eTLD+1 still reads the brand", () => {
+    const r = inspect("http://login.wordpreß.com", { idnPolicy: "allow" });
+    expect(r.reasons.map((x) => x.code)).toContain("brand_idna_collapse");
+    expect(r.score).toBeGreaterThanOrEqual(0.5);
+  });
+
+  // PRECISION GUARDS — the shapes that must NOT escalate.
+  it("does not escalate Group B: both standards fold to the REAL google.com", () => {
+    // The request reaches the genuine site, so there is no impersonation to
+    // score. This is the load-bearing scope decision for the escalation.
+    const codeList = codes("http://ｇｏｏｇｌｅ.com");
+    expect(codeList).toContain("idna_mapping_ambiguity");
+    expect(codeList).not.toContain("brand_idna_collapse");
+  });
+
+  it("does not escalate a Group A host whose IDNA2003 form is not a brand", () => {
+    const codeList = codes("http://straße.de");
+    expect(codeList).toContain("idna_mapping_ambiguity");
+    expect(codeList).not.toContain("brand_idna_collapse");
+  });
+
+  it("does not escalate a legitimate brand-adjacent German IDN (baß.de)", () => {
+    expect(codes("https://baß.de")).not.toContain("brand_idna_collapse");
   });
 });
 

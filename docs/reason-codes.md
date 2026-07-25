@@ -54,10 +54,14 @@ only reasons are informational is **benign** (`score: 0`, `severity: "info"`).
   - **Group B — compatibility folds** (fullwidth / circled Latin): the host folds
     entirely to ASCII with no punycode. `ｇｏｏｇｌｅ.com` → `google.com`.
 - **Why informational (weight 0):** a lone ß is a legitimate German IDN (`baß.de`
-  is registrable), so the base signal must not raise severity (SC-2). **Epic G**
-  adds the scoring escalation: when the alternate IDNA2003 mapping equals a known
-  brand (`wordpreß` → `wordpress`), it becomes an impersonation signal. (Decision
-  on the brainstorm's OQ-J9b: informational until the brand list lands.)
+  is registrable), so the base signal must not raise severity (SC-2). The
+  escalation is `brand_idna_collapse`, below — that is where the value is.
+  (Resolves the brainstorm's OQ-J9b.)
+- **Which group escalates:** only **Group A**. There the two standards reach
+  *different* domains, so an IDNA2003 validator can read a brand while the
+  request lands elsewhere. Group B is the opposite shape — both standards fold
+  `ｇｏｏｇｌｅ.com` to the *real* `google.com`, so the request reaches the genuine
+  site and there is nothing to score.
 - **Scoring:** informational, weight 0.
 
 ### `locale_case_ambiguity` — `LINK-ynsgmybj`
@@ -280,9 +284,51 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 - **See also:** `locale_case_ambiguity` — the weight-0 annotation this escalates;
   `homograph_skeleton_collision` (E3) — the skeleton-keyed sibling at the same
   weight; `idna_mapping_ambiguity` (J9) — the same validate-then-transform shape
-  keyed on IDNA standard instead of locale. This code ships for the locale axis
-  the brand escalation that J9 still only describes.
+  keyed on IDNA standard instead of locale, whose parallel escalation is
+  `brand_idna_collapse`.
 - **Example:** `https://tİktok.com/` (→ `tiktok.com`).
+- **Scoring:** scoring, weight 0.5.
+
+### `brand_idna_collapse` — `LINK-vpajgxxm` · weight 0.5
+
+- **Meaning:** the host maps to **exactly a watchlist brand domain under
+  IDNA2003**, while UTS-46/IDNA2008 — and therefore the actual request —
+  resolves it somewhere else:
+
+  ```text
+  https://wordpreß.com/
+    validator, IDNA2003:           wordpress.com          <- exact brand match
+    resolver, UTS-46 (mandatory):  xn--wordpre-6va.com    <- the attacker
+  ```
+
+- **Why it's a signal:** the same validate-then-transform split as
+  `brand_locale_collapse`, keyed on the **IDNA standard** rather than the ambient
+  locale. A validator still running transitional processing sees a clean ASCII
+  brand and waves it through; the resolver, which must use UTS-46, reaches the
+  attacker's punycode domain. It is **stack-dependent** rather than
+  client-state-dependent — it manifests wherever some component in the chain
+  predates UTS-46.
+- **Deviation routes:** both Group A routes reach it — `ß`→`ss`
+  (`wordpreß.com` → `wordpress.com`) and dropped ZWJ/ZWNJ (`g<ZWJ>oogle.com` →
+  `google.com` vs `xn--google-pf0c.com`).
+- **Detection & precision (SC-2):** the escalation of `idna_mapping_ambiguity`.
+  The **registrable domain** of the IDNA2003 form must equal a `BRAND_DOMAINS`
+  entry **exactly, byte for byte** — the same evidentiary bar as
+  `homograph_skeleton_collision` and `brand_locale_collapse`, hence the same
+  weight. Comparing on the registrable domain means a subdomain
+  (`login.wordpreß.com`) escalates too, since a validator checking the eTLD+1
+  still reads the brand. The two codes are mutually exclusive per input.
+  - **Group B does not escalate** — both standards fold to the real brand, so
+    the request reaches the genuine site (guarded by corpus and unit tests).
+  - **IDNA2003-accepted / UTS-46-rejected does not escalate** — the resolver
+    rejects the host outright, so no attacker domain is ever reached.
+- **Brand list:** the Epic G watchlist (`BRAND_DOMAINS`), version-pinned via
+  `dataVersions.brands`.
+- **See also:** `idna_mapping_ambiguity` (J9) — the weight-0 annotation this
+  escalates; `brand_locale_collapse` — the locale-axis sibling at the same
+  weight, same shape; `homograph_skeleton_collision` (E3) — the skeleton-keyed
+  sibling.
+- **Example:** `https://wordpreß.com/` (→ `wordpress.com`).
 - **Scoring:** scoring, weight 0.5.
 
 ### `homograph_latin_skeleton` — weight 1.0 (blocker)

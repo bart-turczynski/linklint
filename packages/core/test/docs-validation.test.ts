@@ -13,6 +13,7 @@ import { REASON_CODES, type ReasonCode } from "../src/schema/reason-codes.js";
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const reasonCodesDoc = readFileSync(join(REPO_ROOT, "docs", "reason-codes.md"), "utf8");
 const readme = readFileSync(join(REPO_ROOT, "README.md"), "utf8");
+const architectureDoc = readFileSync(join(REPO_ROOT, "docs", "architecture.md"), "utf8");
 
 // Each code is documented with an h3 header of the form: ### `code_name` — …
 // Parse the backtick-wrapped code name out of every such header.
@@ -87,5 +88,52 @@ describe("README detector count matches the computed total", () => {
       /\*\*v1 — implemented\.\*\* The lexical layer is complete: (\d+) offline, deterministic detectors,/m,
     );
     expect(roadmapLine?.[1]).toBe(String(total));
+  });
+
+  // 5. ARCHITECTURE DOC COUNT — architecture.md restates the same shape in four
+  //    places. It was NOT covered here before, and drifted silently: three sites
+  //    said 37 while two still said 35/31. Assert every occurrence so the next
+  //    check added has to update all of them.
+  it("docs/architecture.md states the current shape everywhere it appears", () => {
+    const total = CHECKS.length;
+    const structural = CHECKS.filter((c) => c.phase === "structural").length;
+    const parsed = CHECKS.filter((c) => c.phase === "parsed").length;
+    const agentGated = CHECKS.filter((c) => c.agentGated === true).length;
+
+    // The four prose/table sites, each pinned to its surrounding wording so a
+    // bare number elsewhere in the doc cannot satisfy the assertion.
+    expect(architectureDoc).toContain(`inspect(), ${total} checks`);
+    expect(architectureDoc).toContain(
+      `run ${total} independent lexical checks: ${structural} structural scans ahead of ` +
+        `parsing, then ${parsed} parsed-context detectors`,
+    );
+    expect(architectureDoc).toContain(
+      `contains ${total} lexical checks: ${structural} structural scans and ${parsed} ` +
+        "parsed-context detectors",
+    );
+    expect(architectureDoc).toContain(`The ${total} checks group into seven families`);
+    expect(architectureDoc).toContain(
+      `${total} checks: ${structural} structural, ${parsed} parsed (${agentGated} of them agent-gated)`,
+    );
+
+    // No stale count may survive anywhere in the doc: the previous total and
+    // parsed count are the exact strings that drifted last time.
+    expect(architectureDoc).not.toMatch(new RegExp(`\\b${total - 2} lexical checks\\b`));
+    expect(architectureDoc).not.toMatch(new RegExp(`\\b${parsed - 2} parsed-context detectors\\b`));
+  });
+});
+
+describe("docs/architecture.md detector families cover every check", () => {
+  // The families table claims to group "the 37 checks", and every cell is a
+  // CHECK ID (not a reason code — one check may emit several). It had drifted to
+  // 32 of 37: ip_classification, ambiguous_numeric_host, homograph_latin_skeleton,
+  // locale_case_collapse, and idn_host were all missing. Pin it to the registry.
+  it("every check id appears in the families table", () => {
+    const tableStart = architectureDoc.indexOf("The 37 checks group into seven families");
+    expect(tableStart).toBeGreaterThan(-1);
+    const table = architectureDoc.slice(tableStart, architectureDoc.indexOf("## 6."));
+
+    const missing = CHECKS.map((c) => c.id).filter((id) => !table.includes(`\`${id}\``));
+    expect(missing).toEqual([]);
   });
 });
