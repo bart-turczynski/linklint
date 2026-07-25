@@ -1037,6 +1037,44 @@ export const CORPUS: CorpusRow[] = [
       "LINK-evooubiz precision guard — RFC 8215 /64 layout; a blanket low-32 read of the /48 would decode its zero suffix as 254.0.0.0 and manufacture ip_reserved",
   },
 
+  // LINK-vwehpsdv — the BASE of each NAT64 prefix. These unwrap to 0.0.0.0 /
+  // 0.0.0.1 and MUST keep reporting ip_reserved.
+  //
+  // Adding `excludeLow: [0, 1]` to the NAT64 rows in LOW32_WRAPPERS was
+  // proposed and DECLINED, because the ::/96 carve-out it cites does not
+  // transfer. There, `excludeLow` REDIRECTS to a competing RFC 4291 assignment
+  // (`::` is the unspecified address, `::1` is loopback) and a verdict
+  // survives. The NAT64 prefixes have no competing assignment — their range
+  // rows carry `bucket: null` — so the same edit would SILENCE these three to
+  // info 0.00 with zero reasons. RFC 6052 §3.1 also forbids the well-known
+  // prefix from carrying a non-global IPv4, which 0.0.0.0 is, so the strict
+  // reading keeps the flag rather than dropping it.
+  {
+    input: "https://[64:ff9b::]/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["ip_reserved"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "LINK-vwehpsdv — NAT64 well-known prefix base unwraps to 0.0.0.0 (RFC 1122 'this host on this network')",
+  },
+  {
+    input: "https://[64:ff9b::1]/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["ip_reserved"],
+    forbidReasons: ["ip_obfuscation", "ip_loopback"],
+    notes:
+      "LINK-vwehpsdv — 64:ff9b::1 is NAT64-wrapped 0.0.0.1, NOT loopback; the ::/96 excludeLow precedent does not transfer",
+  },
+  {
+    input: "https://[64:ff9b:1::]/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["ip_reserved"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "LINK-vwehpsdv — RFC 8215 local-use base, same shape; both NAT64 rows stay consistent",
+  },
+
   // ── Imported IDN / PSL / host test vectors (E6) ─────────────────────────
   ...VECTORS,
 ];
