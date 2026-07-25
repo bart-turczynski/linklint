@@ -88,6 +88,19 @@ describe("README detector count matches the computed total", () => {
       /\*\*v1 — implemented\.\*\* The lexical layer is complete: (\d+) offline, deterministic detectors,/m,
     );
     expect(roadmapLine?.[1]).toBe(String(total));
+
+    // The intro and the repository-layout table restate the same count. Neither
+    // was covered here, and both drifted: LINK-blgvypxk took the total 37 -> 35
+    // by dropping brand_in_path and brand_combosquat, detectors added since
+    // brought it back to 37, and these two prose sites were never updated
+    // (LINK-zlgtnpff). Pin them to their surrounding wording so a bare number
+    // elsewhere in the file cannot satisfy the assertion.
+    expect(readme).toContain(`turns that intuition into ${total} deterministic`);
+    expect(readme).toContain(`\`inspect()\`, ${total} detectors, scoring, policy, schema`);
+
+    // And no stale count may survive anywhere in the README: 35 is the exact
+    // value that drifted, so assert it cannot reappear in either phrasing.
+    expect(readme).not.toMatch(new RegExp(`\\b${total - 2} (deterministic|detectors|offline)\\b`));
   });
 
   // 5. ARCHITECTURE DOC COUNT — architecture.md restates the same shape in four
