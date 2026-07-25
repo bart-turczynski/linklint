@@ -769,6 +769,43 @@ An ordinary **public** literal IP (`8.8.8.8`, `2001:db8::1`) matches no bucket
 and emits nothing. The detail renders the canonical address so the real
 destination is explained.
 
+#### Where the ranges come from
+
+The ranges are **not hand-maintained**. They are generated from the IANA
+[IPv4](https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry-1.csv)
+and
+[IPv6](https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry-1.csv)
+Special-Purpose Address Registries by `tools/build-ip-ranges.mjs` into
+`data/ip-ranges.generated.ts`, version-pinned via `dataVersions.ipRanges`. Each
+bucket's detail carries the registry's own name and RFC citation, so a verdict
+is checkable against the RFC that defines the block:
+
+```
+host '10.0.0.1' resolves to a private (internal) address (10.0.0.1)
+— IANA Private-Use, [RFC1918]
+```
+
+Matching is **longest-prefix**, not first-match, because the registry expresses
+**exceptions inside a block**: `192.0.0.9/32` (PCP anycast) and `192.0.0.10/32`
+(TURN anycast) are globally reachable carve-outs inside the non-global
+`192.0.0.0/24`, and `2001:1::1/128` is one inside `2001::/23`. A flat range list
+cannot represent that — it either loses the block or loses the exception.
+
+Three classes sit deliberately outside the registry mapping:
+
+- **Multicast** (`224.0.0.0/4`, `ff00::/8`) is registered in the separate IANA
+  *Multicast Address Space* registries, so it is added as an explicit overlay —
+  a registry-only table would silently lose it.
+- **Documentation** prefixes (`192.0.2.0/24`, `198.51.100.0/24`,
+  `203.0.113.0/24`, `2001:db8::/32`, `3fff::/20`) earn **no bucket**. A
+  documentation address is inert: not an SSRF target, and naming one is not
+  deception.
+- **Transition wrapper prefixes** (`::ffff:0:0/96`, `64:ff9b::/96`,
+  `64:ff9b:1::/48`, `2001::/32`, `2002::/16`) earn **no bucket** either. They are
+  routing envelopes, not destination classes — what matters is the IPv4 inside,
+  which is handled below. Bucketing the envelope would flag
+  `[64:ff9b::808:808]` (NAT64 doing its ordinary job for public `8.8.8.8`).
+
 #### Transition wrappers: the embedded IPv4 is read from the bits
 
 Three RFC transition prefixes carry an IPv4 in the **low 32 bits** of the IPv6
@@ -873,8 +910,9 @@ they are not unwrapped and emit no bucket.
 
 ### `ip_private` — V1a · weight 0.2
 
-- **Meaning:** a literal private/internal IP — RFC 1918 (`10.0.0.0/8`,
-  `172.16.0.0/12`, `192.168.0.0/16`) or IPv6 unique-local `fc00::/7`.
+- **Meaning:** a literal private/internal IP — the registry's `Private-Use`
+  blocks, i.e. RFC 1918 (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), or
+  IPv6 `Unique-Local` `fc00::/7`.
 - **Why it's a signal:** names an internal target. Same low band as
   `ip_loopback`.
 - **Example:** `http://192.168.1.1/`, `https://[fc00::1]/`.
@@ -887,9 +925,13 @@ they are not unwrapped and emit no bucket.
 
 ### `ip_reserved` — V1a · weight 0.2
 
-- **Meaning:** a literal reserved / special-use IP — `0.0.0.0/8`, `100.64.0.0/10`
-  (CGNAT), multicast (`224.0.0.0/4`, IPv6 `ff00::/8`), future-use `240.0.0.0/4`,
-  or the IPv6 unspecified address `::`.
+- **Meaning:** a literal reserved / special-use IP — every registry block that is
+  **not** globally reachable and not one of the more specific buckets above.
+  Includes `0.0.0.0/8`, `100.64.0.0/10` (CGNAT), future-use `240.0.0.0/4`,
+  `198.18.0.0/15` (benchmarking), the IETF protocol-assignment blocks
+  (`192.0.0.0/24`, `2001::/23`), `100::/64` (discard-only), `5f00::/16` (SRv6
+  SIDs), the IPv6 unspecified address `::`, and multicast (`224.0.0.0/4`, IPv6
+  `ff00::/8`) via the non-registry overlay.
 - **Why it's a signal:** not a normal public destination. Same low band.
 - **Example:** `http://0.0.0.0/`, `https://[ff02::1]/`.
 

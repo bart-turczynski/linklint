@@ -60,6 +60,13 @@ export interface DataVersions {
    * registry pin.
    */
   cloudMetadata: string;
+  /**
+   * IANA IPv4/IPv6 Special-Purpose Address Registry snapshot the literal-IP
+   * range buckets are generated from (`data/ip-ranges.generated.ts`). Separate
+   * from {@link cloudMetadata}: that table is vendor-documented, this one is the
+   * registry itself.
+   */
+  ipRanges: string;
   brands: string;
   weights: string;
 }

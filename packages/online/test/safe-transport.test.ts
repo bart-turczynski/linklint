@@ -96,7 +96,14 @@ describe("safe destination address policy", () => {
     ["10.0.0.1", "ip_private"],
     ["169.254.169.254", "ip_cloud_metadata"],
     ["192.0.2.1", "documentation"],
-    ["198.18.0.1", "benchmark"],
+    // S3 (LINK-qvsrmrzv): core's ranges now come from the IANA special-purpose
+    // registries, where 198.18.0.0/15 (Benchmarking) is Globally Reachable =
+    // False — so core classifies it `ip_reserved` and the answer arrives BEFORE
+    // this package's supplemental "benchmark" rule. The address is blocked
+    // either way; only the label moved. The documentation rows below still fall
+    // through to the supplemental table, because core deliberately leaves
+    // documentation prefixes unclassified (inert, not an SSRF target).
+    ["198.18.0.1", "ip_reserved"],
     ["2001:db8::1", "documentation"],
     // Core is consulted before the supplemental table, and it now unwraps the
     // IPv4 in the low 32 bits of the transition wrappers. `::ffff:7f00:1` really

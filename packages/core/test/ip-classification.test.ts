@@ -58,8 +58,27 @@ describe("ip_classification — literal-IP range buckets", () => {
 
     it("Oracle Cloud 192.0.0.192 is metadata, not an ordinary public address", () => {
       expect(classify("192.0.0.192")).toEqual(["ip_cloud_metadata"]);
-      // Neighbours in 192.0.0.0/24 are NOT the endpoint — the table is a /32 set.
-      expect(classify("192.0.0.193")).toEqual([]);
+      // Neighbours in 192.0.0.0/24 are NOT the endpoint — the metadata table is
+      // a /32 set. S3 moved them from [] to ip_reserved: 192.0.0.0/24 is the
+      // IANA "IETF Protocol Assignments" block (Globally Reachable = False), so
+      // under the registry table the neighbour is reserved, and the /32 overlay
+      // is what keeps .192 itself metadata.
+      expect(classify("192.0.0.193")).toEqual(["ip_reserved"]);
+    });
+
+    // S3 — the whole reason the table is longest-prefix-match rather than a flat
+    // first-match list. The registry marks 192.0.0.9/32 (PCP anycast) and
+    // 192.0.0.10/32 (TURN anycast) Globally Reachable = True INSIDE the
+    // non-global 192.0.0.0/24. A flat list either loses the /24 or loses the
+    // /32; only the longest match can express the carve-out.
+    it("S3 globally-reachable /32 carve-outs beat the enclosing reserved /24", () => {
+      expect(classify("192.0.0.9")).toEqual([]);
+      expect(classify("192.0.0.10")).toEqual([]);
+      // …while the rest of the same /24 stays reserved, including its own
+      // neighbours on either side of the carve-outs.
+      expect(classify("192.0.0.8")).toEqual(["ip_reserved"]);
+      expect(classify("192.0.0.11")).toEqual(["ip_reserved"]);
+      expect(classify("192.0.0.1")).toEqual(["ip_reserved"]);
     });
 
     it("Alibaba 100.100.100.200 outranks the CGNAT reserved range (most specific)", () => {
@@ -132,6 +151,28 @@ describe("ip_classification — literal-IP range buckets", () => {
 
     it("ordinary public/documentation IPv6 yields no bucket", () => {
       expect(classify("2001:db8::1")).toEqual([]);
+    });
+
+    // S3 — the IPv6 half of the same carve-out: 2001:1::1/128 and 2001:1::2/128
+    // are Globally Reachable = True inside 2001::/23 (IETF Protocol
+    // Assignments, not globally reachable). The old first-hextet test could not
+    // express a /23 at all, let alone a /128 exception inside it.
+    it("S3 globally-reachable /128 carve-outs beat the enclosing 2001::/23", () => {
+      expect(classify("2001:1::1")).toEqual([]);
+      expect(classify("2001:1::2")).toEqual([]);
+      expect(classify("2001:1::4")).toEqual(["ip_reserved"]);
+      expect(classify("2001:100::1")).toEqual(["ip_reserved"]);
+    });
+
+    // S3 — sub-hextet prefixes the old first-hextet comparison rounded off.
+    it("S3 matches on the exact prefix boundary, not on whole hextets", () => {
+      // fc00::/7 ends at fdff:…; fe00:: is OUTSIDE it and inside nothing else.
+      expect(classify("fdff:ffff::1")).toEqual(["ip_private"]);
+      expect(classify("fe00::1")).toEqual([]);
+      // fe80::/10 ends at febf:…; fec0:: was site-local, deprecated and NOT in
+      // the registry, so it is unclassified.
+      expect(classify("febf:ffff::1")).toEqual(["ip_link_local"]);
+      expect(classify("fec0::1")).toEqual([]);
     });
   });
 
@@ -213,7 +254,38 @@ describe("ip_classification — literal-IP range buckets", () => {
     expect(f?.detail).toContain("169.254.169.254");
     expect(f?.detail).toContain("metadata");
   });
+
+  // S3 — every range bucket carries the registry row that produced it, so the
+  // verdict is checkable against the RFC that defines the block.
+  describe("S3 detail carries the IANA name + RFC citation", () => {
+    it.each([
+      { host: "10.0.0.1", name: "Private-Use", rfc: "[RFC1918]" },
+      { host: "127.0.0.1", name: "Loopback", rfc: "[RFC1122]" },
+      { host: "169.254.10.20", name: "Link Local", rfc: "[RFC3927]" },
+      { host: "100.64.0.1", name: "Shared Address Space", rfc: "[RFC6598]" },
+      { host: "224.0.0.1", name: "Multicast", rfc: "[RFC5771]" },
+      { host: "fc00::1", name: "Unique-Local", rfc: "[RFC4193]" },
+      { host: "fe80::1", name: "Link-Local Unicast", rfc: "[RFC4291]" },
+      { host: "ff02::1", name: "Multicast", rfc: "[RFC4291]" },
+    ])("$host cites $name $rfc", ({ host, name, rfc }) => {
+      const [f] = ipClassification.run({ host } as InspectionContext);
+      expect(f?.detail).toContain(`IANA ${name}`);
+      expect(f?.detail).toContain(rfc);
+    });
+
+    it("the vendor-documented metadata table carries NO registry citation", () => {
+      const c = classifyHost("169.254.169.254");
+      expect(c?.bucket).toBe("ip_cloud_metadata");
+      expect(c?.rangeName).toBeUndefined();
+      expect(c?.rangeRfc).toBeUndefined();
+      expect(detailOf("169.254.169.254")).not.toContain("IANA");
+    });
+  });
 });
+
+function detailOf(host: string): string {
+  return ipClassification.run({ host } as InspectionContext)[0]?.detail ?? "";
+}
 
 describe("cloud-metadata provider table", () => {
   const detailFor = (host: string): string =>
