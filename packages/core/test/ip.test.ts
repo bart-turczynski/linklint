@@ -71,7 +71,61 @@ describe("J5 analyzeIpv6", () => {
       obfuscated: true,
       canonical: "::ffff:7f00:1",
       embeddedIpv4: "127.0.0.1",
+      embeddedIpv4Via: "IPv4-mapped prefix ::ffff:0:0/96",
     });
+  });
+
+  // S1 — the embedded IPv4 is read from the BITS, so the hex spelling of a
+  // wrapper form yields exactly what its dotted-quad spelling yields.
+  it("S1 recovers the embedded IPv4 for all three low-32 wrapper prefixes", () => {
+    const cases: Array<[string, string, string]> = [
+      ["::ffff:7f00:1", "127.0.0.1", "IPv4-mapped prefix ::ffff:0:0/96"],
+      ["64:ff9b::a9fe:a9fe", "169.254.169.254", "NAT64 well-known prefix 64:ff9b::/96 (RFC 6052)"],
+      ["::7f00:1", "127.0.0.1", "IPv4-compatible prefix ::/96 (deprecated by RFC 4291)"],
+    ];
+    for (const [host, address, via] of cases) {
+      expect(analyzeIpv6(host)).toEqual({
+        obfuscated: false, // already the RFC 5952 canonical spelling
+        canonical: host,
+        embeddedIpv4: address,
+        embeddedIpv4Via: via,
+      });
+    }
+  });
+
+  it("S1 hex and dotted spellings of the same bits agree on the embedded IPv4", () => {
+    for (const [hex, dotted] of [
+      ["::ffff:a9fe:a9fe", "::ffff:169.254.169.254"],
+      ["64:ff9b::7f00:1", "64:ff9b::127.0.0.1"],
+      ["::a00:1", "::10.0.0.1"],
+    ]) {
+      const a = analyzeIpv6(hex!);
+      const b = analyzeIpv6(dotted!);
+      expect(a?.canonical).toBe(b?.canonical);
+      expect(a?.embeddedIpv4).toBe(b?.embeddedIpv4);
+      expect(a?.embeddedIpv4Via).toBe(b?.embeddedIpv4Via);
+    }
+  });
+
+  it("S1 ::1 and :: are their own addresses, NOT v4-compatible wrappers", () => {
+    // Under a naive ::/96 rule these unwrap to 0.0.0.1 / 0.0.0.0 and stop being
+    // loopback / unspecified. Low-32 values 0 and 1 are excluded for that reason.
+    for (const host of ["::1", "::", "0::1", "::0.0.0.1", "::0.0.0.0"]) {
+      expect(analyzeIpv6(host)?.embeddedIpv4).toBeNull();
+    }
+  });
+
+  it("S1 leaves the out-of-scope transition prefixes alone (separate decision)", () => {
+    // 6to4 embeds a GATEWAY v4 in hextets 1-2 and Teredo bit-complements the
+    // client v4 at the tail — neither is a low-32 read, so neither is unwrapped.
+    const outOfScope = [
+      "2002:a9fe:a9fe::", // 6to4
+      "2001:0:4136:e378:8000:63bf:3fff:fdd2", // Teredo
+      "64:ff9b:1::a9fe:a9fe", // RFC 8215 local-use NAT64
+    ];
+    for (const host of outOfScope) {
+      expect(analyzeIpv6(host)?.embeddedIpv4).toBeNull();
+    }
   });
 
   it("uppercase-only is tolerated (not a deception vector — precision)", () => {

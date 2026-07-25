@@ -879,6 +879,105 @@ export const CORPUS: CorpusRow[] = [
     notes: "V1b v4-in-v6 — embedded metadata endpoint classifies as ip_cloud_metadata (+ ip_obfuscation → high)",
   },
 
+  // S1 — the wrapper forms in their HEX spelling. Same 128 bits as the dotted
+  // rows above/below, so they must reach the same bucket. Before S1 every row
+  // in this block scored 0.00 with zero reasons purely because it was written
+  // without a dotted tail. They carry no ip_obfuscation: each one IS its own
+  // RFC 5952 canonical spelling — the wrapper redirects, it does not disguise.
+  {
+    input: "https://[::ffff:a9fe:a9fe]/",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "S1 IPv4-mapped ::ffff:0:0/96, hex spelling of ::ffff:169.254.169.254 — metadata endpoint",
+  },
+  {
+    input: "https://[64:ff9b::a9fe:a9fe]/",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "S1 NAT64 well-known 64:ff9b::/96 (RFC 6052) — metadata endpoint behind a transition prefix",
+  },
+  {
+    input: "https://[::a9fe:a9fe]/",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "S1 IPv4-compatible ::/96 (deprecated by RFC 4291, still parsed) — metadata endpoint",
+  },
+  {
+    input: "https://[::ffff:7f00:1]/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["ip_loopback"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "S1 IPv4-mapped loopback in hex — same bucket as [::ffff:127.0.0.1]",
+  },
+  {
+    input: "https://[64:ff9b::7f00:1]/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["ip_loopback"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "S1 NAT64-wrapped loopback in hex",
+  },
+  {
+    input: "https://[::7f00:1]/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["ip_loopback"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "S1 IPv4-compatible loopback in hex — the form that does NOT round-trip as ::127.0.0.1",
+  },
+  {
+    input: "https://[64:ff9b::a00:1]/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["ip_private"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "S1 NAT64-wrapped RFC 1918 10.0.0.1",
+  },
+  // S1 negative controls — a wrapper around an ORDINARY public IPv4 must stay
+  // score 0. 8.8.8.8 is benign (vectors.ts), and wrapping it manufactures
+  // nothing: the prefix is not itself a signal, only what it points at is.
+  {
+    input: "https://[::ffff:808:808]/",
+    label: "benign",
+    forbidReasons: ["ip_obfuscation", "ip_reserved", "ip_loopback", "ip_private"],
+    notes: "S1 precision guard — IPv4-mapped 8.8.8.8; public target ⇒ no bucket, no reason",
+  },
+  {
+    input: "https://[64:ff9b::808:808]/",
+    label: "benign",
+    forbidReasons: ["ip_obfuscation", "ip_reserved", "ip_loopback", "ip_private"],
+    notes: "S1 precision guard — NAT64-wrapped 8.8.8.8, the mechanism's ordinary legitimate use",
+  },
+  {
+    input: "https://[::808:808]/",
+    label: "benign",
+    forbidReasons: ["ip_obfuscation", "ip_reserved", "ip_loopback", "ip_private"],
+    notes: "S1 precision guard — IPv4-compatible 8.8.8.8",
+  },
+  // S1 out-of-scope transition prefixes: 6to4 and Teredo do NOT carry the IPv4
+  // in the low 32 bits, so reading it there would decode garbage. Unwrapping
+  // them is a separate decision; until then they must stay unclassified rather
+  // than be given a wrong verdict.
+  {
+    input: "https://[2002:a9fe:a9fe::]/",
+    label: "benign",
+    forbidReasons: ["ip_cloud_metadata", "ip_link_local", "ip_reserved"],
+    notes: "S1 scope boundary — 6to4 2002::/16 embeds a GATEWAY v4 in hextets 1-2, not the low 32 bits",
+  },
+  {
+    input: "https://[64:ff9b:1::a9fe:a9fe]/",
+    label: "benign",
+    forbidReasons: ["ip_cloud_metadata", "ip_link_local", "ip_reserved"],
+    notes: "S1 scope boundary — RFC 8215 local-use NAT64 64:ff9b:1::/48 is not the well-known prefix",
+  },
+
   // ── Imported IDN / PSL / host test vectors (E6) ─────────────────────────
   ...VECTORS,
 ];
