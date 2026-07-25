@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { CONFUSABLES, CONFUSABLES_VERSION } from "../src/data/confusables.js";
 import { DATA_VERSIONS } from "../src/data/versions.js";
+import { inspect } from "../src/index.js";
 
 /**
  * LINK-hfencvmf — drift guard for the generated UTS#39 confusables table.
@@ -76,5 +77,56 @@ describe("the generated table is version-stamped and non-empty", () => {
     expect(CONFUSABLES.size).toBeGreaterThan(1000);
     // Spot-check the canonical Cyrillic homograph survives a regeneration.
     expect(CONFUSABLES.get("а")?.target).toBe("a");
+  });
+});
+
+describe("TRIPWIRE — why the pin is NOT on Unicode 17.0 (LINK-tydjfmci)", () => {
+  /**
+   * Moving the confusables pin to Unicode 17.0 was measured and **declined**.
+   *
+   * 17.0 adds `þ → p` (LATIN SMALL LETTER THORN). For a Latin-script host whose
+   * only non-ASCII character is `þ`, the whole label then skeletons to pure
+   * ASCII, so `homograph_latin_skeleton` — a CRITICAL, weight-1.0 detector —
+   * fires on ordinary Icelandic:
+   *
+   *   þingvellir.is   Unicode 16: info 0.00     Unicode 17: CRITICAL 1.00
+   *
+   * Þingvellir is a real Icelandic national park and UNESCO World Heritage site.
+   * The whole test suite passed under the 17.0 table except the drift guard
+   * above — the hand-curated corpus contains no Icelandic, so it confirmed a
+   * bump that breaks real browsing. That is precisely the failure mode recorded
+   * after `brand_combosquat` (LINK-cqdrdvfu): a curated benign corpus is
+   * self-confirming and must never be the evidence for widening a match.
+   *
+   * These assertions are the tripwire. They pass today and will FAIL on a 17.0
+   * bump, next to the `--check` failure that same bump causes — so whoever moves
+   * the pin sees the reason, not just a stale artifact. Do not "fix" them by
+   * relaxing the expectation: either exclude `þ` from the curated subset, or
+   * require a script change before `homograph_latin_skeleton` may fire.
+   */
+  it.each([
+    { host: "þingvellir.is", note: "Icelandic national park; only non-ASCII char is þ" },
+    { host: "þjóð.is", note: "Icelandic 'nation'" },
+    { host: "þór.is", note: "Icelandic given name" },
+  ])("legitimate Icelandic $host stays benign ($note)", ({ host }) => {
+    const r = inspect(`https://${host}/`, { idnPolicy: "allow" });
+    expect(r.status).toBe("ok");
+    expect(r.score).toBe(0);
+    expect(r.severity).toBe("info");
+    expect(r.reasons.map((x) => x.code)).not.toContain("homograph_latin_skeleton");
+  });
+
+  it("THORN is absent from the curated table — the mapping that causes it", () => {
+    // Unicode 17.0 maps U+00FE -> "p"; 16.0.0 does not. This single entry is the
+    // difference between the rows above scoring 0.00 and 1.00.
+    expect(CONFUSABLES.get("þ")).toBeUndefined();
+  });
+
+  it("single-script Cyrillic stays benign too (ш -> w is the other 17.0 addition)", () => {
+    for (const host of ["школа.рф", "машина.рф", "большой.рф"]) {
+      const r = inspect(`https://${host}/`, { idnPolicy: "allow" });
+      expect(r.score, host).toBe(0);
+      expect(r.reasons.map((x) => x.code), host).not.toContain("homograph_latin_skeleton");
+    }
   });
 });

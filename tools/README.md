@@ -45,14 +45,33 @@ file records the source URL, version, and a `sha256` of the exact bytes parsed,
 so any regeneration is verifiable. Bump `UNICODE_VERSION` in the script to move
 to a newer release (e.g. 17.0.0) deliberately.
 
-> **Baseline note.** This pin no longer matches the IDNA baseline. The bundled
-> `tr46@6.0.0` carries **Unicode 17.0** data — established by the U1 conformance
-> run (`packages/core/test/idna-conformance.test.ts`), which passes 6,391/6,391
-> against the 17.0 `IdnaTestV2.txt` and fails 13 rows against the 16.0 one, at
-> CJK Extension J code points assigned in 17.0. The two data sets are independent
-> (confusables drive `confusable_char`; the IDNA mapping table drives
-> normalization), so the skew is not a defect — but aligning confusables to 17.0
-> is a deliberate, verdict-affecting data change and is tracked separately.
+> **Baseline note — the 16.0.0 pin is deliberate, do not "align" it.**
+> This pin does not match the IDNA baseline: the bundled `tr46@6.0.0` carries
+> **Unicode 17.0** data, established by the U1 conformance run
+> (`packages/core/test/idna-conformance.test.ts`). The two data sets are
+> independent — confusables drive `confusable_char` and the Latin-skeleton
+> homograph check; the IDNA mapping table drives normalization — so the skew is
+> not a defect.
+>
+> Moving confusables to 17.0 was **measured and declined** (`LINK-tydjfmci`).
+> 17.0 adds `þ → p` (LATIN SMALL LETTER THORN), so a Latin-script host whose only
+> non-ASCII character is `þ` skeletons entirely to ASCII and trips
+> `homograph_latin_skeleton` — critical, weight 1.0:
+>
+> | Host | Unicode 16.0.0 | Unicode 17.0 |
+> |---|---|---|
+> | `þingvellir.is` (Icelandic UNESCO site) | `info` 0.00 | **`critical` 1.00** |
+>
+> The full suite passed under the 17.0 table apart from the drift guard — the
+> curated corpus contains no Icelandic, so it *confirmed* a bump that breaks real
+> browsing. Same self-confirming failure mode recorded after `brand_combosquat`
+> (`LINK-cqdrdvfu`). `confusables-drift.test.ts` now carries a tripwire that fails
+> on the bump next to the `--check` failure, so the reason travels with it.
+>
+> To move the pin, first either exclude `þ` from the curated subset or require a
+> script change before `homograph_latin_skeleton` may fire. The 17.0 table is
+> published at `security/latest/` only (there is no versioned `17.0.0/`
+> directory), which is a moving target and a second reason to pin deliberately.
 
 **Curated subset (OQ-1 / NFR-DATA-2/3).** Rather than ship the full ~6,300-row
 table, the script filters to the high-risk cross-script subset that drives domain
