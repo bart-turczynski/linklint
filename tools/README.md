@@ -11,17 +11,33 @@ Generates `packages/core/src/data/confusables.generated.ts` from the official
 list.
 
 ```bash
-# Regenerate from the pinned Unicode version (downloads confusables.txt):
+# Regenerate from the COMMITTED snapshot (default — offline, deterministic):
 node tools/build-confusables.mjs
 
-# Or parse a local copy (offline / reproducible):
+# Move the pin forward: re-download confusables.txt, then rebuild:
+node tools/build-confusables.mjs --fetch
+
+# Parse an arbitrary local copy:
 node tools/build-confusables.mjs --input path/to/confusables.txt
 
-# CI / pre-commit guard — fail if the committed output is stale:
+# Drift guard — fail if the committed output is stale:
 node tools/build-confusables.mjs --check
 ```
 
 (Also available as `pnpm data:confusables` from the repo root.)
+
+**Offline by default (LINK-hfencvmf).** `confusables.txt` (~706 KB) is committed
+under `tools/data/`, so the artifact is reproducible with no network and
+`--check` is a real guard. `packages/core/test/confusables-drift.test.ts` runs it
+in CI, and additionally asserts that the `sha256` recorded in the generated
+header is the digest of the committed snapshot — so swapping the input without
+rebuilding fails even if the parsed output happens to be unchanged. Before this,
+`--check` existed but needed the network, so nothing ran it and this was the one
+generated artifact that could drift silently.
+
+The snapshot is committed **byte-for-byte** (4,654 lines carry trailing
+whitespace upstream); `.pre-commit-config.yaml` excludes `tools/data/` from the
+whitespace-rewriting hooks so the digest stays verifiable against unicode.org.
 
 **Pinned source.** Unicode **16.0.0**:
 `https://www.unicode.org/Public/security/16.0.0/confusables.txt`. The generated

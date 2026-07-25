@@ -3,15 +3,25 @@
 /**
  * Data-build script for the UTS#39 confusables table (LINK-gjlcyrqq / E1).
  *
- * Downloads the official Unicode Security Mechanisms confusables.txt, filters it
+ * Parses the official Unicode Security Mechanisms confusables.txt, filters it
  * to a high-risk cross-script subset, and emits a compact, version-pinned TS
  * table at packages/core/src/data/confusables.generated.ts.
  *
- *   node tools/build-confusables.mjs                 # fetch the pinned version
- *   node tools/build-confusables.mjs --input <file>  # parse a local copy
+ *   node tools/build-confusables.mjs                 # rebuild from the
+ *                                                    # committed snapshot
+ *   node tools/build-confusables.mjs --fetch         # refresh the snapshot from
+ *                                                    # unicode.org, then rebuild
+ *   node tools/build-confusables.mjs --input <file>  # parse an arbitrary copy
  *   node tools/build-confusables.mjs --check         # fail if output is stale
  *
  * Do NOT hand-edit the generated file. Re-run this script to regenerate it.
+ *
+ * The DEFAULT mode is offline: confusables.txt is committed under tools/data/,
+ * so a regeneration — and therefore the --check drift guard, which
+ * confusables-drift.test.ts runs — is reproducible with no network. `--fetch` is
+ * the deliberate act of moving the pin forward. This mirrors
+ * build-ip-ranges.mjs; before LINK-hfencvmf this script's --check existed but
+ * needed the network, so nothing ran it and the artifact could drift silently.
  *
  * Bundle-size policy (OQ-1 / NFR-DATA-2/3): we ship a CURATED subset filtered
  * from the official list rather than the full ~6.3k-row table — every source is
@@ -33,11 +43,13 @@ const SOURCE_URL = `https://www.unicode.org/Public/security/${UNICODE_VERSION}/c
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_PATH = resolve(__dirname, "../packages/core/src/data/confusables.generated.ts");
+const SNAPSHOT = resolve(__dirname, "data/confusables.txt");
 
 const args = process.argv.slice(2);
 const inputIdx = args.indexOf("--input");
 const inputPath = inputIdx >= 0 ? args[inputIdx + 1] : null;
 const checkOnly = args.includes("--check");
+const doFetch = args.includes("--fetch");
 
 /** Hex codepoint → upper-case `U+XXXX` (min 4 digits). */
 function uplus(cp) {
@@ -109,13 +121,14 @@ ${lines.join("\n")}
 
 async function main() {
   let raw;
-  if (inputPath) {
-    raw = readFileSync(inputPath, "utf8");
-  } else {
+  if (doFetch) {
     process.stderr.write(`Fetching ${SOURCE_URL} …\n`);
     const res = await fetch(SOURCE_URL);
     if (!res.ok) throw new Error(`fetch failed: ${res.status} ${res.statusText}`);
     raw = await res.text();
+    writeFileSync(SNAPSHOT, raw);
+  } else {
+    raw = readFileSync(inputPath ?? SNAPSHOT, "utf8");
   }
 
   const sha256 = createHash("sha256").update(raw).digest("hex");
