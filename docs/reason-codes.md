@@ -835,6 +835,19 @@ Two boundaries are deliberate:
   unwrap to `0.0.0.1` and `0.0.0.0`; they are their own addresses, so low-32
   values `0` and `1` are excluded from the IPv4-compatible form and `[::1]`
   stays `ip_loopback`.
+- **That exclusion is NOT extended to the NAT64 prefixes** (LINK-vwehpsdv).
+  `[64:ff9b::]`, `[64:ff9b::1]` and `[64:ff9b:1::]` unwrap to `0.0.0.0` /
+  `0.0.0.1` and report `ip_reserved` (low, 0.20). The carve-out above works
+  because RFC 4291 gives `::` and `::1` a **competing assignment**, so excluding
+  them *redirects* to a different verdict; the NAT64 prefixes have no competing
+  assignment — their range rows carry `bucket: null` — so the same edit would
+  *silence* all three to `info` 0.00 with zero reasons. Measured, not assumed:
+  applying `excludeLow: [0, 1]` to the well-known row fails 5 tests with
+  `score 0, expected > 0; severity info`. RFC 6052 §3.1 also forbids the
+  well-known prefix from representing a non-global IPv4, which `0.0.0.0` is, so
+  these are *prohibited* addresses and the strict reading keeps the flag. All
+  three are pinned by corpus rows and by a mutation guard in
+  `ip-classification.test.ts`.
 - **A wrapper never manufactures a verdict.** `[64:ff9b::808:808]` is NAT64
   doing its ordinary job for public `8.8.8.8` — no bucket, no reason.
 

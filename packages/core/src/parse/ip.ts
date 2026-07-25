@@ -151,6 +151,18 @@ const LOW32_WRAPPERS: ReadonlyArray<{
    * IPv4-compatible prefix needs one: under `::/96` the low-32 values 0 and 1
    * are the unspecified address `::` and the loopback `::1`, which are their own
    * addresses (`ip_reserved` / `ip_loopback`), not wrapped 0.0.0.0 / 0.0.0.1.
+   *
+   * DELIBERATELY ABSENT from both NAT64 rows (LINK-vwehpsdv). The carve-out
+   * above works because RFC 4291 gives `::` and `::1` a COMPETING assignment,
+   * so excluding them REDIRECTS to a different verdict rather than removing
+   * one. `64:ff9b::` and `64:ff9b:1::` have no competing assignment — the whole
+   * space is reserved for translation and the range rows carry `bucket: null` —
+   * so excluding 0 and 1 there would silence `[64:ff9b::]`, `[64:ff9b::1]` and
+   * `[64:ff9b:1::]` from `ip_reserved` to info 0.00 with zero reasons. RFC 6052
+   * §3.1 additionally forbids the well-known prefix from representing a
+   * non-global IPv4, which 0.0.0.0 is, so these are prohibited addresses and
+   * the strict reading keeps the flag. Pinned by corpus rows; see
+   * `ip-classification.test.ts` for the mutation guard.
    */
   excludeLow?: readonly number[];
 }> = [

@@ -229,6 +229,33 @@ describe("ip_classification — literal-IP range buckets", () => {
       }
     });
 
+    // LINK-vwehpsdv. Adding `excludeLow: [0, 1]` to the NAT64 rows in
+    // LOW32_WRAPPERS was proposed and DECLINED — see the `excludeLow` doc
+    // comment in parse/ip.ts. These three were previously unpinned by ANY test,
+    // so that edit would have silenced them with nothing failing. That is the
+    // whole point of this block: it is the mutation guard for the decline.
+    it("LINK-vwehpsdv the BASE of each NAT64 prefix stays ip_reserved", () => {
+      for (const h of ["64:ff9b::", "64:ff9b::1", "64:ff9b:1::"]) {
+        expect(classify(h)).toEqual(["ip_reserved"]);
+      }
+    });
+
+    it("LINK-vwehpsdv 64:ff9b::1 is wrapped 0.0.0.1, NOT loopback", () => {
+      // The ::/96 carve-out redirects `::1` to ip_loopback because RFC 4291
+      // gives it a competing assignment. No such assignment exists inside the
+      // NAT64 prefixes, so this must NOT borrow that reading.
+      const [f] = ipClassification.run({ host: "64:ff9b::1" } as InspectionContext);
+      expect(f?.code).toBe("ip_reserved");
+      expect(f?.detail).toContain("0.0.0.1");
+      expect(f?.detail).toContain("NAT64 well-known prefix 64:ff9b::/96");
+      expect(classify("64:ff9b::1")).not.toContain("ip_loopback");
+    });
+
+    it("LINK-vwehpsdv ::  and ::1 keep their OWN identities (the precedent that does not transfer)", () => {
+      expect(classify("::")).toEqual(["ip_reserved"]);
+      expect(classify("::1")).toEqual(["ip_loopback"]);
+    });
+
     it("LINK-evooubiz names the RFC 8215 prefix in the detail too", () => {
       const [f] = ipClassification.run({ host: "64:ff9b:1::a9fe:a9fe" } as InspectionContext);
       expect(f?.code).toBe("ip_cloud_metadata");
