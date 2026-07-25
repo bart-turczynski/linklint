@@ -169,6 +169,38 @@ describe("J5 analyzeIpv6", () => {
     expect(analyzeIpv6("1::2::3")).toBeNull(); // two `::`
     expect(analyzeIpv6("::ffff:256.0.0.1")).toBeNull(); // bad embedded IPv4
   });
+
+  // LINK-gyywyvtn — RFC 4291 §2.2 allows a dotted quad only as the FINAL 32
+  // bits. The "final position" test in parseHextets runs per colon-RUN, so
+  // before this fix a quad ending the run LEFT of `::` slipped through: it was
+  // final for its run but not for the address. Nothing was mis-scored
+  // (`1.2.3.4::` canonicalized to the unclassified `102:304::`), but linklint
+  // accepted literals a conforming parser rejects — exactly the divergence from
+  // a downstream resolver's view that this epic exists to close.
+  it("LINK-gyywyvtn rejects a dotted quad left of `::` (never the final 32 bits)", () => {
+    for (const host of [
+      "1.2.3.4::", // was accepted as 102:304::
+      "1.2.3.4::5", // was accepted as 102:304::5
+      "1.2.3.4::5.6.7.8", // quads in BOTH runs
+      "1:2:3.4.5.6::", // quad final in the left run, after a hextet
+    ]) {
+      expect(analyzeIpv6(host), host).toBeNull();
+    }
+  });
+
+  it("LINK-gyywyvtn keeps every legal quad placement working", () => {
+    // The fix must not touch the trailing-quad forms the low-32 unwrappers are
+    // built on; `::` present is not itself disqualifying, only a dot to its left.
+    const legal: Array<[string, string]> = [
+      ["::1.2.3.4", "::102:304"],
+      ["::ffff:1.2.3.4", "::ffff:102:304"],
+      ["64:ff9b::1.2.3.4", "64:ff9b::102:304"],
+      ["1:2:3:4:5:6:1.2.3.4", "1:2:3:4:5:6:102:304"],
+    ];
+    for (const [host, canonical] of legal) {
+      expect(analyzeIpv6(host)?.canonical, host).toBe(canonical);
+    }
+  });
 });
 
 describe("J5 ip_obfuscation — IPv6 in inspect()", () => {
