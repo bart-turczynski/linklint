@@ -98,8 +98,13 @@ describe("safe destination address policy", () => {
     ["192.0.2.1", "documentation"],
     ["198.18.0.1", "benchmark"],
     ["2001:db8::1", "documentation"],
+    // Core is consulted before the supplemental table, and it now unwraps the
+    // IPv4 in the low 32 bits of the transition wrappers. `::ffff:7f00:1` really
+    // is 127.0.0.1, so the precise bucket wins over the blanket ::ffff:0:0/96
+    // "reserved" rule. `::808:808` unwraps to public 8.8.8.8, which core leaves
+    // unclassified, so it still falls through to the supplemental rule.
     ["::808:808", "transition"],
-    ["::ffff:7f00:1", "ip_reserved"],
+    ["::ffff:7f00:1", "ip_loopback"],
   ])("blocks %s as %s", (address, category) => {
     expect(classifyTransportAddress(address)).toMatchObject({
       allowed: false,

@@ -735,14 +735,18 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 - **Meaning:** the host is an obfuscated IP address.
   - **IPv4** — decimal, octal, hex, or dotless form.
   - **IPv6 (J5)** — a non-canonical literal (leading zeros, uncompressed zero
-    runs like `0::1` / `2001:db8:0:0:0:0:0:1`) or an **IPv4-embedding** form
-    (`[::ffff:127.0.0.1]`): the validator sees an IPv6 address while the resolver
-    reaches the embedded IPv4 — an SSRF masquerade. Pure case differences
-    (`2001:DB8::1`) are tolerated (not a deception vector).
+    runs like `0::1` / `2001:db8:0:0:0:0:0:1`, or a dotted-quad tail such as
+    `[::ffff:127.0.0.1]`, which is never the RFC 5952 spelling of its own bits).
+    Pure case differences (`2001:DB8::1`) are tolerated (not a deception
+    vector).
 - **Why it's a signal:** obfuscated IPs evade human and naive string checks.
 - **Detail:** renders the canonical form so the real destination is explained;
   for an IPv4-embedding IPv6 literal it also names the embedded IPv4. Canonical
   dotted-decimal IPv4 and canonical IPv6 literals (`[::1]`) are **not** flagged.
+- **Not** flagged: wrapping an IPv4 in a transition prefix is not by itself
+  obfuscation. `[::ffff:808:808]` is the exact canonical spelling of its bits
+  and hides nothing; what a wrapper changes is *where the host points*, which
+  the range buckets below report instead.
 - **Example:** `http://2130706433/` (decimal for `127.0.0.1`);
   `https://[::ffff:127.0.0.1]/` (IPv6 literal embedding `127.0.0.1`).
 
@@ -764,6 +768,45 @@ ip_cloud_metadata > ip_loopback > ip_link_local > ip_private > ip_reserved
 An ordinary **public** literal IP (`8.8.8.8`, `2001:db8::1`) matches no bucket
 and emits nothing. The detail renders the canonical address so the real
 destination is explained.
+
+#### Transition wrappers: the embedded IPv4 is read from the bits
+
+Three RFC transition prefixes carry an IPv4 in the **low 32 bits** of the IPv6
+address, so recovering it is a plain read of the last two hextets:
+
+| Prefix | Mechanism |
+| --- | --- |
+| `::ffff:0:0/96` | IPv4-mapped (RFC 4291 §2.5.5.2) |
+| `::/96` | IPv4-compatible (RFC 4291 §2.5.5.1, deprecated — still parsed) |
+| `64:ff9b::/96` | NAT64 well-known prefix (RFC 6052 §2.1) |
+
+The address is recovered from the **decoded bits, never the spelling**. The same
+128 bits therefore score the same whichever way they are written:
+`[64:ff9b::169.254.169.254]` and `[64:ff9b::a9fe:a9fe]` both classify as
+`ip_cloud_metadata`. The detail names the wrapper, so an IPv6 host producing an
+IPv4 verdict reads as an explanation rather than a non-sequitur:
+
+```
+host '[64:ff9b::a9fe:a9fe]' resolves to the AWS instance-metadata endpoint
+(SSRF target) (169.254.169.254, unwrapped from the NAT64 well-known prefix
+64:ff9b::/96 (RFC 6052))
+```
+
+Two boundaries are deliberate:
+
+- **`::1` and `::` are not wrappers.** Under a naive `::/96` rule they would
+  unwrap to `0.0.0.1` and `0.0.0.0`; they are their own addresses, so low-32
+  values `0` and `1` are excluded from the IPv4-compatible form and `[::1]`
+  stays `ip_loopback`.
+- **A wrapper never manufactures a verdict.** `[64:ff9b::808:808]` is NAT64
+  doing its ordinary job for public `8.8.8.8` — no bucket, no reason.
+
+Other transition mechanisms put the IPv4 **somewhere other than the low 32
+bits** — 6to4 (`2002::/16`) carries a *gateway* address in hextets 1-2, Teredo
+(`2001::/32`) carries a *server* address and bit-complements the client address
+at the tail, and the RFC 6052 network-specific prefixes straddle the reserved
+u-byte at octet 8. Reading the low 32 bits of those would decode garbage, so
+they are not unwrapped and emit no bucket.
 
 ### `ip_cloud_metadata` — V1a · weight 0.75 (high)
 

@@ -14,7 +14,9 @@ import { CLOUD_METADATA_ENDPOINTS } from "../data/cloud-metadata.js";
  *
  * IPv4-in-IPv6 embeddings (`::ffff:127.0.0.1`) are classified by the EMBEDDED
  * IPv4 — the SSRF masquerade where a validator sees IPv6 but the resolver
- * reaches an internal v4 target.
+ * reaches an internal v4 target. The embedded address is read from the decoded
+ * bits of the RFC transition wrapper prefixes, not from the spelling, so the
+ * hex form `::ffff:7f00:1` classifies exactly like `::ffff:127.0.0.1`.
  */
 
 type Bucket =
@@ -152,6 +154,12 @@ export interface IpClassification {
    * generic range buckets have no provider.
    */
   provider?: string;
+  /**
+   * The RFC transition wrapper the bucket was read through, when an IPv6
+   * literal was classified by the IPv4 in its low 32 bits. Present only on that
+   * path, so the reason can explain WHY an IPv6 host produced an IPv4 verdict.
+   */
+  embeddedVia?: string;
 }
 
 /**
@@ -171,9 +179,21 @@ export function classifyHost(host: string): IpClassification | null {
   const ip6 = analyzeIpv6(host);
   if (ip6) {
     // IPv4-in-IPv6 embedding: classify by the embedded IPv4 (SSRF masquerade).
+    // `embeddedIpv4` comes from the DECODED BITS, so `[64:ff9b::a9fe:a9fe]` and
+    // `[64:ff9b::169.254.169.254]` — the same 128 bits, two spellings — land in
+    // the same bucket instead of only the dotted one being caught.
     if (ip6.embeddedIpv4) {
       const m = classifyIpv4(ip6.embeddedIpv4);
-      return m ? { ...m, shown: `[${host}]`, canonical: ip6.embeddedIpv4 } : null;
+      // A wrapper around an ordinary public IPv4 (`::ffff:808:808` → 8.8.8.8)
+      // has no v4 bucket. Fall through rather than return: the literal itself
+      // may still land in an IPv6 bucket, and a wrapper must never SUPPRESS a
+      // verdict the bare address would have earned.
+      if (m) {
+        const base = { ...m, shown: `[${host}]`, canonical: ip6.embeddedIpv4 };
+        return ip6.embeddedIpv4Via === undefined
+          ? base
+          : { ...base, embeddedVia: ip6.embeddedIpv4Via };
+      }
     }
     const m = classifyIpv6(ip6.canonical);
     if (m) return { ...m, shown: `[${host}]`, canonical: ip6.canonical };
@@ -204,8 +224,12 @@ function summaryFor(c: IpClassification): string {
 }
 
 function finding(c: IpClassification): DetectorFinding {
+  // An IPv6 literal that produced an IPv4 verdict must say how it got there,
+  // or the reason reads as a non-sequitur ("[64:ff9b::a9fe:a9fe] is the cloud
+  // metadata endpoint?"). Naming the wrapper turns it into an explanation.
+  const via = c.embeddedVia === undefined ? "" : `, unwrapped from the ${c.embeddedVia}`;
   return {
     code: c.bucket as ReasonCode,
-    detail: `host '${c.shown}' resolves to ${summaryFor(c)} (${c.canonical})`,
+    detail: `host '${c.shown}' resolves to ${summaryFor(c)} (${c.canonical}${via})`,
   };
 }

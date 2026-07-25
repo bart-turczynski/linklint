@@ -147,6 +147,64 @@ describe("ip_classification — literal-IP range buckets", () => {
     it("::ffff:10.0.0.1 -> private", () => {
       expect(classify("::ffff:10.0.0.1")).toEqual(["ip_private"]);
     });
+
+    // S1 — the bucket follows the BITS, not the spelling. Before this, only the
+    // dotted-quad spelling was recognized, so `[64:ff9b::a9fe:a9fe]` scored 0.
+    it("S1 every low-32 wrapper prefix classifies like its dotted-quad spelling", () => {
+      const pairs: Array<[string, string, string]> = [
+        // [hex spelling, dotted spelling, expected bucket]
+        ["::ffff:a9fe:a9fe", "::ffff:169.254.169.254", "ip_cloud_metadata"],
+        ["64:ff9b::a9fe:a9fe", "64:ff9b::169.254.169.254", "ip_cloud_metadata"],
+        ["::a9fe:a9fe", "::169.254.169.254", "ip_cloud_metadata"],
+        ["::ffff:7f00:1", "::ffff:127.0.0.1", "ip_loopback"],
+        ["64:ff9b::7f00:1", "64:ff9b::127.0.0.1", "ip_loopback"],
+        ["::7f00:1", "::127.0.0.1", "ip_loopback"],
+        ["64:ff9b::a00:1", "64:ff9b::10.0.0.1", "ip_private"],
+      ];
+      for (const [hex, dotted, bucket] of pairs) {
+        expect(classify(hex)).toEqual([bucket]);
+        expect(classify(dotted)).toEqual([bucket]);
+      }
+    });
+
+    it("S1 names the wrapper in the detail so the IPv4 verdict is explained", () => {
+      const [f] = ipClassification.run({ host: "64:ff9b::a9fe:a9fe" } as InspectionContext);
+      expect(f?.code).toBe("ip_cloud_metadata");
+      expect(f?.detail).toContain("169.254.169.254");
+      expect(f?.detail).toContain("NAT64 well-known prefix 64:ff9b::/96");
+    });
+
+    it("S1 a wrapper around an ORDINARY public IPv4 stays unclassified", () => {
+      for (const h of ["::ffff:808:808", "64:ff9b::808:808", "::808:808", "::ffff:8.8.8.8"]) {
+        expect(classify(h)).toEqual([]);
+      }
+    });
+
+    it("S1 out-of-scope transition prefixes are untouched", () => {
+      // 6to4 / Teredo / RFC 8215 local-use NAT64 do NOT carry the v4 in the low
+      // 32 bits; unwrapping them is a separate decision, so no bucket here.
+      const outOfScope = [
+        "2002:a9fe:a9fe::", // 6to4
+        "2001:0:4136:e378:8000:63bf:3fff:fdd2", // Teredo
+        "64:ff9b:1::a9fe:a9fe", // RFC 8215 local-use NAT64
+      ];
+      for (const h of outOfScope) {
+        expect(classify(h)).toEqual([]);
+      }
+    });
+
+    it("S1 ::1 stays loopback and :: stays reserved (not v4-compatible wrappers)", () => {
+      expect(classify("::1")).toEqual(["ip_loopback"]);
+      expect(classify("::0.0.0.1")).toEqual(["ip_loopback"]);
+      expect(classify("::")).toEqual(["ip_reserved"]);
+      expect(classify("::0.0.0.0")).toEqual(["ip_reserved"]);
+    });
+
+    it("S1 a dotted quad OUTSIDE a wrapper prefix no longer suppresses the IPv6 bucket", () => {
+      // `fe80::1.2.3.4` is link-local carrying an arbitrary interface id, not a
+      // wrapped 1.2.3.4 — the v6 bucket must win instead of being swallowed.
+      expect(classify("fe80::1.2.3.4")).toEqual(["ip_link_local"]);
+    });
   });
 
   it("detail names the bucket meaning and the canonical address", () => {
