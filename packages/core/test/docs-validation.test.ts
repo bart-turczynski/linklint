@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { CLOUD_METADATA_ENDPOINTS } from "../src/data/cloud-metadata.js";
 import { CHECKS } from "../src/detectors/checks.js";
 import { DETECTORS } from "../src/detectors/registry.js";
 import { STRUCTURAL_SCANS } from "../src/detectors/structural.js";
@@ -56,6 +57,29 @@ describe("docs/reason-codes.md stays in sync with the REASON_CODES registry", ()
 
   // SKIP: "every detector-emitted code is registered" — emitted codes are
   // type-constrained to the ReasonCode union, so tsc enforces it at compile time.
+
+  // 4. CLOUD-METADATA TABLE — the doc reproduces the curated endpoint table as
+  //    markdown, and a reader treats that list as the answer to "is my provider
+  //    covered?". Nothing but this check couples the two, so without it a new
+  //    row lands in code while the doc keeps quietly claiming the old set — the
+  //    same stale-documentation failure the README detector count hit.
+  it("the endpoint table reproduces CLOUD_METADATA_ENDPOINTS exactly", () => {
+    const section = reasonCodesDoc.slice(reasonCodesDoc.search(/^### `ip_cloud_metadata`/m));
+    expect(section.length).toBeGreaterThan(0);
+
+    // Rows look like: | `169.254.169.254/32` | AWS / Azure / … |
+    // The address cell may carry a /32 suffix for readability; strip it.
+    const rows = [...section.matchAll(/^\s*\|\s*`([^`]+)`\s*\|\s*([^|]+?)\s*\|\s*$/gm)].map(
+      (m) => ({ address: (m[1] as string).replace(/\/32$/, ""), provider: m[2] as string }),
+    );
+
+    expect(rows.map((r) => r.address)).toEqual(CLOUD_METADATA_ENDPOINTS.map((e) => e.address));
+    // Providers are prose in the doc (the shared row adds "(shared)"), so the
+    // code's attribution must be a prefix of the documented one, not equal.
+    for (const [i, row] of rows.entries()) {
+      expect(row.provider.startsWith(CLOUD_METADATA_ENDPOINTS[i]!.provider)).toBe(true);
+    }
+  });
 });
 
 describe("README detector count matches the computed total", () => {

@@ -297,6 +297,11 @@ describe("cloud-metadata provider table", () => {
       "fd00:ec2::254",
       "192.0.0.192",
       "100.100.100.200",
+      "168.63.129.16",
+      "169.254.170.2",
+      "169.254.170.23",
+      "fd00:ec2::23",
+      "169.254.0.23",
     ]);
   });
 
@@ -325,10 +330,30 @@ describe("cloud-metadata provider table", () => {
     { host: "fd00:ec2::254", provider: "AWS (IPv6 IMDS)" },
     { host: "192.0.0.192", provider: "Oracle Cloud" },
     { host: "100.100.100.200", provider: "Alibaba Cloud" },
+    { host: "168.63.129.16", provider: "Azure (WireServer host channel)" },
+    { host: "169.254.170.2", provider: "AWS (ECS task credentials)" },
+    { host: "169.254.170.23", provider: "AWS (EKS Pod Identity)" },
+    { host: "fd00:ec2::23", provider: "AWS (EKS Pod Identity, IPv6)" },
+    { host: "169.254.0.23", provider: "Tencent Cloud" },
   ])("detail for $host names the provider ($provider)", ({ host, provider }) => {
     const detail = detailFor(host);
     expect(detail).toContain(provider);
     expect(detail).toContain("instance-metadata endpoint");
+  });
+
+  // The Azure WireServer row is the only one in the table that no range rule can
+  // ever reach: 168.63.129.16 is in genuine PUBLIC space (Microsoft presents it
+  // as a "virtual public IP"), so before the row landed it classified as nothing
+  // at all — `info` 0.00 with zero reasons, unlike every other endpoint here,
+  // which at least picks up a link-local/private/reserved bucket from its
+  // enclosing range. Deleting the row therefore fails silently rather than
+  // downgrading visibly, which is exactly what this pins.
+  it("the Azure WireServer endpoint is public-range — the table is its ONLY source of a bucket", () => {
+    const neighbors = ["168.63.129.15", "168.63.129.17", "168.63.130.16"];
+    for (const host of neighbors) {
+      expect(classifyHost(host), `${host} must stay unclassified`).toBeNull();
+    }
+    expect(classifyHost("168.63.129.16")?.bucket).toBe("ip_cloud_metadata");
   });
 
   it("a generic range bucket keeps its provider-free wording", () => {

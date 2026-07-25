@@ -835,6 +835,46 @@ export const CORPUS: CorpusRow[] = [
     forbidReasons: ["ip_reserved", "ip_obfuscation", "ssrf_cloud_metadata"],
     notes: "S2 provider table — Alibaba Cloud endpoint; most-specific-wins over the 100.64/10 CGNAT reserved range (was ip_reserved 0.20, now ip_cloud_metadata 0.75)",
   },
+  {
+    input: "http://168.63.129.16/machine?comp=goalstate",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["ip_link_local", "ip_private", "ip_reserved", "ip_obfuscation", "ssrf_cloud_metadata"],
+    notes: "LINK-vniqhcln — Azure WireServer. The one endpoint in PUBLIC address space, so no range rule reaches it: this scored info 0.00 with ZERO reasons before the table row landed (every other row at least had a range bucket to be promoted from)",
+  },
+  {
+    input: "http://169.254.170.2/v2/credentials/",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["ip_link_local", "ip_obfuscation", "ssrf_cloud_metadata"],
+    notes: "LINK-vniqhcln — AWS ECS task credentials endpoint; vends task IAM role credentials, so an IMDS-only blocklist misses it (was ip_link_local 0.20, now ip_cloud_metadata 0.75)",
+  },
+  {
+    input: "http://169.254.170.23/v1/credentials",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["ip_link_local", "ip_obfuscation", "ssrf_cloud_metadata"],
+    notes: "LINK-vniqhcln — AWS EKS Pod Identity Agent (IPv4 half); was ip_link_local 0.20",
+  },
+  {
+    input: "https://[fd00:ec2::23]/v1/credentials",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["ip_private", "ip_obfuscation", "ssrf_cloud_metadata"],
+    notes: "LINK-vniqhcln — AWS EKS Pod Identity Agent (IPv6 half, ULA); the agent listens on BOTH families by default, so a v4-only table is half-blind (was ip_private 0.20, NOT ip_link_local)",
+  },
+  {
+    input: "http://169.254.0.23/latest/meta-data/cam/security-credentials/",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["ip_link_local", "ip_obfuscation", "ssrf_cloud_metadata"],
+    notes: "LINK-vniqhcln — Tencent Cloud CVM; the CAM security-credentials path is the credential-theft target (was ip_link_local 0.20)",
+  },
 
   // Reserved / special-use — v4 (0/8, CGNAT, multicast) and v6 (unspecified, multicast).
   {
