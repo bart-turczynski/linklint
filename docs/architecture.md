@@ -22,6 +22,7 @@ linklint/
     redirect-chain-resolution.md # L1 redirect/refresh authorization and evidence
     reason-codes.md # Full reason-code registry with detection logic and examples
     scoring.md      # Scoring model, severity bands, weights table (v1.3)
+    locale-case-mapping.md # Locale-tailored case mapping audit (the Turkish-I class)
   features/         # Cucumber behavioral specs (critical path + acceptance criteria)
   tools/            # Data-build scripts (confusables table generation)
 ```

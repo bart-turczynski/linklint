@@ -397,3 +397,24 @@ export function reasonMeta(code: ReasonCode): ReasonCodeMeta {
 export function weightFor(code: ReasonCode): number {
   return REASON_CODES[code].weight;
 }
+
+/**
+ * Total order over `Reason`s: descending weight, then ascending reason code.
+ *
+ * The code tie-break is a **codepoint** comparison, deliberately NOT
+ * `String.prototype.localeCompare`. `localeCompare` without an explicit locale
+ * argument resolves against the ambient ICU/host locale, so the same equal-weight
+ * reasons sorted on a `cs`, `sk`, `az`, `lt`, `lv`, or `th` machine come out in a
+ * different order than on an `en-US` one — reordering `result.reasons` purely as
+ * a function of who ran the check. Reason codes are ASCII `[a-z0-9_]` identifiers,
+ * so `<`/`>` is the correct and fully locale-independent comparator, and it keeps
+ * the documented determinism guarantee (docs/architecture.md) machine-independent.
+ *
+ * Same bug class as the locale-tailored case mapping audited in
+ * docs/locale-case-mapping.md: never let an ambient locale reach a step that
+ * decides identity or output shape.
+ */
+export function compareReasons(a: { weight: number; code: string }, b: { weight: number; code: string }): number {
+  if (b.weight !== a.weight) return b.weight - a.weight;
+  return a.code < b.code ? -1 : a.code > b.code ? 1 : 0;
+}
