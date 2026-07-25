@@ -2,6 +2,7 @@ import type { DataVersions } from "../schema/types.js";
 import { WEIGHTS_VERSION } from "../scoring/weights.js";
 import { CONFUSABLES_VERSION } from "./confusables.js";
 import { CLOUD_METADATA_VERSION } from "./cloud-metadata.js";
+import { IP_RANGES_VERSION } from "./ip-ranges.js";
 
 /**
  * Version stamps for every reproducibility-relevant data/algorithm source used
@@ -22,6 +23,8 @@ export const DATA_VERSIONS: DataVersions = {
   riskyTlds: "2026-06-19",
   // Curated cloud instance-metadata endpoints (vendor-documented, not IANA).
   cloudMetadata: CLOUD_METADATA_VERSION,
+  // Literal-IP range buckets, generated from the IANA special-purpose registries.
+  ipRanges: IP_RANGES_VERSION,
   // Curated brand watchlist: registrable domains + keywords.
   brands: "2026-06-20-watchlist",
   weights: WEIGHTS_VERSION,

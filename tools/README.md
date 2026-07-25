@@ -47,3 +47,50 @@ still score 0 (SC-2) because the cross-script de-noiser that actually scores is
 **License.** The confusables data is published under the Unicode Terms of Use
 (permissive, attribution) — MIT-compatible to bundle. Attribution is recorded in
 the generated file header.
+
+## `build-ip-ranges.mjs` — IANA special-purpose IP ranges (S3)
+
+Generates `packages/core/src/data/ip-ranges.generated.ts` from the IANA
+[IPv4](https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry-1.csv)
+and
+[IPv6](https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry-1.csv)
+Special-Purpose Address Registries.
+
+```bash
+# Regenerate from the COMMITTED snapshots (default — offline, deterministic):
+node tools/build-ip-ranges.mjs
+
+# Move the pin forward: re-download both registries, then rebuild:
+node tools/build-ip-ranges.mjs --fetch
+
+# Parse an arbitrary local copy:
+node tools/build-ip-ranges.mjs --input-v4 v4.csv --input-v6 v6.csv
+
+# Drift guard — fail if the committed output is stale:
+node tools/build-ip-ranges.mjs --check
+```
+
+(Also available as `pnpm data:ip-ranges` from the repo root.)
+
+**Pinned source.** Unlike the confusables script, the default mode is **offline**:
+both registry CSVs (~4.7 KB total) are committed under `tools/data/`, so the
+artifact is byte-reproducible with no network and `--check` is a real guard.
+`packages/core/test/ip-ranges.test.ts` runs `--check` in CI, so the artifact
+cannot drift from its inputs unnoticed. `--fetch` is the deliberate act of
+refreshing the snapshots; bump `SNAPSHOT_DATE` in the script when you do.
+
+**Parsing notes.** Both registries need a real CSV reader: they contain quoted
+fields with **embedded newlines** (multi-RFC citations), a cell holding **two
+address blocks** (`"192.0.0.170/32, 192.0.0.171/32"`), and footnote markers that
+contaminate values (`192.0.0.0/24 [2]`, `False [1]`, `N/A [3]`).
+
+**Bucket mapping and curation.** The registry has no loopback/private/link-local
+taxonomy — only a name plus boolean columns — so the mapping is by name first,
+then by `Globally Reachable`. Documentation and transition-wrapper prefixes are
+deliberately mapped to **no bucket**, and multicast (not in these registries) is
+overlaid in `packages/core/src/data/ip-ranges.ts`. The script header documents
+the full mapping and the reasoning.
+
+**License.** IANA registry data is public domain — no restrictions on reuse.
+Source URLs, byte counts, row counts, and a `sha256` of each parsed file are
+recorded in the generated header.
