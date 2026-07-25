@@ -4,7 +4,7 @@ import {
   type InspectResult,
   type Reason,
 } from "./types.js";
-import { reasonMeta, weightFor, type ReasonCode } from "./reason-codes.js";
+import { compareReasons, reasonMeta, weightFor, type ReasonCode } from "./reason-codes.js";
 import type { InspectionContext } from "../detectors/types.js";
 import { aggregate } from "../scoring/score.js";
 import { applySuppressions, suppressionHostContext } from "../scoring/suppress.js";
@@ -39,7 +39,7 @@ export function buildInvalidResult(
           detail: f.detail,
           weight: weightFor(f.code),
         }))
-        .sort((a, b) => b.weight - a.weight || a.code.localeCompare(b.code))
+        .sort(compareReasons)
     : [
         {
           code: "parse_error",
@@ -123,7 +123,7 @@ export function buildOkResult(
     suppressionHostContext(ctx.registrableDomain),
   );
 
-  reasons.sort((a, b) => (b.weight - a.weight) || a.code.localeCompare(b.code));
+  reasons.sort(compareReasons);
 
   const confusables: Confusable[] = findings.flatMap((f) => f.confusables ?? []);
 

@@ -18,7 +18,7 @@ import type {
 import type { EnrichmentCache } from "./enrichment-cache.js";
 import type { EnrichmentGovernor, GovernorDecision } from "./enrichment-governor.js";
 import { inspect } from "./inspect.js";
-import { reasonMeta, weightFor } from "./schema/reason-codes.js";
+import { compareReasons, reasonMeta, weightFor } from "./schema/reason-codes.js";
 import { aggregate } from "./scoring/score.js";
 import { applySuppressions, suppressionSubjectHostContext } from "./scoring/suppress.js";
 import { normalizeSuppressReasons } from "./parse/runtime.js";
@@ -197,7 +197,7 @@ export async function inspectAsync(
   // allowlist for the original host from suppressing a discovered destination.
   // The `suppression` marker already rides on base.checksRun.
   const reasons: Reason[] = [...base.reasons, ...enrichmentReasons];
-  reasons.sort((a, b) => b.weight - a.weight || a.code.localeCompare(b.code));
+  reasons.sort(compareReasons);
 
   const confusables: Confusable[] = [
     ...base.confusables,
