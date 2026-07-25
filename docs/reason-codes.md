@@ -857,10 +857,26 @@ they are not unwrapped and emit no bucket.
   | `fd00:ec2::254` | AWS (IPv6 IMDS) |
   | `192.0.0.192` | Oracle Cloud |
   | `100.100.100.200` | Alibaba Cloud |
+  | `168.63.129.16` | Azure (WireServer host channel) |
+  | `169.254.170.2` | AWS (ECS task credentials) |
+  | `169.254.170.23` | AWS (EKS Pod Identity) |
+  | `fd00:ec2::23` | AWS (EKS Pod Identity, IPv6) |
+  | `169.254.0.23` | Tencent Cloud |
 
   An IPv4-mapped equivalent (`::ffff:169.254.169.254`) matches through the same
   table via its embedded IPv4. The emitted detail **names the provider**, so the
-  reader learns whose credentials are at stake.
+  reader learns whose credentials are at stake. This table is checked against
+  `CLOUD_METADATA_ENDPOINTS` by `docs-validation.test.ts`, so it cannot drift
+  silently.
+
+  `168.63.129.16` and `192.0.0.192` are the rows **not** carved out of a
+  special-use range. Microsoft presents the former as a "virtual public IP"
+  reachable only from inside a VM, so it is ordinary public space to every range
+  rule — it scored `info` 0.00 with **zero** reasons before the row existed,
+  where endpoints nested in link-local or CGNAT were at least visible as a
+  weaker bucket. A hostname is deliberately never a row (Tencent documents
+  `metadata.tencentyun.com`, GCP `metadata.google.internal`): resolving one is a
+  network call, and `inspect()` is zero-network by contract.
 - **Matching:** on the **parsed** address, never on the literal text. Every table
   row and every host are decoded by the same IPv4/IPv6 parser and compared as
   bits, so `fd00:0ec2::254`, `FD00:EC2::254`, and `fd00:ec2:0:0:0:0:0:254` all
