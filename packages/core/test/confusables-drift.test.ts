@@ -31,11 +31,22 @@ const SNAPSHOT = join(REPO_ROOT, "tools", "data", "confusables.txt");
 const ARTIFACT = join(REPO_ROOT, "packages", "core", "src", "data", "confusables.generated.ts");
 
 describe("confusables.generated.ts is reproducible from the committed snapshot", () => {
-  it("--check passes: re-parsing the snapshot reproduces the artifact", () => {
-    expect(() =>
-      execFileSync(process.execPath, [GENERATOR, "--check"], { stdio: "pipe" }),
-    ).not.toThrow();
-  });
+  // LINK-hhzehdsm — explicit timeout, NOT the 5000 ms default. Spawning a Node
+  // process to re-parse the 706 KB snapshot costs ~90 ms idle, but the cost is
+  // machine load, not work: one pre-push run of this suite took 211 s wall where
+  // the next took 4.25 s, and that ~50x multiplier lands a 90 ms task right on
+  // the 5 s boundary. The failure that produces is spurious, and because the
+  // pre-push hook stands in for branch protection here, it blocks a good push.
+  // 60 s is ~660x the idle cost — generous enough that a red means real drift.
+  it(
+    "--check passes: re-parsing the snapshot reproduces the artifact",
+    () => {
+      expect(() =>
+        execFileSync(process.execPath, [GENERATOR, "--check"], { stdio: "pipe" }),
+      ).not.toThrow();
+    },
+    60_000,
+  );
 
   it("runs offline — the default mode reads the snapshot, never the network", () => {
     // If the default path still fetched, this would be the test that hangs or
