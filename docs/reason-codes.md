@@ -767,9 +767,35 @@ destination is explained.
 
 ### `ip_cloud_metadata` — V1a · weight 0.75 (high)
 
-- **Meaning:** the host is the cloud instance-metadata endpoint —
-  `169.254.169.254/32`, `fd00:ec2::254`, or an IPv4-mapped equivalent
-  (`::ffff:169.254.169.254`).
+- **Meaning:** the host is a cloud instance-metadata endpoint, matched against a
+  curated per-provider table (`data/cloud-metadata.ts`) rather than a single
+  hardcoded address:
+
+  | Endpoint | Provider |
+  | --- | --- |
+  | `169.254.169.254/32` | AWS / Azure / GCP / DigitalOcean / OpenStack (shared) |
+  | `fd00:ec2::254` | AWS (IPv6 IMDS) |
+  | `192.0.0.192` | Oracle Cloud |
+  | `100.100.100.200` | Alibaba Cloud |
+
+  An IPv4-mapped equivalent (`::ffff:169.254.169.254`) matches through the same
+  table via its embedded IPv4. The emitted detail **names the provider**, so the
+  reader learns whose credentials are at stake.
+- **Matching:** on the **parsed** address, never on the literal text. Every table
+  row and every host are decoded by the same IPv4/IPv6 parser and compared as
+  bits, so `fd00:0ec2::254`, `FD00:EC2::254`, and `fd00:ec2:0:0:0:0:0:254` all
+  match the AWS row — a string prefix test on `fd00:ec2:` would let the second
+  spelling of the identical 128 bits through.
+- **Precedence:** the table is consulted **before** the range buckets, so an
+  endpoint nested inside a broader special-use range still classifies as
+  metadata — `169.254.169.254` over link-local `169.254.0.0/16`, and
+  `100.100.100.200` over the CGNAT `100.64.0.0/10` reserved range. The rest of
+  those ranges is unaffected (`169.254.10.20` stays `ip_link_local`).
+- **Data source:** vendor documentation, **not** an IANA registry — IANA
+  registers the ranges, not which single address inside them a given cloud
+  answers metadata on. The table therefore carries its own provenance stamp,
+  version-pinned via `dataVersions.cloudMetadata`, independent of any registry
+  pin.
 - **Why it's a signal:** the canonical SSRF credential-theft target; a URL naming
   it literally is a near-unambiguous exfiltration attempt. Weighted to land
   **high** on its own (it fails the default `--fail-on high` gate) — well above

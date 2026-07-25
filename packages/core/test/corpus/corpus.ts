@@ -811,6 +811,30 @@ export const CORPUS: CorpusRow[] = [
     forbidReasons: ["ip_private", "ip_obfuscation", "ssrf_cloud_metadata"],
     notes: "V1b cloud-metadata bucket (IPv6) — wins over fc00::/7; lands high (0.75); ssrf_cloud_metadata is agent-gated",
   },
+  {
+    input: "https://[fd00:0ec2::254]/",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["ip_private", "ssrf_cloud_metadata"],
+    notes: "S2 canonical (not textual) matching — fd00:0ec2::254 is the SAME 128 bits as fd00:ec2::254; a string prefix test would miss it (ip_obfuscation also fires: the spelling is non-canonical)",
+  },
+  {
+    input: "http://192.0.0.192/latest/meta-data/",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["ip_reserved", "ip_obfuscation", "ssrf_cloud_metadata"],
+    notes: "S2 provider table — Oracle Cloud endpoint; outside link-local entirely, so it scored as an ordinary public IP before the table landed",
+  },
+  {
+    input: "http://100.100.100.200/latest/meta-data/",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["ip_reserved", "ip_obfuscation", "ssrf_cloud_metadata"],
+    notes: "S2 provider table — Alibaba Cloud endpoint; most-specific-wins over the 100.64/10 CGNAT reserved range (was ip_reserved 0.20, now ip_cloud_metadata 0.75)",
+  },
 
   // Reserved / special-use — v4 (0/8, CGNAT, multicast) and v6 (unspecified, multicast).
   {
