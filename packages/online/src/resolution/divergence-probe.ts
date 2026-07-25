@@ -42,10 +42,16 @@ const ALT_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
-/** The fixed, bounded default variant set: two variants → two single fetches. */
+/**
+ * The fixed, bounded default variant set: three variants → three single
+ * fetches, each separately authorized. The set varies exactly two controlled
+ * dimensions against the same baseline — User-Agent, and absent vs synthetic
+ * same-origin Referer.
+ */
 export const DEFAULT_DIVERGENCE_VARIANTS: readonly DivergenceProbeVariant[] = [
   { label: "baseline", headers: {} },
   { label: "alt-user-agent", headers: { "user-agent": ALT_USER_AGENT } },
+  { label: "same-origin-referer", headers: {}, referer: "same-origin-root" },
 ];
 
 /** Dimensions compared for divergence across successful variant summaries. */
@@ -145,14 +151,29 @@ export function createDivergenceProbeEnricher(
           continue;
         }
 
-        const fetched = await fetchVariant(session, url, authorization, method, variant, context);
+        const referer = variantReferer(url, variant);
+        const fetched = await fetchVariant(
+          session,
+          url,
+          authorization,
+          method,
+          variant,
+          referer,
+          context,
+        );
         if (fetched.status !== "success") {
           outcomes.push(transportDegradation(fetched, variant.label));
           continue;
         }
 
-        const summary = summarize(variant.label, fetched.response, url, method, maxBodyBytes, (value) =>
-          inspect(value, inspectOptions).parsed?.registrableDomain ?? null,
+        const summary = summarize(
+          variant.label,
+          referer,
+          fetched.response,
+          url,
+          method,
+          maxBodyBytes,
+          (value) => inspect(value, inspectOptions).parsed?.registrableDomain ?? null,
         );
         if (summary.challenge !== null) {
           outcomes.push(challengeOutcome(url, fetched.observedAt, summary));
@@ -168,12 +189,28 @@ export function createDivergenceProbeEnricher(
   };
 }
 
+/**
+ * Derive the synthetic Referer for a variant from the probed URL alone. The
+ * origin root is the only value this probe ever sends: it carries nothing the
+ * destination does not already know about the request, so no private or
+ * user-derived referrer can exist to leak. L0 independently re-validates it.
+ */
+function variantReferer(url: string, variant: DivergenceProbeVariant): string | null {
+  if (variant.referer !== "same-origin-root") return null;
+  try {
+    return new URL(url).origin + "/";
+  } catch {
+    return null;
+  }
+}
+
 async function fetchVariant(
   session: SafeTransportSession,
   url: string,
   authorization: { readonly kind: "destination-fetch"; readonly url: string },
   method: TransportMethod,
   variant: DivergenceProbeVariant,
+  referer: string | null,
   context: { readonly signal?: AbortSignal },
 ): Promise<SafeFetchOutcome> {
   return session.fetch({
@@ -181,12 +218,14 @@ async function fetchVariant(
     authorization,
     method,
     ...(Object.keys(variant.headers).length === 0 ? {} : { headers: variant.headers }),
+    ...(referer === null ? {} : { sameOriginReferer: referer }),
     ...(context.signal === undefined ? {} : { signal: context.signal }),
   });
 }
 
 function summarize(
   label: string,
+  referer: string | null,
   response: SafeFetchResponse,
   requestUrl: string,
   method: TransportMethod,
@@ -206,6 +245,7 @@ function summarize(
 
   return {
     label,
+    referer,
     status: response.status,
     statusClass,
     location,

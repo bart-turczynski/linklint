@@ -10,15 +10,15 @@ import type {
  *
  * Every row belongs to one HEURISTIC family and carries a binary `label`:
  *  - "positive" — the heuristic MUST fire on this input (a genuine wrapper
- *    decode, a real UA-conditioned divergence, a real challenge marker, or an
- *    active MIME sniff mismatch).
+ *    decode, a real UA- or Referer-conditioned divergence, a real challenge
+ *    marker, or an active MIME sniff mismatch).
  *  - "negative" — the heuristic MUST NOT fire (ordinary/near-miss input,
  *    identical variant responses, ordinary HTML, or a well-formed / nosniff
  *    MIME record).
  *
  * The families deliberately span the classifiers named by the issue:
  *  - `wrapper`     — the pure `decodeEmbeddedWrapper` classifier (no transport).
- *  - `divergence`  — the divergence-probe UA-divergence comparison.
+ *  - `divergence`  — the divergence-probe UA/Referer divergence comparison.
  *  - `challenge`   — the divergence-probe challenge/CAPTCHA marker detection.
  *  - `mime`        — the redirect-chain declared-vs-computed MIME sniff.
  *
@@ -237,7 +237,9 @@ const okHtml = (url: string, body: string): ResponseStep => ({
   body,
 });
 
-// ── Divergence family (divergence-probe UA-divergence comparison) ───────────
+// ── Divergence family (divergence-probe UA/Referer divergence comparison) ───
+// Each row scripts one response per default variant, in order:
+// baseline, alt-user-agent, same-origin-referer.
 const DIVERGENCE_URL = "https://origin.example/page";
 
 const divergenceRows: readonly DivergenceRow[] = [
@@ -253,6 +255,23 @@ const divergenceRows: readonly DivergenceRow[] = [
         status: 302,
         headers: { location: "https://evil.example/landing" },
       },
+      okHtml(DIVERGENCE_URL, "<html><body>real</body></html>"),
+    ],
+    expected: { divergent: true },
+  },
+  {
+    family: "divergence",
+    name: "referer-conditioned-cloak",
+    label: "positive",
+    url: DIVERGENCE_URL,
+    steps: [
+      okHtml(DIVERGENCE_URL, "<html><body>real</body></html>"),
+      okHtml(DIVERGENCE_URL, "<html><body>real</body></html>"),
+      {
+        url: DIVERGENCE_URL,
+        status: 302,
+        headers: { location: "https://evil.example/landing" },
+      },
     ],
     expected: { divergent: true },
   },
@@ -262,6 +281,7 @@ const divergenceRows: readonly DivergenceRow[] = [
     label: "negative",
     url: DIVERGENCE_URL,
     steps: [
+      okHtml(DIVERGENCE_URL, "<html><body>hello</body></html>"),
       okHtml(DIVERGENCE_URL, "<html><body>hello</body></html>"),
       okHtml(DIVERGENCE_URL, "<html><body>hello</body></html>"),
     ],
@@ -290,6 +310,7 @@ const challengeRows: readonly ChallengeRow[] = [
         headers: { "content-type": HTML },
         body: CLOUDFLARE_BODY,
       },
+      okHtml(DIVERGENCE_URL, "<html><body>real</body></html>"),
     ],
     expected: { detected: true, variant: "alt-user-agent", marker: "cloudflare-challenge" },
   },
@@ -300,6 +321,7 @@ const challengeRows: readonly ChallengeRow[] = [
     url: DIVERGENCE_URL,
     steps: [
       okHtml(DIVERGENCE_URL, RECAPTCHA_BODY),
+      okHtml(DIVERGENCE_URL, "<html><body>plain</body></html>"),
       okHtml(DIVERGENCE_URL, "<html><body>plain</body></html>"),
     ],
     expected: { detected: true, variant: "baseline", marker: "recaptcha" },
@@ -312,8 +334,21 @@ const challengeRows: readonly ChallengeRow[] = [
     steps: [
       okHtml(DIVERGENCE_URL, HCAPTCHA_BODY),
       okHtml(DIVERGENCE_URL, "<html><body>plain</body></html>"),
+      okHtml(DIVERGENCE_URL, "<html><body>plain</body></html>"),
     ],
     expected: { detected: true, variant: "baseline", marker: "hcaptcha" },
+  },
+  {
+    family: "challenge",
+    name: "hcaptcha-same-origin-referer",
+    label: "positive",
+    url: DIVERGENCE_URL,
+    steps: [
+      okHtml(DIVERGENCE_URL, "<html><body>plain</body></html>"),
+      okHtml(DIVERGENCE_URL, "<html><body>plain</body></html>"),
+      okHtml(DIVERGENCE_URL, HCAPTCHA_BODY),
+    ],
+    expected: { detected: true, variant: "same-origin-referer", marker: "hcaptcha" },
   },
   {
     family: "challenge",
@@ -321,6 +356,7 @@ const challengeRows: readonly ChallengeRow[] = [
     label: "negative",
     url: DIVERGENCE_URL,
     steps: [
+      okHtml(DIVERGENCE_URL, "<html><body>hello</body></html>"),
       okHtml(DIVERGENCE_URL, "<html><body>hello</body></html>"),
       okHtml(DIVERGENCE_URL, "<html><body>hello</body></html>"),
     ],

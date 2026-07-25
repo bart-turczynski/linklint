@@ -64,8 +64,15 @@ and context that should survive individual work sessions.
   destination under a bounded set of controlled User-Agent variants; destination
   divergence is evidence-only (`resolution.divergence`, no score, no cloaking
   claim) and reliable challenge/CAPTCHA markers degrade to an explicit
-  `challenge-gate` resolution-incomplete outcome. Referer stays absent (L0 strips
-  it); the synthetic same-origin Referer variant is parked as `LINK-wlyoafto`.
+  `challenge-gate` resolution-incomplete outcome.
+- L4b (`LINK-wlyoafto`) is done. L0 gained one dedicated `sameOriginReferer`
+  channel — validated absolute `http(s)`, no userinfo, same-origin with the
+  request URL, fragment dropped — that hard-blocks anything else with
+  `referer-not-same-origin` before DNS. The forwarded-header allowlist is
+  unchanged, so a caller-supplied (possibly private) `Referer` is still always
+  stripped. The default variant set is now three: baseline, `alt-user-agent`,
+  and `same-origin-referer`, whose Referer is the probed URL's own origin root
+  derived from the destination alone.
 - L6 (`LINK-pzuppjnt`) is done. The deterministic acceptance gate: a Cucumber
   protocol/safety/partial-state matrix (`features/resolution.feature`), a labeled
   corpus with per-family precision/recall (wrapper/divergence/challenge/mime), and
@@ -75,11 +82,8 @@ and context that should survive individual work sessions.
 
 ## Current execution frontier
 
-**Epic L is complete** (LT, L0–L6). The zero-external-network acceptance gate
-passes: `pnpm check` green at 1707 Vitest tests and 49 Cucumber scenarios. One
-optional low-priority follow-up is parked: **`LINK-wlyoafto` (L4b)** synthetic
-same-origin Referer variant (needs a dedicated same-origin L0 channel; must not
-regress the strip-private-Referer invariant).
+**Epic L is complete** (LT, L0–L6, plus the L4b follow-up). The
+zero-external-network acceptance gate passes with no live network in CI.
 
 **Epic M is now unblocked.** The blocking contract **`LINK-nlnyqofz` (M2)** is
 done: `@linklint/online` ships the source-contract root export (descriptor
@@ -132,7 +136,7 @@ LT  LINK-jsgadjni (done)
 └─► L0  LINK-cjkdyxau (done)
     ├─► L1  LINK-hvirrwxa (done)  ◄─ L2 LINK-ehhmrblq (done)
     │   ├─► L3  LINK-rupjqxus (done)
-    │   ├─► L4  LINK-vpqsjtjt (done)  ─▶ L4b LINK-wlyoafto (parked)
+    │   ├─► L4  LINK-vpqsjtjt (done)  ─▶ L4b LINK-wlyoafto (done)
     │   └─► L5  LINK-tibzpdft (done)  ◄─ L0
     └────────────────────────────────────┐
 LT + L1 + L2 + L3 + L4 + L5 ───────────► L6 LINK-pzuppjnt (done)
@@ -215,10 +219,10 @@ When the coordinator is assigned again:
 1. Run `fp guide implement` and `fp context LINK-ddsnssrd`.
 2. Run `fp tree LINK-ddsnssrd` and `fp issue show` for the proposed child; do not
    trust this document for status if FP has moved on.
-3. Epic L is complete. The next default stream is Epic M (`LINK-aclentcb`):
-   complete the blocking M2 privacy/licensing/provenance/BYOK contract
-   (`LINK-nlnyqofz`) before any provider adapter, then RDAP (M1) and caller-owned
-   local mirrors. Only the parked L4b (`LINK-wlyoafto`) remains under Epic L.
+3. Epic L is complete, L4b included; nothing remains parked under it. The next
+   default stream is Epic M (`LINK-aclentcb`): complete the blocking M2
+   privacy/licensing/provenance/BYOK contract (`LINK-nlnyqofz`) before any
+   provider adapter, then RDAP (M1) and caller-owned local mirrors.
 4. Read [`online-runtime-boundary.md`](online-runtime-boundary.md),
    [`architecture.md`](architecture.md), and
    [`enrichment-outcomes.md`](enrichment-outcomes.md) before defining public

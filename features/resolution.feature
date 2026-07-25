@@ -91,9 +91,24 @@ Feature: Layer 2 online resolution protocol, safety, and partial-state matrix
     And the reasons do not contain "content_type_mismatch"
     And the fixture transport is exhausted
 
+  # The probe's default variant set is fixed and ordered: baseline,
+  # alt-user-agent, same-origin-referer. Each row below answers one variant.
+
   Scenario: A UA-conditioned divergence is recorded as evidence without any new reason
     Given the resolution fixture responds:
       | url                          | status | location                       | contentType             | body                          |
+      | https://origin.example/page  | 200    |                                | text/html; charset=utf-8 | <html><body>real</body></html> |
+      | https://origin.example/page  | 302    | https://evil.example/landing   |                         |                               |
+      | https://origin.example/page  | 200    |                                | text/html; charset=utf-8 | <html><body>real</body></html> |
+    When I resolve "https://origin.example/page" through the divergence probe
+    Then an enrichment evidence record of type "resolution.divergence" has "divergent" equal to "true"
+    And the reasons equal the synchronous inspection of "https://origin.example/page"
+    And the fixture transport is exhausted
+
+  Scenario: A Referer-conditioned divergence is recorded as evidence without any new reason
+    Given the resolution fixture responds:
+      | url                          | status | location                       | contentType             | body                          |
+      | https://origin.example/page  | 200    |                                | text/html; charset=utf-8 | <html><body>real</body></html> |
       | https://origin.example/page  | 200    |                                | text/html; charset=utf-8 | <html><body>real</body></html> |
       | https://origin.example/page  | 302    | https://evil.example/landing   |                         |                               |
     When I resolve "https://origin.example/page" through the divergence probe
@@ -101,11 +116,22 @@ Feature: Layer 2 online resolution protocol, safety, and partial-state matrix
     And the reasons equal the synchronous inspection of "https://origin.example/page"
     And the fixture transport is exhausted
 
+  Scenario: Only the synthetic same-origin Referer variant ever sends a Referer
+    Given the resolution fixture responds:
+      | url                          | status | contentType             | body                            |
+      | https://origin.example/page  | 200    | text/html; charset=utf-8 | <html><body>hello</body></html> |
+      | https://origin.example/page  | 200    | text/html; charset=utf-8 | <html><body>hello</body></html> |
+      | https://origin.example/page  | 200    | text/html; charset=utf-8 | <html><body>hello</body></html> |
+    When I resolve "https://origin.example/page" through the divergence probe
+    Then the fixture requests sent the "referer" header exactly once as "https://origin.example/"
+    And the fixture transport is exhausted
+
   Scenario: A challenge-gated variant is an explicit resolution-incomplete skip
     Given the resolution fixture responds:
       | url                          | status | contentType             | body                                                                                                                              |
       | https://origin.example/page  | 200    | text/html; charset=utf-8 | <html><body>real</body></html>                                                                                                    |
       | https://origin.example/page  | 403    | text/html; charset=utf-8 | <html><head><title>Just a moment...</title><script src="/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page"></script></head></html> |
+      | https://origin.example/page  | 200    | text/html; charset=utf-8 | <html><body>real</body></html>                                                                                                    |
     When I resolve "https://origin.example/page" through the divergence probe
     Then an enrichment outcome with status "skipped" has cause "challenge-gate"
     And checksSkipped contains "resolution:divergence-probe.http"

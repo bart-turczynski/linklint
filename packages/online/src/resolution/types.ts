@@ -166,14 +166,27 @@ export interface RedirectChainOfflineInspection extends EnrichmentPayload {
 }
 
 /**
+ * How a variant populates the request `Referer`.
+ *
+ *  - `none` (default) sends no `Referer` at all.
+ *  - `same-origin-root` sends the destination's own origin root, derived from
+ *    the probed URL itself and passed through L0's validated same-origin
+ *    channel. No caller, ambient, or user-derived referrer is ever readable
+ *    here, so the synthetic variant cannot leak a private referrer.
+ */
+export type DivergenceProbeRefererMode = "none" | "same-origin-root";
+
+/**
  * One controlled request variant probed by the L4 divergence enricher. Only the
- * request headers vary between variants (never the URL); the caller-visible
- * `label` names the variant in evidence and authorization requests. Referer is
- * never set — L0 strips caller Referer by design and only User-Agent is varied.
+ * request headers and the synthetic-Referer mode vary between variants (never
+ * the URL); the caller-visible `label` names the variant in evidence and
+ * authorization requests. `headers` can never carry a Referer — L0 strips
+ * caller Referer by design and `referer` is the only channel that sets one.
  */
 export interface DivergenceProbeVariant {
   readonly label: string;
   readonly headers: Readonly<Record<string, string>>;
+  readonly referer?: DivergenceProbeRefererMode;
 }
 
 /** Why an exact destination URL is being presented for per-variant authorization. */
@@ -225,6 +238,8 @@ export type DivergenceProbeEnricher = Enricher;
  */
 export interface DivergenceProbeVariantSummary extends EnrichmentPayload {
   readonly label: string;
+  /** Synthetic same-origin Referer sent for this variant, else `null`. */
+  readonly referer: string | null;
   readonly status: number;
   readonly statusClass: number;
   /** Registrable domain of a 3xx Location target, else `null`. */

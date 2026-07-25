@@ -192,6 +192,61 @@ describe("safe HTTP(S) authorization and DNS pinning", () => {
     harness.assertExhausted();
   });
 
+  it("sends a validated same-origin Referer through the dedicated channel only", async () => {
+    const script: TransportFixtureScript = {
+      ...publicSuccessScript(),
+      http: [{
+        expect: {
+          connectionId: "c1",
+          url: URL_A,
+          method: "GET",
+          headers: { referer: "https://origin.example/from?a=1" },
+        },
+        outcome: { value: { status: 200, body: "ok" } },
+      }],
+    };
+    const { harness, session: transportSession } = session(script);
+
+    const outcome = await transportSession.fetch({
+      url: URL_A,
+      authorization: authorization(URL_A),
+      // The header allowlist is NOT opened: a caller-supplied Referer is still
+      // stripped, and the fragment never rides along on the synthetic one.
+      headers: { Referer: "https://private.example/secret" },
+      sameOriginReferer: "https://origin.example/from?a=1#section",
+    });
+
+    expect(outcome.status).toBe("success");
+    expect(harness.http.calls[0]?.headers.referer).toBe("https://origin.example/from?a=1");
+    harness.assertExhausted();
+  });
+
+  it.each([
+    ["cross-origin host", "https://other.example/"],
+    ["scheme-mismatched", "http://origin.example/"],
+    ["port-mismatched", "https://origin.example:8443/"],
+    ["relative", "/dashboard"],
+    ["userinfo-bearing", "https://user:secret@origin.example/"],
+    ["non-HTTP", "javascript:alert(1)"],
+    ["unparsable", "https://"],
+  ])("hard-blocks a %s Referer before any DNS or connection", async (_case, referer) => {
+    const { harness, session: transportSession } = session({});
+
+    const outcome = await transportSession.fetch({
+      url: URL_A,
+      authorization: authorization(URL_A),
+      sameOriginReferer: referer,
+    });
+
+    expect(outcome).toMatchObject({
+      status: "blocked",
+      cause: { code: "referer-not-same-origin" },
+    });
+    expect(harness.resolver.calls).toEqual([]);
+    expect(harness.connector.calls).toEqual([]);
+    expect(harness.http.calls).toEqual([]);
+  });
+
   it("hard-blocks if any DNS answer is prohibited before selecting or connecting", async () => {
     const { harness, session: transportSession } = session({
       resolver: [

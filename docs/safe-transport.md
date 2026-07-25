@@ -46,6 +46,13 @@ built-in adapters cannot bypass the authorization layer.
   `Accept-Encoding` are set by the transport. Authorization, proxy
   authorization, cookies, Referer, API keys, and all other ambient headers are
   never copied.
+- `Referer` has one dedicated channel, `sameOriginReferer`, and is never
+  forwarded from `headers`. The candidate must be an absolute `http(s)` URL,
+  free of userinfo, at most 2048 characters, and same-origin with the request
+  URL (scheme, host, and effective port all equal); its fragment is dropped.
+  Anything else blocks the request with `referer-not-same-origin` before any
+  DNS or connection, so a caller-held cross-origin or private referrer cannot
+  leave through this boundary.
 - Every hostname is resolved again for every authorized hop. All answers are
   validated and classified before connection; one prohibited or malformed
   answer prevents any connection. Literal addresses are classified directly.
