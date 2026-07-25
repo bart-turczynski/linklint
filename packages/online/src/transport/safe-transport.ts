@@ -5,7 +5,7 @@ import {
   DecompressedLimitError,
   UnsupportedContentEncodingError,
 } from "./decompression.js";
-import { destinationHeaders } from "./headers.js";
+import { destinationHeaders, sameOriginRefererValue } from "./headers.js";
 import { pinDestination } from "./pin.js";
 import {
   resolveTransportPolicy,
@@ -169,6 +169,16 @@ class SafeSession implements SafeTransportSession {
       return this.blocked(state, "url-credentials");
     }
 
+    // Resolved with the other request-shape rules, before any DNS or socket
+    // work, so a cross-origin candidate can never reach a destination — not
+    // even as a header dropped from an otherwise completed request.
+    let referer: string | undefined;
+    if (request.sameOriginReferer !== undefined) {
+      const value = sameOriginRefererValue(url, request.sameOriginReferer);
+      if (value === null) return this.blocked(state, "referer-not-same-origin");
+      referer = value;
+    }
+
     url.hash = "";
     state.subject = url.href;
     state.protocol = url.protocol;
@@ -227,7 +237,7 @@ class SafeSession implements SafeTransportSession {
           connectionId,
           url: url.href,
           method: request.method ?? "GET",
-          headers: destinationHeaders(url.host, request.headers),
+          headers: destinationHeaders(url.host, request.headers, referer),
           signal,
         }),
       );

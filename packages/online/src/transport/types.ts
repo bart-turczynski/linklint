@@ -83,6 +83,14 @@ export interface SafeFetchRequest {
   readonly authorization: DestinationFetchAuthorization;
   readonly method?: TransportMethod;
   readonly headers?: Readonly<Record<string, string>>;
+  /**
+   * Dedicated synthetic-Referer channel and the only way a `Referer` reaches the
+   * wire — `headers` never forwards one, so an ambient caller referrer is still
+   * always stripped. The value must be an absolute `http(s)` URL, free of
+   * userinfo, and same-origin with the request URL; anything else blocks the
+   * request with `referer-not-same-origin` before any DNS or connection.
+   */
+  readonly sameOriginReferer?: string;
   readonly signal?: AbortSignal;
 }
 
@@ -111,6 +119,7 @@ export type TransportCauseCode =
   | "unsupported-scheme"
   | "unsupported-method"
   | "url-credentials"
+  | "referer-not-same-origin"
   | "prohibited-address"
   | "hop-limit"
   | "response-too-large"

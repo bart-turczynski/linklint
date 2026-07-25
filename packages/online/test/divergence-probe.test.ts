@@ -134,20 +134,25 @@ describe("L4 controlled-variant divergence probe", () => {
       headers: { "content-type": "text/html; charset=utf-8" },
       body: "<html><body>hello</body></html>",
     };
-    const { harness, enricher } = fixtureEnricher([same, same]);
+    const { harness, enricher } = fixtureEnricher([same, same, same]);
 
     const result = await inspectAsync(url, { enrichers: [enricher] });
     const outcomes = result.enrichment?.outcomes ?? [];
 
-    expect(outcomes.map((outcome) => outcome.status)).toEqual(["success", "success", "success"]);
+    expect(outcomes.map((outcome) => outcome.status)).toEqual([
+      "success",
+      "success",
+      "success",
+      "success",
+    ]);
     const variantRecords = outcomes
       .flatMap((outcome) => outcome.evidence)
       .filter((item) => item.type === "resolution.variant-response");
-    expect(variantRecords).toHaveLength(2);
+    expect(variantRecords).toHaveLength(3);
 
     const divergence = findEvidence(result, "resolution.divergence");
     expect(divergence?.payload).toMatchObject({ divergent: false, divergentDimensions: [] });
-    expect((divergence?.payload as { variants: unknown[] }).variants).toHaveLength(2);
+    expect((divergence?.payload as { variants: unknown[] }).variants).toHaveLength(3);
 
     expect(outcomes.flatMap((outcome) => outcome.findings)).toEqual([]);
     expect(result.checksRun).toContain(CHECK_TOKEN);
@@ -165,6 +170,12 @@ describe("L4 controlled-variant divergence probe", () => {
         body: "<html><body>real</body></html>",
       },
       { url, status: 302, headers: { location: "https://evil.example/landing" } },
+      {
+        url,
+        status: 200,
+        headers: { "content-type": "text/html; charset=utf-8" },
+        body: "<html><body>real</body></html>",
+      },
     ]);
 
     const result = await inspectAsync(url, { enrichers: [enricher] });
@@ -195,6 +206,12 @@ describe("L4 controlled-variant divergence probe", () => {
         status: 403,
         headers: { "content-type": "text/html; charset=utf-8" },
         body: '<html><head><title>Just a moment...</title><script src="/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page"></script></head></html>',
+      },
+      {
+        url,
+        status: 200,
+        headers: { "content-type": "text/html; charset=utf-8" },
+        body: "<html><body>real</body></html>",
       },
     ]);
 
@@ -237,6 +254,12 @@ describe("L4 controlled-variant divergence probe", () => {
         headers: { "content-type": "text/html; charset=utf-8" },
         body: "<html><body>plain</body></html>",
       },
+      {
+        url,
+        status: 200,
+        headers: { "content-type": "text/html; charset=utf-8" },
+        body: "<html><body>plain</body></html>",
+      },
     ]);
 
     const result = await inspectAsync(url, { enrichers: [enricher] });
@@ -247,18 +270,109 @@ describe("L4 controlled-variant divergence probe", () => {
     harness.assertExhausted();
   });
 
+  it("sends a synthetic same-origin Referer on that variant only, and records it", async () => {
+    const url = "https://origin.example/page";
+    const same: ResponseStep = {
+      url,
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8" },
+      body: "<html><body>hello</body></html>",
+    };
+    const { harness, enricher } = fixtureEnricher([same, same, same]);
+
+    const result = await inspectAsync(url, { enrichers: [enricher] });
+
+    // Only the dedicated variant carries a Referer, and its value is the
+    // destination's own origin root — derived from the probed URL, never ambient.
+    expect(harness.http.calls.map((call) => call.headers.referer)).toEqual([
+      undefined,
+      undefined,
+      "https://origin.example/",
+    ]);
+    const variants = (findEvidence(result, "resolution.divergence")?.payload as {
+      variants: { label: string; referer: string | null }[];
+    }).variants;
+    expect(variants.map((variant) => [variant.label, variant.referer])).toEqual([
+      ["baseline", null],
+      ["alt-user-agent", null],
+      ["same-origin-referer", "https://origin.example/"],
+    ]);
+    harness.assertExhausted();
+  });
+
+  it("records a Referer-conditioned divergence as evidence only", async () => {
+    const url = "https://origin.example/page";
+    const real: ResponseStep = {
+      url,
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8" },
+      body: "<html><body>real</body></html>",
+    };
+    const { harness, enricher } = fixtureEnricher([
+      real,
+      real,
+      { url, status: 302, headers: { location: "https://evil.example/landing" } },
+    ]);
+
+    const result = await inspectAsync(url, { enrichers: [enricher] });
+    const divergence = findEvidence(result, "resolution.divergence");
+
+    expect(divergence?.payload).toMatchObject({ divergent: true });
+    const dimensions = (divergence?.payload as { divergentDimensions: string[] })
+      .divergentDimensions;
+    expect(dimensions).toContain("location");
+    expect(dimensions).toContain("statusClass");
+    // The Referer is a probe input, never a compared response dimension.
+    expect(dimensions).not.toContain("referer");
+
+    expect((result.enrichment?.outcomes ?? []).flatMap((outcome) => outcome.findings)).toEqual([]);
+    expect(newReasonCodes(result, url)).toEqual([]);
+    harness.assertExhausted();
+  });
+
+  it("keeps the Referer absent when the same-origin variant is refused", async () => {
+    const url = "https://origin.example/page";
+    const same: ResponseStep = {
+      url,
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8" },
+      body: "<html><body>hello</body></html>",
+    };
+    const harness = new TransportFixtureHarness(scriptFor([same, same]));
+    const transport = createSafeTransport({
+      resolver: harness.resolver,
+      connector: harness.connector,
+      http: harness.http,
+      clock: harness.clock,
+    });
+    const enricher = createDivergenceProbeEnricher({
+      transport,
+      authorize: async ({ variant, url: target }: { variant: string; url: string }) =>
+        variant === "same-origin-referer"
+          ? null
+          : { kind: "destination-fetch" as const, url: target },
+      now: () => harness.clock.now(),
+    });
+
+    const result = await inspectAsync(url, { enrichers: [enricher] });
+
+    expect(harness.http.calls.every((call) => call.headers.referer === undefined)).toBe(true);
+    const denied = (result.enrichment?.outcomes ?? []).find(
+      (outcome) => outcome.cause?.code === "authorization-denied",
+    );
+    expect(denied?.cause?.details).toMatchObject({ variant: "same-origin-referer" });
+    harness.assertExhausted();
+  });
+
   it("degrades only the refused variant when the second variant is denied", async () => {
     const url = "https://origin.example/page";
-    const harness = new TransportFixtureHarness(
-      scriptFor([
-        {
-          url,
-          status: 200,
-          headers: { "content-type": "text/html; charset=utf-8" },
-          body: "<html><body>real</body></html>",
-        },
-      ]),
-    );
+    const allowed: ResponseStep = {
+      url,
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8" },
+      body: "<html><body>real</body></html>",
+    };
+    const harness = new TransportFixtureHarness(scriptFor([allowed, allowed]));
     const transport = createSafeTransport({
       resolver: harness.resolver,
       connector: harness.connector,
@@ -283,8 +397,8 @@ describe("L4 controlled-variant divergence probe", () => {
       status: "skipped",
       cause: { code: "authorization-denied", details: { variant: "alt-user-agent" } },
     });
-    expect(authorize).toHaveBeenCalledTimes(2);
-    // Only one successful variant, so divergence has nothing to compare.
+    expect(authorize).toHaveBeenCalledTimes(3);
+    // The two allowed variants answered identically, so nothing diverged.
     expect(findEvidence(result, "resolution.divergence")?.payload).toMatchObject({
       divergent: false,
       divergentDimensions: [],

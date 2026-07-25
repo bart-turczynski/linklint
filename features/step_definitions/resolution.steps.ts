@@ -222,3 +222,14 @@ Then("the fixture transport is exhausted", function (this: LinklintWorld) {
   assert.ok(this.harness, "no fixture harness was built");
   this.harness.assertExhausted();
 });
+
+Then(
+  "the fixture requests sent the {string} header exactly once as {string}",
+  function (this: LinklintWorld, header: string, value: string) {
+    assert.ok(this.harness, "no fixture harness was built");
+    const sent = this.harness.http.calls
+      .map((call) => call.headers[header.toLowerCase()])
+      .filter((actual) => actual !== undefined);
+    assert.deepEqual(sent, [value], `unexpected ${header} values on the fixture requests`);
+  },
+);

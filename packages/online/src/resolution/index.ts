@@ -37,6 +37,7 @@ export type {
   DivergenceProbeAuthorizer,
   DivergenceProbeEnricher,
   DivergenceProbeEnricherOptions,
+  DivergenceProbeRefererMode,
   DivergenceProbeVariant,
   DivergenceProbeVariantSummary,
 } from "./types.js";
