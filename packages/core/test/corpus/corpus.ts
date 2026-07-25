@@ -398,20 +398,24 @@ export const CORPUS: CorpusRow[] = [
     notes: "J6 .mov filename masquerade",
   },
 
-  // Informational — IDNA mapping ambiguity (J9, weight 0): annotate, stay benign
+  // Deceptive — the J9 brand escalation (LINK-vpajgxxm) that this row previously
+  // anticipated with "(Epic G escalates)" has landed: the IDNA2003 reading is
+  // EXACTLY a brand, so this is no longer a weight-0 annotation.
   {
     input: "https://wordpreß.com",
-    label: "info",
+    label: "deceptive",
     options: ALLOW_IDN,
-    expectReasons: ["idna_mapping_ambiguity"],
-    forbidReasons: ["mixed_script"],
-    notes: "J9 ß: IDNA2003 → wordpress.com vs UTS-46 punycode (Epic G escalates)",
+    minSeverity: "medium",
+    expectReasons: ["brand_idna_collapse"],
+    forbidReasons: ["idna_mapping_ambiguity", "brand_lookalike", "mixed_script"],
+    notes: "J9 ß: IDNA2003 → wordpress.com (exact brand) vs UTS-46 xn--wordpre-6va.com — a validator on transitional processing approves it as the brand",
   },
   {
     input: "https://ｇｏｏｇｌｅ.com",
     label: "info",
     expectReasons: ["idna_mapping_ambiguity"],
-    notes: "J9 Group B: fullwidth Latin folds to ASCII google.com",
+    forbidReasons: ["brand_idna_collapse"],
+    notes: "J9 Group B: fullwidth Latin folds to ASCII google.com under BOTH standards, so the request reaches the GENUINE site — must NOT escalate",
   },
 
   // Invalid — structurally ambiguous but unresolvable: carries a reason, not bare parse_error
@@ -455,7 +459,7 @@ export const CORPUS: CorpusRow[] = [
   { input: "https://sub.domain.example.co.uk/a/b/c/d/e", label: "benign", forbidReasons: ["embedded_domain_in_subdomain"], notes: "legit deep path + multi-level suffix" },
 
   // Informational — legitimate IDNs with deviation chars (ß / final sigma ς) stay benign
-  { input: "https://straße.de/", label: "info", options: ALLOW_IDN, expectReasons: ["idna_mapping_ambiguity"], forbidReasons: ["mixed_script"], notes: "J9: legit German ß IDN — info only, must not flag" },
+  { input: "https://straße.de/", label: "info", options: ALLOW_IDN, expectReasons: ["idna_mapping_ambiguity"], forbidReasons: ["mixed_script", "brand_idna_collapse"], notes: "J9: legit German ß IDN — info only, must not flag; Group A on a NON-brand domain never escalates" },
   { input: "https://ολυμπιακός.gr/", label: "info", options: ALLOW_IDN, expectReasons: ["idna_mapping_ambiguity"], forbidReasons: ["mixed_script"], notes: "J9: legit Greek IDN with final sigma ς" },
 
   // ── Epic I: download / redirect / subdomain-depth detectors (I1–I3) ──────
@@ -695,6 +699,26 @@ export const CORPUS: CorpusRow[] = [
   { input: "https://münchen.de/", label: "benign", options: ALLOW_IDN, forbidReasons: ["locale_case_ambiguity", "brand_locale_collapse"], notes: "locale guard: a legitimate IDN with no İ still carries ü after a tr lowercase — the collapse must be TOTAL to fire" },
   { input: "https://WIKI.com/", label: "benign", forbidReasons: ["locale_case_ambiguity", "brand_locale_collapse"], notes: "locale guard: the MIRROR direction (I -> ı) is deliberately out of scope — it would fire on essentially every uppercase host" },
   { input: "https://xn--tiktok-qyd.com/", label: "benign", options: ALLOW_IDN, forbidReasons: ["locale_case_ambiguity", "brand_locale_collapse"], notes: "locale guard: the ACE form is already pure ASCII, so no case-normalizer can collapse it — presenting punycode carries no locale hazard" },
+
+  // Deceptive — brand_idna_collapse (LINK-vpajgxxm, weight 0.5): the IDNA-axis
+  // sibling of brand_locale_collapse. The base wordpreß.com/ｇｏｏｇｌｅ.com rows
+  // live with the other J9 entries above; these cover the shapes they don't.
+  {
+    input: "https://login.wordpreß.com/",
+    label: "deceptive",
+    options: ALLOW_IDN,
+    minSeverity: "medium",
+    expectReasons: ["brand_idna_collapse"],
+    notes: "SUBDOMAIN form: the escalation compares the REGISTRABLE DOMAIN of the IDNA2003 reading, so a validator checking the eTLD+1 still reads the brand",
+  },
+  {
+    input: "https://g‍oogle.com/",
+    label: "deceptive",
+    options: ALLOW_IDN,
+    minSeverity: "medium",
+    expectReasons: ["brand_idna_collapse"],
+    notes: "ZWJ deviation route: IDNA2003 DROPS U+200D giving the exact brand 'google.com', UTS-46 encodes it as xn--google-pf0c.com — same escalation, non-ß route",
+  },
 
   // Benign (SC-2): the G family must NOT over-flag these.
   { input: "https://paypal.com", label: "benign", forbidReasons: ["brand_lookalike", "brand_homoglyph", "homograph_skeleton_collision"], notes: "G2/E3 guard: exact brand domain is the brand, never fires" },

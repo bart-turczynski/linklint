@@ -119,6 +119,8 @@ authority is somewhere else.
 | `https://g00gle.com` | `brand_homoglyph`, `ascii_homoglyph` | ASCII digit look-alikes (`00` → `oo`) folding exactly onto `google.com`. |
 | `https://xn--abc.com/` | `punycode_malformed` | A punycode label that doesn't decode to a valid IDN. |
 | any IDN | `normalization_delta`, `idna_mapping_ambiguity` | Flags that the Unicode form differs from the ACE/punycode form, or maps differently under IDNA2003 vs. UTS-46. |
+| `https://wordpreß.com` | `brand_idna_collapse` | IDNA2003 reads this as exactly `wordpress.com` while UTS-46 — and the actual request — resolves `xn--wordpre-6va.com`. A validator still on transitional processing approves it as the brand. |
+| `https://tİktok.com` | `brand_locale_collapse` | A Turkish/Azeri lowercase collapses `İ` to a plain ASCII `i`, so a validator under that locale reads exactly `tiktok.com` while the request reaches `xn--tiktok-qyd.com`. |
 | `https://münchen.de` (any genuine IDN) | `idn_host` | Internationalized (non-ASCII/punycode) domains are **blocked by default** (lands `high`). Set `idnPolicy: "allow"` or use `idnAllowlist` for IDN-legitimate deployments. |
 
 ### 3. Typosquatting & brand impersonation — "close, but not the real brand"

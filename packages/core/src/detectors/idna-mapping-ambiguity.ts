@@ -1,9 +1,12 @@
 import type { DetectorFinding } from "./types.js";
 import { authorityRegion, type AuthorityRegion } from "../parse/authority-region.js";
+import { analyzeHost } from "../parse/psl.js";
 import { toAsciiUnder } from "../unicode/idna.js";
+import { isExactBrandDomain } from "./brand-utils.js";
 
 /**
- * `idna_mapping_ambiguity`. Informational (weight 0) for now.
+ * `idna_mapping_ambiguity` / `brand_idna_collapse`. A SINGLE scan emitting TWO
+ * codes, strongest first (it reports one finding per input).
  *
  * Flags the Tsai "Abusing IDNA Standard" class: a host whose characters are
  * mapped *differently by different IDNA standards*, so the component that
@@ -27,8 +30,30 @@ import { toAsciiUnder } from "../unicode/idna.js";
  *
  * Weight: informational (0). A lone ß is a legitimate German IDN (`baß.de` is a
  * real registrable domain), so the base signal must not raise severity (SC-2).
- * The brand-aware layer wires the SCORING escalation: when the alternate IDNA2003 mapping equals
- * a known brand (`wordpreß` → `wordpress`), it becomes an impersonation signal.
+ *
+ * ── The brand escalation (`brand_idna_collapse`, weight 0.5) ───────────────
+ * The value is in the escalation: when the IDNA2003 form's registrable domain
+ * equals a watchlist brand EXACTLY, byte for byte, it becomes an impersonation
+ * signal. Same evidentiary bar and weight as `homograph_skeleton_collision`
+ * ("equals a known brand exactly") and its locale-axis sibling
+ * `brand_locale_collapse`.
+ *
+ *   https://wordpreß.com/
+ *     validator, IDNA2003:           'wordpress.com'           <- exact brand match
+ *     resolver, UTS-46 (mandatory):  'xn--wordpre-6va.com'     <- the attacker
+ *
+ * ── Why ONLY Group A escalates ─────────────────────────────────────────────
+ * The escalation is deliberately scoped to Group A — the branch where the two
+ * standards reach DIFFERENT domains. Only there does the validator see the brand
+ * while the request lands somewhere else. Group B is the opposite shape: both
+ * standards fold `ｇｏｏｇｌｅ.com` to the same real `google.com`, so the request
+ * reaches the genuine site and there is no impersonation to score. The
+ * IDNA2003-accepted/UTS-46-rejected branch does not escalate either — the
+ * resolver rejects the host outright, so no attacker domain is ever reached.
+ *
+ * Group A is reachable through both deviation routes: `ß`→`ss` (`wordpreß.com`)
+ * and dropped ZWJ/ZWNJ (`g<ZWJ>oogle.com` → `google.com` vs
+ * `xn--google-pf0c.com`).
  *
  * Implemented with the vetted `tr46` library in both processing modes
  * (FR-LIB-1: do not hand-roll IDNA).
@@ -52,6 +77,23 @@ export function scanIdnaMappingAmbiguity(
 
   // Group A — the two standards resolve to different ASCII domains.
   if (ace2008 !== null && ace2003 !== null && ace2008 !== ace2003) {
+    // Escalate when the form an IDNA2003 validator sees IS a brand exactly.
+    // Compare on the registrable domain so a subdomain (`login.wordpreß.com`)
+    // escalates too — a validator checking the eTLD+1 still reads the brand.
+    const rd2003 = analyzeHost(ace2003).registrableDomain;
+    if (rd2003 !== null && isExactBrandDomain(rd2003)) {
+      return [
+        {
+          code: "brand_idna_collapse",
+          detail:
+            `host maps to exactly the brand domain '${rd2003}' under IDNA2003 (as '${ace2003}') ` +
+            `while UTS-46/IDNA2008 resolves it to '${ace2008}' — a validator using the older ` +
+            "standard would approve it as the brand and the request would still reach a " +
+            "different domain",
+        },
+      ];
+    }
+
     return [
       {
         code: "idna_mapping_ambiguity",

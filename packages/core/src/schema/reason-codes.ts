@@ -44,7 +44,7 @@ export const REASON_CODES = {
     scoring: false,
     weight: 0,
     summary:
-      "Host maps to a different ASCII domain under IDNA2003 vs UTS-46/IDNA2008 (or folds to ASCII) — resolver disagreement. Scoring escalation lands with the Epic G brand list.",
+      "Host maps to a different ASCII domain under IDNA2003 vs UTS-46/IDNA2008 (or folds to ASCII) — resolver disagreement. Escalates to brand_idna_collapse on an exact brand match.",
   },
   locale_case_ambiguity: {
     layer: "lexical",
@@ -221,6 +221,13 @@ export const REASON_CODES = {
     weight: 0.5,
     summary:
       "Registrable domain collapses to exactly a known brand domain under a Turkish/Azeri lowercase while UTS-46 resolves it elsewhere (tİktok.com) — a locale-dependent validator approves it as the brand, the request reaches the attacker.",
+  },
+  brand_idna_collapse: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.5,
+    summary:
+      "Host maps to exactly a known brand domain under IDNA2003 while UTS-46/IDNA2008 resolves it elsewhere (wordpreß.com) — a validator on the older standard approves it as the brand, the request reaches the attacker.",
   },
   idn_host: {
     layer: "lexical",

@@ -79,7 +79,7 @@ export const CHECKS: CheckDescriptor[] = [
     id: "idna_mapping_ambiguity",
     layer: "lexical",
     phase: "structural",
-    emits: ["idna_mapping_ambiguity"],
+    emits: ["idna_mapping_ambiguity", "brand_idna_collapse"],
     skipReportable: true,
     run: (ctx) => scanIdnaMappingAmbiguity(ctx.prepared, ctx.authority),
   },
