@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Manual trigger. Needed to re-verify main without an empty commit — for
+  # example after an outage that prevented jobs from starting, which leaves the
+  # README badge stale with no code change available to refresh it.
+  workflow_dispatch:
 
 jobs:
   verify:
