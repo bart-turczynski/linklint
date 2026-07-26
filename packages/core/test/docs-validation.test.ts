@@ -92,9 +92,9 @@ describe("README detector count matches the computed total", () => {
     const parsed = CHECKS.filter((c) => c.phase === "parsed").length;
     const agentGated = CHECKS.filter((c) => c.agentGated === true).length;
 
-    expect(total).toBe(35);
+    expect(total).toBe(36);
     expect(structural).toBe(4);
-    expect(parsed).toBe(31);
+    expect(parsed).toBe(32);
     expect(agentGated).toBe(5);
     expect(DETECTORS.length).toBe(parsed);
     expect(STRUCTURAL_SCANS.length).toBe(structural);
@@ -166,7 +166,7 @@ describe("docs/architecture.md detector families cover every check", () => {
   // 32 of 37: ip_classification, ambiguous_numeric_host, homograph_latin_skeleton,
   // locale_case_collapse, and idn_host were all missing. Pin it to the registry.
   it("every check id appears in the families table", () => {
-    const tableStart = architectureDoc.indexOf("The 35 checks group into seven families");
+    const tableStart = architectureDoc.indexOf("The 36 checks group into seven families");
     expect(tableStart).toBeGreaterThan(-1);
     const table = architectureDoc.slice(tableStart, architectureDoc.indexOf("## 6."));
 

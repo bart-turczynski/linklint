@@ -166,6 +166,13 @@ export const REASON_CODES = {
     weight: 0.2,
     summary: "Host has an xn-- label that does not decode to a valid IDN.",
   },
+  percent_encoding_malformed: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.2,
+    summary:
+      "A '%' is not followed by two hex digits (RFC 3986 \u00a72.4), so the string declares a percent-escape it does not carry.",
+  },
   ambiguous_authority: {
     layer: "lexical",
     scoring: true,

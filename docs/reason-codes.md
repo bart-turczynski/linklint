@@ -1035,6 +1035,30 @@ instead of minting one. Absent either, this stays closed.
   agent or user is about to follow; highest single weight.
 - **Example:** `javascript:fetch('//evil')`.
 
+### `percent_encoding_malformed` — T2.14 · weight 0.2
+
+- **Meaning:** a `%` somewhere in the URL is **not** followed by two hex digits,
+  so it is not a valid percent-escape. Covers both `%zz` (non-hex pair) and a
+  lone or trailing `%` (`/100%discount`, `/x%`).
+- **Why it's a signal:** RFC 3986 §2.4 makes `%HH` the only meaning `%` carries in
+  a URI, and instructs implementations to reject rather than repair — repair is
+  precisely where they diverge. This is architecture §1.1 claim (a) in its
+  **false self-description** form: the string declares an escape it does not
+  carry. It is the direct sibling of `punycode_malformed` (`xn--` that does not
+  decode) and carries the same 0.2 for the same reason — a false claim every
+  reader agrees is false is anomalous, not an attack on its own, so it flags at
+  `low`.
+- **Why `%zz` and a lone `%` are one code at one weight:** splitting them would
+  track how uniformly browsers *tolerate* the input, which is a statement about
+  reader agreement (§1.1 form 2). Form 2 is not what grounds this finding; form 3
+  is, and both inputs satisfy it identically. RFC 3986 does not distinguish them
+  either.
+- **Boundary:** well-formed `%HH` never fires here at any nesting depth — encoded
+  separators, double-encoding and overlong UTF-8 are `encoding_obfuscation`. A
+  percent-escape the parser itself produced (a space, a non-ASCII character) is
+  well-formed by construction.
+- **Example:** `https://example.com/a%zzb`, `https://ex%zzample.com/`.
+
 ### `punycode_malformed` — E5 · weight 0.2
 
 - **Meaning:** the host has an `xn--` (ACE) label that does not decode to a valid
