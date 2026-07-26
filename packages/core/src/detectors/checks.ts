@@ -35,6 +35,7 @@ import { punycodeMalformed } from "./punycode-malformed.js";
 import { percentEncodingMalformed } from "./percent-encoding-malformed.js";
 import { excessiveSubdomainDepth } from "./excessive-subdomain-depth.js";
 import { promptInjection } from "./prompt-injection.js";
+import { lowByteTruncation } from "./low-byte-truncation.js";
 import { apiEndpointImpersonation } from "./api-endpoint-impersonation.js";
 import { credentialHarvesting } from "./credential-harvesting.js";
 import { dataExfiltration } from "./data-exfiltration.js";
@@ -305,6 +306,14 @@ export const CHECKS: CheckDescriptor[] = [
     emits: ["percent_encoding_malformed"],
     skipReportable: true,
     run: percentEncodingMalformed.run,
+  },
+  {
+    id: lowByteTruncation.id,
+    layer: lowByteTruncation.layer,
+    phase: "parsed",
+    emits: ["low_byte_truncation"],
+    skipReportable: true,
+    run: lowByteTruncation.run,
   },
   {
     id: excessiveSubdomainDepth.id,

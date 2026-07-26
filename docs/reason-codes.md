@@ -1059,6 +1059,38 @@ instead of minting one. Absent either, this stays closed.
   well-formed by construction.
 - **Example:** `https://example.com/a%zzb`, `https://ex%zzample.com/`.
 
+### `low_byte_truncation` — T2.3 · weight 0.6
+
+- **Meaning:** a code point above U+007F whose **low byte is a dangerous ASCII
+  byte**, sitting **isolated between two ASCII alphanumerics**. U+560A narrows to
+  LF, U+560D to CR, U+200D (zero-width joiner) to CR, U+6709 to `\t`. The
+  dangerous bytes covered are CR, LF, TAB, VT, FF, SPACE, NUL and the URI
+  delimiters `/ : @ ? #`.
+- **Why it's a signal:** when a lossy conversion narrows UTF-16 code units to
+  single bytes — `Buffer.from(s, 'latin1')`, a `charCodeAt` masked to 8 bits, a
+  `wchar_t` downcast — the byte materializes and re-parses the URL: a CR or LF
+  injects a header or smuggles a second protocol, an `@` moves the authority, a
+  `/` ends it. The byte does not exist in the input, so no byte-scan can see it,
+  which is why `control_char` cannot reach this class even though it handles every
+  direct form. References: filedescriptor 2015; Node CVE-2018-12116.
+- **Why the isolation guard is the whole design:** truncation-reachability alone
+  is not a usable firing condition. 2,357 assigned code points narrow to CR/LF,
+  ~1,167 to `/`, ~1,167 to `@`, and 492 of the whitespace set are everyday CJK —
+  上 下 不 有 而 名 同 看 國 程 載 選 尋 among them. Flagging on reachability alone
+  would flag 下載 ("download") and a large share of real Chinese and Japanese
+  URLs. The guard makes this a claim about the **string**: CJK clusters with CJK
+  or sits beside punctuation, so a lone non-ASCII code point wedged between two
+  ASCII alphanumerics is itself the structural anomaly, and every reader can check
+  it. Measured: 17/17 realistic multilingual URLs (JP/CN/KR/RU/GR) stay quiet.
+- **Why 0.6:** parity with `control_char`, which catches the direct form of the
+  identical attack. This variant is strictly harder to see, so parity is the
+  defensible floor; pricing it higher would assert it is worse than an actual
+  embedded newline. Revisit tracked at `LINK-tyjxigyc`.
+- **Boundary:** a pure non-ASCII run never fires (`/下載/`, `/한국어/`,
+  `/путь/`), nor does non-ASCII beside punctuation, a path separator or a dot
+  (`/file名.pdf`, `/data下載.zip`). Only the ASCII-sandwich shape does.
+- **Example:** `https://example.com/a嘊b`, `https://example.com/x有y`.
+
 ### `punycode_malformed` — E5 · weight 0.2
 
 - **Meaning:** the host has an `xn--` (ACE) label that does not decode to a valid

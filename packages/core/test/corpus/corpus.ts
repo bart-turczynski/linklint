@@ -260,6 +260,24 @@ export const CORPUS: CorpusRow[] = [
     expectReasons: ["percent_encoding_malformed"],
     notes: "T2.14: malformed escape in the host",
   },
+  // T2.3 (LINK-ibwuayzo): low-byte-truncation code points. The ASCII sandwich is
+  // the structural precondition — without it, flagging truncation-reachable code
+  // points would flag 492 everyday CJK characters and a large share of real
+  // Chinese and Japanese URLs. The benign counterparts are pinned in vectors.ts.
+  {
+    input: "https://example.com/a\u560Ab",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["low_byte_truncation"],
+    notes: "T2.3: U+560A narrows to LF between ASCII alphanumerics",
+  },
+  {
+    input: "https://example.com/x\u6709y",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["low_byte_truncation"],
+    notes: "T2.3: everyday CJK 有 (U+6709, low byte 0x09 TAB) — fires only because sandwiched",
+  },
   {
     input: "https://promo-login.tk/",
     label: "deceptive",

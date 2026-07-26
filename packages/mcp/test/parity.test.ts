@@ -68,15 +68,15 @@ describe("schema parity with core inspect() (no channel drift)", () => {
     });
   }
 
-  it("carries schemaVersion 1.5, confidence 1.0, and PSL provenance (FR-SCORE-2b)", async () => {
+  it("carries schemaVersion 1.6, confidence 1.0, and PSL provenance (FR-SCORE-2b)", async () => {
     const ok = await call("check_url", { url: "https://example.com/" });
-    expect(ok.schemaVersion).toBe("1.5");
+    expect(ok.schemaVersion).toBe("1.6");
     expect(ok.confidence).toBe(1);
     expect(ok.pslSnapshot.date).toBe("2026-06-15");
 
     const invalid = await call("check_url", { url: "ht!tp://%%%not a url" });
     expect(invalid.status).toBe("invalid");
-    expect(invalid.schemaVersion).toBe("1.5");
+    expect(invalid.schemaVersion).toBe("1.6");
     expect(invalid.confidence).toBe(1);
     expect(invalid.pslSnapshot.date).toBe("2026-06-15");
   });

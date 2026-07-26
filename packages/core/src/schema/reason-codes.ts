@@ -194,6 +194,13 @@ export const REASON_CODES = {
     summary:
       "URL carries ASCII control/whitespace characters (raw or percent-encoded CR/LF/TAB/NUL) used to smuggle a protocol or terminate the host.",
   },
+  low_byte_truncation: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.6,
+    summary:
+      "A non-ASCII code point wedged between ASCII alphanumerics whose low byte is a dangerous ASCII byte (CR/LF, NUL, TAB, or a URI delimiter) that a lossy UTF-16-to-byte narrowing materializes.",
+  },
   ascii_homoglyph: {
     layer: "lexical",
     scoring: true,
