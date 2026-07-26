@@ -15,11 +15,43 @@ import { normalizeOptions } from "./parse/runtime.js";
 import { authorityRegion } from "./parse/authority-region.js";
 
 /**
+ * Best-effort echo of a non-string input for the `input` field, which the result
+ * schema pins to `string`. `String()` is itself partial — it throws on an object
+ * whose `toString` throws and on a Proxy that traps `get` — so the catch keeps
+ * this total by construction. Unrepresentable inputs echo as `""`.
+ */
+function coerceInput(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return "";
+  }
+}
+
+/**
  * Inspect a single URL or bare hostname. Synchronous, zero-network, never throws
  * (FR-LIB-2, FR-IN-4, NFR-PERF-1). Returns the stable versioned schema for every
  * input — `status: "ok"` for anything parseable, `status: "invalid"` otherwise.
+ *
+ * The never-throws guarantee is **unconditional**, not string-only: a non-string
+ * returns `status: "invalid"` rather than a `TypeError` (LINK-zsbeqtcr).
  */
 export function inspect(input: string, options: InspectOptions = {}): InspectResult {
+  // Contract guard (FR-IN-4). TypeScript types `input` as string, but a plain-JS
+  // caller — or `JSON.parse` output — can hand us null/undefined/a number, and
+  // the whole premise is that inspect() is safe on *fully* untrusted input.
+  // Throwing here would put the try/catch obligation on exactly the callers least
+  // likely to have one, and an uncaught TypeError inside a link-checking hook
+  // fails **open** — the precise failure this tool exists to prevent. A non-string
+  // is not benign: it fails closed as `invalid` (score/severity null), which a
+  // fail-closed consumer must already reject.
+  if (typeof input !== "string") {
+    return buildInvalidResult(
+      coerceInput(input),
+      [],
+      `input is not a string (got ${input === null ? "null" : typeof input})`,
+    );
+  }
   // Structural scans over the raw input. They run independently of
   // parse() so they can flag the very inputs parse() discards (backslash, empty
   // authority, multi-colon host, delimiter look-alikes, encoded control chars)

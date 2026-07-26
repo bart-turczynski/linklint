@@ -1533,6 +1533,12 @@ exactly `["lexical"]`.
 ### `parse_error`
 
 - **Meaning:** the input is not a parseable URL or hostname.
+- **Non-string input:** a caller-contract failure (`null`, `undefined`, a number,
+  an object) resolves here too, rather than throwing a `TypeError` — the
+  never-throws guarantee is unconditional. The `detail` is sharpened to name the
+  offending type (`input is not a string (got null)`), and `input` echoes the
+  coerced value (`""` when the value cannot be coerced at all). No separate
+  reason code is minted, so the registry and its documented count are unchanged.
 - **Result shape:** `status: "invalid"`, `parsed/score/severity: null`. An
   invalid result is **not benign** — a fail-closed consumer must reject it
   (FR-IN-4, SC-2a). An invalid result may instead carry an `ambiguous_authority`

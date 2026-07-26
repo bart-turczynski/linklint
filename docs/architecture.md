@@ -663,7 +663,10 @@ Corpus vectors live in `packages/core/test/corpus/corpus.ts`. Labels: `deceptive
 - No network I/O in core or MCP.
 - No telemetry.
 - No native runtime dependencies.
-- `inspect()` never throws — unparseable input returns `status: "invalid"`.
+- `inspect()` never throws — unparseable input returns `status: "invalid"`. The
+  guarantee is unconditional: a **non-string** argument (a plain-JS caller, or
+  `JSON.parse` output handing back `null`) also returns `invalid` rather than a
+  `TypeError`, since an uncaught throw in a calling hook fails *open*.
 - Every finding has a named reason code with a human-readable `detail` string.
 - Channels do not implement detectors.
 - `normalization_delta`, `confusable_char`, and `confusable_in_path` are always informational (weight 0).

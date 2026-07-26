@@ -52,7 +52,8 @@ inspect('javascript:fetch("//evil.example")');
 - **Embeddable** — a clean, synchronous, dependency-light library first; every other
   surface (MCP server, CLI) consumes it.
 - **`inspect()` never throws** — unparseable input returns `status: "invalid"`
-  (which is _not_ benign), so it is safe to call on fully untrusted strings.
+  (which is _not_ benign), so it is safe to call on fully untrusted input —
+  including a non-string, which fails closed rather than throwing.
 
 ## Install
 
@@ -342,7 +343,7 @@ No network, no API keys — the CLI runs entirely on the local machine.
 - **No telemetry, no runtime file I/O** — pure, in-process computation.
 - **Deterministic** — same input + same pinned data versions → same verdict.
 - **Safe on untrusted input** — `inspect()` never throws; malformed input is reported,
-  not crashed on.
+  not crashed on. Unconditionally: even a non-string argument returns `invalid`.
 
 ## Repository layout
 
