@@ -143,11 +143,22 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 
 ### `brand_homoglyph` — Epic G (G2) · weight 0.5
 
-- **Meaning:** the **registrable domain folds, via ASCII digit look-alikes, to
-  exactly a known brand domain.** Folding `0`→o, `1`→l, `5`→s turns `paypa1.com`
+- **Meaning:** some unit of the host **folds, via ASCII digit look-alikes, to
+  exactly a known brand.** Folding `0`→o, `1`→l, `5`→s turns `paypa1.com`
   into `paypal.com` and `g00gle.com` into `google.com`. The folded skeleton
   matches a watchlist brand **byte-for-byte**, which makes this the
   highest-confidence brand-impersonation signal linklint emits.
+- **Two tiers, one code (`LINK-lippdgpn`):**
+  1. **Registrable domain** → `BRAND_DOMAINS` (label + public suffix, as one
+     unit): `paypa1.com` → `paypal.com`.
+  2. **Hyphen token** → the brands' significant **labels**: every host label is
+     split on `-` and each token is folded and looked up. This is what makes
+     `paypa1-login.com`, `sp0tify-app.com`, `paypa1.vercel.app` and
+     `turb0tax.intuit.com` visible — tier 1 folds the registrable domain as one
+     string, so a hyphen or a shared hosting suffix hid the fold entirely.
+
+  The tiers are **deduped**: tier 1 wins, so a host matching both (`paypa1.com`)
+  emits exactly one `brand_homoglyph` reason and is unchanged at `0.60`/`high`.
 - **Why it's a signal:** this is the **brand-aware escalation** that the J4
   `ascii_homoglyph` layer anticipates. `ascii_homoglyph` is the general,
   brand-free structural anomaly (a digit standing in for a letter, low weight);
@@ -155,20 +166,30 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   certainly a deliberate impersonation, so it escalates here at a higher weight.
   An input firing both `ascii_homoglyph` and `brand_homoglyph` (e.g. `g00gle.com`)
   is the canonical high-severity look-alike.
-- **Detection & precision (SC-2):** the **full registrable domain string** is
-  folded with the shared `ASCII_DIGIT_HOMOGLYPHS` map (`data/ascii-confusables.ts`,
-  the single source of truth J4 also consumes). Fires only when at least one digit
-  is actually folded, the skeleton is alphabetic, and the skeleton equals a
-  watchlist brand domain exactly. The exact-match requirement is itself the
-  precision backstop — a degenerate mostly-digit string cannot fold into a brand,
-  and only `0/1/5` fold (so `s3`, `bet365`, `route53` never reach a brand). The
-  real brand itself never fires.
+- **Detection & precision (SC-2):** the candidate string is folded with the
+  shared `ASCII_DIGIT_HOMOGLYPHS` map (`data/ascii-confusables.ts`, the single
+  source of truth J4 also consumes). Fires only when at least one digit is
+  actually folded, the skeleton is alphabetic, and the skeleton equals a
+  watchlist brand (domain in tier 1, label in tier 2) exactly. The exact-match
+  requirement is itself the precision backstop — a degenerate mostly-digit
+  string cannot fold into a brand, and only `0/1/5` fold (so `s3`, `bet365`,
+  `route53` never reach a brand). The real brand itself never fires.
+  **The fold gate is the whole safety argument for tier 2**: it fires only when
+  `fold(token) !== token`, so exact-label matching stays dead and the deleted
+  `brand_combosquat`'s false positives cannot return —
+  `secure-paypal-login.com` and `target.myshopify.com` stay silent. Evidence
+  (`LINK-pblqdrco`): zero false positives across 36,200 unseen GitHub tenant
+  labels; a 576-probe live study returned 25 hits, all impersonation or
+  takedowns, zero legitimate businesses. Punycode (`xn--`) labels are skipped —
+  they belong to the confusable / IDNA detectors.
 - **Brand list:** the authoritative Epic G watchlist (`BRAND_DOMAINS`),
   version-pinned via `dataVersions.brands`.
 - **See also:** `ascii_homoglyph` (J4) — the low-weight, brand-free counterpart;
   `brand_homoglyph` is its brand-confirmed escalation.
 - **Example:** `https://paypa1.com` (→ `paypal.com`); `https://g00gle.com`
-  (→ `google.com`); `https://revo1ut.com` (→ `revolut.com`).
+  (→ `google.com`); `https://revo1ut.com` (→ `revolut.com`); tier 2:
+  `https://paypa1-login.com` and `https://paypa1.vercel.app` (both → the
+  `paypal` label).
 - **Scoring:** scoring, weight 0.5 (provisional — G5 re-tunes).
 
 ### `homograph_skeleton_collision` — Epic E (E3) · weight 0.5
