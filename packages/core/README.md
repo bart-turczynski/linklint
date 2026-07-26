@@ -39,7 +39,8 @@ const result = inspect('https://paypal.com@evil.com/login');
 
 `inspect(input, options?)` is **synchronous**, does **no** network or filesystem I/O,
 and **never throws** — unparseable input returns `status: "invalid"` (which is *not*
-benign). See [`docs/reason-codes.md`](../../docs/reason-codes.md) and
+benign). This holds unconditionally: a non-string argument returns `invalid` too,
+rather than a `TypeError`. See [`docs/reason-codes.md`](../../docs/reason-codes.md) and
 [`docs/scoring.md`](../../docs/scoring.md) for the full contract.
 
 The stable root API includes `inspect()`, opt-in `inspectAsync()`, the structured

@@ -29,6 +29,7 @@ export interface CollectedFinding {
 export function buildInvalidResult(
   input: string,
   findings: CollectedFinding[] = [],
+  parseErrorDetail?: string,
 ): InspectResult {
   const hasFindings = findings.length > 0;
   const reasons: Reason[] = hasFindings
@@ -44,7 +45,11 @@ export function buildInvalidResult(
         {
           code: "parse_error",
           layer: "lexical",
-          detail: "input is not a parseable URL or hostname",
+          // `parseErrorDetail` sharpens the message for a caller-contract failure
+          // (non-string input) without minting a reason code — the registry and
+          // its documented count stay untouched. Omitted everywhere else, so
+          // existing output is byte-identical.
+          detail: parseErrorDetail ?? "input is not a parseable URL or hostname",
           weight: 0,
         },
       ];
