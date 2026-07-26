@@ -1,4 +1,5 @@
 import {
+  Agent as NodeHttpAgent,
   request as nodeHttpRequest,
   type IncomingHttpHeaders,
   type IncomingMessage,
@@ -45,8 +46,14 @@ class NodeAbortError extends Error {
   }
 }
 
-/** One-shot pinned sockets shared by the connector and HTTP/1.1 port. */
-class NodeConnectionPorts implements ConnectorPort, HttpPort {
+/**
+ * One-shot pinned sockets shared by the connector and HTTP/1.1 port.
+ *
+ * Internal to this module — deliberately absent from the public `./transport`
+ * export map. Exported only so the live loopback regression test can exercise
+ * the real socket and HTTP/1.1 wiring, which every fixture-based test bypasses.
+ */
+export class NodeConnectionPorts implements ConnectorPort, HttpPort {
   private nextConnectionId = 1;
   private readonly sockets = new Map<string, Socket | TLSSocket>();
 
@@ -84,6 +91,13 @@ class NodeConnectionPorts implements ConnectorPort, HttpPort {
     if (!socket) throw new NodePortFailure("http-reset");
     const url = new URL(request.url);
 
+    // `createConnection` must hang off an explicit Agent. Passing it alongside
+    // `agent: false` is silently ignored, and the unresolvable placeholder host
+    // then reaches getaddrinfo — every request fails with ENOTFOUND before the
+    // pinned socket is ever used.
+    const agent = new NodeHttpAgent({ keepAlive: false });
+    agent.createConnection = () => socket;
+
     return new Promise<HttpResponse>((resolve, reject) => {
       let settled = false;
       const clientRequest = nodeHttpRequest(
@@ -93,8 +107,7 @@ class NodeConnectionPorts implements ConnectorPort, HttpPort {
           port: 80,
           path: `${url.pathname}${url.search}`,
           headers: request.headers,
-          agent: false,
-          createConnection: () => socket,
+          agent,
           ...(request.signal === undefined ? {} : { signal: request.signal }),
         },
         (response: IncomingMessage) => {
