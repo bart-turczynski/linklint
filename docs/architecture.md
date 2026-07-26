@@ -6,6 +6,88 @@ linklint is an offline-first URL inspection engine: synchronous, deterministic, 
 
 The core architectural rule: **channels do not implement detectors.** `packages/core` owns everything that affects a verdict; `packages/mcp` and `packages/cli` are thin adapters that call `inspect()` and present or enforce the result.
 
+### 1.1 Scope of claim — the structural claim and the name-never-create rule (canonical)
+
+This is the canonical statement of what linklint asserts. Everything downstream
+— the README's "What linklint does not do", `SECURITY.md`'s scope section, the
+`KNOWN_AND_ACCEPTED` list in `test/corpus/embarrassment.ts`, and the decision
+records below (notably §6.1.1 and §6.1.2) — restates or applies this section
+and must not contradict it. If they diverge, this section wins.
+
+**The claim.** linklint commits to exactly one:
+
+> **(a) STRUCTURAL.** If `normalize(input) !== input`, something may be hiding.
+
+It explicitly **rejects** the other:
+
+> **(b) SEMANTIC.** "We detect impersonation of high-value brands."
+
+Claim (a) is settleable from the string alone, offline, deterministically, and
+for all time — it names a property of the input, not a property of the world.
+Claim (b) requires knowing which words are brands, which brands are worth
+impersonating, and what the site at the other end does. linklint has none of
+that and does not pretend to.
+
+**The rule.** The brand watchlist (`data/brands.ts`) may only be consulted to
+**NAME** a structural anomaly that was already detected independently. It may
+**never CREATE** a finding. A detector whose firing condition depends on a
+watchlist hit is claim (b) wearing claim (a)'s clothes; a detector that fires on
+a structural precondition and then reads the list to say *what* the string folds
+onto is claim (a).
+
+This is the test — not list size, not tuning — that authorized deleting
+`brand_lookalike`, `brand_soundsquat`, and `brand_bitsquat` (`LINK-cphogucn`,
+schema `1.4` / weights `1.13`) while keeping `brand_homoglyph`,
+`homograph_skeleton_collision`, `brand_idna_collapse`, and
+`brand_locale_collapse`. The deleted three fired where
+`normalize(input) === input`; the survivors each carry a structural
+precondition — a demonstrated fold, a demonstrated UTS#39 confusable, a
+demonstrated disagreement between two standards' readings of the same host —
+that is satisfied *before* the list is read. See §6.1.2 for the per-code record.
+
+**The stated limitation.** linklint does not catch `paypal-login.com` or
+`apple-id-verify.com`. Every label in both is a real, correctly spelled word in
+a normal arrangement; nothing about either string is malformed, disguised, or
+inconsistent. They score `0.00`/`info` and **that is the correct answer for what
+linklint claims**. They read as suggestive only to a reader who already knows
+PayPal and Apple are brands worth impersonating — which is claim (b).
+
+**This is a scope boundary, not a bug and not a backlog item.** No issue should
+be opened to "fix" it, and if either string ever starts scoring, that is a false
+positive to investigate rather than a win. The distinction is visible in code:
+`test/corpus/embarrassment.ts` carries genuine misses in
+`EMBARRASSMENT_CORPUS` (asserted red until fixed) and these two in
+`KNOWN_AND_ACCEPTED` (deliberately unasserted). The neighbouring case shows the
+line is structural and not a matter of degree: since `LINK-lippdgpn`,
+`paypa1-login.com` scores `0.50`/`medium` because `paypa1` contains a digit that
+folds to a letter, while `paypal-login.com` — the same shape, same pretext
+token, no fold — stays at `0.00`.
+
+**The list's role.** The watchlist is **not a coverage mechanism and never will
+be.** It is a bounded precision instrument that upgrades "this string is
+structurally odd" to "this string is impersonating PayPal". Its charter is
+therefore bounded, it is hard-capped, and additions are gated on measured
+fold-reachability rather than on brand prominence (`LINK-stnruoge`). Growing it
+buys sharper explanations of anomalies already found — never new findings.
+
+**Why the literature ratifies this rather than merely permitting it.**
+
+- **Liu et al., PhishIntention (USENIX Sec 2022)** — false alerts fell **86.5%**
+  (1,033 → 139) at comparable recall, and the entire reduction came from adding
+  a credential-taking check on top of brand resemblance. A URL-string detector
+  has the resemblance half and none of the intent half, so it must not emit a
+  phishing verdict from brand-lookalike strings.
+- **Szurdi et al. (USENIX Sec 2014)** — "about half of the possible typo domains
+  identified by lexical analysis are truly typo domains." **~50% is the ceiling
+  for pure lexical squatting detection**, before malice is even asked about.
+- **Tian et al. (IMC 2018)** — 657,663 lexical squatting candidates yielded
+  **1,175 verified phishing domains (≈0.18%)**. The base rate of a claim-(b)
+  string detector is catastrophic.
+- **DynaPhish (USENIX Sec 2023)** — any fixed reference list is **inherently
+  incomplete**. This is why the watchlist's hard cap is a correct posture and
+  **not a defect**: an uncapped list would still be incomplete, while trading
+  away the precision that is the list's only justification.
+
 ## 2. Repository layout
 
 ```
@@ -398,17 +480,12 @@ concrete consumer asks for it, and then as consumer-side policy over the
 deleted outright.** Removed in schema `1.4` / weights `1.13`. This is a
 scope-of-claim correction, not a tuning change, and it is not about list size.
 
-linklint commits to exactly one claim:
+The claim and the rule this decision applies are stated canonically in
+**§1.1** — claim (a) STRUCTURAL over claim (b) SEMANTIC, and the
+name-never-create rule. Read that section for the reasoning and the supporting
+literature; this section records only what the rule did to these three codes.
 
-> **(a) STRUCTURAL.** If `normalize(input) !== input`, something may be hiding.
-> The brand watchlist is consulted only to sharpen the *explanation* — from
-> "this label is odd" to "…and it folds onto `paypal.com`".
-
-It explicitly rejects claim (b), "we detect impersonation of high-value brands".
-The operative rule: **the watchlist may only be consulted to NAME a structural
-anomaly that was already detected independently. It may never CREATE a finding.**
-
-The three deleted detectors broke that rule. They fired on inputs where
+The three deleted detectors broke the rule. They fired on inputs where
 `normalize(input) === input`:
 
 | Deleted code | Example | Structural state of the input |

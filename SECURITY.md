@@ -60,8 +60,9 @@ normal issue instead:
 - **A deceptive URL that linklint does not flag** (a false negative), or a
   benign URL that it does (a false positive). Detection coverage is a stated,
   bounded claim — see [*What linklint does not
-  do*](./README.md#what-linklint-does-not-do). A missed URL is a gap in a
-  documented boundary, not a bypass of a security control. Known misses are
+  do*](./README.md#what-linklint-does-not-do), stated canonically in
+  [`docs/architecture.md` §1.1](./docs/architecture.md). A missed URL is a gap in
+  a documented boundary, not a bypass of a security control. Known misses are
   tracked in the open, including a committed corpus of them at
   `packages/core/test/corpus/embarrassment.ts`.
 - **A vulnerability in a URL you inspected.** linklint reports on strings; it
