@@ -36,6 +36,7 @@ import { percentEncodingMalformed } from "./percent-encoding-malformed.js";
 import { excessiveSubdomainDepth } from "./excessive-subdomain-depth.js";
 import { promptInjection } from "./prompt-injection.js";
 import { lowByteTruncation } from "./low-byte-truncation.js";
+import { hostLengthUnresolvable } from "./host-length-unresolvable.js";
 import { apiEndpointImpersonation } from "./api-endpoint-impersonation.js";
 import { credentialHarvesting } from "./credential-harvesting.js";
 import { dataExfiltration } from "./data-exfiltration.js";
@@ -314,6 +315,14 @@ export const CHECKS: CheckDescriptor[] = [
     emits: ["low_byte_truncation"],
     skipReportable: true,
     run: lowByteTruncation.run,
+  },
+  {
+    id: hostLengthUnresolvable.id,
+    layer: hostLengthUnresolvable.layer,
+    phase: "parsed",
+    emits: ["host_length_unresolvable"],
+    skipReportable: true,
+    run: hostLengthUnresolvable.run,
   },
   {
     id: excessiveSubdomainDepth.id,

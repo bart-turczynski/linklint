@@ -55,12 +55,35 @@ agrees on, that makes no false claim about itself, and that merely fails, is
 **not** a claim-(a) finding. The worked case is host length: a 64-character DNS
 label is syntactically a hostname, is read identically by every parser, and is
 simply too long to resolve. Nothing is hidden and nobody disagrees. It is pinned
-benign in `test/corpus/vectors.ts` and an implementation of DNS length caps was
-written and reverted on exactly this reasoning (`LINK-ygglwkuy`,
+benign in `test/corpus/vectors.ts` and a *scoring* implementation of DNS length
+caps was written and reverted on exactly this reasoning (`LINK-ygglwkuy`,
 `LINK-tukbqyjg`). "Malformed" and "deceptive" are not the same claim, and only
 the second is chartered.
 
-**Two boundaries this section does NOT yet settle** — do not read an answer into
+The scope test did not change, but the reporting obligation did: the same fact is
+now announced at weight 0 by `host_length_unresolvable`, per the fourth rule
+below. Failing to score it was always correct; failing to *mention* it was not.
+
+**A fourth rule, settled: report what you can determine, never silently pass.**
+A string that linklint cannot fully analyze, or that is analyzable but
+non-conforming, must still be *explained* to the caller. Returning `0.00` with no
+reasons asserts "there is nothing to say about this URL", and that assertion is
+false whenever there is something definite to say — that a hostname cannot
+resolve, that an escape is malformed, that a component could not be parsed. This
+does **not** widen claim (a): a fact that is not a deception finding is reported
+at **weight 0**, annotating without moving the score, exactly as
+`normalization_delta` and `confusable_in_path` already do. The distinction the
+earlier draft left unwritten is therefore settled this way: *scoring* is reserved
+for the three forms above, *reporting* is not. Where a `parse_error` is
+unavoidable, it names what failed rather than standing in for the whole verdict.
+
+The worked case is the one immediately above: an over-long hostname stays
+`benign` and scores `0.00`, and now also carries the weight-0
+`host_length_unresolvable`, which says why it will never work. Nothing is hidden,
+nobody disagrees, no score moves — and the caller is no longer told that linklint
+had no opinion.
+
+**One boundary this section does NOT yet settle** — do not read an answer into
 the silence:
 
 - **Context-dependent names.** `svc.internal`, `home.arpa` and the rest of the
@@ -68,10 +91,6 @@ the silence:
   simply names different machines on different networks. That is "not the same
   thing everywhere", which is a different property from "not itself", and
   whether it is in scope is open (`LINK-mgnbgicq`).
-- **Where `parse_error` / `invalid` sit.** The fail-closed doctrine is a validity
-  claim of a sort, so it needs an articulated relationship to the three forms
-  above. The working distinction — input linklint *cannot analyze*, versus input
-  that is analyzable but non-conforming — is plausible and currently unwritten.
 
 **The rule.** The brand watchlist (`data/brands.ts`) may only be consulted to
 **NAME** a structural anomaly that was already detected independently. It may
@@ -140,7 +159,7 @@ buys sharper explanations of anomalies already found — never new findings.
 ```
 linklint/
   packages/
-    core/           # linklint npm package — inspect(), 37 checks, scoring, policy, schema
+    core/           # linklint npm package — inspect(), 38 checks, scoring, policy, schema
     mcp/            # @linklint/mcp — local-only MCP server (check_url / check_domain)
     cli/            # @linklint/cli — offline CLI (linklint check / batch)
     online/         # @linklint/online — Node/server safe transport + deterministic fixtures
@@ -185,7 +204,7 @@ Runtime dependencies: `tldts` (Public Suffix List) and `tr46` (IDNA/UTS-46).
 
 4. **Normalization** — IDNA/UTS-46 normalization via `tr46`. Record deltas as informational findings (`normalization_delta`).
 
-5. **Detector execution** — run 37 independent lexical checks: 4 structural scans ahead of parsing, then 33 parsed-context detectors. The 5 agent-gated parsed detectors run only under `agentMode`. A detector failure adds `lexical:<id>` to `checksSkipped` rather than aborting the inspection. Any skipped scoring detector means the score is a lower bound, not a complete verdict.
+5. **Detector execution** — run 38 independent lexical checks: 4 structural scans ahead of parsing, then 34 parsed-context detectors. The 5 agent-gated parsed detectors run only under `agentMode`. A detector failure adds `lexical:<id>` to `checksSkipped` rather than aborting the inspection. Any skipped scoring detector means the score is a lower bound, not a complete verdict.
 
 6. **Policy layer** (optional) — apply caller-configured allow/deny rules. Policy reasons carry `weight: 0` and never change `score` or `severity`.
 
@@ -195,7 +214,7 @@ Runtime dependencies: `tldts` (Public Suffix List) and `tr46` (IDNA/UTS-46).
 
 ## 5. Detectors
 
-`packages/core/src/detectors/` contains 37 lexical checks: 4 structural scans and 33 parsed-context detectors. Parsed detectors implement:
+`packages/core/src/detectors/` contains 38 lexical checks: 4 structural scans and 34 parsed-context detectors. Parsed detectors implement:
 
 ```ts
 interface Detector {
@@ -207,12 +226,12 @@ interface Detector {
 
 Detectors emit findings only — they never read weights. The core attaches weights from the version-pinned table (`packages/core/src/scoring/weights.ts`) keyed by reason code.
 
-The 37 checks group into seven families (listed by **check id**; a single check
+The 38 checks group into seven families (listed by **check id**; a single check
 may emit several reason codes):
 
 | Family | Detectors |
 |--------|-----------|
-| **Authority spoofing** | `userinfo_present`, `embedded_domain_in_subdomain`, `ambiguous_authority`, `ip_obfuscation`, `ip_classification`, `ambiguous_numeric_host`, `separator_lookalike`, `excessive_subdomain_depth` |
+| **Authority spoofing** | `userinfo_present`, `embedded_domain_in_subdomain`, `ambiguous_authority`, `ip_obfuscation`, `ip_classification`, `ambiguous_numeric_host`, `separator_lookalike`, `excessive_subdomain_depth`, `host_length_unresolvable` |
 | **Homographs & confusables** | `mixed_script`, `confusable_char`, `ascii_homoglyph`, `punycode_malformed`, `normalization_delta`, `idna_mapping_ambiguity`, `locale_case_collapse`, `homograph_latin_skeleton`, `idn_host` |
 | **Brand impersonation** | `brand_lookalike`, `homograph_skeleton_collision` |
 | **Dangerous payloads** | `dangerous_scheme`, `file_extension_tld`, `suspicious_extension`, `open_redirect_param` |
@@ -220,15 +239,15 @@ may emit several reason codes):
 | **Contextual signals** | `risky_tld`, `bait_tokens` |
 | **Agent-gated** | `prompt_injection_url`, `api_endpoint_impersonation`, `credential_harvesting`, `data_exfiltration`, `ssrf_cloud_metadata` |
 
-Informational detectors (`confusable_char`, `confusable_in_path`, `normalization_delta`, `idna_mapping_ambiguity`, `locale_case_ambiguity`) have weight 0 — they annotate without raising severity. `idna_mapping_ambiguity` and `locale_case_ambiguity` each escalate to a weight-0.5 scoring code (`brand_idna_collapse`, `brand_locale_collapse`) when the alternate reading lands on a watchlist brand exactly.
+Informational detectors (`confusable_char`, `confusable_in_path`, `normalization_delta`, `idna_mapping_ambiguity`, `locale_case_ambiguity`, `host_length_unresolvable`) have weight 0 — they annotate without raising severity. `idna_mapping_ambiguity` and `locale_case_ambiguity` each escalate to a weight-0.5 scoring code (`brand_idna_collapse`, `brand_locale_collapse`) when the alternate reading lands on a watchlist brand exactly.
 
 ## 6. Result schema
 
-Every channel returns the same `InspectResult` (schema version `1.6`):
+Every channel returns the same `InspectResult` (schema version `1.7`):
 
 ```ts
 interface InspectResult {
-  schemaVersion: '1.6';
+  schemaVersion: '1.7';
   status: 'ok' | 'invalid';
   input: string;
   parsed: ParsedUrl | null;
@@ -825,7 +844,7 @@ The three-layer model is a forward-compatibility contract:
 
 | Layer | Status | Description |
 |-------|--------|-------------|
-| **Lexical** (L1) | **Implemented** | Offline, deterministic, synchronous. 37 checks: 4 structural, 33 parsed (5 of them agent-gated). < 5 ms typical. |
+| **Lexical** (L1) | **Implemented** | Offline, deterministic, synchronous. 38 checks: 4 structural, 34 parsed (5 of them agent-gated). < 5 ms typical. |
 | **Resolution** (L2) | **Partial** | Exact local wrapper decoding and caller-authorized bounded redirect/refresh expansion are implemented; observed correlation/divergence and MIME evidence remain roadmap work. Every discovered target is re-inspected through L1. |
 | **Reputation** (L3) | Roadmap | Threat feeds, RDAP domain age, CT, DNS posture. Privacy-preserving by design. |
 

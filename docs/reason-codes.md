@@ -1059,6 +1059,28 @@ instead of minting one. Absent either, this stays closed.
   well-formed by construction.
 - **Example:** `https://example.com/a%zzb`, `https://ex%zzample.com/`.
 
+### `host_length_unresolvable` — T2.7 revisited · weight 0 (informational)
+
+- **Meaning:** the hostname exceeds a DNS length limit — a label longer than 63
+  octets, or a whole hostname longer than 253 (RFC 1035 §2.3.4) — and therefore
+  cannot resolve. Measured in octets on the A-label form, since DNS limits are
+  byte limits. IP literals are exempt: they are not domain names.
+- **Why it is weight 0 and not a scoring finding:** architecture §1.1 excludes
+  "well-formed but unusable" from claim (a), and host length is the worked case it
+  cites. A 64-octet label is syntactically a hostname, is read identically by
+  every parser, and simply fails. Nothing is hidden and nobody disagrees, so it is
+  not deception. A *scoring* implementation of these caps was written and reverted
+  on exactly this reasoning (`LINK-ygglwkuy`).
+- **Why it is reported at all:** returning `0.00` with zero reasons tells the
+  caller "there is nothing to say about this URL", which is false when there is
+  something definite to say. §1.1's fourth rule settles the split: scoring is
+  reserved for the three forms of claim (a); reporting is not. Failing to score
+  this was always correct; failing to mention it was not.
+- **Boundary:** the score does not move, the severity does not move, and the
+  64-character-label vector stays pinned `benign`. A consumer filtering on score
+  sees no change from this code existing.
+- **Example:** `https://` + 64 × `a` + `.com`.
+
 ### `low_byte_truncation` — T2.3 · weight 0.6
 
 - **Meaning:** a code point above U+007F whose **low byte is a dangerous ASCII

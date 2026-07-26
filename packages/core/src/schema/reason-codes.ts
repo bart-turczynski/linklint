@@ -194,6 +194,13 @@ export const REASON_CODES = {
     summary:
       "URL carries ASCII control/whitespace characters (raw or percent-encoded CR/LF/TAB/NUL) used to smuggle a protocol or terminate the host.",
   },
+  host_length_unresolvable: {
+    layer: "lexical",
+    scoring: false,
+    weight: 0,
+    summary:
+      "Hostname exceeds a DNS length limit (label > 63 octets or host > 253) and cannot resolve. Informational: nothing is disguised, it simply will not work.",
+  },
   low_byte_truncation: {
     layer: "lexical",
     scoring: true,

@@ -141,8 +141,13 @@ export const VECTORS: CorpusRow[] = [
   {
     input: `https://${"a".repeat(64)}.com`,
     label: "benign",
+    // Both halves of §1.1's fourth rule in one pin: the score does NOT move
+    // (over-long is not deception — §1.1's worked exclusion, and the reason
+    // LINK-ygglwkuy was reverted), AND the fact is announced at weight 0 rather
+    // than the caller being told there was nothing to say.
+    expectReasons: ["host_length_unresolvable"],
     forbidReasons: ["mixed_script", "invisible_char"],
-    notes: "over-long (64ch) label — linklint is a lexical inspector, not a DNS validator; tolerated",
+    notes: "over-long (64ch) label — not a deception finding; reported at weight 0, score stays 0.00",
     source: "UTS#46 IdnaTestV2 (DNS length)",
   },
 
