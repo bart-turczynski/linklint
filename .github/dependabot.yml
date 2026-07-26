@@ -1,0 +1,33 @@
+version: 2
+updates:
+  # Group all GitHub Actions bumps into a single weekly PR to limit noise.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # npm, across the pnpm workspace.
+  #
+  # `tldts` and `tr46` are deliberately NOT grouped and NOT auto-mergeable: they
+  # carry the Public Suffix List and the UTS-46/Unicode tables that linklint's
+  # verdicts are computed from, so a patch bump can silently redraw a
+  # registrable-domain boundary. Each gets its own PR and the review procedure
+  # in CONTRIBUTING.md ("Bumping the tldts or tr46 pin").
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+        patterns: ["*"]
+        exclude-patterns: ["tldts", "tr46"]

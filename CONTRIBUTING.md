@@ -1,5 +1,12 @@
 # Contributing
 
+This project ships under the [Contributor Covenant](./CODE_OF_CONDUCT.md).
+Security vulnerabilities go through the private channel in
+[SECURITY.md](./SECURITY.md) — never a public issue. A URL linklint *failed to
+flag* is a correctness issue, not a vulnerability; see
+[*What linklint does not do*](./README.md#what-linklint-does-not-do) for where
+the boundary sits, then open a normal issue.
+
 Install dependencies:
 
 ```sh
