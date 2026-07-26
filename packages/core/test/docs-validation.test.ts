@@ -207,4 +207,53 @@ describe("the scope-of-claim boundary is stated in one canonical place", () => {
     expect(security).toContain("#what-linklint-does-not-do");
     expect(security).toContain("docs/architecture.md");
   });
+
+  // §1.1 named only form 1 (`normalize(input) !== input`) while the registry had
+  // shipped forms 2 and 3 for releases — which is how LINK-ygglwkuy talked itself
+  // into a DNS length check at weight 0.5 before the corpus caught it
+  // (LINK-tukbqyjg). Pin all three forms and, more importantly, pin the CODES
+  // §1.1 cites as evidence: if one is deleted or reweighted, the canonical
+  // section is making a claim the registry no longer backs.
+  it("§1.1 names all three forms of claim (a)", () => {
+    const start = architectureDoc.indexOf("### 1.1 Scope of claim");
+    const section = architectureDoc.slice(start, architectureDoc.indexOf("\n## 2.", start));
+
+    expect(section).toContain("normalize(input) !== input"); // form 1
+    expect(section).toContain("read_A(input) !== read_B(input)"); // form 2
+    expect(section.toLowerCase()).toContain("false self-description"); // form 3
+
+    // The exclusion that form 2 and 3 make necessary: malformed-but-agreed-upon
+    // is not a finding. Without this, "validity claims are in scope" reads as a
+    // licence to flag anything non-conforming.
+    expect(section.toLowerCase()).toContain("well-formed but unusable");
+  });
+
+  it("every reason code §1.1 cites as evidence exists at the weight it claims", () => {
+    const start = architectureDoc.indexOf("### 1.1 Scope of claim");
+    const section = architectureDoc.slice(start, architectureDoc.indexOf("\n## 2.", start));
+
+    // Codes §1.1 names to justify forms 2 and 3, with the weights it quotes.
+    const cited: [ReasonCode, number][] = [
+      ["ambiguous_authority", 0.65],
+      ["ambiguous_numeric_host", 0.3],
+      ["punycode_malformed", 0.2],
+    ];
+    for (const [code, weight] of cited) {
+      expect(section).toContain(code);
+      expect(REASON_CODES[code]).toBeDefined();
+      expect(REASON_CODES[code].weight).toBeCloseTo(weight, 5);
+    }
+
+    // Cited without a weight, so assert existence only.
+    for (const code of [
+      "idna_mapping_ambiguity",
+      "locale_case_ambiguity",
+      "separator_lookalike",
+      "invisible_char",
+      "brand_homoglyph",
+    ] as ReasonCode[]) {
+      expect(section).toContain(code);
+      expect(REASON_CODES[code]).toBeDefined();
+    }
+  });
 });
