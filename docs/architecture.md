@@ -234,10 +234,25 @@ reintroducing this by another route.
 **Unchanged:** FR-D-8 / `embedded_domain_in_subdomain` keeps ICANN-only
 semantics, which is what the tradeoff above exists to protect.
 
-**Deferred, not rejected:** exposing *both* boundaries on `HostFacts` is
+**Declined (`LINK-mfpwgspt`).** Exposing *both* boundaries on `HostFacts` is
 mechanically easy, but adds a second PSL lookup to every `inspect()` against the
-sub-5 ms budget for no current consumer. Build the seam when a detector needs
-it — the same rule applied to the `parse.ts` split.
+sub-5 ms budget, plus a permanently wider type surface on which every future
+detector picks between two similarly-named fields with a subtle correctness
+difference and no compiler help. It was held open on the rule "build the seam
+when a detector needs it" — the same rule applied to the `parse.ts` split — and
+then the only candidate consumer was removed by the decision recorded above, so
+the seam has no call site to serve. The PRIVATE-inclusive view is already
+computed directly where it is genuinely needed (`test/boundary-baseline.ts`,
+`test/freshness-corpus.test.ts`, `test/psl-conformance.test.ts`), none of which
+this seam was blocking. If a detector ever does need it, refile: compute both
+views in `analyzeHost()`, share once per `inspect()`, keep the existing field
+bound to the ICANN-only value, and add no caching (pslr D19).
+
+Note for anyone arriving from the accepted limitation above: escalating
+`paypa1.vercel.app` does **not** require this seam. That question is
+`LINK-pblqdrco`, and the path it considers joins the skeleton `ascii_homoglyph`
+already computes to `BRAND_LABEL_SET` over the host labels — a set membership
+test, with no PSL boundary involved.
 
 ### 6.2 IDNA / UTS-46 conformance & the normalization flag profile
 
