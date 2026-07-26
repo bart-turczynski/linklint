@@ -26,6 +26,6 @@ export const DATA_VERSIONS: DataVersions = {
   // Literal-IP range buckets, generated from the IANA special-purpose registries.
   ipRanges: IP_RANGES_VERSION,
   // Curated brand watchlist: registrable domains + keywords.
-  brands: "2026-06-20-watchlist",
+  brands: "2026-07-26-watchlist",
   weights: WEIGHTS_VERSION,
 };

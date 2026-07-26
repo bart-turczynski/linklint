@@ -117,6 +117,17 @@ export const BRAND_WATCHLIST: readonly BrandEntry[] = [
   { domain: "playstation.com" },
   { domain: "nintendo.com" },
 
+  // ── AI / LLM providers ────────────────────────────────────────────────
+  // Impersonation targets for API-key harvesting and fake-console phishing.
+  // The registrable domains here are the same ones `api-brands.ts` already pins
+  // as legitimate; that tier keys on exact host TOKENS, so it never sees a
+  // near-miss spelling of the domain itself (`0penai.com`, `anthropic.co`).
+  { domain: "openai.com" },
+  { domain: "anthropic.com" },
+  { domain: "huggingface.co" },
+  { domain: "mistral.ai" },
+  { domain: "cohere.com" },
+
   // ── commerce / logistics / travel ─────────────────────────────────────
   { domain: "ebay.com" },
   { domain: "walmart.com" },
