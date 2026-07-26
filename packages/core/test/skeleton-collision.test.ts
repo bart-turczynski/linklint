@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { inspect } from "../src/index.js";
+import { toAscii } from "../src/unicode/idna.js";
 
 const codes = (input: string) => inspect(input).reasons.map((r) => r.code);
 const detail = (input: string): string =>
@@ -45,6 +46,25 @@ describe("E3 homograph_skeleton_collision — single-script whole-label homograp
   it("an all-Cyrillic ехреԁіа.com collides with expedia.com", () => {
     expect(codes(CYR_EXPEDIA)).toContain("homograph_skeleton_collision");
     expect(detail(CYR_EXPEDIA)).toContain("expedia.com");
+  });
+
+  // Regression: LINK-iyseozhh. The detector read the registrable domain as
+  // written, so the punycode spelling of these same hosts skipped the brand
+  // attribution entirely.
+  describe("punycode parity — the ACE spelling attributes the same brand", () => {
+    for (const [url, brand] of [
+      [CYR_CHASE, "chase.com"],
+      [CYR_YAHOO, "yahoo.com"],
+      [CYR_EXPEDIA, "expedia.com"],
+    ] as const) {
+      it(`attributes ${brand} from the punycode form too`, () => {
+        const ace = `https://${toAscii(new URL(url).hostname)}`;
+        expect(ace).toContain("xn--");
+        expect(codes(ace)).toContain("homograph_skeleton_collision");
+        expect(detail(ace)).toContain(brand);
+        expect(inspect(ace).score).toBe(inspect(url).score);
+      });
+    }
   });
 
   it("scores at the decisive brand-impersonation weight (0.5)", () => {

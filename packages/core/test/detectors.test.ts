@@ -203,7 +203,11 @@ describe("PRD canonical reference example", () => {
     const r = inspect("https://paypal.com@xn--pypal-4ve.ru/login");
     expect(r.score).toBeCloseTo(1, 10);
     expect(r.severity).toBe("critical");
+    // `xn--pypal-4ve.ru` decodes to `pаypal.ru` (Cyrillic а), whose skeleton is
+    // pure-ASCII `paypal.ru` — so the blocker fires here too. It was absent until
+    // the homograph detectors canonicalized punycode to Unicode (LINK-iyseozhh).
     expect(r.reasons.map((x) => x.code)).toEqual([
+      "homograph_latin_skeleton",
       "mixed_script",
       "idn_host",
       "userinfo_present",

@@ -4,6 +4,15 @@ All notable changes to this project will be documented here.
 
 ## Unreleased
 
+- Fix `homograph_latin_skeleton` and `homograph_skeleton_collision` missing every
+  punycode-spelled homograph: both read the registrable domain as written, so an
+  `xn--` host was pure ASCII and failed their non-ASCII guard before any skeleton
+  work ran. `https://xn--80ak6aa92e.com/` (`аррӏе.com`, an all-Cyrillic
+  apple.com) scored `info` 0.00 where its Unicode twin scored `critical` 1.00.
+  Both detectors now canonicalize to Unicode first, matching `idn_host`. Reachable
+  under `idnPolicy: "allow"` / `--allow-idn` / `--idn-allow` — the documented
+  override for legitimate IDN owners; under the default `block` policy `idn_host`
+  still caught these at `high`.
 - Make enrichment caches Promise-capable and schema/source-namespaced, store and
   revalidate only normalized structured reports, add response-driven
   `cacheTtlMsFor` lifetimes (including explicit no-hit negative caching), and map
