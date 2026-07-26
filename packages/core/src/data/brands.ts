@@ -14,6 +14,29 @@
  * Version-pinned via dataVersions.brands. Plain module exports under src/data/,
  * consumed via static import — same tree-shakeable pattern as risky-tlds.ts /
  * confusables.ts.
+ *
+ * ── Inclusion charter (LINK-stnruoge) ──────────────────────────────────────
+ * Two tests, both required. Brand fame is not one of them.
+ *
+ * 1. HARM IN ONE STEP. If a user is deceived about this domain, do they lose
+ *    money, credentials, or an API key in a single step? If the worst case is
+ *    embarrassment or a wasted click, it does not belong here.
+ *
+ * 2. FOLD-REACHABILITY, measured. A brand earns structural coverage only through
+ *    pre-images under the ASCII digit fold (`0`->o, `1`->l, `5`->s). A label with
+ *    no `o`, `l`, or `s` has NO pre-images and buys nothing in the structural
+ *    tier: `huggingface` is the clearest case, and `openai` reaches only the
+ *    laxer 0.50/medium band via `0penai.com`. Such an addition needs a stated
+ *    non-fold justification — edit-distance or soundsquat coverage, say — or it
+ *    should be declined. Do not assume a famous name is carrying weight.
+ *
+ * Hard cap: ~150 entries. Past that, precision (SC-2) and the review cost of the
+ * firing surface both degrade faster than coverage improves.
+ *
+ * Every addition or removal changes the pinned surface in
+ * `test/brand-fold-surface.test.ts`, which fails with the exact added and
+ * removed strings. That diff IS the review — never regenerate it to make the
+ * test pass without reading what moved.
  */
 
 /** A single brand on the watchlist. */
