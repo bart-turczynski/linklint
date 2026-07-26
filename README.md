@@ -198,6 +198,15 @@ The second URL is very likely phishing. linklint returns `0.00` anyway, and that
 string. Calling it deceptive requires knowing that PayPal is a brand worth
 impersonating — knowledge linklint does not have and does not pretend to.
 
+linklint does ship a small brand watchlist, but it is held to a strict rule: **the
+watchlist may only be consulted to NAME a structural anomaly that was already
+detected independently — it may never create a finding.** That is why
+`paypa1.com` scores (a digit folds to a letter, and the list supplies the word
+"PayPal" for the explanation) while `paypal-login.com` does not (nothing folds, so
+there is nothing to name). Adding brands sharpens explanations; it never widens
+coverage. The full statement of this boundary, with the reasoning and the
+supporting literature, is [`docs/architecture.md` §1.1](./docs/architecture.md).
+
 Concretely, linklint is not:
 
 - **A phishing oracle.** `score: 0` means "no structural anomaly found," **not**
@@ -213,13 +222,13 @@ Concretely, linklint is not:
 ### Known gaps
 
 Detection coverage is a bounded claim, so we track where the boundary currently sits
-further in than it should. The most significant open gap: a brand fold joined by a
-hyphen is not caught. `paypa1.com` scores, but `paypa1-login.com` scores `0.00` —
-the ASCII-homoglyph detector skips any host label containing a hyphen, and the
-brand-fold check treats the registrable domain as a single unit, so neither ever
-examines `paypa1` on its own.
+further in than it should. The largest such gap — a brand fold joined to another
+token by a hyphen, where `paypa1.com` scored but `paypa1-login.com` returned `0.00`
+— has since been closed: the brand-fold check now also tokenizes host labels on `-`,
+so `paypa1-login.com` scores `0.50`/`medium`. `paypal-login.com` still scores `0.00`,
+and that is the scope boundary above, not a gap.
 
-Known misses like this are committed as an executable corpus at
+Known misses are committed as an executable corpus at
 `packages/core/test/corpus/embarrassment.ts`, asserted so that they turn the build
 red the moment they start being caught. Reports of further false negatives are
 welcome as ordinary issues — see [SECURITY.md](./SECURITY.md#scope) for why they are

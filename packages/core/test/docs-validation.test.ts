@@ -174,3 +174,37 @@ describe("docs/architecture.md detector families cover every check", () => {
     expect(missing).toEqual([]);
   });
 });
+
+describe("the scope-of-claim boundary is stated in one canonical place", () => {
+  // The boundary (claim (a) structural, NOT claim (b) semantic; the watchlist
+  // may NAME an anomaly but never CREATE a finding) now appears in three files:
+  // docs/architecture.md §1.1 (canonical), README.md, and SECURITY.md. Three
+  // copies drift. These assertions are deliberately anchored on short, stable
+  // artifacts — a heading, a code expression, a term of art, and a link
+  // fragment — rather than on prose, so ordinary rewording does not break them.
+  const readmeSectionHeading = "## What linklint does not do";
+
+  it("architecture.md carries the canonical section, the claim, and the rule", () => {
+    expect(architectureDoc).toContain("### 1.1 Scope of claim");
+    expect(architectureDoc).toContain("normalize(input) !== input");
+    expect(architectureDoc.toLowerCase()).toContain("never create");
+  });
+
+  it("the README boundary section states the rule and the rejected claim", () => {
+    const start = readme.indexOf(readmeSectionHeading);
+    expect(start).toBeGreaterThan(-1);
+    const section = readme.slice(start, readme.indexOf("\n## ", start + 1)).toLowerCase();
+
+    // The rule itself — absent from the README before LINK-odhpryrh.
+    expect(section).toContain("never create a finding");
+    // The worked pair that shows where the line falls.
+    expect(section).toContain("paypa1.com");
+    expect(section).toContain("paypal-login.com");
+  });
+
+  it("SECURITY.md defers to the boundary rather than restating it", () => {
+    const security = readFileSync(join(REPO_ROOT, "SECURITY.md"), "utf8");
+    expect(security).toContain("#what-linklint-does-not-do");
+    expect(security).toContain("docs/architecture.md");
+  });
+});
