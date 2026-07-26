@@ -84,7 +84,7 @@ export const EMBARRASSMENT_CORPUS: EmbarrassmentEntry[] = [
   },
   {
     input: "https://paypa1.vercel.app",
-    why: "brand fold hoisted onto a shared hosting suffix; scores via ascii_homoglyph alone, and whether the band is right is LINK-nlfybbsf's question, not this corpus's",
+    why: "brand fold hoisted onto a shared hosting suffix; since LINK-lippdgpn the label tier sees `paypa1` on its own, so this escalated from the ascii_homoglyph floor to the band paypa1.com occupies",
   },
   {
     input: "https://xn--pypal-4ve.com",
@@ -100,61 +100,54 @@ export const EMBARRASSMENT_CORPUS: EmbarrassmentEntry[] = [
   },
   {
     input: "https://paypa1-secure-login.com",
-    why: "scores ONLY incidentally, via bait_tokens on secure+login — the leetspeak fold in the first token is still invisible. If bait_tokens ever narrows, this entry becomes a miss; that is the point of keeping it here",
+    why: "leetspeak fold in the first token plus a secure+login pretext; since LINK-lippdgpn the fold itself scores via brand_homoglyph rather than only incidentally via bait_tokens",
   },
 
   // ---------------------------------------------------------------------
-  // Pending — currently 0.00. The hole this epic exists to close.
+  // Closed by LINK-lippdgpn — the hyphen-token tier.
   //
-  // Shared root cause: `ascii_homoglyph` refuses any host label containing a
-  // hyphen, and `brand_homoglyph` folds the registrable domain as ONE unit.
-  // So in `paypa1-login.com` neither detector ever gets to look at `paypa1`
-  // on its own. Hyphenating a brand fold is a total bypass today.
+  // These were all 0.00. Shared root cause: `ascii_homoglyph` refuses any host
+  // label containing a hyphen, and `brand_homoglyph` folded the registrable
+  // domain as ONE unit, so in `paypa1-login.com` neither detector ever got to
+  // look at `paypa1` on its own. `brand_homoglyph` now also tokenizes every
+  // host label on `-` and joins each token against the brand LABEL set under
+  // the same structural fold gate, so every one of these scores today.
   // ---------------------------------------------------------------------
   {
     input: "https://paypa1-login.com",
     why: "leetspeak fold of a watchlist brand joined to a phishing token by a hyphen",
-    pendingIssue: "LINK-lippdgpn",
   },
   {
     input: "https://sp0tify-app.com",
     why: "same shape against a brand that is not on the watchlist — the structural anomaly is visible without knowing the brand",
-    pendingIssue: "LINK-lippdgpn",
   },
   {
     input: "https://0racle-support.com",
-    why: "double gate miss: the hyphen blocks the detector, and even per-token the leading-digit gate rejects `0racle`. Needs the leading-letter requirement revisited, not just tokenization",
-    pendingIssue: "LINK-lippdgpn",
+    why: "leading-digit fold plus a support pretext; the brand tier has no leading-letter gate, so the hyphen token is enough (`ascii_homoglyph` still declines it, which is why this lands 0.50/medium not 0.60/high)",
   },
   {
     input: "https://netf1ix-billing.com",
     why: "leetspeak fold plus a payment-pretext token, hidden behind the hyphen gate",
-    pendingIssue: "LINK-lippdgpn",
   },
   {
     input: "https://1inkedin-verify.com",
-    why: "leading-digit fold plus a verification pretext; same double gate miss as 0racle-support.com",
-    pendingIssue: "LINK-lippdgpn",
+    why: "leading-digit fold plus a verification pretext; same shape as 0racle-support.com",
   },
   {
     input: "https://amaz0n-account.com",
     why: "leetspeak fold of a watchlist brand plus an account pretext",
-    pendingIssue: "LINK-lippdgpn",
   },
   {
     input: "https://app1e-support.com",
     why: "leetspeak fold of a watchlist brand plus a support pretext",
-    pendingIssue: "LINK-lippdgpn",
   },
   {
     input: "https://goog1e-drive.com",
     why: "leetspeak fold of a watchlist brand plus a real product name",
-    pendingIssue: "LINK-lippdgpn",
   },
   {
     input: "https://secure-paypa1.com",
-    why: "fold in the SECOND token — confirms the miss is about tokenization, not about which side of the hyphen the fold sits on",
-    pendingIssue: "LINK-lippdgpn",
+    why: "fold in the SECOND token — confirms the miss was about tokenization, not about which side of the hyphen the fold sits on",
   },
 ];
 

@@ -223,9 +223,11 @@ in order of weight:
    against unseen hosts (`LINK-cqdrdvfu`).
 
 **Accepted limitation.** A brand-impersonating tenant on a PSL PRIVATE-section
-platform is **not** detected: `paypal.myshopify.com` and `paypa1.vercel.app`
-score `0.00`/`info` and `0.20`/`low` respectively, where `paypa1.com` scores
-`0.60`/`high`. This is the same accepted-limitation class as `paypal-login.com`
+platform is **not** detected: `paypal.myshopify.com` scores `0.00`/`info`, where
+`paypa1.com` scores `0.60`/`high`. (The *digit-folded* half of this limitation —
+`paypa1.vercel.app` at `0.20`/`low` — is **no longer true**: it now scores
+`0.60`/`high`, the same band as `paypa1.com`. See §6.1.1 and `LINK-lippdgpn`.)
+This is the same accepted-limitation class as `paypal-login.com`
 scoring `0.00` — deliberate, and preferred over a detector that flags legitimate
 tenants. The IMC '23 multi-tenant rows in `test/corpus/vectors.ts` (which forbid
 `embedded_domain_in_subdomain` and `ambiguous_authority` on legitimate tenants)
@@ -350,9 +352,22 @@ there) alongside the positive `paypa1.vercel.app` case, plus a test asserting th
 192-label surface is unchanged so a brand-watchlist addition cannot silently
 widen it.
 
-Implementation is filed separately (`LINK-tbqeqqvv`); this entry records the
-decision only, and §6.1's accepted-limitation scores describe behaviour until it
-lands.
+**Implemented (`LINK-lippdgpn`).** Filed as `LINK-tbqeqqvv` and delivered by
+`LINK-lippdgpn`, which chose the **hyphen token** — not the whole host label —
+as the unit of analysis, so one mechanism covers both `paypa1.vercel.app` and
+`paypa1-login.com`. `brand_homoglyph` now runs two tiers, deduped so a host
+matching both still emits exactly one reason: tier 1 the registrable domain
+against `BRAND_DOMAIN_SET` (unchanged), tier 2 every `-`-separated token of
+every host label against `BRAND_LABEL_SET` under the identical fold gate. It
+reuses the existing `brand_homoglyph` reason code and changes no weight, so
+neither `SCHEMA_VERSION` nor `WEIGHTS_VERSION` moved. The tripwire rows this
+entry demanded (`pete1.github.io`, `haru01.github.io`) are in
+`test/corpus/vectors.ts`, and the surface pin is
+`test/brand-fold-surface.test.ts`. One behavioural difference from the mechanism
+as sketched above: the escalation is **not** gated on the label first passing
+`ascii_homoglyph`, so leading-digit folds (`0racle-support.com`) also fire — at
+`0.50`/`medium` rather than `0.60`/`high`, exactly as `0racle.com` already did
+on the registrable-domain tier.
 
 **(b) A general digits-in-label signal — DECLINED, including as an optional knob.**
 

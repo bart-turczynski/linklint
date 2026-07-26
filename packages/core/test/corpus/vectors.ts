@@ -556,4 +556,27 @@ export const VECTORS: CorpusRow[] = [
       source: "PSL-harms IMC'23 Table 2 (via pslr / P2 freshness corpus)",
     }),
   ),
+
+  // ── LINK-lippdgpn tripwire: digit-bearing tenants that must NOT escalate ───
+  // The hyphen/label token tier joins folded tokens against the brand LABEL set,
+  // which is exactly the widening that could start calling ordinary personal
+  // tenants brand impersonation. These two fold to NOTHING on the watchlist
+  // (`pete1` -> `petel`, `haru01` -> `haruol`), so they must stay pinned at the
+  // list-free `ascii_homoglyph` floor — 0.20/low, no `brand_homoglyph`.
+  //
+  // The IMC'23 rows above cannot guard this: they contain no digits at all and
+  // therefore cannot fire either way.
+  ...(["https://pete1.github.io/", "https://haru01.github.io/"] as const).map(
+    (input): CorpusRow => ({
+      input,
+      label: "deceptive",
+      minSeverity: "low",
+      expectReasons: ["ascii_homoglyph"],
+      forbidReasons: ["brand_homoglyph", "embedded_domain_in_subdomain"],
+      notes:
+        "LINK-lippdgpn tripwire — benign digit-bearing multi-tenant host; the label/token " +
+        "tier must not escalate it past the 0.20 ascii_homoglyph floor",
+      source: "LINK-lippdgpn (fold-gated token join)",
+    }),
+  ),
 ];

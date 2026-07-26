@@ -21,21 +21,27 @@
  * Candidates split into three groups, each pinned separately because they carry
  * different amounts of protection:
  *
- *   - ESCALATED (196) — `brand_homoglyph` + `ascii_homoglyph`, uniformly
+ *   - ESCALATED (197) — `brand_homoglyph` + `ascii_homoglyph`, uniformly
  *     0.60/high. The real structural surface.
  *   - HOMOGLYPH_ONLY (55) — `brand_homoglyph` alone, uniformly 0.50/medium.
  *     These fail `ascii_homoglyph`'s stricter gates (leading digit, or digits
  *     outnumbering letters) but still fold to a brand under `brand_homoglyph`'s
  *     separate laxer gates. `0penai.com` is here. That gate asymmetry is the
  *     open Q3 sub-decision in `LINK-cphogucn`; this test only records it.
- *   - INERT (1) — `turb0tax.intuit.com` fires NOTHING. `turbotax.intuit.com` is
- *     on the watchlist as a subdomain, but the brand tier keys on the
- *     registrable domain, so no fold of it can ever match. Tracked as
- *     `LINK-scktwvio`; pinned here so it cannot be mistaken for coverage.
+ *   - INERT (0) — empty since `LINK-lippdgpn`. Its one member was
+ *     `turb0tax.intuit.com`: `turbotax.intuit.com` is on the watchlist as a
+ *     subdomain, and the brand tier keyed ONLY on the registrable domain
+ *     (`intuit.com`), so no fold of it could ever match. The hyphen/label token
+ *     tier added by `LINK-lippdgpn` joins each host label's tokens against the
+ *     brand LABEL set, which sees `turb0tax` -> `turbotax` directly. That is
+ *     the payoff `LINK-scktwvio` kept the entry for. The group is retained (now
+ *     asserted empty) because a future watchlist addition that fires nothing
+ *     must still surface here rather than vanish.
  *
- * A note on the count: `LINK-stnruoge` computed 197 from the detector gates.
- * The live surface is 196 — the difference is exactly the one INERT entry, i.e.
- * the theoretical surface overcounts by the `LINK-scktwvio` defect.
+ * A note on the count: `LINK-stnruoge` computed 197 from the detector gates and
+ * the live surface was 196 — the difference was exactly the one INERT entry,
+ * i.e. the theoretical surface overcounted by the `LINK-scktwvio` defect. With
+ * that defect fixed the two now agree at 197.
  *
  * INCLUSION CHARTER (the criterion this test exists to make measurable): a
  * brand earns its place by fold-reachability, not by name recognition. A brand
@@ -43,7 +49,7 @@
  * nothing to the structural tier — `huggingface` is the clearest example, and
  * `openai` contributes only the 0.50/medium `0penai.com`. Such additions must be
  * justified on other grounds (or declined), never on brand fame alone. The
- * ZERO_FOLD_SURFACE_BRANDS list below names all 44 of them.
+ * ZERO_FOLD_SURFACE_BRANDS list below names all 43 of them.
  */
 import { describe, expect, it } from "vitest";
 import { inspect } from "../src/index.js";
@@ -283,6 +289,9 @@ const ESCALATED_SURFACE: readonly string[] = [
   "te1egram.org",
   "tikt0k.com",
   "trez0r.io",
+  // Reaches the escalated band via the hyphen/label token tier (LINK-lippdgpn),
+  // not the registrable-domain tier — its registrable domain is `intuit.com`.
+  "turb0tax.intuit.com",
   "u5bank.com",
   "venm0.com",
   "w0rdpre55.com",
@@ -381,8 +390,12 @@ const HOMOGLYPH_ONLY_SURFACE: readonly string[] = [
   "z0om.us",
   "zo0m.us",];
 
-/** Fires nothing at all. See `LINK-scktwvio`. */
-const INERT_CANDIDATES: readonly string[] = ["turb0tax.intuit.com"];
+/**
+ * Fires nothing at all. EMPTY since `LINK-lippdgpn` closed `LINK-scktwvio` —
+ * every fold pre-image of every watchlist brand now scores. Kept as an asserted
+ * pin so a future addition that buys no coverage cannot land unnoticed.
+ */
+const INERT_CANDIDATES: readonly string[] = [];
 
 /**
  * Watchlist labels with NO fold pre-image that reaches the 0.60 band. They buy
@@ -423,7 +436,6 @@ const ZERO_FOLD_SURFACE_BRANDS: readonly string[] = [
   "squareup",
   "stripe",
   "target",
-  "turbotax",
   "twitch",
   "uber",
   "ups",
@@ -448,9 +460,9 @@ describe("brand fold surface — pinned review gate", () => {
   });
 
   it("pins the surface sizes, so a widening cannot pass as a reshuffle", () => {
-    expect(surface.escalated).toHaveLength(196);
+    expect(surface.escalated).toHaveLength(197);
     expect(surface.homoglyphOnly).toHaveLength(55);
-    expect(surface.inert).toHaveLength(1);
+    expect(surface.inert).toHaveLength(0);
   });
 
   it("scores the escalated surface uniformly at 0.60/high", () => {
@@ -478,7 +490,7 @@ describe("brand fold surface — pinned review gate", () => {
 
   it("keeps the fold-reachable brand count in step with the watchlist", () => {
     const reachable = new Set(surface.escalated.map((c) => c.label));
-    expect(reachable.size).toBe(67);
+    expect(reachable.size).toBe(68);
     expect(new Set(BRAND_DOMAINS).size).toBe(111);
     expect(reachable.size + ZERO_FOLD_SURFACE_BRANDS.length).toBe(111);
   });
