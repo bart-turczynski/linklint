@@ -226,12 +226,14 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   (the SC-2 failure mode); scoring only an **exact skeleton collision against the
   brand watchlist** is the precise signal that became possible once the Epic G
   watchlist existed.
-- **Detection & precision (SC-2):** the **full registrable domain string** is run
-  through the UTS#39 `skeleton()` helper (`unicode/skeleton.ts`, built from the
-  already-pinned confusables table) and tested for an exact match against the
-  precomputed skeleton of each `BRAND_DOMAINS` entry.
+- **Detection & precision (SC-2):** the **full registrable domain string**,
+  **canonicalized to its Unicode form first** so a punycode presentation of the
+  same host attributes the same brand, is run through the UTS#39 `skeleton()`
+  helper (`unicode/skeleton.ts`, built from the already-pinned confusables table)
+  and tested for an exact match against the precomputed skeleton of each
+  `BRAND_DOMAINS` entry.
   - **Non-ASCII only** — the detector runs solely when the registrable domain
-    carries a non-ASCII codepoint. The pure-ASCII digit-fold case (`paypa1.com`)
+    carries a non-ASCII codepoint **after that decode**. The pure-ASCII digit-fold case (`paypa1.com`)
     is owned by `brand_homoglyph`; this guard makes the two **mutually exclusive
     by construction**, so they never double-fire.
   - **Exact brand never fires** — a real brand domain is all-ASCII and is guarded
@@ -343,9 +345,11 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   use. Where `homograph_skeleton_collision` requires the skeleton to land on a
   watchlist brand, this fires on *any* pure-Latin skeleton, catching look-alikes
   of non-brand strings too.
-- **Detection & precision:** the **full registrable domain** is run through
-  `skeleton()` (`unicode/skeleton.ts`); the detector fires only when the result
-  contains **no non-ASCII codepoint**.
+- **Detection & precision:** the **full registrable domain**, first
+  **canonicalized to its Unicode form** so punycode and Unicode presentations are
+  treated identically (`xn--80ak6aa92e.com` and `аррӏе.com` are the same host and
+  score the same), is run through `skeleton()` (`unicode/skeleton.ts`); the
+  detector fires only when the result contains **no non-ASCII codepoint**.
   - **Non-ASCII only**, and skips the NFKC compatibility-fold family (owned by
     `idna_mapping_ambiguity`) — same guards as the collision sibling.
   - **Legitimate IDNs are excluded by construction:** a genuine non-Latin word

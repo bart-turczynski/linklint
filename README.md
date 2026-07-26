@@ -30,9 +30,10 @@ inspect('https://paypal.com@evil.com/login');
 //   the real host is evil.com — "paypal.com" is just a username
 
 inspect('https://раypal.com');
-// → severity: 'high', score: 0.7
-//   reasons: ['homograph_skeleton_collision', 'mixed_script', 'confusable_char', ...]
+// → severity: 'critical', score: 1.0
+//   reasons: ['homograph_latin_skeleton', 'mixed_script', 'idn_host', ...]
 //   "раypal" is Cyrillic letters disguised as "paypal"
+//   (the punycode spelling, xn--ypal-43d9g.com, scores identically)
 
 inspect('javascript:fetch("//evil.example")');
 // → severity: 'critical', score: 0.9, reasons: ['dangerous_scheme']

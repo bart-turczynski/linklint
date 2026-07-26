@@ -1,6 +1,7 @@
 import type { Detector, DetectorFinding } from "./types.js";
 import { BRAND_DOMAINS } from "../data/brands.js";
 import { skeleton } from "../unicode/skeleton.js";
+import { toUnicode } from "../unicode/idna.js";
 
 /**
  * `homograph_skeleton_collision` (scoring). The single documented v1
@@ -61,23 +62,32 @@ export const skeletonCollision: Detector = {
   run(ctx): DetectorFinding[] {
     const input = ctx.registrableDomain;
     if (!input || ctx.isIp) return [];
+    // Canonical Unicode form first — see latin-skeleton-homograph.ts: a punycode
+    // (xn--) registrable domain is pure ASCII as written and would otherwise slip
+    // past the non-ASCII guard below, letting the same brand homograph score
+    // differently depending on how it was spelled.
+    const host = toUnicode(input.toLowerCase());
     // Non-ASCII only: the pure-ASCII digit-fold case belongs to
     // brand_homoglyph. This guard makes the two detectors mutually exclusive.
-    if (!hasNonAscii(input)) return [];
+    if (!hasNonAscii(host)) return [];
     // Skip the compatibility-fold family (fullwidth/halfwidth Latin etc.): if the
     // host NFKC-folds to pure ASCII it is an IDNA-mapping homograph already owned
     // by idna_mapping_ambiguity, not the cross-script case this detector targets.
-    if (!hasNonAscii(input.normalize("NFKC"))) return [];
+    if (!hasNonAscii(host.normalize("NFKC"))) return [];
 
-    const skel = skeleton(input.toLowerCase());
+    const skel = skeleton(host);
     const brand = BRAND_SKELETONS.get(skel);
     if (brand === undefined) return [];
+
+    // See latin-skeleton-homograph.ts: show the decoded form for punycode input.
+    const shown =
+      host === input.toLowerCase() ? `'${input}'` : `'${input}' (Unicode form '${host}')`;
 
     return [
       {
         code: "homograph_skeleton_collision",
         detail:
-          `registrable domain '${input}' has the same UTS#39 confusable ` +
+          `registrable domain ${shown} has the same UTS#39 confusable ` +
           `skeleton ('${skel}') as the known brand '${brand}' — a single-script ` +
           "whole-label homograph",
       },

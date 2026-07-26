@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { inspect } from "../src/index.js";
+import { toAscii } from "../src/unicode/idna.js";
 
 const codes = (input: string) => inspect(input).reasons.map((r) => r.code);
 const cp = (...cps: number[]): string => String.fromCodePoint(...cps);
@@ -56,6 +57,49 @@ describe("homograph_latin_skeleton — precision negatives (genuine non-Latin re
       expect(codes(input)).not.toContain("homograph_latin_skeleton");
     });
   }
+
+  // Regression: LINK-iyseozhh. The detector read the registrable domain as
+  // written, so a punycode (xn--) host — pure ASCII in that form — failed the
+  // non-ASCII guard and scored 0.00 while its Unicode twin scored critical.
+  describe("punycode parity — presentation must not change the verdict", () => {
+    const parity = [
+      [CYR_ACCESS, "ассеѕѕ.com (non-brand)"],
+      [CYR_CHASE, "сһаѕе.com (brand)"],
+      // аррӏе.com — all-Cyrillic apple.com, the case that scored info 0.00.
+      [`https://${cp(CYR.a, CYR.p, CYR.p, 0x04cf, CYR.e)}.com`, "аррӏе.com"],
+    ] as const;
+
+    for (const [unicodeUrl, label] of parity) {
+      it(`scores ${label} identically in Unicode and punycode form`, () => {
+        const ace = `https://${toAscii(new URL(unicodeUrl).hostname)}`;
+        expect(ace).toContain("xn--"); // the fixture really is punycode
+        const u = inspect(unicodeUrl, { idnPolicy: "allow" });
+        const a = inspect(ace, { idnPolicy: "allow" });
+        expect(a.reasons.map((r) => r.code)).toEqual(u.reasons.map((r) => r.code));
+        expect(a.score).toBe(u.score);
+        expect(a.severity).toBe(u.severity);
+        expect(a.reasons.map((r) => r.code)).toContain("homograph_latin_skeleton");
+      });
+    }
+
+    it("names both the ACE and decoded form in the detail", () => {
+      const d = inspect("https://xn--80ak6aa92e.com", { idnPolicy: "allow" }).reasons.find(
+        (r) => r.code === "homograph_latin_skeleton",
+      )?.detail;
+      expect(d).toContain("xn--80ak6aa92e.com");
+      expect(d).toContain("аррӏе.com");
+    });
+
+    it("leaves a genuine punycode IDN alone", () => {
+      // xn--mnchen-3ya.de = münchen.de — a real German word, not a homograph.
+      expect(codes("https://xn--mnchen-3ya.de")).not.toContain("homograph_latin_skeleton");
+    });
+
+    it("leaves a malformed ACE label to punycode_malformed", () => {
+      // toUnicode falls back to the ASCII input, which fails the non-ASCII guard.
+      expect(codes("https://xn--a.com")).not.toContain("homograph_latin_skeleton");
+    });
+  });
 
   it("does not fire on a fullwidth-Latin compatibility homograph (owned by idna_mapping_ambiguity)", () => {
     // ｇｏｏｇｌｅ.com — fullwidth Latin NFKC-folds to pure ASCII; excluded by the
