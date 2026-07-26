@@ -11,7 +11,7 @@ The core architectural rule: **channels do not implement detectors.** `packages/
 ```
 linklint/
   packages/
-    core/           # linklint npm package — inspect(), 37 checks, scoring, policy, schema
+    core/           # linklint npm package — inspect(), 35 checks, scoring, policy, schema
     mcp/            # @linklint/mcp — local-only MCP server (check_url / check_domain)
     cli/            # @linklint/cli — offline CLI (linklint check / batch)
     online/         # @linklint/online — Node/server safe transport + deterministic fixtures
@@ -56,7 +56,7 @@ Runtime dependencies: `tldts` (Public Suffix List) and `tr46` (IDNA/UTS-46).
 
 4. **Normalization** — IDNA/UTS-46 normalization via `tr46`. Record deltas as informational findings (`normalization_delta`).
 
-5. **Detector execution** — run 37 independent lexical checks: 4 structural scans ahead of parsing, then 33 parsed-context detectors. The 5 agent-gated parsed detectors run only under `agentMode`. A detector failure adds `lexical:<id>` to `checksSkipped` rather than aborting the inspection. Any skipped scoring detector means the score is a lower bound, not a complete verdict.
+5. **Detector execution** — run 35 independent lexical checks: 4 structural scans ahead of parsing, then 31 parsed-context detectors. The 5 agent-gated parsed detectors run only under `agentMode`. A detector failure adds `lexical:<id>` to `checksSkipped` rather than aborting the inspection. Any skipped scoring detector means the score is a lower bound, not a complete verdict.
 
 6. **Policy layer** (optional) — apply caller-configured allow/deny rules. Policy reasons carry `weight: 0` and never change `score` or `severity`.
 
@@ -66,7 +66,7 @@ Runtime dependencies: `tldts` (Public Suffix List) and `tr46` (IDNA/UTS-46).
 
 ## 5. Detectors
 
-`packages/core/src/detectors/` contains 37 lexical checks: 4 structural scans and 33 parsed-context detectors. Parsed detectors implement:
+`packages/core/src/detectors/` contains 35 lexical checks: 4 structural scans and 31 parsed-context detectors. Parsed detectors implement:
 
 ```ts
 interface Detector {
@@ -78,14 +78,14 @@ interface Detector {
 
 Detectors emit findings only — they never read weights. The core attaches weights from the version-pinned table (`packages/core/src/scoring/weights.ts`) keyed by reason code.
 
-The 37 checks group into seven families (listed by **check id**; a single check
+The 35 checks group into seven families (listed by **check id**; a single check
 may emit several reason codes):
 
 | Family | Detectors |
 |--------|-----------|
 | **Authority spoofing** | `userinfo_present`, `embedded_domain_in_subdomain`, `ambiguous_authority`, `ip_obfuscation`, `ip_classification`, `ambiguous_numeric_host`, `separator_lookalike`, `excessive_subdomain_depth` |
 | **Homographs & confusables** | `mixed_script`, `confusable_char`, `ascii_homoglyph`, `punycode_malformed`, `normalization_delta`, `idna_mapping_ambiguity`, `locale_case_collapse`, `homograph_latin_skeleton`, `idn_host` |
-| **Brand impersonation** | `brand_lookalike`, `brand_soundsquat`, `brand_bitsquat`, `homograph_skeleton_collision` |
+| **Brand impersonation** | `brand_lookalike`, `homograph_skeleton_collision` |
 | **Dangerous payloads** | `dangerous_scheme`, `file_extension_tld`, `suspicious_extension`, `open_redirect_param` |
 | **Hidden characters** | `invisible_char`, `bidi_override`, `control_char`, `encoding_obfuscation`, `confusable_in_path` |
 | **Contextual signals** | `risky_tld`, `bait_tokens` |
@@ -95,11 +95,11 @@ Informational detectors (`confusable_char`, `confusable_in_path`, `normalization
 
 ## 6. Result schema
 
-Every channel returns the same `InspectResult` (schema version `1.3`):
+Every channel returns the same `InspectResult` (schema version `1.4`):
 
 ```ts
 interface InspectResult {
-  schemaVersion: '1.3';
+  schemaVersion: '1.4';
   status: 'ok' | 'invalid';
   input: string;
   parsed: ParsedUrl | null;
@@ -194,13 +194,13 @@ A per-detector boundary choice was investigated and **declined**. Three findings
 in order of weight:
 
 1. **Switching the brand family to the PRIVATE-inclusive view fires nothing.**
-   `brand_lookalike` compares the *whole* registrable domain against the whole
-   brand domain under a bounded edit distance (`MAX_DISTANCE = 2`), and
-   `brand_homoglyph` requires the digit-folded string to be an exact
+   `brand_homoglyph` requires the digit-folded registrable domain to be an exact
    `BRAND_DOMAINS` member. Handed the PRIVATE-inclusive view, `paypa1.vercel.app`
-   is edit-distance far above 2 from `paypal.com`, and folds to
-   `paypal.vercel.app`, which is not a watchlist domain. The widening on its own
-   is inert — it would only *look* like coverage.
+   folds to `paypal.vercel.app`, which is not a watchlist domain. The widening on
+   its own is inert — it would only *look* like coverage. (At the time this was
+   measured, `brand_lookalike` — a bounded edit distance over the whole
+   registrable domain — was also inert here, at distance far above 2 from
+   `paypal.com`. It has since been deleted outright; see §6.1.2.)
 2. **Making it fire means comparing the tenant label, which reopens a closed
    decision.** Reducing to the tenant label (`paypa1` → `paypal`) does match, but
    the same mechanism matches *any* tenant whose label is a brand label — and
@@ -228,8 +228,8 @@ score `0.00`/`info` and `0.20`/`low` respectively, where `paypa1.com` scores
 `0.60`/`high`. This is the same accepted-limitation class as `paypal-login.com`
 scoring `0.00` — deliberate, and preferred over a detector that flags legitimate
 tenants. The IMC '23 multi-tenant rows in `test/corpus/vectors.ts` (which forbid
-`brand_lookalike` on legitimate tenants) are the standing tripwire against
-reintroducing this by another route.
+`embedded_domain_in_subdomain` and `ambiguous_authority` on legitimate tenants)
+are the standing tripwire against reintroducing this by another route.
 
 > **Partly superseded — see §6.1.1 (`LINK-pblqdrco`).** The `paypal.myshopify.com`
 > half of this limitation stands unchanged and permanently: exact-label matching
@@ -376,6 +376,68 @@ unmapped-digit gates respectively, and `987fm` fails the leading-letter gate —
 a knob would buy no coverage the existing gates withhold. Revisit only if a
 concrete consumer asks for it, and then as consumer-side policy over the
 `ascii_homoglyph` reason code, which already carries the skeleton in its detail.
+
+#### 6.1.2 Structurally-clean brand near-misses — deleted (`LINK-cphogucn`)
+
+**Decision — `brand_lookalike`, `brand_soundsquat`, and `brand_bitsquat` are
+deleted outright.** Removed in schema `1.4` / weights `1.13`. This is a
+scope-of-claim correction, not a tuning change, and it is not about list size.
+
+linklint commits to exactly one claim:
+
+> **(a) STRUCTURAL.** If `normalize(input) !== input`, something may be hiding.
+> The brand watchlist is consulted only to sharpen the *explanation* — from
+> "this label is odd" to "…and it folds onto `paypal.com`".
+
+It explicitly rejects claim (b), "we detect impersonation of high-value brands".
+The operative rule: **the watchlist may only be consulted to NAME a structural
+anomaly that was already detected independently. It may never CREATE a finding.**
+
+The three deleted detectors broke that rule. They fired on inputs where
+`normalize(input) === input`:
+
+| Deleted code | Example | Structural state of the input |
+|--------------|---------|-------------------------------|
+| `brand_lookalike` | `paypai.com` | pure ASCII, single script, no digits, no fold |
+| `brand_soundsquat` | `netflicks.com` | pure ASCII, single script, no digits, no fold |
+| `brand_bitsquat` | `netfliz.com` | pure ASCII, single script, no digits, no fold |
+
+Nothing about these strings is anomalous. They are suspicious only relative to
+knowing that `paypal` and `netflix` exist and are worth money — brand
+intelligence, not URL structure. And they cannot be made to generalize: each
+works for exactly the N hand-picked domains on the list and no others, forever.
+This is the same disposition `LINK-blgvypxk` gave `brand_in_path` and
+`brand_combosquat`, for the same reason.
+
+**Survivors, and why they are different.** `brand_homoglyph` fires only when
+`skel !== raw` — a digit demonstrably folded to a letter — and
+`homograph_skeleton_collision` only when UTS#39 confusables are demonstrably
+present. Both carry a structural precondition that is satisfied *before* the
+watchlist is read; the list only names the target. Neither can fire where
+`normalize(input) === input`. `brand_idna_collapse` and `brand_locale_collapse`
+sit on the same footing: a divergence between two standards' readings is the
+structural fact, and the brand match is the name for it.
+
+**Accepted, deliberate loss of coverage.** `paypai.com`, `gogole.com`,
+`netflicks.com`, `netfliz.com`, and `amazgn.com` all score `0.00`/`info`. That is
+the intended outcome, asserted directly in `test/brand-lookalike.test.ts` and
+carried as *benign* rows in the corpus so a future widening has to argue with
+them. A free consequence: `anthropics.com` — Anthropics Technology Ltd, a real UK
+business that sat at edit-distance 1 from `anthropic.com` — stops reading
+`medium`/`0.40`.
+
+**Consequence for the watchlist charter.** Fold-reachability is now the *only*
+structural route onto `data/brands.ts`. The charter's former escape hatch ("a
+stated non-fold justification — edit-distance or soundsquat coverage, say") no
+longer names anything that exists; a brand label with no pre-images under the
+ASCII digit fold buys nothing and should be declined.
+
+**Naming debt (open).** The surviving check keeps the id `brand_lookalike` and
+lives in `detectors/brand-lookalike.ts`, though it now emits only
+`brand_homoglyph`. The families table above lists **check ids**, so that legacy
+name is what appears there. Renaming the check id is a separate, mechanical
+change (it moves `checksSkipped` strings) and was deliberately left out of this
+unit.
 
 ### 6.2 IDNA / UTS-46 conformance & the normalization flag profile
 
@@ -624,7 +686,7 @@ The three-layer model is a forward-compatibility contract:
 
 | Layer | Status | Description |
 |-------|--------|-------------|
-| **Lexical** (L1) | **Implemented** | Offline, deterministic, synchronous. 37 checks: 4 structural, 33 parsed (5 of them agent-gated). < 5 ms typical. |
+| **Lexical** (L1) | **Implemented** | Offline, deterministic, synchronous. 35 checks: 4 structural, 31 parsed (5 of them agent-gated). < 5 ms typical. |
 | **Resolution** (L2) | **Partial** | Exact local wrapper decoding and caller-authorized bounded redirect/refresh expansion are implemented; observed correlation/divergence and MIME evidence remain roadmap work. Every discovered target is re-inspected through L1. |
 | **Reputation** (L3) | Roadmap | Threat feeds, RDAP domain age, CT, DNS posture. Privacy-preserving by design. |
 

@@ -53,5 +53,5 @@ export interface ParsedCheckDescriptor extends CheckDescriptorBase {
   run(ctx: InspectionContext): DetectorFinding[];
 }
 
-/** The unified descriptor for all 31 checks. */
+/** The unified descriptor for all 35 checks. */
 export type CheckDescriptor = StructuralCheckDescriptor | ParsedCheckDescriptor;

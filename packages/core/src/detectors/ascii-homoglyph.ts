@@ -35,7 +35,7 @@ import { ASCII_DIGIT_HOMOGLYPHS } from "../data/ascii-confusables.js";
 
 // Letter-shaped digits and the letter each maps to for the readable skeleton
 // come from the shared `ASCII_DIGIT_HOMOGLYPHS` map (data/ascii-confusables.ts)
-// — the single source of truth this detector and `brand_lookalike` share.
+// — the single source of truth this detector and `brand_homoglyph` share.
 
 export const asciiHomoglyph: Detector = {
   id: "ascii_homoglyph",

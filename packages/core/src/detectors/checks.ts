@@ -28,8 +28,6 @@ import { skeletonCollision } from "./skeleton-collision.js";
 import { latinSkeletonHomograph } from "./latin-skeleton-homograph.js";
 import { localeCaseCollapse } from "./locale-case-collapse.js";
 import { idnHost } from "./idn-host.js";
-import { soundsquatting } from "./soundsquatting.js";
-import { bitsquatting } from "./bitsquatting.js";
 import { baitTokens } from "./bait-tokens.js";
 import { openRedirectParam } from "./open-redirect-param.js";
 import { suspiciousExtension } from "./suspicious-extension.js";
@@ -42,12 +40,12 @@ import { dataExfiltration } from "./data-exfiltration.js";
 import { ssrfCloudMetadata } from "./ssrf-cloud-metadata.js";
 
 /**
- * THE single descriptor source for all 37 checks. `STRUCTURAL_SCANS`
+ * THE single descriptor source for all 35 checks. `STRUCTURAL_SCANS`
  * (structural.ts) and `DETECTORS` (registry.ts) are both DERIVED from this
  * array — add a check here once and both runtime arrays pick it up.
  *
  * Order matches today's runtime order exactly: the 4 structural scans first
- * (STRUCTURAL_SCANS order), then the 33 parsed detectors (DETECTORS order) —
+ * (STRUCTURAL_SCANS order), then the 31 parsed detectors (DETECTORS order) —
  * the last five of which are `agentGated` and run only when
  * `InspectOptions.agentMode` is true.
  * Each descriptor reuses the existing detector object / scan thunk's `run`;
@@ -231,7 +229,7 @@ export const CHECKS: CheckDescriptor[] = [
     id: brandLookalike.id,
     layer: brandLookalike.layer,
     phase: "parsed",
-    emits: ["brand_homoglyph", "brand_lookalike"],
+    emits: ["brand_homoglyph"],
     skipReportable: true,
     run: brandLookalike.run,
   },
@@ -266,22 +264,6 @@ export const CHECKS: CheckDescriptor[] = [
     emits: ["idn_host"],
     skipReportable: true,
     run: idnHost.run,
-  },
-  {
-    id: soundsquatting.id,
-    layer: soundsquatting.layer,
-    phase: "parsed",
-    emits: ["brand_soundsquat"],
-    skipReportable: true,
-    run: soundsquatting.run,
-  },
-  {
-    id: bitsquatting.id,
-    layer: bitsquatting.layer,
-    phase: "parsed",
-    emits: ["brand_bitsquat"],
-    skipReportable: true,
-    run: bitsquatting.run,
   },
   {
     id: baitTokens.id,

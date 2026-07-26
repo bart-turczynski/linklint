@@ -13,7 +13,7 @@
  * Consumers:
  *   - `ascii_homoglyph` (detectors/ascii-homoglyph.ts) — the general,
  *     brand-free structural signal, which folds a label to its readable skeleton.
- *   - `brand_lookalike` (detectors/brand-lookalike.ts) — folds the
+ *   - `brand_homoglyph` (detectors/brand-lookalike.ts) — folds the
  *     registrable domain and tests the skeleton for an exact brand match.
  *
  * No `dataVersions` pin: this is a static, intrinsic property of the ASCII

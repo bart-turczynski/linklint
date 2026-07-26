@@ -3,7 +3,7 @@
 > Version-pinned (`dataVersions.weights`). Source of truth:
 > `packages/core/src/schema/reason-codes.ts` (weights) and
 > `packages/core/src/scoring/` (aggregation + bands). Current weights version:
-> **1.12**.
+> **1.13**.
 
 ## Aggregation — probabilistic OR (FR-SCORE-1a)
 
@@ -170,11 +170,9 @@ signal. Reserved for patterns with no legitimate use.
 | `file_extension_tld`           | 0.40   | yes      |
 | `open_redirect_param`          | 0.40   | yes      |
 | `encoding_obfuscation`         | 0.35   | yes      |
-| `brand_soundsquat`             | 0.30   | yes      |
 | `punycode_malformed`           | 0.20   | yes      |
 | `ascii_homoglyph`              | 0.20   | yes      |
 | `risky_tld`                    | 0.15   | yes      |
-| `brand_bitsquat`               | 0.15   | yes      |
 | `excessive_subdomain_depth`    | 0.15   | yes      |
 | `normalization_delta`          | 0.00   | info     |
 | `confusable_char`              | 0.00   | info     |

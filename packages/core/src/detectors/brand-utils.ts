@@ -2,9 +2,9 @@ import type { InspectionContext } from "./types.js";
 import { BRAND_DOMAINS } from "../data/brands.js";
 
 /**
- * Shared building blocks for the brand-family detectors (`brand_lookalike`,
- * `brand_soundsquat`, `brand_bitsquat`). These derived sets,
- * the significant-label helpers, and the ASCII-registrable preamble were
+ * Shared building blocks for the brand-family detectors (`brand_homoglyph`,
+ * `homograph_skeleton_collision`, and the brand-label consumers). These derived
+ * sets, the significant-label helper, and the ASCII-registrable preamble were
  * duplicated byte-for-byte across those files; they live here once so all brand
  * detectors share one source of truth.
  */
@@ -16,12 +16,6 @@ export const BRAND_DOMAIN_SET: ReadonlySet<string> = new Set(BRAND_DOMAINS);
 export function significantLabel(brandDomain: string): string {
   const dot = brandDomain.indexOf(".");
   return dot === -1 ? brandDomain : brandDomain.slice(0, dot);
-}
-
-/** The length of the brand's significant (registrable) label. */
-export function significantLabelLength(brandDomain: string): number {
-  const dot = brandDomain.indexOf(".");
-  return dot === -1 ? brandDomain.length : dot;
 }
 
 /** Set of brand significant labels (lowercase) for exact-label skip. */

@@ -1,9 +1,9 @@
 /**
  * Curated brand watchlist. The shared, authoritative data source the brand
  * detectors consume: the **registrable brand domain** (`paypal.com`) feeds the
- * domain-based brand family — `brand_lookalike` (Damerau-Levenshtein distance),
- * `brand_homoglyph` (ASCII digit fold), `brand_soundsquat`, `brand_bitsquat`,
- * and `homograph_skeleton_collision` — against an input's registrable domain.
+ * domain-based brand family — `brand_homoglyph` (ASCII digit fold) and
+ * `homograph_skeleton_collision` (UTS#39 skeleton) — against an input's
+ * registrable domain.
  *
  * High-abuse impersonation targets only — banks, big tech, payment processors,
  * major commerce/logistics, and a few perennial phishing favourites. Kept
@@ -26,9 +26,10 @@
  *    pre-images under the ASCII digit fold (`0`->o, `1`->l, `5`->s). A label with
  *    no `o`, `l`, or `s` has NO pre-images and buys nothing in the structural
  *    tier: `huggingface` is the clearest case, and `openai` reaches only the
- *    laxer 0.50/medium band via `0penai.com`. Such an addition needs a stated
- *    non-fold justification — edit-distance or soundsquat coverage, say — or it
- *    should be declined. Do not assume a famous name is carrying weight.
+ *    laxer 0.50/medium band via `0penai.com`. A brand with no pre-images buys
+ *    nothing at all and should be declined: since LINK-cphogucn deleted the
+ *    edit-distance / soundsquat / bitsquat steps, fold-reachability is the ONLY
+ *    structural route onto the list. Do not assume a famous name carries weight.
  *
  * Hard cap: ~150 entries. Past that, precision (SC-2) and the review cost of the
  * firing surface both degrade faster than coverage improves.
@@ -180,9 +181,8 @@ export const BRAND_WATCHLIST: readonly BrandEntry[] = [
 
 /**
  * Registrable brand domains on the watchlist, deduped. Consumed by the
- * domain-based brand detectors (`brand_lookalike`, `brand_homoglyph`,
- * `brand_soundsquat`, `brand_bitsquat`, `homograph_skeleton_collision`) for
- * edit-distance / fold / skeleton comparison.
+ * domain-based brand detectors (`brand_homoglyph`,
+ * `homograph_skeleton_collision`) for fold / skeleton comparison.
  */
 export const BRAND_DOMAINS: readonly string[] = [
   ...new Set(BRAND_WATCHLIST.map((b) => b.domain)),

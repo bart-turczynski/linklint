@@ -551,7 +551,7 @@ export const VECTORS: CorpusRow[] = [
     (input): CorpusRow => ({
       input,
       label: "benign",
-      forbidReasons: ["embedded_domain_in_subdomain", "brand_lookalike", "ambiguous_authority"],
+      forbidReasons: ["embedded_domain_in_subdomain", "ambiguous_authority"],
       notes: "IMC'23 Table-2 multi-tenant eTLD — legit tenant host, no false deception signal",
       source: "PSL-harms IMC'23 Table 2 (via pslr / P2 freshness corpus)",
     }),
