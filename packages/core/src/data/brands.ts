@@ -41,7 +41,12 @@
 
 /** A single brand on the watchlist. */
 export interface BrandEntry {
-  /** Registrable brand domain, lowercase (e.g. `paypal.com`). */
+  /**
+   * Registrable brand domain, lowercase (e.g. `paypal.com`) — enforced in
+   * `test/brands.test.ts`. Documented exception: a multi-label entry that is
+   * inert in the domain tier but still contributes its significant label to the
+   * label tier (`turbotax.intuit.com`, LINK-scktwvio).
+   */
   readonly domain: string;
 }
 
