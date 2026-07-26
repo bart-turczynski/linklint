@@ -32,6 +32,7 @@ import { baitTokens } from "./bait-tokens.js";
 import { openRedirectParam } from "./open-redirect-param.js";
 import { suspiciousExtension } from "./suspicious-extension.js";
 import { punycodeMalformed } from "./punycode-malformed.js";
+import { percentEncodingMalformed } from "./percent-encoding-malformed.js";
 import { excessiveSubdomainDepth } from "./excessive-subdomain-depth.js";
 import { promptInjection } from "./prompt-injection.js";
 import { apiEndpointImpersonation } from "./api-endpoint-impersonation.js";
@@ -296,6 +297,14 @@ export const CHECKS: CheckDescriptor[] = [
     emits: ["punycode_malformed"],
     skipReportable: true,
     run: punycodeMalformed.run,
+  },
+  {
+    id: percentEncodingMalformed.id,
+    layer: percentEncodingMalformed.layer,
+    phase: "parsed",
+    emits: ["percent_encoding_malformed"],
+    skipReportable: true,
+    run: percentEncodingMalformed.run,
   },
   {
     id: excessiveSubdomainDepth.id,

@@ -242,6 +242,24 @@ export const CORPUS: CorpusRow[] = [
     expectReasons: ["punycode_malformed"],
     notes: "P1: decodes to a code point above U+10FFFF (sub-code decoded_code_point_out_of_range)",
   },
+  // T2.14 (LINK-woxuwnks): malformed percent-encoding — §1.1 claim (a) form 3
+  // (false self-description). Both shapes of the defect, priced identically;
+  // the rationale for NOT splitting them is in docs/reason-codes.md.
+  {
+    input: "https://example.com/a%zzb",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["percent_encoding_malformed"],
+    forbidReasons: ["encoding_obfuscation"],
+    notes: "T2.14: '%' followed by non-hex — RFC 3986 §2.4",
+  },
+  {
+    input: "https://ex%zzample.com/",
+    label: "deceptive",
+    minSeverity: "low",
+    expectReasons: ["percent_encoding_malformed"],
+    notes: "T2.14: malformed escape in the host",
+  },
   {
     input: "https://promo-login.tk/",
     label: "deceptive",
