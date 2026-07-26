@@ -231,6 +231,15 @@ tenants. The IMC '23 multi-tenant rows in `test/corpus/vectors.ts` (which forbid
 `brand_lookalike` on legitimate tenants) are the standing tripwire against
 reintroducing this by another route.
 
+> **Partly superseded — see §6.1.1 (`LINK-pblqdrco`).** The `paypal.myshopify.com`
+> half of this limitation stands unchanged and permanently: exact-label matching
+> stays rejected, and findings #2 and #3 above were re-tested and **confirmed**.
+> The `paypa1.vercel.app` half — the *digit-folded* case only — was reopened with
+> the unseen-tenant corpus finding #3 asked for, and **adopted**. Read the two
+> entries together: what changed is not the boundary and not exact matching, only
+> that a label whose digits fold to a brand label is now treated as the same
+> disguise on both sides of the PRIVATE boundary.
+
 **Unchanged:** FR-D-8 / `embedded_domain_in_subdomain` keeps ICANN-only
 semantics, which is what the tradeoff above exists to protect.
 
@@ -249,10 +258,124 @@ views in `analyzeHost()`, share once per `inspect()`, keep the existing field
 bound to the ICANN-only value, and add no caching (pslr D19).
 
 Note for anyone arriving from the accepted limitation above: escalating
-`paypa1.vercel.app` does **not** require this seam. That question is
-`LINK-pblqdrco`, and the path it considers joins the skeleton `ascii_homoglyph`
-already computes to `BRAND_LABEL_SET` over the host labels — a set membership
-test, with no PSL boundary involved.
+`paypa1.vercel.app` does **not** require this seam. That question was
+`LINK-pblqdrco`, now **decided and adopted** in §6.1.1 — and it was adopted on
+exactly the path described here, joining the skeleton `ascii_homoglyph` already
+computes to `BRAND_LABEL_SET` over the host labels: a set membership test, with
+no PSL boundary involved. This seam stays declined; the adopted mechanism needs
+no call site for it.
+
+#### 6.1.1 Digits in labels — fold-gated brand escalation (adopted) and a general digits signal (declined)
+
+Two independent questions, recorded together because they were raised together
+(`LINK-pblqdrco`). The trigger was the 3x score gap in §6.1's accepted
+limitation: `paypa1.com` → `0.60`/`high`, `paypa1.vercel.app` → `0.20`/`low`,
+same disguise, same reading. `ascii_homoglyph` fires in both cases and its detail
+already names the reading (`paypa1` reads as `paypal`); the whole delta is
+`brand_homoglyph`, which never gets a look because it tests the *registrable
+domain* and `paypa1.vercel.app`'s registrable domain is `vercel.app`.
+
+**(a) Label-level fold-gated brand escalation — ADOPTED.**
+
+The mechanism: for each host label that already passes `ascii_homoglyph`'s gates,
+if folding its digits yields a `BRAND_LABEL_SET` member, escalate. A set
+membership test over `ctx.hostLabels`. **No PSL boundary change** — the
+`LINK-mfpwgspt` seam declined above is not a prerequisite and was not revived.
+
+§6.1's finding #3 set the evidence bar: reasoning over our own brand list is
+self-confirming, so this needs a corpus of *unseen* tenant labels. Four
+measurements, in order of weight:
+
+1. **The firing surface is finite, enumerable, and small.** Because the gate
+   requires `fold(label) !== label` *and* an exact hit in `BRAND_LABEL_SET`, the
+   complete set of labels that can ever fire is the set of valid pre-images of a
+   brand label under the fold. Enumerated: **65 of 106** brand labels are
+   fold-reachable, yielding **exactly 192 labels**. This is the decisive
+   structural difference from every previously-rejected brand widening — it is
+   not a heuristic with an open-ended surface but a list that can be read.
+2. **Zero false positives on 36,200 unseen real tenant labels.** A GitHub login
+   *is* the tenant label for `<login>.github.io`, so the login list is an
+   unfiltered corpus of real multi-tenant labels. 7.3% contain a digit; **427
+   (1.18%) pass `ascii_homoglyph`'s gates and already score `0.20`/`low` today**;
+   **none folds to a `BRAND_LABEL_SET` member.** The reason is structural, and it
+   is the crux: the common benign digit-in-label pattern is a *numeric
+   suffix or counter* — `mwalker1`, `haru01`, `jramirez00` — which folds to
+   gibberish (`mwalkerl`, `haruol`, `jramirezoo`). Firing requires a digit
+   *mid-word, standing in for the letter that spells a brand*, which is the
+   attack signature itself. Length equality under the fold also means no
+   `shop1`-style label can ever reach a shorter brand label.
+3. **Live probe of the entire surface: no legitimate tenants.** All 192 labels
+   probed against `github.io`, `vercel.app`, `myshopify.com` (576 probes) — 25
+   live. Classified by fetched title: impersonation (`app1e` → "Apple iPhone",
+   `bank0famerica` → "Bank of America", `faceb0ok` → "Facebook", `paypa1` →
+   "Paypal", `robl0x` → "Roblox Cookie Capture"), platform-suspended (`402`), or
+   **legally taken down** (`bl0ckchain.vercel.app` → `451`). **Not one is a
+   legitimate business operating under an unrelated name.** The ordinary-word
+   brands that drove finding #2 — `apple`, `amazon`, `booking`, `telegram`,
+   `blockchain` — appear here only as `app1e`, `amaz0n`, `b00king`, `te1egram`,
+   `bl0ckchain`, and every live one of those is impersonation, suspended, or
+   taken down.
+4. **Control group — finding #2 was right, and this is not the same mechanism.**
+   The identical probe against the 106 **unfolded** labels returns **127 live
+   `200`s**, including the brands' *own official* orgs (`microsoft.github.io`,
+   `google.github.io`, `adobe.github.io`, `cloudflare.github.io`,
+   `netflix.github.io`, `oracle.github.io`, `stripe.github.io`,
+   `salesforce.github.io`) and the ordinary-word tenants finding #2 named
+   (`target.github.io`, `cash.github.io`, `box.github.io`, `uber.github.io`),
+   plus 14 more at `451`. Exact-label matching has a ~40% live-tenant surface
+   dominated by legitimate use — flagging it would flag brands impersonating
+   themselves. The fold-gated surface is 4.3% and dominated by abuse. **That
+   ~10x gap is the argument the standing "document-and-stop" rule required to be
+   won rather than assumed:** the fold gate is a structural property of the
+   input, not a curated exclusion list of the kind §6.1 finding #3 rejected.
+
+**Residual risk, stated plainly.** Roughly 4–6 of the 25 live hits are
+benign *by content* while being a brand look-alike *by name*:
+`sa1esforce.vercel.app` and `salesf0rce.vercel.app` serve an unrelated "Brunch"
+template, `g0ogle.github.io` is a personal page, `sh0pify.github.io` is Shopify
+tutorial content. Escalating these to `high` is accepted, on consistency: the
+ICANN-side `brand_homoglyph` already scores `paypa1.com` `high` without any
+content evidence, because the claim it makes is *"this host's name is a
+digit-disguised brand"* — which is true in 25 of 25 cases here — not *"this is
+phishing"*. The alternative is to keep scoring the same disguise 3x differently
+based on which side of a boundary the attacker rented space on.
+
+**Tripwire gap found while testing this.** The IMC '23 multi-tenant rows named as
+§6.1's standing tripwire contain **no digits** (`myshop.myshopify.com`,
+`docs.readthedocs.io`, …), so they cannot fire under this mechanism either way
+and provide **no protection against it**. Implementation must add rows that
+actually bind: benign digit-bearing tenant labels that fold to gibberish
+(`pete1.github.io`, `haru01.github.io` — both `0.20`/`low` today and must stay
+there) alongside the positive `paypa1.vercel.app` case, plus a test asserting the
+192-label surface is unchanged so a brand-watchlist addition cannot silently
+widen it.
+
+Implementation is filed separately (`LINK-tbqeqqvv`); this entry records the
+decision only, and §6.1's accepted-limitation scores describe behaviour until it
+lands.
+
+**(b) A general digits-in-label signal — DECLINED, including as an optional knob.**
+
+The premise — legitimate brands rarely put digits in domains, and digits are a
+classic SEO-spam marker — does not survive contact with the corpus. **1.18% of
+real tenant labels pass these gates**, roughly 1 in 85 hosts, and measurement 2
+shows what they are: ordinary developer usernames with a counter (`pete1`,
+`number5`, `snoozer05`, `jcoppedge1`, `testapi11`). Only 5.2% of them fold to
+even a dictionary word. There is no precision floor to build on — the gates
+select for *digit-in-word shape*, which is a necessary condition for the
+disguise but nowhere near sufficient, and that is exactly why `ascii_homoglyph`
+is weighted `0.2` and documented to "only matter in combination". Those 427
+labels scoring `0.20`/`low` is the correct outcome, not a missed escalation.
+
+Declined as an optional policy knob too, for a different reason: "digits in the
+domain" is a ranking-quality preference, not a deception verdict, and belongs to
+whatever consumer holds that preference rather than to a URL-deception linter.
+The benign classes cited in the original request are already spared without any
+new policy — `z100` and `kiss108` fail the letters-outnumber-digits and
+unmapped-digit gates respectively, and `987fm` fails the leading-letter gate — so
+a knob would buy no coverage the existing gates withhold. Revisit only if a
+concrete consumer asks for it, and then as consumer-side policy over the
+`ascii_homoglyph` reason code, which already carries the skeleton in its detail.
 
 ### 6.2 IDNA / UTS-46 conformance & the normalization flag profile
 
