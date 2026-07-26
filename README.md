@@ -71,8 +71,8 @@ import { inspect } from 'linklint';
 const r = inspect('https://раypal.com');
 
 r.status;    // 'ok'        — input parsed (vs. 'invalid')
-r.score;     // 0.7         — [0,1], probabilistic-OR over detector weights
-r.severity;  // 'high'      — 'info' | 'low' | 'medium' | 'high' | 'critical'
+r.score;     // 1.0         — [0,1], probabilistic-OR over detector weights
+r.severity;  // 'critical'  — 'info' | 'low' | 'medium' | 'high' | 'critical'
 r.reasons;   // named, weighted, explained findings — see below
 ```
 
