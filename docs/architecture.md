@@ -16,7 +16,7 @@ and must not contradict it. If they diverge, this section wins.
 
 **The claim.** linklint commits to exactly one:
 
-> **(a) STRUCTURAL.** If `normalize(input) !== input`, something may be hiding.
+> **(a) STRUCTURAL.** The string is not what it presents itself to be.
 
 It explicitly **rejects** the other:
 
@@ -27,6 +27,51 @@ for all time — it names a property of the input, not a property of the world.
 Claim (b) requires knowing which words are brands, which brands are worth
 impersonating, and what the site at the other end does. linklint has none of
 that and does not pretend to.
+
+**The three settled forms of claim (a).** These are one claim in three shapes,
+not three claims. Each is a demonstrable property of the string:
+
+1. **Normalization delta** — `normalize(input) !== input`. The string reads one
+   way and resolves another, so something is hiding. This is the original and
+   most common form: `separator_lookalike`, `invisible_char`, `brand_homoglyph`.
+2. **Reader disagreement** — `read_A(input) !== read_B(input)`. Two conforming
+   readers resolve the same string to different destinations, so at most one of
+   them reaches where the reader thinks it does. `ambiguous_authority` (0.65,
+   "parsers disagree on the host"), `ambiguous_numeric_host` (0.3, "a browser
+   rejects it, non-browser clients may resolve it"), `idna_mapping_ambiguity`
+   and `locale_case_ambiguity`. §6 states the same rule from the other end:
+   **"the discriminator is *disagreement between standards*, not exotic input."**
+3. **False self-description** — the string declares its own type and the
+   declaration does not hold. `xn--` announces "I am an ACE-encoded IDN"; when it
+   does not decode, `punycode_malformed` fires at 0.2.
+
+Form 2 and form 3 are why linklint **does** make protocol-validity claims, and
+saying otherwise contradicts the shipped registry. What makes them claim (a) is
+not that the string is invalid — it is that the invalidity is a false claim the
+string makes about itself, or a fork in how the string will be read.
+
+**What this excludes: well-formed but unusable.** A string that every reader
+agrees on, that makes no false claim about itself, and that merely fails, is
+**not** a claim-(a) finding. The worked case is host length: a 64-character DNS
+label is syntactically a hostname, is read identically by every parser, and is
+simply too long to resolve. Nothing is hidden and nobody disagrees. It is pinned
+benign in `test/corpus/vectors.ts` and an implementation of DNS length caps was
+written and reverted on exactly this reasoning (`LINK-ygglwkuy`,
+`LINK-tukbqyjg`). "Malformed" and "deceptive" are not the same claim, and only
+the second is chartered.
+
+**Two boundaries this section does NOT yet settle** — do not read an answer into
+the silence:
+
+- **Context-dependent names.** `svc.internal`, `home.arpa` and the rest of the
+  RFC 6761 set make no false claim and provoke no disagreement; the same string
+  simply names different machines on different networks. That is "not the same
+  thing everywhere", which is a different property from "not itself", and
+  whether it is in scope is open (`LINK-mgnbgicq`).
+- **Where `parse_error` / `invalid` sit.** The fail-closed doctrine is a validity
+  claim of a sort, so it needs an articulated relationship to the three forms
+  above. The working distinction — input linklint *cannot analyze*, versus input
+  that is analyzable but non-conforming — is plausible and currently unwritten.
 
 **The rule.** The brand watchlist (`data/brands.ts`) may only be consulted to
 **NAME** a structural anomaly that was already detected independently. It may
@@ -39,8 +84,10 @@ This is the test — not list size, not tuning — that authorized deleting
 `brand_lookalike`, `brand_soundsquat`, and `brand_bitsquat` (`LINK-cphogucn`,
 schema `1.4` / weights `1.13`) while keeping `brand_homoglyph`,
 `homograph_skeleton_collision`, `brand_idna_collapse`, and
-`brand_locale_collapse`. The deleted three fired where
-`normalize(input) === input`; the survivors each carry a structural
+`brand_locale_collapse`. The deleted three satisfied **none of the three forms**
+— `normalize(input) === input`, no reader disagreed, and the string described
+itself accurately; the only thing wrong with `paypai.com` is that a human might
+misread it, which is claim (b). The survivors each carry a structural
 precondition — a demonstrated fold, a demonstrated UTS#39 confusable, a
 demonstrated disagreement between two standards' readings of the same host —
 that is satisfied *before* the list is read. See §6.1.2 for the per-code record.
