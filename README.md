@@ -161,6 +161,57 @@ authority is somewhere else.
 These carry low weight on their own — they're designed to **combine** with stronger
 signals via the scoring model below.
 
+## What linklint does not do
+
+linklint makes one claim, deliberately narrow: **a URL is structurally anomalous.**
+Its detectors answer "is something about this string malformed, disguised, or
+inconsistent with how URLs normally work?" — a question that can be settled from the
+string itself, offline and deterministically.
+
+It does **not** claim to know which words are brands, which brands get phished, or
+what a site does. That would be a semantic judgment, and it is out of scope by
+design rather than by omission.
+
+The clearest way to see the line:
+
+```ts
+inspect('https://paypa1.com');       // score 0.6 — '1' folds to 'l'; the string is disguised
+inspect('https://paypal-login.com'); // score 0.0 — every label is a real, correctly
+                                     //             spelled word in a normal arrangement
+```
+
+The second URL is very likely phishing. linklint returns `0.00` anyway, and that is
+**correct behavior for what it claims**: there is nothing structurally wrong with the
+string. Calling it deceptive requires knowing that PayPal is a brand worth
+impersonating — knowledge linklint does not have and does not pretend to.
+
+Concretely, linklint is not:
+
+- **A phishing oracle.** `score: 0` means "no structural anomaly found," **not**
+  "this link is safe." Never present a zero as a safety certificate to a user.
+- **A threat feed or reputation service.** It checks no blocklists and has no notion
+  of a site's history. A brand-new malicious domain and a decade-old benign one that
+  are structurally identical score identically.
+- **A malware or content scanner.** It never fetches the URL, so it cannot know what
+  is served there. The core opens no network connections at all.
+- **A replacement for the rest of your defenses.** It is one cheap, explainable,
+  offline signal to compose with others — not a perimeter.
+
+### Known gaps
+
+Detection coverage is a bounded claim, so we track where the boundary currently sits
+further in than it should. The most significant open gap: a brand fold joined by a
+hyphen is not caught. `paypa1.com` scores, but `paypa1-login.com` scores `0.00` —
+the ASCII-homoglyph detector skips any host label containing a hyphen, and the
+brand-fold check treats the registrable domain as a single unit, so neither ever
+examines `paypa1` on its own.
+
+Known misses like this are committed as an executable corpus at
+`packages/core/test/corpus/embarrassment.ts`, asserted so that they turn the build
+red the moment they start being caught. Reports of further false negatives are
+welcome as ordinary issues — see [SECURITY.md](./SECURITY.md#scope) for why they are
+issues rather than vulnerabilities.
+
 ## Scoring & severity
 
 Reason weights aggregate with **probabilistic-OR** — order-independent and saturating
