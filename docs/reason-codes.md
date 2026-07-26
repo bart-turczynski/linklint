@@ -359,8 +359,12 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   - **Residual:** a short genuine word built only from the Latin-confusable
     subset (Cyrillic `сор`→`cop`) still folds to ASCII — but such a host is
     visually identical to its Latin reading and is exactly the "looks like ASCII"
-    case the block targets. A legitimate owner overrides via the caller IDN
-    allow-list.
+    case the block targets. A legitimate owner overrides via `suppressReasons`
+    (`[{ code: "homograph_latin_skeleton", host: "сор.com" }]`) — **not** via the
+    IDN allow-list, which is scoped to `idn_host` alone and leaves this weight-1.0
+    blocker standing. That scoping is deliberate: an IDN exemption must never be
+    derivable from the host's ASCII reading, because "the Unicode host reads as a
+    legitimate ASCII domain" *is* the homograph signature.
 - **See also:** `homograph_skeleton_collision` — the brand-targeted sibling
   (weight 0.5); the two **stack** on a brand homograph (this blocks, the
   collision adds brand attribution).
