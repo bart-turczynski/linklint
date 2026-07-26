@@ -409,7 +409,7 @@ export const CORPUS: CorpusRow[] = [
     options: ALLOW_IDN,
     minSeverity: "medium",
     expectReasons: ["brand_idna_collapse"],
-    forbidReasons: ["idna_mapping_ambiguity", "brand_lookalike", "mixed_script"],
+    forbidReasons: ["idna_mapping_ambiguity", "mixed_script"],
     notes: "J9 ß: IDNA2003 → wordpress.com (exact brand) vs UTS-46 xn--wordpre-6va.com — a validator on transitional processing approves it as the brand",
   },
   {
@@ -546,25 +546,27 @@ export const CORPUS: CorpusRow[] = [
     notes: "G2 one-for-l folds revo1ut.com -> revolut.com (exact brand)",
   },
 
-  // Deceptive — brand_lookalike (G2, weight 0.4 → medium): edit-distance / TLD-swap near-miss.
+  // Benign — structurally-clean near-misses (LINK-cphogucn deleted brand_lookalike).
+  // normalize(input) === input for all three: pure ASCII, single script, no fold.
+  // The watchlist may only NAME an independently-detected structural anomaly, so
+  // these are silent by design, not a recall gap.
   {
     input: "https://gogole.com",
-    label: "deceptive",
-    expectReasons: ["brand_lookalike"],
+    label: "benign",
     forbidReasons: ["brand_homoglyph"],
-    notes: "G2 transposition typosquat of google.com (distance 1)",
+    notes: "LINK-cphogucn: transposition of google.com is structurally clean — no finding",
   },
   {
-    input: "https://microsoftt.com",
-    label: "deceptive",
-    expectReasons: ["brand_lookalike"],
-    notes: "G2 doubled-letter typosquat of microsoft.com (distance 1)",
+    input: "https://paypai.com",
+    label: "benign",
+    forbidReasons: ["brand_homoglyph"],
+    notes: "LINK-cphogucn: 'l'->'i' substitution is pure ASCII, single script, no fold",
   },
   {
-    input: "https://paypal.co",
-    label: "deceptive",
-    expectReasons: ["brand_lookalike"],
-    notes: "G2 TLD-swap near-miss of paypal.com (.co for .com) — visible only on full registrable domain",
+    input: "https://anthropics.com",
+    label: "benign",
+    forbidReasons: ["brand_homoglyph"],
+    notes: "LINK-cphogucn: Anthropics Technology Ltd is a real UK business — was a distance-1 false positive",
   },
 
   // Benign — hyphen-glued brand-keyword hosts no longer flag (brand keyword
@@ -573,48 +575,24 @@ export const CORPUS: CorpusRow[] = [
   {
     input: "https://paypal-secure.com",
     label: "benign",
-    forbidReasons: ["brand_lookalike", "brand_homoglyph"],
+    forbidReasons: ["brand_homoglyph"],
     notes: "keyword matching dropped — hyphen-glued brand token no longer flags on its own",
   },
 
-  // Deceptive — brand_soundsquat (T2, weight 0.3 → medium): phonetic homophone of
-  // a brand, INVISIBLE to the edit-distance / digit-fold siblings (these flag
-  // nothing else, so soundsquat alone is the recall).
+  // Benign — former brand_soundsquat / brand_bitsquat positives (LINK-cphogucn).
+  // A homophone or single-bit neighbour of a brand label is structurally clean;
+  // both detectors created findings out of the watchlist alone and were deleted.
   {
     input: "https://netflicks.com",
-    label: "deceptive",
-    expectReasons: ["brand_soundsquat"],
-    forbidReasons: ["brand_lookalike", "brand_homoglyph"],
-    notes: "T2 soundsquat — netflicks sounds like netflix (ck->k, x->ks); below G2's edit-distance gate",
+    label: "benign",
+    forbidReasons: ["brand_homoglyph"],
+    notes: "LINK-cphogucn: former T2 soundsquat — phonetic-only, no structural anomaly",
   },
-  {
-    input: "https://dropboks.com",
-    label: "deceptive",
-    expectReasons: ["brand_soundsquat"],
-    forbidReasons: ["brand_lookalike", "brand_homoglyph"],
-    notes: "T2 soundsquat — dropboks sounds like dropbox (x->ks); invisible to edit distance",
-  },
-
-  // Deceptive — brand_bitsquat (T3, weight 0.15 → LOW alone): a single-bit-flip
-  // neighbor of a brand label (memory/transmission-error attack class). A bit
-  // flip is by construction also edit-distance 1, so brand_lookalike STACKS and
-  // lifts the aggregate — but brand_bitsquat alone is LOW, hence minSeverity low.
-  // netfliz <- netflix: byte 'x'=0x78, flip bit 1 (XOR 0x02) -> 'z'=0x7a.
   {
     input: "https://netfliz.com",
-    label: "deceptive",
-    minSeverity: "low",
-    expectReasons: ["brand_bitsquat"],
-    forbidReasons: ["brand_homoglyph", "brand_soundsquat"],
-    notes: "T3 bitsquat — netfliz is netflix with byte 'x'=0x78 bit 1 flipped to 'z' (also brand_lookalike, distance 1)",
-  },
-  {
-    input: "https://amazgn.com",
-    label: "deceptive",
-    minSeverity: "low",
-    expectReasons: ["brand_bitsquat"],
-    forbidReasons: ["brand_homoglyph", "brand_soundsquat"],
-    notes: "T3 bitsquat — amazgn is amazon with byte 'o'=0x6f bit 3 flipped to 'g'=0x67",
+    label: "benign",
+    forbidReasons: ["brand_homoglyph"],
+    notes: "LINK-cphogucn: former T3 bitsquat — a single-bit neighbour is still a clean ASCII label",
   },
 
   // Deceptive — bait_tokens (G4, weight 0.15 → LOW alone): set minSeverity low.
@@ -636,7 +614,7 @@ export const CORPUS: CorpusRow[] = [
     label: "deceptive",
     minSeverity: "critical",
     expectReasons: ["homograph_skeleton_collision", "homograph_latin_skeleton"],
-    forbidReasons: ["mixed_script", "brand_homoglyph", "brand_lookalike"],
+    forbidReasons: ["mixed_script", "brand_homoglyph"],
     notes: "E3 all-Cyrillic сһаѕе.com skeletonizes to chase.com (single-script whole-label homograph)",
   },
   {
@@ -652,7 +630,7 @@ export const CORPUS: CorpusRow[] = [
     label: "deceptive",
     minSeverity: "critical",
     expectReasons: ["homograph_latin_skeleton"],
-    forbidReasons: ["mixed_script", "homograph_skeleton_collision", "brand_homoglyph", "brand_lookalike"],
+    forbidReasons: ["mixed_script", "homograph_skeleton_collision", "brand_homoglyph"],
     notes: "target-LESS: all-Cyrillic ассеѕѕ.com folds to the non-brand word 'access' — pure-Latin skeleton blocks with NO brand match",
   },
 
@@ -671,7 +649,6 @@ export const CORPUS: CorpusRow[] = [
       "homograph_latin_skeleton",
       "homograph_skeleton_collision",
       "brand_homoglyph",
-      "brand_lookalike",
       "mixed_script",
     ],
     notes: "tİktok.com (U+0130) -> 'tiktok.com' under a tr/az lowercase, but resolves to xn--tiktok-qyd.com — a Turkish-locale validator approves it as the brand",
@@ -723,19 +700,17 @@ export const CORPUS: CorpusRow[] = [
   },
 
   // Benign (SC-2): the G family must NOT over-flag these.
-  { input: "https://paypal.com", label: "benign", forbidReasons: ["brand_lookalike", "brand_homoglyph", "homograph_skeleton_collision"], notes: "G2/E3 guard: exact brand domain is the brand, never fires" },
-  { input: "https://chase.com", label: "benign", forbidReasons: ["homograph_skeleton_collision", "brand_lookalike"], notes: "E3 guard: the real (ASCII) brand is guarded out before any skeleton collision" },
-  { input: "https://google.com", label: "benign", forbidReasons: ["brand_lookalike", "brand_homoglyph"], notes: "G2 guard: exact brand domain" },
-  { input: "https://microsoft.com", label: "benign", forbidReasons: ["brand_lookalike", "brand_homoglyph"], notes: "G2 guard: exact brand domain" },
+  { input: "https://paypal.com", label: "benign", forbidReasons: ["brand_homoglyph", "homograph_skeleton_collision"], notes: "G2/E3 guard: exact brand domain is the brand, never fires" },
+  { input: "https://chase.com", label: "benign", forbidReasons: ["homograph_skeleton_collision"], notes: "E3 guard: the real (ASCII) brand is guarded out before any skeleton collision" },
+  { input: "https://google.com", label: "benign", forbidReasons: ["brand_homoglyph"], notes: "G2 guard: exact brand domain" },
+  { input: "https://microsoft.com", label: "benign", forbidReasons: ["brand_homoglyph"], notes: "G2 guard: exact brand domain" },
   { input: "https://accounts.google.com", label: "benign", forbidReasons: ["bait_tokens"], notes: "G4 guard: legit brand subdomain, single bait token, registrable domain is the brand" },
-  { input: "https://login.microsoftonline.com", label: "benign", forbidReasons: ["bait_tokens", "brand_lookalike"], notes: "G4 guard: legit MS login host — single bait token" },
-  { input: "https://amazonaws.com", label: "benign", forbidReasons: ["brand_lookalike", "brand_soundsquat"], notes: "legit AWS host — not an edit-distance/soundsquat near-miss" },
+  { input: "https://login.microsoftonline.com", label: "benign", forbidReasons: ["bait_tokens"], notes: "G4 guard: legit MS login host — single bait token" },
+  { input: "https://amazonaws.com", label: "benign", forbidReasons: ["brand_homoglyph"], notes: "legit AWS host — its skeleton is not a brand domain" },
   { input: "https://example.com/account/login", label: "benign", forbidReasons: ["bait_tokens"], notes: "G4 guard: 2 path-only bait tokens stays UNDER the host>=2 / total>=3 threshold" },
-  { input: "https://netflix.com", label: "benign", forbidReasons: ["brand_soundsquat", "brand_lookalike", "brand_bitsquat"], notes: "T2/T3 guard: exact brand domain is the brand, never a homophone or bit-flip of itself" },
-  { input: "https://dropbox.com", label: "benign", forbidReasons: ["brand_soundsquat", "brand_lookalike"], notes: "T2 guard: exact brand domain" },
-  { input: "https://ups.com", label: "benign", forbidReasons: ["brand_soundsquat", "brand_bitsquat"], notes: "T2/T3 short-label guard: 3-char brand label cannot soundsquat/bitsquat-collide" },
-  { input: "https://amazon.com", label: "benign", forbidReasons: ["brand_bitsquat", "brand_lookalike"], notes: "T3 guard: exact brand domain is the brand, never a bit-flip of itself" },
-  { input: "https://oetfliz.com", label: "benign", forbidReasons: ["brand_bitsquat"], notes: "T3 guard: a 2-bit-away label (n->o AND x->z off netflix) is NOT a single-bit neighbor" },
+  { input: "https://netflix.com", label: "benign", forbidReasons: ["brand_homoglyph"], notes: "G2 guard: exact brand domain is the brand" },
+  { input: "https://dropbox.com", label: "benign", forbidReasons: ["brand_homoglyph"], notes: "G2 guard: exact brand domain" },
+  { input: "https://amazon.com", label: "benign", forbidReasons: ["brand_homoglyph"], notes: "G2 guard: exact brand domain is the brand" },
 
   // ── V1b: literal-IP range classifier coverage (5 buckets + precedence + v4-in-v6) ──
   // Each literal-IP host carries a scoring bucket signal (generic 0.2 → low,

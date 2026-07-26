@@ -40,7 +40,7 @@ findings. Two scoring classes exist, exactly as M2 defines them.
   ICANN registrable domain and projects `young_domain_brand_risk` only when the
   registrable domain's RDAP age is below the young-domain threshold (default 90d)
   **AND** the domain already carries a lexical brand-impersonation signal
-  (homoglyph / lookalike / skeleton / soundsquat / bitsquat / api-endpoint). Age
+  (homoglyph / skeleton / api-endpoint). Age
   alone is only evidence.
 - **URLhaus** (`urlhaus.mirror`) queries a caller-owned local snapshot and projects
   `malware_url_listed` only on an **exact-URL** match to a currently-online record

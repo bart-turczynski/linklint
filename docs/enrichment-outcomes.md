@@ -1,6 +1,6 @@
 # Structured enrichment outcomes
 
-Schema 1.3 adds an optional, versioned `enrichment` report to results produced by
+Schema 1.4 adds an optional, versioned `enrichment` report to results produced by
 `inspectAsync()` with configured enrichers. The report keeps source evidence and
 operational coverage separate from `reasons`, which remain the scoring projection.
 
@@ -10,7 +10,7 @@ adds `enrichment`. `inspectAsync()` with no enrichers remains byte-identical to
 
 ## Versions
 
-- `InspectResult.schemaVersion` is `1.3`.
+- `InspectResult.schemaVersion` is `1.4`.
 - `InspectResult.enrichment.schemaVersion` is independently versioned and is
   currently `1.0` (`ENRICHMENT_SCHEMA_VERSION`).
 - The `enrichment` field is present only when at least one enricher is configured.

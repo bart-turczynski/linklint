@@ -135,7 +135,7 @@ describe("createRdapAgeEnricher — conjunctive finding", () => {
 
   it("treats the threshold as an exclusive boundary", async () => {
     const threshold = DEFAULT_YOUNG_DOMAIN_THRESHOLD_DAYS;
-    const brand = [{ code: "brand_lookalike" }];
+    const brand = [{ code: "brand_homoglyph" }];
 
     const atThreshold = await run(
       new OneShotClient(resp(200, rdapJson({ registrationDate: daysAgo(threshold) }))),

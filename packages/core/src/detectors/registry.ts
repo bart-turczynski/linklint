@@ -22,8 +22,6 @@ import { skeletonCollision } from "./skeleton-collision.js";
 import { latinSkeletonHomograph } from "./latin-skeleton-homograph.js";
 import { localeCaseCollapse } from "./locale-case-collapse.js";
 import { idnHost } from "./idn-host.js";
-import { soundsquatting } from "./soundsquatting.js";
-import { bitsquatting } from "./bitsquatting.js";
 import { baitTokens } from "./bait-tokens.js";
 import { openRedirectParam } from "./open-redirect-param.js";
 import { suspiciousExtension } from "./suspicious-extension.js";
@@ -73,8 +71,6 @@ export {
   latinSkeletonHomograph,
   localeCaseCollapse,
   idnHost,
-  soundsquatting,
-  bitsquatting,
   baitTokens,
   openRedirectParam,
   suspiciousExtension,

@@ -208,6 +208,5 @@ describe("the U+0130 (İ) collapse is unreachable from UTS-39, hence the bespoke
     // Still absent, and that is exactly why the bespoke detector is required.
     expect(codes).not.toContain("homograph_latin_skeleton");
     expect(codes).not.toContain("homograph_skeleton_collision");
-    expect(codes).not.toContain("brand_lookalike");
   });
 });

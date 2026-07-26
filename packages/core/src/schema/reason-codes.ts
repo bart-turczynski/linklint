@@ -201,13 +201,6 @@ export const REASON_CODES = {
     summary:
       "Registrable domain folds via ASCII digit look-alikes (0->o, 1->l, 5->s) to exactly a known brand domain — a high-confidence brand impersonation (paypa1.com, g00gle.com).",
   },
-  brand_lookalike: {
-    layer: "lexical",
-    scoring: true,
-    weight: 0.4,
-    summary:
-      "Registrable domain is a transposition-aware edit-distance near-miss (1–2) of a known brand domain — a typosquat (gogole.com, microsoftt.com, paypal.co).",
-  },
   homograph_skeleton_collision: {
     layer: "lexical",
     scoring: true,
@@ -242,20 +235,6 @@ export const REASON_CODES = {
     weight: 1,
     summary:
       "Non-Latin registrable domain whose UTS#39 confusable skeleton is pure ASCII-Latin — a whole-label homograph masquerading as an ASCII domain (сһаѕе.com→chase.com), no brand list needed.",
-  },
-  brand_soundsquat: {
-    layer: "lexical",
-    scoring: true,
-    weight: 0.3,
-    summary:
-      "Registrable label is a phonetic homophone of a known brand (netflicks->netflix, dropboks->dropbox) — a soundsquat invisible to edit-distance and digit-fold checks.",
-  },
-  brand_bitsquat: {
-    layer: "lexical",
-    scoring: true,
-    weight: 0.15,
-    summary:
-      "Registrable label is a single-bit-flip neighbor of a known brand (netfliz->netflix, amazgn->amazon) — a bitsquat (memory/transmission-error attack class), low-weight combination signal.",
   },
   bait_tokens: {
     layer: "lexical",
@@ -336,7 +315,7 @@ export const REASON_CODES = {
     scoring: true,
     weight: 0.5,
     summary:
-      "RDAP registration age for the ICANN registrable domain is below the young-domain threshold AND the domain already carries a lexical brand-impersonation signal (homoglyph/lookalike/skeleton/soundsquat/bitsquat/api-endpoint) — a conjunctive age × brand risk. Age alone is only evidence; this fires only with lexical corroboration, computes age on the registrable domain so ancient shared-hosting parents never read as young, and never duplicates the lexical brand reason.",
+      "RDAP registration age for the ICANN registrable domain is below the young-domain threshold AND the domain already carries a lexical brand-impersonation signal (homoglyph/skeleton/api-endpoint) — a conjunctive age × brand risk. Age alone is only evidence; this fires only with lexical corroboration, computes age on the registrable domain so ancient shared-hosting parents never read as young, and never duplicates the lexical brand reason.",
   },
   malware_url_listed: {
     layer: "reputation",

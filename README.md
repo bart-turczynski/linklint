@@ -17,7 +17,7 @@ tool call — and it tells you whether the URL is _deceptive_, and **explains ex
 why**, with no network and no data leaving the machine.
 
 It generalizes one insight from hostname analysis: **if `normalize(input) !== input`,
-something may be hiding in the URL.** linklint turns that intuition into 37 deterministic
+something may be hiding in the URL.** linklint turns that intuition into 35 deterministic
 detectors, each emitting a named, documented reason code (five — the agent-mode
 prompt-injection, API-endpoint-impersonation, credential-harvesting, data-exfiltration,
 and cloud-metadata SSRF detectors — are opt-in via `agentMode`).
@@ -90,8 +90,8 @@ Each reason is fully self-describing:
 
 ## What linklint protects against
 
-linklint runs **37 offline detectors** grouped into the families below: 4 structural
-scans and 33 parsed-context detectors, including 5 agent-mode detectors
+linklint runs **35 offline detectors** grouped into the families below: 4 structural
+scans and 31 parsed-context detectors, including 5 agent-mode detectors
 (prompt-injection, API-endpoint-impersonation, credential-harvesting, data-exfiltration,
 and cloud-metadata SSRF) that are opt-in via `agentMode` and off by default. Every
 example is real output. A clean URL like `https://github.com` returns `score: 0`,
@@ -125,13 +125,26 @@ authority is somewhere else.
 | `https://tİktok.com` | `brand_locale_collapse` | A Turkish/Azeri lowercase collapses `İ` to a plain ASCII `i`, so a validator under that locale reads exactly `tiktok.com` while the request reaches `xn--tiktok-qyd.com`. |
 | `https://münchen.de` (any genuine IDN) | `idn_host` | Internationalized (non-ASCII/punycode) domains are **blocked by default** (lands `high`). Set `idnPolicy: "allow"` or use `idnAllowlist` for IDN-legitimate deployments. |
 
-### 3. Typosquatting & brand impersonation — "close, but not the real brand"
+### 3. Plain typosquatting — deliberately **not** detected
 
-| Example | Reason code(s) | Why it's deceptive |
-|---------|----------------|--------------------|
-| `https://gogole.com` | `brand_lookalike` | Edit-distance 1–2 near-miss of a known brand. |
-| `https://netflicks.com` | `brand_soundsquat` | Phonetic homophone of `netflix`. |
-| `https://netfliz.com` | `brand_bitsquat` | Single-bit-flip neighbor of `netflix` (memory/DNS corruption squatting). |
+linklint answers one question: *does this string normalize to something other
+than itself?* The brand watchlist exists only to **name** an anomaly that was
+already found structurally — to sharpen "this label folds to something else"
+into "…and that something else is `paypal.com`". It is never allowed to *create*
+a finding on its own.
+
+`gogole.com`, `paypai.com`, `netflicks.com`, and `netfliz.com` are structurally
+flawless: pure ASCII, single script, no digits, no fold — `normalize(input)`
+equals `input`. They are suspicious only relative to knowing that `google`,
+`paypal`, and `netflix` exist and are worth money. That is brand intelligence,
+not URL structure, and it works for exactly the hand-picked names on a list and
+no others. All four score `0.00`. `brand_lookalike`, `brand_soundsquat`, and
+`brand_bitsquat` were deleted for this reason, alongside the earlier
+`brand_in_path` and `brand_combosquat`.
+
+What **is** caught is the structural half of the same attack: `g00gle.com` and
+`paypa1.com` (§2) fold onto a brand via ASCII digit look-alikes, and
+`сһаѕе.com` collides with one under UTS#39 skeletons.
 
 ### 4. Dangerous payloads, schemes & redirects
 
@@ -246,7 +259,7 @@ are **version-pinned** (`dataVersions` on every result) so verdicts are reproduc
 
 ```ts
 interface InspectResult {
-  schemaVersion: '1.3';
+  schemaVersion: '1.4';
   status: 'ok' | 'invalid';
   input: string;
   parsed: ParsedUrl | null;        // scheme, userinfo, registrableDomain, publicSuffix,
@@ -402,7 +415,7 @@ This is a pnpm monorepo.
 
 | Path | What |
 |------|------|
-| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 37 detectors, scoring, policy, schema). |
+| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 35 detectors, scoring, policy, schema). |
 | `packages/cli` | `@linklint/cli` — the offline `linklint` command-line wrapper (`check` / `batch`). |
 | `packages/mcp` | `@linklint/mcp` — the local-only MCP server (`check_url` / `check_domain`). |
 | `docs/architecture.md` | System architecture (channels, pipeline, result contract, layers). |
@@ -427,7 +440,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) and [SECURITY.md](./SECURITY.md).
 
 ## Status & roadmap
 
-**v1 — implemented.** The lexical layer is complete: 37 offline, deterministic detectors,
+**v1 — implemented.** The lexical layer is complete: 35 offline, deterministic detectors,
 probabilistic-OR scoring, a caller-configurable policy layer, a stable versioned schema,
 and a local MCP server. Typically < 5 ms per call, zero network.
 

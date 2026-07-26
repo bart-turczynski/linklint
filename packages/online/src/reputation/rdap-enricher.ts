@@ -50,11 +50,8 @@ export const DEFAULT_YOUNG_DOMAIN_THRESHOLD_DAYS = 90;
  */
 export const RDAP_BRAND_CORROBORATION_CODES: readonly string[] = [
   "brand_homoglyph",
-  "brand_lookalike",
   "homograph_skeleton_collision",
   "homograph_latin_skeleton",
-  "brand_soundsquat",
-  "brand_bitsquat",
   "api_endpoint_impersonation",
 ];
 
