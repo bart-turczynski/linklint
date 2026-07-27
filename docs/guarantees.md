@@ -46,7 +46,7 @@ tracks.
 
 | File | Claim lines |
 | --- | --- |
-| `docs/architecture.md` | 33 |
+| `docs/architecture.md` | 36 |
 | `docs/bundle-size-budget.md` | 0 |
 | `docs/enforcement.md` | 0 |
 | `docs/enrichment-outcomes.md` | 12 |
@@ -56,10 +56,10 @@ tracks.
 | `docs/online-runtime-boundary.md` | 9 |
 | `docs/online-source-contract.md` | 11 |
 | `docs/raw-url-tokenization-spike.md` | 1 |
-| `docs/reason-codes.md` | 79 |
+| `docs/reason-codes.md` | 81 |
 | `docs/redirect-chain-resolution.md` | 4 |
 | `docs/safe-transport.md` | 7 |
-| `docs/scoring.md` | 5 |
+| `docs/scoring.md` | 6 |
 | `docs/wrapper-decoding.md` | 1 |
 | `README.md` | 14 |
 | `packages/cli/README.md` | 1 |
@@ -116,6 +116,7 @@ with no test behind any of them, the exact `LINK-zsbeqtcr` shape. B3's
 | C4 | Detectors never supply their own weight; core attaches it from the version-pinned table | `docs/architecture.md` §5, `docs/reason-codes.md`, `docs/layer3-reputation-model.md` | type-level — `CollectedFinding` has no `weight` field, so `tsc` rejects one |
 | C5 | Suppression never hides itself: the `suppression` token appears in `checksRun` whenever the option is present, even as `[]` | `docs/architecture.md` §8, `docs/scoring.md` | `packages/core/test/suppress-reasons.test.ts` |
 | C6 | With `suppressReasons` absent, output is byte-for-byte unchanged | `docs/scoring.md` | `packages/core/test/suppress-reasons.test.ts` |
+| C7 | The count of codes that never move the score matches the registry — the prose states a number, not an adjective | `docs/scoring.md` | `packages/core/test/docs-validation.test.ts` (asserts the literal `The remaining **N** codes` against `REASON_CODES` weight-0 membership) |
 
 C4 follows the precedent already recorded in `docs-validation.test.ts`: a
 property the type system makes unrepresentable needs no runtime test.
@@ -129,6 +130,14 @@ property the type system makes unrepresentable needs no runtime test.
 | D3 | An invalid URL is never assumed safe by the CLI exit policy | `packages/cli/README.md`, `docs/scoring.md` | `packages/cli/test/policy.test.ts` |
 | D4 | Unconfigured L2/L3 layers stay skipped — a score never implies unfinished work was clean | `docs/architecture.md` §7, `docs/online-runtime-boundary.md` | `packages/core/test/inspect-async.test.ts` |
 | D5 | A no-match is evidence about one source at one time, never a safety claim | `docs/layer3-reputation-model.md`, `docs/online-source-contract.md` | `packages/online/test/urlhaus-lookup.test.ts`, `packages/online/test/phishtank-lookup.test.ts` |
+| D6 | Report what you can determine, never silently pass: a host that cannot resolve returns a weight-0 reason saying so, not an empty reason list | `docs/architecture.md` §1.1 | `packages/core/test/host-length-unresolvable.test.ts` |
+
+D6 is the fourth rule of §1.1, and `host_length_unresolvable` is its worked
+case: a hostname over the 63-octet label or 253-octet name limit still scores
+`0.00`/`benign` — the score is correct and does not move — but the result no
+longer reads as "linklint had no opinion". The claim that such a host "will
+never work" is a claim about DNS, and the test pins both halves that are ours:
+that the reason fires at each limit and that the reason list is not empty.
 
 ## E. The name-never-create rule
 
@@ -153,7 +162,7 @@ property the type system makes unrepresentable needs no runtime test.
 
 ## G. Detector precision claims
 
-The largest group — 79 claim lines in `docs/reason-codes.md` alone, nearly all
+The largest group — 81 claim lines in `docs/reason-codes.md` alone, nearly all
 of the form *"`X` never fires for `Y`"*. These are **precision** claims (SC-2):
 each names the false positive its detector deliberately declines to raise.
 
@@ -185,6 +194,8 @@ asserts each appears in the test suite.
 | `0::1` | …while an uncompressed zero run is one |
 | `пример` | a genuine non-Latin word never folds to pure ASCII |
 | `россия` | same |
+| `下載` | a pure non-ASCII run never fires `low_byte_truncation` — the code needs ASCII on both sides of the truncating code point |
+| `한국어` | same, in Hangul |
 | `İstanbul` | ordinary Turkish orthography never raises severity on its own |
 
 One claim in this class was **not** covered by an exemplar and is now pinned
@@ -194,7 +205,7 @@ inviting a resolver call that contradicts the zero-network contract. Pinned in
 `packages/core/test/docs-validation.test.ts`.
 
 **Residual, stated honestly.** This is a sampled audit, not an exhaustive
-per-claim proof for all 79 lines. The judgment behind stopping there: a class-G
+per-claim proof for all 81 lines. The judgment behind stopping there: a class-G
 failure is a false positive on a named benign input, which the corpus and
 boundary-baseline suites already sweep broadly, whereas a class-A or class-B
 failure is a false *safety* claim reaching a caller — the asymmetry that
@@ -213,7 +224,11 @@ an oversight. These lines match the pattern and are deliberately unpinned:
   behavior they justify is pinned by the detector's own tests.
 - **Historical narration** — "Former Epic O was never part of this
   implementation roadmap", "one real locale-dependence defect existed and is
-  fixed". Statements about the past, not about current behavior.
+  fixed". Statements about the past, not about current behavior. The pair
+  "failing to score it was always correct; failing to *mention* it was not"
+  (`docs/architecture.md` §1.1 and `docs/reason-codes.md`) belongs here too: it
+  narrates why the fourth rule was added, and the behavior it argues for is
+  D6 above.
 - **Process rules** — "parked work is never selected by an agent choosing what
   is next", "caller-owned mirrors are never silently redistributed". These bind
   contributors, not code; the tracker and review enforce them.
