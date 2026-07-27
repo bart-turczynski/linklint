@@ -110,6 +110,32 @@ line is structural and not a matter of degree: since `LINK-lippdgpn`,
 folds to a letter, while `paypal-login.com` — the same shape, same pretext
 token, no fold — stays at `0.00`.
 
+**That limitation has a name and a measured shape** (`LINK-pralkaeo`).
+`paypal-login.com` is not an arbitrary example: it is a textbook **combosquat** —
+a correctly spelled brand token joined to an additive word, with no typo and no
+homoglyph anywhere in the string. Kintis et al. (CCS 2017) measured the class
+across six years of DNS data and found it **~100× more prevalent than
+typosquatting** and, decisively, **largely benign** — the bulk of it is defensive
+registration, partner and reseller sites, fan pages, and regional variants owned
+by the brand itself.
+
+That pairing is why combosquatting is a **stated non-goal and not a gap**. It is
+invisible to every mechanism linklint has, by construction: there is no
+misspelling for edit distance to measure, no confusable for the UTS#39 skeleton
+to collapse, and `normalize(input) === input` so nothing folds. Detecting it
+would require deciding that `paypal` is a brand worth protecting *and* that
+`-login` is hostile where `-community` or `-developer` are not — claim (b) in
+both halves. The base rate then makes it worse than merely out of scope: a
+detector for this class is wrong most of the time it fires, on a class two orders
+of magnitude larger than the one linklint does catch.
+
+This is recorded history rather than a prediction. `brand_combosquat` shipped as
+G3 (`LINK-phghrnqc`), was investigated (`LINK-cqdrdvfu`), and was deleted
+outright with `brand_in_path` (`LINK-blgvypxk`) on exactly this reasoning; §6.1.2
+applied the same rule to the three edit-distance detectors. Like the boundary
+above, it should not be re-filed, and a proposal to restore the class has to
+argue with Kintis' base rate first.
+
 **The list's role.** The watchlist is **not a coverage mechanism and never will
 be.** It is a bounded precision instrument that upgrades "this string is
 structurally odd" to "this string is impersonating PayPal". Its charter is

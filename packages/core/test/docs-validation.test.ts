@@ -242,6 +242,24 @@ describe("the scope-of-claim boundary is stated in one canonical place", () => {
     expect(section).toContain("Tian");
   });
 
+  // LINK-pralkaeo. The combosquatting hole was recorded only as the RATIONALE
+  // for deleting brand_combosquat (§6.1.2, LINK-blgvypxk) — an unlisted absence
+  // from the canonical boundary, which is how a settled non-goal gets re-filed
+  // every six months. §1.1's own worked example is a combosquat, so the class
+  // has to be named where that example lives.
+  it("§1.1 records combosquatting as a stated non-goal with its base rate", () => {
+    const start = architectureDoc.indexOf("### 1.1 Scope of claim");
+    const section = architectureDoc.slice(start, architectureDoc.indexOf("\n## 2.", start));
+
+    expect(section).toContain("combosquat");
+    expect(section).toContain("Kintis");
+    // The measurement is the whole argument: prevalent AND largely benign is
+    // what makes the class a non-goal rather than a backlog item.
+    expect(section.toLowerCase()).toContain("largely benign");
+    // It must land as a boundary, not as a gap awaiting a fix.
+    expect(section).toContain("stated non-goal and not a gap");
+  });
+
   // LINK-riupozbo. Two arguments linklint had earned but never stated. Both are
   // load-bearing under challenge and both are deletable without breaking a test
   // unless pinned: the cloaking argument is the only reason offline-first is a
