@@ -25,6 +25,10 @@ the issue names one of:
 | Commit SHA | `landed in 71debd9` |
 | Explicit exemption + reason | `NO-COMMIT: declined on cost, see the analysis above` |
 
+A `[SCRATCHED]` or `[SUPERSEDED]` title prefix also passes, with no comment
+needed — such a title already declares the commitless close in every listing
+(see `LINK-owjeewpe` and the tracker-hygiene section of `AGENTS.md`).
+
 **Why.** The `LINK-nlfybbsf` audit (2026-07-26) checked 45 issues and swept 239.
 Closing-comment presence separated good from bad perfectly: `LINK-tbqeqqvv`,
 `LINK-hastsuzd` and `LINK-njcklhlg` each closed with zero comments and zero

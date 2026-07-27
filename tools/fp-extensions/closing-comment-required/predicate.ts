@@ -27,3 +27,18 @@ const NO_COMMIT = /\bNO-COMMIT:\s*\S+/;
 export function isClosingComment(content: string): boolean {
   return PR_REF.test(content) || SHA_REF.test(content) || NO_COMMIT.test(content);
 }
+
+/**
+ * Titles that declare a commitless close in the listing itself (LINK-owjeewpe).
+ * `done` used to mean shipped, abandoned and superseded at once, and the
+ * difference was discoverable ONLY by reading a comment — which is what made the
+ * tbqeqqvv failure invisible. A prefixed title says it in `fp tree` and
+ * `fp issue list`, where labels do not render, so it needs no closing comment of
+ * its own. Mirrors the `[PARKED]` prefix already used under LINK-illixeqw.
+ */
+const TOMBSTONE_TITLE = /^\s*\[(?:SCRATCHED|SUPERSEDED)\]/;
+
+/** Does this title already declare the issue as abandoned or superseded? */
+export function isTombstoneTitle(title: string): boolean {
+  return TOMBSTONE_TITLE.test(title);
+}

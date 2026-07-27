@@ -7,7 +7,10 @@
  * guard plus a `comments.some(...)`, smoke-tested by hand against the CLI.
  */
 import { describe, expect, it } from "vitest";
-import { isClosingComment } from "../../tools/fp-extensions/closing-comment-required/predicate.js";
+import {
+  isClosingComment,
+  isTombstoneTitle,
+} from "../../tools/fp-extensions/closing-comment-required/predicate.js";
 
 describe("isClosingComment", () => {
   it("accepts the repo's established 'merged as PR #N' convention", () => {
@@ -52,5 +55,22 @@ describe("isClosingComment", () => {
     // Under 7 chars, so not a SHA by length.
     expect(isClosingComment("added a decade of data")).toBe(false);
     expect(isClosingComment("the beef is in the detector")).toBe(false);
+  });
+});
+
+describe("isTombstoneTitle", () => {
+  it("recognizes the abandoned and superseded prefixes", () => {
+    expect(isTombstoneTitle("[SCRATCHED] V5 — Tranco trust anchor + score-discount")).toBe(true);
+    expect(isTombstoneTitle("[SUPERSEDED] V7b — RDAP newly-registered-domain age")).toBe(true);
+  });
+
+  it("requires the prefix, not a mention anywhere in the title", () => {
+    expect(isTombstoneTitle("Audit the [SCRATCHED] Tranco family")).toBe(false);
+  });
+
+  it("does not exempt ordinary or parked work", () => {
+    expect(isTombstoneTitle("T2.4 — header-shaped tokens in path/query are invisible")).toBe(false);
+    // [PARKED] issues stay todo; they never reach the done transition.
+    expect(isTombstoneTitle("[PARKED] Long-running service and licensed integrations")).toBe(false);
   });
 });

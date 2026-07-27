@@ -20,7 +20,7 @@
  * directory is symlinked into `.fp/extensions/` by `tools/fp-extensions/install.sh`.
  */
 import type { ExtensionInit, HookValidationError } from "@fiberplane/extensions";
-import { isClosingComment } from "./predicate.js";
+import { isClosingComment, isTombstoneTitle } from "./predicate.js";
 
 const REJECTION = [
   "Refusing to mark this done: no closing comment names a commit, a PR, or an exemption.",
@@ -29,11 +29,15 @@ const REJECTION = [
   '  fp comment <id> "merged as PR #139"',
   '  fp comment <id> "landed in 71debd9"',
   '  fp comment <id> "NO-COMMIT: declined on cost, see the analysis above"',
+  "",
+  "If this is abandoned or superseded work rather than shipped work, say so in",
+  'the title instead: fp issue update --title "[SCRATCHED] ..." <id>',
 ].join("\n");
 
 const init: ExtensionInit = (fp) => {
   fp.on("issue:status:changing", async ({ issue, to }): Promise<HookValidationError | undefined> => {
     if (to !== "done") return undefined;
+    if (isTombstoneTitle(issue.title)) return undefined;
 
     const comments = await fp.comments.list(issue.id);
     if (comments.some((comment) => isClosingComment(comment.content))) return undefined;

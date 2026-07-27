@@ -24,7 +24,17 @@ Install this repo's fp extensions once per clone, alongside the pre-commit hooks
 
 `.fp/` is gitignored, so the extensions are authored in tracked `tools/fp-extensions/` and symlinked into place. `fp guide` prints the loaded list.
 
-**An issue cannot go `done` without a closing comment** (`LINK-crxctgsh`). The comment must name a commit SHA, a PR (`merged as PR #139`), or an explicit exemption with a reason (`NO-COMMIT: declined on cost, see the analysis above`). Use the exemption for declined proposals, superseded work, and epics closing on their children's acceptance — it keeps a commitless close visible and auditable rather than silent. The rule comes from the `LINK-nlfybbsf` audit, where closing-comment presence separated verified-clean from defective across 45 issues with no exceptions.
+**An issue cannot go `done` without a closing comment** (`LINK-crxctgsh`). The comment must name a commit SHA, a PR (`merged as PR #139`), or an explicit exemption with a reason (`NO-COMMIT: declined on cost, see the analysis above`). Use the exemption for declined proposals and epics closing on their children's acceptance — it keeps a commitless close visible and auditable rather than silent. The rule comes from the `LINK-nlfybbsf` audit, where closing-comment presence separated verified-clean from defective across 45 issues with no exceptions.
+
+**`done` means shipped. Work that ends any other way says so in its title** (`LINK-owjeewpe`):
+
+| Prefix | Meaning |
+|---|---|
+| `[SCRATCHED]` | Abandoned — the code never merged and nothing replaces it |
+| `[SUPERSEDED]` | Replaced by another issue; name it, e.g. `(by LINK-tqlqshlt)` |
+| `[PARKED]` | Not started and not scheduled; stays `todo` |
+
+The prefix goes in the **title**, not only in a label or a comment: `fp tree` and `fp issue list` render neither, and the audit's finding was that abandonment was discoverable *only* by reading a comment. Set the matching `labels` value too, for filtering. A `[SCRATCHED]`/`[SUPERSEDED]` title is its own closing-comment exemption, so the guard above accepts it.
 
 ## Online roadmap handoff
 
