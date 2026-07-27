@@ -135,6 +135,33 @@ buys sharper explanations of anomalies already found — never new findings.
   **not a defect**: an uncapped list would still be incomplete, while trading
   away the precision that is the list's only justification.
 
+**A clean result is not a safety claim** (`LINK-vwjtdtzn`). The fail-closed
+doctrine has always covered `invalid` — `score: null`, contract-tested, never a
+fallback to a second parser — and the clean case needs the same discipline for a
+stronger reason: it is the one that gets read as an endorsement. Turn the two
+measurements above around. Szurdi puts the ceiling for pure lexical squatting
+detection at **~50%**, and Tian finds that only **0.18%** of lexical candidates
+are verified malicious. The first number says a structural detector misses about
+half of what it is *chartered* to catch; the second says the chartered category
+barely overlaps with malice in the first place. Together: **the absence of a
+structural flag carries essentially no information about safety.**
+
+So `0.00`/`info` means exactly one thing — *no structural anomaly was found in
+this string* — and it must never be rendered, described, or field-named as
+"safe", "clean", "OK", or "passed". This is not a caveat to attach where
+convenient; it is a property of every surface that shows a result, and the CLI,
+the MCP tool description, and the README each carry it. The L3 enrichment layer
+already states the same rule for its own quiet outcome — "a no-match is not a
+safety claim" ([`enrichment-outcomes.md`](enrichment-outcomes.md)) — and this is
+that rule for L1.
+
+The consumer-side consequence: a fail-closed integration must not treat a low
+score as clearance. It composes linklint with other signals, or it treats
+"unknown" as its default and lets linklint move a URL only in the *deny*
+direction. `enforcement/` ships both wrappers this way — they deny on a
+deceptive verdict and on invalid input, and a clean verdict merely fails to
+trigger a denial rather than granting one.
+
 ## 2. Repository layout
 
 ```

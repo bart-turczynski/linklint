@@ -16,7 +16,11 @@ export const PREFETCH_GUIDANCE =
   "and cloud-metadata SSRF escalation. " +
   "Returns a structured verdict: `severity` (info|low|medium|high|critical), a " +
   "`score` in [0,1], and named `reasons`. Treat `high`/`critical` as do-not-fetch; " +
-  "treat `status: \"invalid\"` as not-checked (do NOT assume it is safe). Use this " +
+  "treat `status: \"invalid\"` as not-checked (do NOT assume it is safe). " +
+  "A clean result is NOT a safety claim either: `score: 0` / `info` means only " +
+  "that no structural anomaly was found in the string, never that the link is " +
+  "safe to fetch or trust — this check sees no page content, no reputation, and " +
+  "no history. Use it to REJECT deceptive links, never to approve links. Use this " +
   "to defend against deceptive and agent-targeted links.";
 
 export const CHECK_URL_INPUT = {

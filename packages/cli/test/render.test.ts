@@ -35,6 +35,18 @@ describe("renderResults — full (human) mode", () => {
     expect(out).toContain("INVALID");
     expect(out).toContain("do not assume safe");
   });
+
+  // LINK-vwjtdtzn — the clean case needs the same fail-closed caveat as
+  // `invalid` above, and needs it more: a green INFO badge beside a bare
+  // "reasons: none" is the surface most likely to be read as clearance.
+  // architecture.md §1.1 is canonical.
+  it("qualifies a clean result rather than presenting it as a safety verdict", () => {
+    const out = renderResults([benign], { quiet: false, noColor: true });
+    expect(out).toContain("reasons: none");
+    expect(out).toContain("not a safety verdict");
+    // The words that would make a zero read as an endorsement.
+    expect(out).not.toMatch(/\b(safe|clean|OK|passed)\b/);
+  });
 });
 
 describe("renderResults — quiet mode", () => {

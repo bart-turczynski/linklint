@@ -228,6 +228,20 @@ describe("the scope-of-claim boundary is stated in one canonical place", () => {
     expect(section.toLowerCase()).toContain("well-formed but unusable");
   });
 
+  // LINK-vwjtdtzn. The fail-closed doctrine covered `invalid` only; the clean
+  // case is the one a consumer actually reads as an endorsement. §1.1 already
+  // cited Szurdi and Tian to justify NOT emitting claim-(b) verdicts — the same
+  // two numbers, read the other way, are why a 0.00 says nothing about safety.
+  it("§1.1 states that a clean result is not a safety claim", () => {
+    const start = architectureDoc.indexOf("### 1.1 Scope of claim");
+    const section = architectureDoc.slice(start, architectureDoc.indexOf("\n## 2.", start));
+
+    expect(section).toContain("not a safety claim");
+    // The evidence must travel with the claim, or it reads as an opinion.
+    expect(section).toContain("Szurdi");
+    expect(section).toContain("Tian");
+  });
+
   it("every reason code §1.1 cites as evidence exists at the weight it claims", () => {
     const start = architectureDoc.indexOf("### 1.1 Scope of claim");
     const section = architectureDoc.slice(start, architectureDoc.indexOf("\n## 2.", start));

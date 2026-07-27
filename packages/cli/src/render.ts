@@ -85,7 +85,13 @@ function renderHuman(result: InspectResult, noColor: boolean): string {
       lines.push(`    - ${reason.code} (+${weight})  ${reason.detail}`);
     }
   } else {
-    lines.push("  reasons: none");
+    // The clean case gets the same fail-closed caveat as `invalid` above
+    // (LINK-vwjtdtzn, architecture.md §1.1). A green INFO badge next to a bare
+    // "none" reads as clearance, and the absence of a structural flag carries
+    // essentially no information about safety — Szurdi puts lexical squatting
+    // recall at ~50%, Tian puts the malicious share of lexical candidates at
+    // 0.18%.
+    lines.push("  reasons: none — no structural anomaly found (not a safety verdict)");
   }
 
   if (result.confusables.length > 0) {

@@ -44,6 +44,23 @@ describe("MCP surface", () => {
       expect(t.inputSchema.properties).toHaveProperty("agentMode");
     }
   });
+
+  // LINK-vwjtdtzn — the tool description is the ONLY thing an LLM reads before
+  // deciding what a result means, so the clean case has to be qualified there
+  // and not only in the docs. Previously it warned about `invalid` alone, which
+  // left `score: 0` reading as clearance. architecture.md §1.1 is canonical.
+  it("tells the model a clean result is not a safety claim (LINK-vwjtdtzn)", async () => {
+    const { tools } = await client.listTools();
+    expect(tools.length).toBeGreaterThan(0);
+    for (const t of tools) {
+      // Case-insensitive: the description shouts the negation ("NOT a safety
+      // claim") because the reader is a model skimming for permission.
+      const description = (t.description ?? "").toLowerCase();
+      expect(description).toContain("not a safety claim");
+      // The actionable half: linklint may reject a URL, never approve one.
+      expect(description).toContain("never to approve");
+    }
+  });
 });
 
 describe("schema parity with core inspect() (no channel drift)", () => {
