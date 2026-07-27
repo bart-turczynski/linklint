@@ -26,6 +26,16 @@ Install this repo's fp extensions once per clone, alongside the pre-commit hooks
 
 **An issue cannot go `done` without a closing comment** (`LINK-crxctgsh`). The comment must name a commit SHA, a PR (`merged as PR #139`), or an explicit exemption with a reason (`NO-COMMIT: declined on cost, see the analysis above`). Use the exemption for declined proposals and epics closing on their children's acceptance — it keeps a commitless close visible and auditable rather than silent. The rule comes from the `LINK-nlfybbsf` audit, where closing-comment presence separated verified-clean from defective across 45 issues with no exceptions.
 
+**A named commit must also be a *merged* commit** (`LINK-nwqrqjdc`). When the closing comment names a SHA, the guard now checks it is an ancestor of local `main` and refuses the close otherwise. Merge first, then close:
+
+```bash
+git checkout main && git merge --ff-only <branch>
+```
+
+A PR reference or a `NO-COMMIT:` exemption still discharges on its own — the evidence for those lives where the guard cannot reach. The check fails **open** if git is unavailable or `main` is missing, since an unusable tracker is worse than an unverified close.
+
+This closes the hole that cost `LINK-wgsbhovi` and `LINK-nwqrqjdc`: **nine branches and twelve issues** were closed citing a SHA that sat on a branch nobody merged, and the old guard passed every one because it only checked that a SHA was *named*. Sweep for survivors with `git branch --no-merged main`.
+
 **`done` means shipped. Work that ends any other way says so in its title** (`LINK-owjeewpe`):
 
 | Prefix | Meaning |

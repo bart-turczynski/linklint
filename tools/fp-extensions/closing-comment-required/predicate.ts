@@ -23,9 +23,43 @@ const SHA_REF = /\b(?=[0-9a-f]{7,40}\b)[0-9a-f]*[a-f][0-9a-f]*\b/i;
  */
 const NO_COMMIT = /\bNO-COMMIT:\s*\S+/;
 
+/** Every SHA-shaped token in a comment body, in order of appearance. */
+const SHA_REF_ALL = new RegExp(SHA_REF.source, "gi");
+
+/**
+ * How a comment discharges the requirement — and whether discharging it needs
+ * anything the tracker cannot see on its own.
+ *
+ *  - `none`   — nothing here closes the issue.
+ *  - `pr`     — a PR / pull-request reference. Taken at face value: a merge on
+ *               the forge is the evidence, and this guard cannot reach it.
+ *  - `exempt` — a `NO-COMMIT:` exemption with a stated reason.
+ *  - `sha`    — one or more commit SHAs, which STILL HAVE TO BE VERIFIED
+ *               REACHABLE from the trunk. See `shas`.
+ */
+export type ClosingCommentKind = "none" | "pr" | "exempt" | "sha";
+
+export interface ClosingCommentVerdict {
+  kind: ClosingCommentKind;
+  /** SHAs to check for reachability; empty unless `kind === "sha"`. */
+  shas: string[];
+}
+
+/**
+ * Classify a comment body. `pr` and `exempt` outrank `sha`: a comment saying
+ * "merged as PR #139 (landed in 71debd9)" is discharged by the merge, and a
+ * stated exemption is discharged by the reason.
+ */
+export function classifyClosingComment(content: string): ClosingCommentVerdict {
+  if (NO_COMMIT.test(content)) return { kind: "exempt", shas: [] };
+  if (PR_REF.test(content)) return { kind: "pr", shas: [] };
+  const shas = content.match(SHA_REF_ALL) ?? [];
+  return shas.length > 0 ? { kind: "sha", shas } : { kind: "none", shas: [] };
+}
+
 /** Does this comment body discharge the closing-comment requirement? */
 export function isClosingComment(content: string): boolean {
-  return PR_REF.test(content) || SHA_REF.test(content) || NO_COMMIT.test(content);
+  return classifyClosingComment(content).kind !== "none";
 }
 
 /**

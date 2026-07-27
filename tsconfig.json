@@ -19,6 +19,7 @@
     "packages/*/test/**/*.ts",
     "tests/**/*.ts",
     "features/**/*.ts",
-    "vitest.config.ts"
+    "vitest.config.ts",
+    "tools/fp-extensions/*/predicate.ts"
   ]
 }
