@@ -59,6 +59,9 @@ class BudgetError extends Error {
 
 class DeadlineError extends Error {}
 
+/** Race outcome meaning the throughput window closed before the next chunk. */
+const WINDOW_CLOSED = Symbol("throughput-window-closed");
+
 export function createSafeTransport(options: CreateSafeTransportOptions): SafeTransport {
   const policy = resolveTransportPolicy(options.policy);
   const ports: SafeTransportPorts = {
@@ -287,20 +290,61 @@ class SafeSession implements SafeTransportSession {
     }
   }
 
+  /**
+   * Reads the encoded body under two independent limits: the cumulative
+   * encoded-byte budget, and a minimum-throughput floor.
+   *
+   * The floor is the Slowloris mirror — a destination that trickles one byte at
+   * a time stays inside the session deadline while holding a socket and a task
+   * slot for its whole duration. The wall-clock deadline bounds the damage; the
+   * floor removes the hold. Each read races the next chunk against the rest of
+   * the current throughput window, so a destination that goes fully silent is
+   * caught on the same path as one that drips, rather than only at the deadline.
+   */
   private async readEncodedBody(body: AsyncIterable<Uint8Array>): Promise<Uint8Array> {
     const chunks: Uint8Array[] = [];
     let responseBytes = 0;
-    for await (const chunk of body) {
-      if (!(chunk instanceof Uint8Array)) {
-        throw new OperationError("http", { code: "http-malformed" });
+    const iterator = body[Symbol.asyncIterator]();
+    const windowMs = this.policy.minThroughputWindowMs;
+    let windowStartMs = this.ports.clock.now().getTime();
+    let windowBytes = 0;
+    let pending: Promise<IteratorResult<Uint8Array>> | null = null;
+
+    try {
+      for (;;) {
+        pending ??= iterator.next();
+        const elapsedMs = this.ports.clock.now().getTime() - windowStartMs;
+        const settled = await this.raceWindow(pending, Math.max(0, windowMs - elapsedMs));
+
+        if (settled === WINDOW_CLOSED) {
+          if (windowBytes < this.policy.minThroughputBytes) {
+            throw new BudgetError("response-too-slow");
+          }
+          windowStartMs += windowMs;
+          windowBytes = 0;
+          continue;
+        }
+
+        pending = null;
+        if (settled.done === true) break;
+        const chunk = settled.value;
+        if (!(chunk instanceof Uint8Array)) {
+          throw new OperationError("http", { code: "http-malformed" });
+        }
+        responseBytes += chunk.byteLength;
+        windowBytes += chunk.byteLength;
+        this.encodedBytes += chunk.byteLength;
+        if (this.encodedBytes > this.policy.maxResponseBytes) {
+          this.encodedBytes = this.policy.maxResponseBytes;
+          throw new BudgetError("response-too-large");
+        }
+        chunks.push(new Uint8Array(chunk));
       }
-      responseBytes += chunk.byteLength;
-      this.encodedBytes += chunk.byteLength;
-      if (this.encodedBytes > this.policy.maxResponseBytes) {
-        this.encodedBytes = this.policy.maxResponseBytes;
-        throw new BudgetError("response-too-large");
-      }
-      chunks.push(new Uint8Array(chunk));
+    } finally {
+      // The abandoned read is settled by the caller-level abort that follows
+      // every non-success path; swallowing keeps it off the unhandled-rejection
+      // channel without suppressing the cause already being thrown.
+      if (pending !== null) void pending.catch(() => undefined);
     }
     const joined = new Uint8Array(responseBytes);
     let offset = 0;
@@ -309,6 +353,27 @@ class SafeSession implements SafeTransportSession {
       offset += chunk.byteLength;
     }
     return joined;
+  }
+
+  /**
+   * Resolves with whichever comes first: the pending chunk read, or the close of
+   * the current throughput window. The timer is aborted once the race settles so
+   * a chunk-wins iteration leaves no live sleep behind.
+   */
+  private async raceWindow(
+    pending: Promise<IteratorResult<Uint8Array>>,
+    remainingWindowMs: number,
+  ): Promise<IteratorResult<Uint8Array> | typeof WINDOW_CLOSED> {
+    const timerController = new AbortController();
+    const timer = this.ports.clock
+      .sleep(remainingWindowMs, timerController.signal)
+      .then((): typeof WINDOW_CLOSED => WINDOW_CLOSED);
+    void timer.catch(() => undefined);
+    try {
+      return await Promise.race([pending, timer]);
+    } finally {
+      timerController.abort();
+    }
   }
 
   private remainingTimeMs(): number {
@@ -439,6 +504,12 @@ function budgetDetails(
   policy: TransportPolicy,
 ): Readonly<Record<string, number>> | undefined {
   if (code === "response-too-large") return { maxResponseBytes: policy.maxResponseBytes };
+  if (code === "response-too-slow") {
+    return {
+      minThroughputBytes: policy.minThroughputBytes,
+      minThroughputWindowMs: policy.minThroughputWindowMs,
+    };
+  }
   if (code === "decompressed-response-too-large") {
     return { maxDecompressedBytes: policy.maxDecompressedBytes };
   }

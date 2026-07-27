@@ -503,6 +503,96 @@ describe("mandatory transport budgets and incomplete outcomes", () => {
     harness.assertExhausted();
   });
 
+  // The Slowloris mirror (LINK-xawdtzfd). Before the floor these two shapes ran
+  // to the full session deadline holding a socket; the deadline bounded the
+  // damage per request but not the resource hold, which is the attack.
+  describe("minimum-throughput floor", () => {
+    const SLOW_POLICY = {
+      minThroughputBytes: 100,
+      minThroughputWindowMs: 1_000,
+      maxTotalTimeMs: 60_000,
+    };
+
+    /** Flush the microtask queue so fixture sleeps are registered before the clock moves. */
+    const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+    async function run(
+      body: readonly { readonly bytes: string; readonly delayMs?: number }[],
+      stepMs: number,
+      steps: number,
+    ) {
+      const script: TransportFixtureScript = {
+        ...publicSuccessScript(),
+        http: [{
+          expect: { connectionId: "c1", url: URL_A, method: "GET" },
+          outcome: { value: { status: 200, body } },
+        }],
+      };
+      const { harness, session: transportSession } = session(script, SLOW_POLICY);
+      let settled = false;
+      const pending = transportSession
+        .fetch({ url: URL_A, authorization: authorization(URL_A) })
+        .finally(() => {
+          settled = true;
+        });
+      // Stop moving the clock the moment the outcome lands, so `clock.now()`
+      // reads the instant the transport gave up rather than the end of the loop.
+      for (let step = 0; step < steps && !settled; step++) {
+        await flush();
+        if (settled) break;
+        harness.clock.advanceBy(stepMs);
+      }
+      await flush();
+      return { harness, transportSession, outcome: await pending };
+    }
+
+    it("ends a trickling response before the session deadline", async () => {
+      const trickle = Array.from({ length: 40 }, () => ({ bytes: "x", delayMs: 500 }));
+      const { harness, transportSession, outcome } = await run(trickle, 500, 20);
+
+      expect(outcome).toMatchObject({
+        status: "incomplete",
+        cause: {
+          code: "response-too-slow",
+          details: { minThroughputBytes: 100, minThroughputWindowMs: 1_000 },
+        },
+      });
+      // Ends inside the first window, not at the 60s deadline, and the socket goes with it.
+      expect(harness.clock.now().getTime() - new Date("2026-07-17T12:00:00.000Z").getTime())
+        .toBeLessThanOrEqual(SLOW_POLICY.minThroughputWindowMs);
+      expect(harness.connector.closedConnectionIds).toEqual(["c1"]);
+      expect(transportSession.usage.encodedBytes).toBeLessThan(SLOW_POLICY.minThroughputBytes);
+    });
+
+    it("ends a fully silent response on the same path, not only at the deadline", async () => {
+      const { harness, outcome } = await run([{ bytes: "x".repeat(200), delayMs: 30_000 }], 500, 4);
+
+      expect(outcome).toMatchObject({
+        status: "incomplete",
+        cause: { code: "response-too-slow" },
+      });
+      expect(harness.connector.closedConnectionIds).toEqual(["c1"]);
+    });
+
+    it("lets a slow but compliant response cross window boundaries and complete", async () => {
+      const paced = Array.from({ length: 4 }, () => ({ bytes: "y".repeat(150), delayMs: 600 }));
+      const { harness, outcome } = await run(paced, 300, 12);
+
+      expect(outcome).toMatchObject({ status: "success" });
+      // Guards against a vacuous pass: the stream must outlive at least two
+      // window closes, so the floor was evaluated and cleared rather than skipped.
+      expect(harness.clock.now().getTime() - new Date("2026-07-17T12:00:00.000Z").getTime())
+        .toBeGreaterThanOrEqual(2 * SLOW_POLICY.minThroughputWindowMs);
+    });
+
+    it("rejects a non-positive floor or window", () => {
+      expect(() => resolveTransportPolicy({ minThroughputBytes: 0 })).toThrow(RangeError);
+      expect(() => resolveTransportPolicy({ minThroughputWindowMs: -1 })).toThrow(RangeError);
+      expect(() => resolveTransportPolicy({ minThroughputWindowMs: 2_147_483_648 }))
+        .toThrow(RangeError);
+    });
+  });
+
   it("bounds gzip expansion and rejects unknown content encodings", async () => {
     for (const unsupported of [false, true]) {
       const script: TransportFixtureScript = {

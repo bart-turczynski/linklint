@@ -138,6 +138,7 @@ export type TransportCauseCode =
   | "prohibited-address"
   | "hop-limit"
   | "response-too-large"
+  | "response-too-slow"
   | "decompressed-response-too-large"
   | "unsupported-content-encoding"
   | "timeout"

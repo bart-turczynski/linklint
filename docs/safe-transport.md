@@ -80,10 +80,21 @@ configuration is rejected.
 | `maxResponseBytes` | 1 MiB | Encoded response-body bytes across all hops |
 | `maxDecompressedBytes` | 4 MiB | Decoded body bytes across all hops |
 | `maxTotalTimeMs` | 10,000 ms | Whole session, including time between hops |
+| `minThroughputBytes` | 512 B | Encoded body bytes required per throughput window |
+| `minThroughputWindowMs` | 2,000 ms | Length of that window while a body is read |
+
+The wall-clock deadline caps how long a destination can hold the session; the
+throughput floor caps how long it can hold it *while delivering nothing useful*.
+A destination that trickles bytes, or falls silent mid-body, closes a window
+below the floor and the attempt ends with `response-too-slow` — the Slowloris
+pattern inverted onto the client. The two limits are independent: the floor is
+set far below the rate any body finishing inside `maxTotalTimeMs` must sustain,
+so a slow but progressing response is not cut short.
 
 Gzip, deflate, and Brotli are decoded under the remaining decompressed-byte
-budget. Unknown encodings, malformed compressed bodies, byte exhaustion, and
-deadline exhaustion stop with explicit incomplete causes. `response.body` is
+budget. Unknown encodings, malformed compressed bodies, byte exhaustion,
+throughput starvation, and deadline exhaustion stop with explicit incomplete
+causes. `response.body` is
 the decoded bounded body; response headers remain the observed original headers.
 
 ## Outcomes and evidence
