@@ -34,6 +34,26 @@ describe("aggregate (probabilistic OR)", () => {
   it("ignores weight-0 informational reasons", () => {
     expect(aggregate([reason(0.4), reason(0)]).score).toBeCloseTo(0.4, 12);
   });
+
+  // The raw product carries floating-point error into the PUBLIC `score` field
+  // and from there into the JSON output, so it is rounded to 10dp. These are
+  // exact-equality assertions on purpose: `toBeCloseTo` would pass on the
+  // unrounded value and pin nothing.
+  it("does not leak floating-point error into the public score", () => {
+    // brand_homoglyph (0.8) + ascii_homoglyph (0.2) — computes to
+    // 0.8400000000000001 without rounding.
+    expect(aggregate([reason(0.8), reason(0.2)]).score).toBe(0.84);
+    expect(aggregate([reason(0.65), reason(0.2)]).score).toBe(0.72);
+    expect(aggregate([reason(0.5), reason(0.4)]).score).toBe(0.7);
+  });
+
+  it("keeps float error off the severity band edges", () => {
+    // Exactly 0.8 is `high` — the band is (0.5, 0.8]. An ULP of accumulated
+    // error above it would misread as `critical`.
+    const { score, severity } = aggregate([reason(0.5), reason(0.6)]);
+    expect(score).toBe(0.8);
+    expect(severity).toBe("high");
+  });
 });
 
 describe("severityForScore bands (FR-SCORE-1b)", () => {

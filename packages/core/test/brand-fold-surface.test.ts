@@ -465,19 +465,19 @@ describe("brand fold surface — pinned review gate", () => {
     expect(surface.inert).toHaveLength(0);
   });
 
-  it("scores the escalated surface uniformly at 0.60/high", () => {
+  it("scores the escalated surface uniformly at 0.84/critical", () => {
     for (const candidate of surface.escalated) {
       const result = inspect(`https://${candidate.domain}`);
-      expect(result.score, candidate.domain).toBe(0.6);
-      expect(result.severity, candidate.domain).toBe("high");
+      expect(result.score, candidate.domain).toBeCloseTo(0.84, 5);
+      expect(result.severity, candidate.domain).toBe("critical");
     }
   });
 
-  it("scores the homoglyph-only surface uniformly at 0.50/medium", () => {
+  it("scores the homoglyph-only surface uniformly at 0.80/high", () => {
     for (const candidate of surface.homoglyphOnly) {
       const result = inspect(`https://${candidate.domain}`);
-      expect(result.score, candidate.domain).toBe(0.5);
-      expect(result.severity, candidate.domain).toBe("medium");
+      expect(result.score, candidate.domain).toBe(0.8);
+      expect(result.severity, candidate.domain).toBe("high");
     }
   });
 

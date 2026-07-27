@@ -53,14 +53,14 @@ describe("a parsed detector that throws is skipped, not fatal", () => {
   // The check id and the reason code are both `brand_homoglyph` since
   // LINK-hyezxjda; before that the check was still called `brand_lookalike`,
   // which is why `lexical:<id>` below reads the way it does.
-  // Baseline: 0.60 from brand_homoglyph (0.50) and
+  // Baseline: 0.84 from brand_homoglyph (0.80) and
   // ascii_homoglyph (0.20) under probabilistic OR.
   const URL = "https://paypa1.com/";
 
-  it("baseline: both reasons present at 0.60", () => {
+  it("baseline: both reasons present at 0.84", () => {
     const r = inspect(URL);
     expect(r.status).toBe("ok");
-    expect(r.score).toBeCloseTo(0.6, 5);
+    expect(r.score).toBeCloseTo(0.84, 5);
     expect(r.reasons.map((x) => x.code).sort()).toEqual(["ascii_homoglyph", "brand_homoglyph"]);
     expect(r.checksSkipped).not.toContain("lexical:brand_homoglyph");
   });

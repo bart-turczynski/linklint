@@ -24,11 +24,11 @@ describe("G2 brand_homoglyph — digit-fold skeleton equals a known brand (high 
     expect(homoglyphDetail("https://revo1ut.com")).toContain("revolut.com");
   });
 
-  it("carries the high brand-impersonation weight (0.5)", () => {
+  it("carries the high brand-impersonation weight (0.8)", () => {
     const reason = inspect("https://paypa1.com").reasons.find(
       (x) => x.code === "brand_homoglyph",
     )!;
-    expect(reason.weight).toBeCloseTo(0.5, 5);
+    expect(reason.weight).toBeCloseTo(0.8, 5);
   });
 
   it("the real brand never fires brand_homoglyph", () => {

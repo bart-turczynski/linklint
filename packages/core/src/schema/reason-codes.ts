@@ -218,7 +218,7 @@ export const REASON_CODES = {
   brand_homoglyph: {
     layer: "lexical",
     scoring: true,
-    weight: 0.5,
+    weight: 0.8,
     summary:
       "Registrable domain folds via ASCII digit look-alikes (0->o, 1->l, 5->s) to exactly a known brand domain — a high-confidence brand impersonation (paypa1.com, g00gle.com).",
   },

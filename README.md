@@ -188,7 +188,7 @@ design rather than by omission.
 The clearest way to see the line:
 
 ```ts
-inspect('https://paypa1.com');       // score 0.6 — '1' folds to 'l'; the string is disguised
+inspect('https://paypa1.com');       // score 0.84 — '1' folds to 'l'; the string is disguised
 inspect('https://paypal-login.com'); // score 0.0 — every label is a real, correctly
                                      //             spelled word in a normal arrangement
 ```
@@ -225,7 +225,7 @@ Detection coverage is a bounded claim, so we track where the boundary currently 
 further in than it should. The largest such gap — a brand fold joined to another
 token by a hyphen, where `paypa1.com` scored but `paypa1-login.com` returned `0.00`
 — has since been closed: the brand-fold check now also tokenizes host labels on `-`,
-so `paypa1-login.com` scores `0.50`/`medium`. `paypal-login.com` still scores `0.00`,
+so `paypa1-login.com` scores `0.80`/`high`. `paypal-login.com` still scores `0.00`,
 and that is the scope boundary above, not a gap.
 
 Known misses are committed as an executable corpus at

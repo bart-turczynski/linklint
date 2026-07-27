@@ -3,7 +3,7 @@
 > Version-pinned (`dataVersions.weights`). Source of truth:
 > `packages/core/src/schema/reason-codes.ts` (weights) and
 > `packages/core/src/scoring/` (aggregation + bands). Current weights version:
-> **1.16**.
+> **1.17**.
 
 ## Aggregation — probabilistic OR (FR-SCORE-1a)
 
@@ -163,13 +163,13 @@ agent-gated check, which stays silent unless the caller opts in via `agentMode`.
 | `ssrf_cloud_metadata`          | 1.00   | lexical (agent) |
 | `verified_phish_listed`        | 1.00   | reputation |
 | `dangerous_scheme`             | 0.90   | lexical    |
+| `brand_homoglyph`              | 0.80   | lexical    |
 | `ip_cloud_metadata`            | 0.75   | lexical    |
 | `idn_host`                     | 0.70   | lexical    |
 | `ambiguous_authority`          | 0.65   | lexical    |
 | `control_char`                 | 0.60   | lexical    |
 | `low_byte_truncation`          | 0.60   | lexical    |
 | `api_endpoint_impersonation`   | 0.50   | lexical (agent) |
-| `brand_homoglyph`              | 0.50   | lexical    |
 | `brand_idna_collapse`          | 0.50   | lexical    |
 | `brand_locale_collapse`        | 0.50   | lexical    |
 | `embedded_domain_in_subdomain` | 0.50   | lexical    |

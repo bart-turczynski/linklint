@@ -48,7 +48,7 @@ describe("J4 ascii_homoglyph — same-script digit look-alikes", () => {
     const found = codes("https://g00gle.com");
     expect(found).toContain("ascii_homoglyph");
     expect(found).toContain("brand_homoglyph");
-    expect(inspect("https://g00gle.com").severity).toBe("high");
+    expect(inspect("https://g00gle.com").severity).toBe("critical");
   });
 });
 

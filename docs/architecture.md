@@ -125,7 +125,7 @@ positive to investigate rather than a win. The distinction is visible in code:
 `EMBARRASSMENT_CORPUS` (asserted red until fixed) and these two in
 `KNOWN_AND_ACCEPTED` (deliberately unasserted). The neighbouring case shows the
 line is structural and not a matter of degree: since `LINK-lippdgpn`,
-`paypa1-login.com` scores `0.50`/`medium` because `paypa1` contains a digit that
+`paypa1-login.com` scores `0.80`/`high` because `paypa1` contains a digit that
 folds to a letter, while `paypal-login.com` — the same shape, same pretext
 token, no fold — stays at `0.00`.
 
@@ -472,9 +472,9 @@ in order of weight:
 
 **Accepted limitation.** A brand-impersonating tenant on a PSL PRIVATE-section
 platform is **not** detected: `paypal.myshopify.com` scores `0.00`/`info`, where
-`paypa1.com` scores `0.60`/`high`. (The *digit-folded* half of this limitation —
+`paypa1.com` scores `0.84`/`critical`. (The *digit-folded* half of this limitation —
 `paypa1.vercel.app` at `0.20`/`low` — is **no longer true**: it now scores
-`0.60`/`high`, the same band as `paypa1.com`. See §6.1.1 and `LINK-lippdgpn`.)
+`0.80`/`high`, one band below `paypa1.com`, which stacks `ascii_homoglyph` on top. See §6.1.1 and `LINK-lippdgpn`.)
 This is the same accepted-limitation class as `paypal-login.com`
 scoring `0.00` — deliberate, and preferred over a detector that flags legitimate
 tenants. The IMC '23 multi-tenant rows in `test/corpus/vectors.ts` (which forbid
@@ -519,7 +519,7 @@ no call site for it.
 
 Two independent questions, recorded together because they were raised together
 (`LINK-pblqdrco`). The trigger was the 3x score gap in §6.1's accepted
-limitation: `paypa1.com` → `0.60`/`high`, `paypa1.vercel.app` → `0.20`/`low`,
+limitation: `paypa1.com` → `0.84`/`critical`, `paypa1.vercel.app` → `0.20`/`low`,
 same disguise, same reading. `ascii_homoglyph` fires in both cases and its detail
 already names the reading (`paypa1` reads as `paypal`); the whole delta is
 `brand_homoglyph`, which never gets a look because it tests the *registrable
@@ -584,7 +584,7 @@ benign *by content* while being a brand look-alike *by name*:
 `sa1esforce.vercel.app` and `salesf0rce.vercel.app` serve an unrelated "Brunch"
 template, `g0ogle.github.io` is a personal page, `sh0pify.github.io` is Shopify
 tutorial content. Escalating these to `high` is accepted, on consistency: the
-ICANN-side `brand_homoglyph` already scores `paypa1.com` `high` without any
+ICANN-side `brand_homoglyph` already scores `paypa1.com` `critical` without any
 content evidence, because the claim it makes is *"this host's name is a
 digit-disguised brand"* — which is true in 25 of 25 cases here — not *"this is
 phishing"*. The alternative is to keep scoring the same disguise 3x differently
@@ -882,7 +882,7 @@ they display as — `ﬁle.com` → `file.com`, `ｅxample.com` → `example.com
 
 **Accepted limitation.** A compatibility spelling of an *ASCII-homoglyph*
 lookalike is not detected: `paypa１.com` (fullwidth digit one) scores 0.00 while
-its folded twin `paypa1.com` scores 0.60 via `brand_homoglyph` + `ascii_homoglyph`.
+its folded twin `paypa1.com` scores 0.84 via `brand_homoglyph` + `ascii_homoglyph`.
 Closing it would mean running the digit-fold homoglyph comparison on the
 compat-folded host — stacking two fuzzy transforms, which is precisely the
 combination whose false positives forced the `LINK-blgvypxk` rollback. Same
