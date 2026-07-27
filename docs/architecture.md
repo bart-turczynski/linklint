@@ -715,6 +715,111 @@ shipping an alias would preserve a name for nobody at the cost of keeping the
 deleted detector's vocabulary alive in the public surface. Reverse the alias
 decision only if a first release ships before this lands — it has not.
 
+#### 6.1.3 External domain lists as a watchlist source — declined (`LINK-gruclwmr`)
+
+**Decision — no external domain list is imported into `data/brands.ts`, in whole
+or in part.** The watchlist stays hand-curated under the §6.1.2 charter: harm in
+one step, fold-reachability, ~150-entry cap. This entry records the evaluation so
+the recurring "Chrome ships a list, just use it" proposal arrives already
+answered.
+
+**What Chrome actually ships.** Three distinct assets, and only the third is an
+allowlist:
+
+| Asset | Role | Availability |
+|-------|------|--------------|
+| `spoof_checks/top_domains/domains.list` + `.skeletons` | spoof **target** list — an IDN whose UTS#39 skeleton collides with an entry renders as punycode | BSD-3, in the open-source tree |
+| `top_bucket_domains.h` (~top 500) | same, plus edit-distance and keyword checks; drives the "Did you mean…?" interstitial | BSD-3, in the open-source tree |
+| Lookalike Warning Allowlist | the actual **allowlist** — suppresses known false positives | component-updated, not in the tree, not extractable |
+
+The first is what the proposal usually means, and it is not a trust list. Its
+header reads `generated from chrome-ux-report.all.202309 by
+fetch_crux_domains.py` — a **popularity** list (CrUX), ~3 years stale as shipped,
+filling exactly the role `BRAND_DOMAINS` already fills in
+`homograph_skeleton_collision`. Chrome's protection against over-firing is not
+the list; it is site-engagement scoring, redirect-chain checks for defensive
+registrations, and that third asset — none of which an offline linter has.
+
+**Measured against the code (2026-07-27), 8,462 CrUX entries:**
+
+1. **It loses coverage where the harm is.** 33 of the 108 curated
+   `BRAND_DOMAINS` are absent from it — `venmo`, `visa`, `mastercard`,
+   `revolut`, `monzo`, `hsbc`, `santander`, `metamask`, `ledger`, `trezor`,
+   `okta`, `cloudflare`, `anthropic` — while it adds thousands of news,
+   regional-media, torrent and adult domains where deception costs a wasted
+   click. Popularity is the wrong axis; charter test 1 is harm.
+2. **It detonates the fold surface.** `brand_homoglyph` pre-images go from
+   **608 → 69,392** (domain tier) and **252 → 30,906** (label tier), ~120×.
+   §6.1.1 cleared the standing document-and-stop rule *because* its surface was
+   192 strings and therefore exhaustively probable. At 30,906 that argument does
+   not exist.
+3. **Tier 2 becomes the `LINK-blgvypxk` regression again.** `BRAND_LABEL_SET`
+   would absorb 7,761 labels, **448 of them ordinary dictionary words, 320 of
+   those fold-reachable** — `code`, `fast`, `news`, `list`, `live`, `mail`,
+   `mobile`, `service`, `public`, `action`, `auto`, `author`, `index`,
+   `people` — plus 901 labels ≤ 4 characters including literal `com`, `it`,
+   `co`, `as`. Since tier 2 joins every `-`-separated token of every host label
+   against that set, `c0de-review.example`, `mai1-relay.corp.net` and
+   `serv1ce-auth.acme.io` would all score `0.60`/`high`. That is the
+   unbrowsable-internet failure at roughly 4× the density that caused it.
+4. **Recorded in the list's favour, for fairness.** The list is internally
+   clean: **0** intra-list skeleton collisions, and only **2** intra-list fold
+   collisions (`sport5`→`sports`, `tf1`→`tfl`). The objection is fitness for
+   purpose, not data quality.
+5. **Size.** 113 KB raw / **47 KB gzip** — about 6× the entire generated
+   confusables table and roughly 2× the 25 KiB gzip threshold in
+   `docs/bundle-size-budget.md`.
+
+**The narrow slice, and why it is declined too.**
+`homograph_skeleton_collision` is gated to non-ASCII registrable domains, so its
+firing surface is independent of the digit fold, and measurement 4 says the list
+does not self-collide. Widening *only* that detector's skeleton table —
+decoupled from `BRAND_DOMAINS` so `brand_homoglyph` never sees it — is
+defensible and is literally what Chrome does; it also satisfies §1.1's
+name-never-create rule, since a skeleton collision is a demonstrated fold.
+Declined anyway on two grounds: it adopts Chrome's firing side without Chrome's
+suppression side (see the table above), and §6.1.1's evidence bar —
+enumerate, probe an unseen corpus, run a control group — is not dischargeable
+here, because there is no unseen-IDN corpus to probe 8,462 skeletons against.
+Precision would be asserted rather than measured.
+
+**Reverse-engineered component lists (`think.resoneo.com/chrome-classification`).**
+A separate family: a ~30,000-domain "Gemini AI restriction" list (banks, crypto,
+tax authorities, central banks, healthcare), a ~30,000 semantic-memory list, and
+merchant classification, all partially extracted from component payloads. The
+first is classified by **sensitivity**, which is genuinely better aligned with
+charter test 1 than CrUX popularity — that much of the idea is sound, and it is
+why this family gets its own paragraph rather than the same one. It still fails,
+for different reasons:
+
+- **Provenance.** Every entry in `DATA_VERSIONS` is a citable, redistributable,
+  version-pinned standard — UTS#39, the IANA special-purpose registries, the PSL
+  via `tldts`, vendor-documented metadata endpoints. This is an unlicensed
+  payload extracted from a proprietary binary, silently mutated by the component
+  updater, with **no version identifier to pin**. Importing it would make
+  `brands: "<date>-watchlist"` a stamp that means nothing.
+- **Partial and unverifiable.** 11,277 of ~30,000, with no way to know which
+  19,000 are missing and no way to re-derive the extraction.
+- **The tier-2 surface is unchanged.** Sensitivity-classified is not the same as
+  structurally distinctive: a finance/health corpus is dense with `health`,
+  `care`, `pay`, `bank`, `secure`, `trust`, `credit`, `fund`, `medical`.
+
+One correction the framing needs in both cases: "too sensitive for a model to
+act on" is a **caution** classification, not a trust assertion, and `domains.list`
+is a target list. A popular phishing clone sits on the same side of both lines as
+the real bank. Neither is the allowlist the "prefer whitelists to blocklists"
+argument asks for.
+
+**What survives.** The idea worth keeping is that the watchlist is curated on a
+*harm* axis, which it already is. A published classified list could serve as a
+**candidate generator for human review** — filtered to fold-reachable labels,
+diffed against the current entries, accepted or rejected one line at a time under
+the existing cap. That is not an import and would not change any mechanism.
+Offered and not taken up on 2026-07-27; expected yield was judged low, because
+the watchlist already covers the major banks, card networks, crypto custody and
+tax software, and additions are gated on fold-reachability rather than fame.
+Reopen only against a concrete named gap — never by importing a list wholesale.
+
 ### 6.2 IDNA / UTS-46 conformance & the normalization flag profile
 
 Every verdict that rests on *"what host is this really"* flows through

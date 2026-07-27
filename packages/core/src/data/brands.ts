@@ -34,6 +34,13 @@
  * Hard cap: ~150 entries. Past that, precision (SC-2) and the review cost of the
  * firing surface both degrade faster than coverage improves.
  *
+ * NO EXTERNAL LIST IS EVER IMPORTED HERE, in whole or in part. Chrome's
+ * `spoof_checks/top_domains/domains.list` (CrUX popularity, 8,462 entries) and
+ * the reverse-engineered Chrome component classifications were both evaluated
+ * and declined — they lose coverage on harm targets, blow the fold surface up
+ * ~120x, and refill BRAND_LABEL_SET with ordinary English words. See
+ * `docs/architecture.md` 6.1.3 (LINK-gruclwmr) before proposing another one.
+ *
  * Every addition or removal changes the pinned surface in
  * `test/brand-fold-surface.test.ts`, which fails with the exact added and
  * removed strings. That diff IS the review — never regenerate it to make the
