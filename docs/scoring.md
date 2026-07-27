@@ -149,7 +149,7 @@ signal. Reserved for patterns with no legitimate use.
 
 ### Scoring codes
 
-The **40** codes that carry a non-zero weight and therefore move the score. `Layer`
+The **41** codes that carry a non-zero weight and therefore move the score. `Layer`
 is the code's registry layer; `(agent)` marks a code emitted only by an
 agent-gated check, which stays silent unless the caller opts in via `agentMode`.
 
@@ -167,6 +167,7 @@ agent-gated check, which stays silent unless the caller opts in via `agentMode`.
 | `idn_host`                     | 0.70   | lexical    |
 | `ambiguous_authority`          | 0.65   | lexical    |
 | `control_char`                 | 0.60   | lexical    |
+| `low_byte_truncation`          | 0.60   | lexical    |
 | `api_endpoint_impersonation`   | 0.50   | lexical (agent) |
 | `brand_homoglyph`              | 0.50   | lexical    |
 | `brand_idna_collapse`          | 0.50   | lexical    |
@@ -205,27 +206,28 @@ another signal.
 
 ### Zero-weight codes
 
-The remaining **14** codes never move the score. They are listed separately
+The remaining **15** codes never move the score. They are listed separately
 because "weight `0.00`" means three different things, and mixing them into the
 table above is what let this section drift: a reader scanning for weights has no
 reason to read past the last non-zero row.
 
-| Reason code              | Layer      | Role           |
-| ------------------------ | ---------- | -------------- |
-| `confusable_char`        | lexical    | annotation     |
-| `confusable_in_path`     | lexical    | annotation     |
-| `content_type_mismatch`  | resolution | annotation     |
-| `host_denied`            | policy     | policy verdict |
-| `host_not_allowlisted`   | policy     | policy verdict |
-| `idna_mapping_ambiguity` | lexical    | annotation     |
-| `locale_case_ambiguity`  | lexical    | annotation     |
-| `normalization_delta`    | lexical    | annotation     |
-| `open_redirect_observed` | resolution | annotation     |
-| `parse_error`            | lexical    | meta           |
-| `port_denied`            | policy     | policy verdict |
-| `scheme_denied`          | policy     | policy verdict |
-| `tld_denied`             | policy     | policy verdict |
-| `tld_not_allowlisted`    | policy     | policy verdict |
+| Reason code                | Layer      | Role           |
+| -------------------------- | ---------- | -------------- |
+| `confusable_char`          | lexical    | annotation     |
+| `confusable_in_path`       | lexical    | annotation     |
+| `content_type_mismatch`    | resolution | annotation     |
+| `host_denied`              | policy     | policy verdict |
+| `host_length_unresolvable` | lexical    | annotation     |
+| `host_not_allowlisted`     | policy     | policy verdict |
+| `idna_mapping_ambiguity`   | lexical    | annotation     |
+| `locale_case_ambiguity`    | lexical    | annotation     |
+| `normalization_delta`      | lexical    | annotation     |
+| `open_redirect_observed`   | resolution | annotation     |
+| `parse_error`              | lexical    | meta           |
+| `port_denied`              | policy     | policy verdict |
+| `scheme_denied`            | policy     | policy verdict |
+| `tld_denied`               | policy     | policy verdict |
+| `tld_not_allowlisted`      | policy     | policy verdict |
 
 - **annotation** — a true, reportable fact about the input that is not a
   deception finding. It explains without scoring. This is the reporting boundary
