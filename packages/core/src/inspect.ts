@@ -123,13 +123,27 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRes
   // annotate without scoring (layer "policy", weight 0). It runs only when the
   // caller configured a policy field — otherwise the result is byte-identical to
   // today (no `policy` in checksRun, no policy reasons).
-  const policyRan = policyConfigured(options);
+  //
+  // Failures are reported per axis (LINK-ymprmvhr). `runPolicy` guards each
+  // descriptor, so a throwing axis costs only itself and is named
+  // `policy:<axis id>` in checksSkipped — the same token shape the detector
+  // loops use (`lexical:<id>`), and for the same reason: the channel token
+  // ("policy") and a skip token can then never be confused for each other. The
+  // channel counts as run only if at least one axis completed, so "policy"
+  // never appears in checksRun and checksSkipped at once.
   let policyFindings: CollectedFinding[] = [];
-  if (policyRan) {
+  let policyRan = false;
+  if (policyConfigured(options)) {
     try {
-      policyFindings = runPolicy(ctx);
+      const outcome = runPolicy(ctx);
+      policyFindings = outcome.findings;
+      policyRan = outcome.anyAxisRan;
+      for (const axisId of outcome.skippedAxes) skippedDetectors.push(`policy:${axisId}`);
     } catch {
-      // A policy failure must never abort inspection (FR-D-13).
+      // Backstop. `runPolicy` contains its own axes, so reaching here means the
+      // dispatcher itself failed and no axis verdict exists — the whole channel
+      // is skipped and unnamed. Kept because inspect()'s never-throws guarantee
+      // (FR-D-13) must not depend on a callee's internal discipline.
       skippedDetectors.push("policy");
     }
   }

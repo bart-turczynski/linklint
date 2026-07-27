@@ -254,6 +254,7 @@ Key invariants:
 - `enrichment` (schema 1.3) is present only when `inspectAsync()` receives configured enrichers. It contains independently versioned source outcomes/evidence and is absent from synchronous and empty-plan output.
 - A non-empty `confusables[]` requires a corresponding `confusable_char` or `confusable_in_path` reason, and vice versa.
 - If a lexical scoring detector fails, its ID appears in `checksSkipped` as `lexical:<id>`. The layer stays in `checksRun`; the score is a lower bound. Fail-closed consumers should treat results with `lexical:*` in `checksSkipped` as untrusted rather than benign.
+- If a policy axis fails, it appears in `checksSkipped` as `policy:<axis id>` (`tld`, `host`, `scheme`, `port`) and the other axes still report. The channel token `policy` stays in `checksRun`, and the score is unaffected — policy findings are weight 0, so a skipped axis is a gap in the **policy** verdict, not in the deception verdict. Bare `policy` in `checksSkipped` is the rarer case: the dispatcher itself failed, no axis verdict exists, and `policy` is correspondingly absent from `checksRun`. The two lists never carry the same token.
 - `confidence` is `1.0` for every deterministic lexical result (sync `inspect()`, including `status: "invalid"`). It is **independent** of `score`/`weight` and never feeds score aggregation; `inspectAsync()` lowers it to the **minimum** over the lexical base (`1.0`) and each successful probabilistic enricher finding's `confidence` (default `1.0`). With no enrichers it stays `1.0`, so `inspectAsync(url)` remains deep-equal to `inspect(url)`.
 - `Reason.suppressed` is an OPTIONAL marker, present and `true` only when the caller's `suppressReasons` escape hatch (§8) matched that reason. It is **additive** and absent by default, so it needs no `SCHEMA_VERSION` bump: with no `suppressReasons` option every result is byte-for-byte identical to the pre-existing `1.1` output.
 
@@ -735,7 +736,9 @@ Weights are hand-tuned, version-pinned, and transparent. The full table is in `d
 
 The policy layer answers "does this URL satisfy my org's allow/deny rules?" — a separate question from "is this URL deceptive?"
 
-Policy reasons carry `layer: 'policy'` and `weight: 0`. They annotate the result without changing `score` or `severity`. `policy` appears in `checksRun` only when the caller configures at least one axis.
+Policy reasons carry `layer: 'policy'` and `weight: 0`. They annotate the result without changing `score` or `severity`. `policy` appears in `checksRun` only when the caller configures at least one axis and at least one axis completes.
+
+Each axis is guarded independently (FR-D-13): a failing axis is reported as `policy:<axis id>` in `checksSkipped` and costs only itself. See §5's result-invariant list for how the channel and per-axis tokens relate.
 
 Available axes (all optional, all default-allow):
 

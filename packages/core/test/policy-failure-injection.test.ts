@@ -28,6 +28,13 @@ import type { InspectOptions } from "../src/schema/types.js";
  *
  * The spy targets the REAL registry object, not a module mock, so `inspect()`'s
  * own policy wiring stays under test rather than being replaced by the test.
+ *
+ * LINK-ymprmvhr then moved the guard INTO `runPolicy`'s loop. Two behaviors this
+ * suite originally pinned as-is are therefore now the opposite, deliberately:
+ * a broken axis costs one axis rather than all four, and its skip is named
+ * `policy:<axis id>` rather than the bare channel token. The bare `"policy"`
+ * token survives for exactly one case — a failure of the dispatcher itself —
+ * which is covered at the bottom of this file so the backstop is not dead code.
  */
 
 /** A URL that violates every axis, so each one has findings to lose. */
@@ -45,6 +52,24 @@ const ALL_AXES_CONFIGURED: InspectOptions = {
   denySchemes: ["http"],
   denyPorts: [8443],
 };
+
+/** The reason code each axis emits against {@link VIOLATING_URL}. */
+const BROKEN_AXIS_CODE: Readonly<Record<string, string>> = {
+  tld: "tld_denied",
+  host: "host_denied",
+  scheme: "scheme_denied",
+  port: "port_denied",
+};
+
+/** For a broken axis, the codes the other three must still report. */
+const SURVIVING_CODES: Readonly<Record<string, readonly string[]>> = Object.fromEntries(
+  Object.keys(BROKEN_AXIS_CODE).map((id) => [
+    id,
+    Object.entries(BROKEN_AXIS_CODE)
+      .filter(([other]) => other !== id)
+      .map(([, code]) => code),
+  ]),
+);
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -105,31 +130,108 @@ describe.each(POLICY_AXIS_DESCRIPTORS.map((d) => d.id))(
       expect(result.severity).not.toBeNull();
     });
 
-    it("records the skip rather than swallowing it", () => {
+    it("records the skip rather than swallowing it, and names the axis", () => {
       breakAxis(id);
       const result = inspect(VIOLATING_URL, { ...ALL_AXES_CONFIGURED });
 
       // The honesty requirement of FR-D-13: a silent swallow would report a
       // clean policy verdict on input whose policy verdict was never computed.
-      expect(result.checksSkipped).toContain("policy");
+      // The token names the axis (LINK-ymprmvhr) so a consumer can tell which
+      // part of its policy went unanswered.
+      expect(result.checksSkipped).toContain(`policy:${id}`);
     });
 
-    it("loses the whole channel, not just the failing axis", () => {
+    it("costs one axis, not the whole channel", () => {
       breakAxis(id);
       const result = inspect(VIOLATING_URL, { ...ALL_AXES_CONFIGURED });
 
-      // Documenting real behavior, not endorsing it: the catch wraps the whole
-      // runPolicy() call, so one bad axis costs all four. Findings from axes
-      // that already ran are discarded with it. Making the catch per-axis is a
-      // deliberate follow-up (see the issue), not something to change silently.
+      // LINK-ymprmvhr. The guard is inside runPolicy's loop, so the three
+      // healthy axes still report. Before the fix, one bad axis discarded all
+      // four verdicts — a partial policy failure read as a total one.
       const codes = result.reasons.map((r) => r.code);
-      expect(codes).not.toContain("tld_denied");
-      expect(codes).not.toContain("host_denied");
-      expect(codes).not.toContain("scheme_denied");
-      expect(codes).not.toContain("port_denied");
+      expect(codes).toEqual(expect.arrayContaining([...SURVIVING_CODES[id]!]));
+      expect(codes).not.toContain(BROKEN_AXIS_CODE[id]);
+    });
+
+    it("keeps the channel token out of checksSkipped", () => {
+      breakAxis(id);
+      const result = inspect(VIOLATING_URL, { ...ALL_AXES_CONFIGURED });
+
+      // The bare "policy" token now means ONLY "the dispatcher itself failed".
+      // Emitting it here as well would put "policy" in checksRun and
+      // checksSkipped simultaneously — the ambiguity LINK-ymprmvhr removed.
+      expect(result.checksSkipped).not.toContain("policy");
+      expect(result.checksRun).toContain("policy");
     });
   },
 );
+
+describe("a wholly failed policy channel (LINK-ymprmvhr)", () => {
+  it("does not claim in checksRun to have run", () => {
+    // With every axis broken there is no policy verdict at all, so the channel
+    // token would be a lie. This is the only case where it is withheld.
+    for (const descriptor of POLICY_AXIS_DESCRIPTORS) breakAxis(descriptor.id);
+    const result = inspect(VIOLATING_URL, { ...ALL_AXES_CONFIGURED });
+
+    expect(result.checksRun).not.toContain("policy");
+    expect(result.checksSkipped).toEqual(
+      expect.arrayContaining(POLICY_AXIS_DESCRIPTORS.map((d) => `policy:${d.id}`)),
+    );
+    expect(result.reasons.every((r) => r.layer !== "policy")).toBe(true);
+    // Still a scored, schema-valid result — policy is weight 0.
+    expect(result.status).toBe("ok");
+    expect(result.score).not.toBeNull();
+  });
+
+  it("lists the failed axes in registry order", () => {
+    // Deterministic output ordering, same guarantee the findings array has.
+    for (const descriptor of POLICY_AXIS_DESCRIPTORS) breakAxis(descriptor.id);
+    const result = inspect(VIOLATING_URL, { ...ALL_AXES_CONFIGURED });
+
+    expect(result.checksSkipped.filter((c) => c.startsWith("policy:"))).toEqual(
+      POLICY_AXIS_DESCRIPTORS.map((d) => `policy:${d.id}`),
+    );
+  });
+});
+
+describe("the dispatcher-level backstop (LINK-ymprmvhr)", () => {
+  it("emits the bare channel token when the loop itself fails", () => {
+    // runPolicy contains its axes, so the catch in inspect() now only fires for
+    // a failure of the DISPATCHER — outside any single axis's guard. Injected
+    // here through the descriptor's `id`, which runPolicy reads before entering
+    // the guard precisely so that recording a skip cannot itself throw. Without
+    // this test that catch would be unreachable dead code, and the whole point
+    // of FR-D-13 is that inspect() never throws for reasons nobody predicted.
+    const tld = POLICY_AXIS_DESCRIPTORS.find((d) => d.id === "tld")!;
+    vi.spyOn(tld, "id", "get").mockImplementation(() => {
+      throw new Error("injected failure reading a policy descriptor id");
+    });
+
+    const result = inspect(VIOLATING_URL, { ...ALL_AXES_CONFIGURED });
+
+    expect(result.status).toBe("ok");
+    expect(result.checksSkipped).toContain("policy");
+    expect(result.checksRun).not.toContain("policy");
+    expect(result.reasons.every((r) => r.layer !== "policy")).toBe(true);
+  });
+});
+
+describe("a policy axis that returns a non-array (LINK-ymprmvhr)", () => {
+  it("is contained as that axis's failure", () => {
+    // The spread of an axis's result is inside the per-axis guard, so a
+    // contract-breaking axis is a skipped axis rather than a dead channel.
+    const host = POLICY_AXIS_DESCRIPTORS.find((d) => d.id === "host")!;
+    vi.spyOn(host, "run").mockReturnValue(null as never);
+
+    const result = inspect(VIOLATING_URL, { ...ALL_AXES_CONFIGURED });
+
+    expect(result.checksSkipped).toContain("policy:host");
+    expect(result.checksSkipped).not.toContain("policy");
+    expect(result.reasons.map((r) => r.code)).toEqual(
+      expect.arrayContaining(["tld_denied", "scheme_denied", "port_denied"]),
+    );
+  });
+});
 
 describe("the undisturbed policy channel (LINK-voqqhxgj)", () => {
   it("emits every axis's finding when nothing is broken", () => {
