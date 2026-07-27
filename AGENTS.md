@@ -14,6 +14,18 @@ pre-commit install && pre-commit install --hook-type pre-push
 
 The pre-push hook runs `pnpm check` (the same chain as CI). This is the stand-in for branch protection, which is unavailable on this GitHub plan — a push whose tree turns CI red is blocked locally.
 
+## Tracker hygiene
+
+Install this repo's fp extensions once per clone, alongside the pre-commit hooks:
+
+```bash
+./tools/fp-extensions/install.sh
+```
+
+`.fp/` is gitignored, so the extensions are authored in tracked `tools/fp-extensions/` and symlinked into place. `fp guide` prints the loaded list.
+
+**An issue cannot go `done` without a closing comment** (`LINK-crxctgsh`). The comment must name a commit SHA, a PR (`merged as PR #139`), or an explicit exemption with a reason (`NO-COMMIT: declined on cost, see the analysis above`). Use the exemption for declined proposals, superseded work, and epics closing on their children's acceptance — it keeps a commitless close visible and auditable rather than silent. The rule comes from the `LINK-nlfybbsf` audit, where closing-comment presence separated verified-clean from defective across 45 issues with no exceptions.
+
 ## Online roadmap handoff
 
 When assigned `LINK-ddsnssrd` or one of its K/L/M descendants, read

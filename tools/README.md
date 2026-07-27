@@ -4,6 +4,10 @@ Scripts that regenerate version-pinned data tables bundled into `@linklint/core`
 Generated files are committed (they are source the library imports) but must
 **never be hand-edited** — re-run the relevant script instead.
 
+> `fp-extensions/` is not a data build — it holds this repo's issue-tracker
+> guards, which live here because `.fp/` is gitignored. See
+> [`fp-extensions/README.md`](fp-extensions/README.md).
+
 ## `build-confusables.mjs` — UTS#39 confusables (E1)
 
 Generates `packages/core/src/data/confusables.generated.ts` from the official
