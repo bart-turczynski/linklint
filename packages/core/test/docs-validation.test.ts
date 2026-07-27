@@ -8,6 +8,7 @@ import { DETECTORS } from "../src/detectors/registry.js";
 import { STRUCTURAL_SCANS } from "../src/detectors/structural.js";
 import { analyzeIpv4, analyzeIpv6 } from "../src/parse/ip.js";
 import { REASON_CODES, type ReasonCode } from "../src/schema/reason-codes.js";
+import { WEIGHTS_VERSION } from "../src/scoring/weights.js";
 
 // Light validation (NOT generation) that catches the common drift between code
 // and docs. Paths are resolved relative to THIS test module (not process.cwd())
@@ -16,6 +17,7 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", ".."
 const reasonCodesDoc = readFileSync(join(REPO_ROOT, "docs", "reason-codes.md"), "utf8");
 const readme = readFileSync(join(REPO_ROOT, "README.md"), "utf8");
 const architectureDoc = readFileSync(join(REPO_ROOT, "docs", "architecture.md"), "utf8");
+const scoringDoc = readFileSync(join(REPO_ROOT, "docs", "scoring.md"), "utf8");
 
 // Each code is documented with an h3 header of the form: ### `code_name` — …
 // Parse the backtick-wrapped code name out of every such header.
@@ -100,6 +102,102 @@ describe("docs/reason-codes.md stays in sync with the REASON_CODES registry", ()
   });
 });
 
+describe("docs/scoring.md weights tables stay in sync with the registry", () => {
+  // The weights table is the surface a user consults to answer "why did this
+  // score 0.60?", and it had drifted to 33 of 56 entries — with brand_homoglyph,
+  // the code behind the most-asked-about verdict, missing entirely
+  // (LINK-hfqhcuov). Nothing coupled the two, so every weights bump since had
+  // silently widened the gap. These assertions are the coupling.
+  //
+  // The doc splits the registry in two: scoring codes (weight > 0) carry a
+  // Weight column, zero-weight codes carry a Role column instead. Parse each
+  // table from its own section so a code cannot satisfy the check by appearing
+  // in the wrong one.
+  const registryCodes = Object.keys(REASON_CODES) as ReasonCode[];
+  const scoringCodes = registryCodes.filter((code) => REASON_CODES[code].weight > 0);
+  const zeroWeightCodes = registryCodes.filter((code) => REASON_CODES[code].weight === 0);
+
+  function section(heading: string): string {
+    const start = scoringDoc.indexOf(heading);
+    expect(start, `missing section: ${heading}`).toBeGreaterThan(-1);
+    const next = scoringDoc.indexOf("\n### ", start + 1);
+    return scoringDoc.slice(start, next === -1 ? undefined : next);
+  }
+
+  // Rows: | `code` | 0.50   | lexical    |
+  const scoringSection = section("### Scoring codes");
+  const scoringRows = new Map<string, number>(
+    [...scoringSection.matchAll(/^\|\s*`([a-z_]+)`\s*\|\s*(\d\.\d\d)\s*\|/gm)].map((m) => [
+      m[1] as string,
+      Number(m[2]),
+    ]),
+  );
+
+  // Rows: | `code` | lexical    | annotation     |
+  const zeroSection = section("### Zero-weight codes");
+  const zeroRows = new Map<string, string>(
+    [...zeroSection.matchAll(/^\|\s*`([a-z_]+)`\s*\|\s*([a-z]+)\s*\|\s*([a-z ]+?)\s*\|/gm)].map(
+      (m) => [m[1] as string, m[3] as string],
+    ),
+  );
+
+  // 1. COMPLETENESS — every scoring code is in the scoring table.
+  it.each(scoringCodes)("scoring code %s is documented", (code) => {
+    expect(scoringRows.has(code)).toBe(true);
+  });
+
+  // 2. VALUE — the documented weight is the shipped weight, not merely present.
+  //    Presence alone would let a reweight ship against a stale number, which is
+  //    worse than an omission: the reader gets a confident wrong answer.
+  it.each(scoringCodes)("documented weight for %s equals the registry weight", (code) => {
+    expect(scoringRows.get(code)).toBeCloseTo(REASON_CODES[code].weight, 5);
+  });
+
+  // 3. COMPLETENESS — every zero-weight code is in the zero-weight table.
+  it.each(zeroWeightCodes)("zero-weight code %s is documented", (code) => {
+    expect(zeroRows.has(code)).toBe(true);
+  });
+
+  // 4. ROLE — policy-layer codes must be labelled as policy verdicts. A policy
+  //    code is caller configuration, not a detector finding; mislabelling one as
+  //    an annotation would misrepresent where the decision came from.
+  it.each(zeroWeightCodes.filter((code) => REASON_CODES[code].layer === "policy"))(
+    "policy code %s is labelled a policy verdict",
+    (code) => {
+      expect(zeroRows.get(code)).toBe("policy verdict");
+    },
+  );
+
+  // 5. NO ORPHANS, BOTH TABLES — a deleted or renamed code must not survive as a
+  //    row. LINK-cphogucn deleted three brand codes at once; without this, their
+  //    rows would still be documenting weights that no longer exist.
+  it.each([...scoringRows.keys()])("scoring-table row %s is a real scoring code", (code) => {
+    expect(REASON_CODES[code as ReasonCode]).toBeDefined();
+    expect(REASON_CODES[code as ReasonCode].weight).toBeGreaterThan(0);
+  });
+
+  it.each([...zeroRows.keys()])("zero-weight-table row %s is a real zero-weight code", (code) => {
+    expect(REASON_CODES[code as ReasonCode]).toBeDefined();
+    expect(REASON_CODES[code as ReasonCode].weight).toBe(0);
+  });
+
+  // 6. STATED COUNTS — the prose around each table quotes a total. Those numbers
+  //    are what a reader trusts without counting rows, so pin them too.
+  it("the prose totals match the registry", () => {
+    expect(scoringSection).toContain(`The **${scoringCodes.length}** codes that carry`);
+    expect(zeroSection).toContain(`The remaining **${zeroWeightCodes.length}** codes`);
+    expect(scoringRows.size).toBe(scoringCodes.length);
+    expect(zeroRows.size).toBe(zeroWeightCodes.length);
+  });
+
+  // 7. VERSION PIN — the doc's header quotes the current weights version. A
+  //    reweight bumps WEIGHTS_VERSION, so an unguarded restatement here is
+  //    guaranteed to go stale exactly when the table content changes.
+  it("the stated weights version is WEIGHTS_VERSION", () => {
+    expect(scoringDoc).toContain(`Current weights version:\n> **${WEIGHTS_VERSION}**`);
+  });
+});
+
 describe("README detector count matches the computed total", () => {
   // 4. DETECTOR COUNT — the true count is the lexical detector registry plus the
   //    structural scans. README hardcodes this number in two public sections;
@@ -110,9 +208,9 @@ describe("README detector count matches the computed total", () => {
     const parsed = CHECKS.filter((c) => c.phase === "parsed").length;
     const agentGated = CHECKS.filter((c) => c.agentGated === true).length;
 
-    expect(total).toBe(36);
+    expect(total).toBe(38);
     expect(structural).toBe(4);
-    expect(parsed).toBe(32);
+    expect(parsed).toBe(34);
     expect(agentGated).toBe(5);
     expect(DETECTORS.length).toBe(parsed);
     expect(STRUCTURAL_SCANS.length).toBe(structural);
@@ -179,12 +277,12 @@ describe("README detector count matches the computed total", () => {
 });
 
 describe("docs/architecture.md detector families cover every check", () => {
-  // The families table claims to group "the 35 checks", and every cell is a
+  // The families table claims to group "the 38 checks", and every cell is a
   // CHECK ID (not a reason code — one check may emit several). It had drifted to
   // 32 of 37: ip_classification, ambiguous_numeric_host, homograph_latin_skeleton,
   // locale_case_collapse, and idn_host were all missing. Pin it to the registry.
   it("every check id appears in the families table", () => {
-    const tableStart = architectureDoc.indexOf("The 36 checks group into seven families");
+    const tableStart = architectureDoc.indexOf("The 38 checks group into seven families");
     expect(tableStart).toBeGreaterThan(-1);
     const table = architectureDoc.slice(tableStart, architectureDoc.indexOf("## 6."));
 

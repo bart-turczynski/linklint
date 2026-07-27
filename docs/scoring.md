@@ -3,7 +3,7 @@
 > Version-pinned (`dataVersions.weights`). Source of truth:
 > `packages/core/src/schema/reason-codes.ts` (weights) and
 > `packages/core/src/scoring/` (aggregation + bands). Current weights version:
-> **1.14**.
+> **1.16**.
 
 ## Aggregation — probabilistic OR (FR-SCORE-1a)
 
@@ -147,44 +147,108 @@ A weight of **1.00 is a blocker** — under probabilistic OR the `(1 − w)` fac
 zeroes the product, so the score saturates to 1 (critical) regardless of any other
 signal. Reserved for patterns with no legitimate use.
 
-| Reason code                    | Weight | Scoring? |
-| ------------------------------ | ------ | -------- |
-| `mixed_script`                 | 1.00   | yes      |
-| `invisible_char`               | 1.00   | yes      |
-| `bidi_override`                | 1.00   | yes      |
-| `homograph_latin_skeleton`     | 1.00   | yes      |
-| `ssrf_cloud_metadata`          | 1.00   | yes (agent) |
-| `dangerous_scheme`             | 0.90   | yes      |
-| `ip_cloud_metadata`            | 0.75   | yes      |
-| `idn_host`                     | 0.70   | yes      |
-| `ambiguous_authority`          | 0.65   | yes      |
-| `control_char`                 | 0.60   | yes      |
-| `suspicious_extension`         | 0.50   | yes      |
-| `separator_lookalike`          | 0.50   | yes      |
-| `userinfo_present`             | 0.50   | yes      |
-| `embedded_domain_in_subdomain` | 0.50   | yes      |
-| `homograph_skeleton_collision` | 0.50   | yes      |
-| `brand_locale_collapse`        | 0.50   | yes      |
-| `brand_idna_collapse`          | 0.50   | yes      |
-| `ip_obfuscation`               | 0.40   | yes      |
-| `file_extension_tld`           | 0.40   | yes      |
-| `open_redirect_param`          | 0.40   | yes      |
-| `encoding_obfuscation`         | 0.35   | yes      |
-| `punycode_malformed`           | 0.20   | yes      |
-| `ascii_homoglyph`              | 0.20   | yes      |
-| `risky_tld`                    | 0.15   | yes      |
-| `excessive_subdomain_depth`    | 0.15   | yes      |
-| `normalization_delta`          | 0.00   | info     |
-| `confusable_char`              | 0.00   | info     |
-| `confusable_in_path`           | 0.00   | info     |
-| `idna_mapping_ambiguity`       | 0.00   | info     |
-| `locale_case_ambiguity`        | 0.00   | info     |
-| `parse_error`                  | 0.00   | meta     |
+### Scoring codes
 
-Each scoring detector lands at `severity ≥ medium` on its own, satisfying SC-1
-for the canonical attack set; `risky_tld`, `punycode_malformed`, and
-`ascii_homoglyph` are intentionally `low` alone (anomalous/contextual signals) so
-they mainly matter in combination.
+The **41** codes that carry a non-zero weight and therefore move the score. `Layer`
+is the code's registry layer; `(agent)` marks a code emitted only by an
+agent-gated check, which stays silent unless the caller opts in via `agentMode`.
+
+| Reason code                    | Weight | Layer      |
+| ------------------------------ | ------ | ---------- |
+| `bidi_override`                | 1.00   | lexical    |
+| `homograph_latin_skeleton`     | 1.00   | lexical    |
+| `invisible_char`               | 1.00   | lexical    |
+| `malware_url_listed`           | 1.00   | reputation |
+| `mixed_script`                 | 1.00   | lexical    |
+| `ssrf_cloud_metadata`          | 1.00   | lexical (agent) |
+| `verified_phish_listed`        | 1.00   | reputation |
+| `dangerous_scheme`             | 0.90   | lexical    |
+| `ip_cloud_metadata`            | 0.75   | lexical    |
+| `idn_host`                     | 0.70   | lexical    |
+| `ambiguous_authority`          | 0.65   | lexical    |
+| `control_char`                 | 0.60   | lexical    |
+| `low_byte_truncation`          | 0.60   | lexical    |
+| `api_endpoint_impersonation`   | 0.50   | lexical (agent) |
+| `brand_homoglyph`              | 0.50   | lexical    |
+| `brand_idna_collapse`          | 0.50   | lexical    |
+| `brand_locale_collapse`        | 0.50   | lexical    |
+| `embedded_domain_in_subdomain` | 0.50   | lexical    |
+| `homograph_skeleton_collision` | 0.50   | lexical    |
+| `prompt_injection_url`         | 0.50   | lexical (agent) |
+| `separator_lookalike`          | 0.50   | lexical    |
+| `suspicious_extension`         | 0.50   | lexical    |
+| `userinfo_present`             | 0.50   | lexical    |
+| `young_domain_brand_risk`      | 0.50   | reputation |
+| `file_extension_tld`           | 0.40   | lexical    |
+| `ip_obfuscation`               | 0.40   | lexical    |
+| `open_redirect_param`          | 0.40   | lexical    |
+| `credential_harvesting`        | 0.35   | lexical (agent) |
+| `encoding_obfuscation`         | 0.35   | lexical    |
+| `ambiguous_numeric_host`       | 0.30   | lexical    |
+| `data_exfiltration`            | 0.30   | lexical (agent) |
+| `ascii_homoglyph`              | 0.20   | lexical    |
+| `ip_link_local`                | 0.20   | lexical    |
+| `ip_loopback`                  | 0.20   | lexical    |
+| `ip_private`                   | 0.20   | lexical    |
+| `ip_reserved`                  | 0.20   | lexical    |
+| `percent_encoding_malformed`   | 0.20   | lexical    |
+| `punycode_malformed`           | 0.20   | lexical    |
+| `bait_tokens`                  | 0.15   | lexical    |
+| `excessive_subdomain_depth`    | 0.15   | lexical    |
+| `risky_tld`                    | 0.15   | lexical    |
+
+Most scoring detectors land at `severity ≥ medium` on their own, satisfying SC-1
+for the canonical attack set. The `0.20` and `0.15` tiers are intentionally `low`
+alone — anomalous or contextual signals that mainly matter in combination — and
+the `ip_*` classification codes are deliberately quiet because a private or
+loopback literal is ordinary in most contexts and only interesting next to
+another signal.
+
+### Zero-weight codes
+
+The remaining **15** codes never move the score. They are listed separately
+because "weight `0.00`" means three different things, and mixing them into the
+table above is what let this section drift: a reader scanning for weights has no
+reason to read past the last non-zero row.
+
+| Reason code                | Layer      | Role           |
+| -------------------------- | ---------- | -------------- |
+| `confusable_char`          | lexical    | annotation     |
+| `confusable_in_path`       | lexical    | annotation     |
+| `content_type_mismatch`    | resolution | annotation     |
+| `host_denied`              | policy     | policy verdict |
+| `host_length_unresolvable` | lexical    | annotation     |
+| `host_not_allowlisted`     | policy     | policy verdict |
+| `idna_mapping_ambiguity`   | lexical    | annotation     |
+| `locale_case_ambiguity`    | lexical    | annotation     |
+| `normalization_delta`      | lexical    | annotation     |
+| `open_redirect_observed`   | resolution | annotation     |
+| `parse_error`              | lexical    | meta           |
+| `port_denied`              | policy     | policy verdict |
+| `scheme_denied`            | policy     | policy verdict |
+| `tld_denied`               | policy     | policy verdict |
+| `tld_not_allowlisted`      | policy     | policy verdict |
+
+- **annotation** — a true, reportable fact about the input that is not a
+  deception finding. It explains without scoring. This is the reporting boundary
+  stated in `architecture.md` §1.1: scoring is reserved for claim (a); reporting
+  is not.
+- **meta** — `parse_error` describes linklint's own handling of the input, not
+  the input's properties.
+- **policy verdict** — emitted by the policy layer from *caller configuration*
+  (`docs/enforcement.md`), not by a detector. These carry no weight by
+  construction: the caller already decided, so there is nothing for the score to
+  add. They appear in `reasons` so the decision is explainable.
+
+### Drift guard
+
+Both tables are asserted against the registry in
+`test/docs-validation.test.ts` — every code present, no orphans, and every
+documented weight equal to `REASON_CODES[code].weight`. A new reason code or a
+reweight turns this file red in CI rather than silently staling it. That guard
+exists because the table had drifted to 33 of 56 entries, with
+`brand_homoglyph` — the code a reader most often looks up — missing outright
+(`LINK-hfqhcuov`).
 
 ## Skipped detectors are a lower bound (FR-SCORE-3a)
 

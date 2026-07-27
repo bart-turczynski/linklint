@@ -1025,7 +1025,11 @@ instead of minting one. Absent either, this stays closed.
   nested (double-encoding).
 - **Why it's a signal:** encoded `/`, `@`, `:` or repeated `%25` chains hide the
   true structure of a URL. Recursive decoding is bounded (no decode-bomb).
-- **Example:** `https://example.com%2F@evil.com` or `%252e%252e`.
+- **Example:** `https://evil.com/redirect%2F..%2Fadmin` (encoded `/` in the path)
+  or `https://evil.com/%252e%252e` (double-encoded `..`). Matching is on the path
+  and query: an encoded delimiter in the *userinfo* is reported as
+  `userinfo_present`, which already outweighs this code, not as
+  `encoding_obfuscation`.
 
 ### `dangerous_scheme` — FR-D-11 · weight 0.9
 
@@ -1058,6 +1062,60 @@ instead of minting one. Absent either, this stays closed.
   percent-escape the parser itself produced (a space, a non-ASCII character) is
   well-formed by construction.
 - **Example:** `https://example.com/a%zzb`, `https://ex%zzample.com/`.
+
+### `host_length_unresolvable` — T2.7 revisited · weight 0 (informational)
+
+- **Meaning:** the hostname exceeds a DNS length limit — a label longer than 63
+  octets, or a whole hostname longer than 253 (RFC 1035 §2.3.4) — and therefore
+  cannot resolve. Measured in octets on the A-label form, since DNS limits are
+  byte limits. IP literals are exempt: they are not domain names.
+- **Why it is weight 0 and not a scoring finding:** architecture §1.1 excludes
+  "well-formed but unusable" from claim (a), and host length is the worked case it
+  cites. A 64-octet label is syntactically a hostname, is read identically by
+  every parser, and simply fails. Nothing is hidden and nobody disagrees, so it is
+  not deception. A *scoring* implementation of these caps was written and reverted
+  on exactly this reasoning (`LINK-ygglwkuy`).
+- **Why it is reported at all:** returning `0.00` with zero reasons tells the
+  caller "there is nothing to say about this URL", which is false when there is
+  something definite to say. §1.1's fourth rule settles the split: scoring is
+  reserved for the three forms of claim (a); reporting is not. Failing to score
+  this was always correct; failing to mention it was not.
+- **Boundary:** the score does not move, the severity does not move, and the
+  64-character-label vector stays pinned `benign`. A consumer filtering on score
+  sees no change from this code existing.
+- **Example:** `https://` + 64 × `a` + `.com`.
+
+### `low_byte_truncation` — T2.3 · weight 0.6
+
+- **Meaning:** a code point above U+007F whose **low byte is a dangerous ASCII
+  byte**, sitting **isolated between two ASCII alphanumerics**. U+560A narrows to
+  LF, U+560D to CR, U+200D (zero-width joiner) to CR, U+6709 to `\t`. The
+  dangerous bytes covered are CR, LF, TAB, VT, FF, SPACE, NUL and the URI
+  delimiters `/ : @ ? #`.
+- **Why it's a signal:** when a lossy conversion narrows UTF-16 code units to
+  single bytes — `Buffer.from(s, 'latin1')`, a `charCodeAt` masked to 8 bits, a
+  `wchar_t` downcast — the byte materializes and re-parses the URL: a CR or LF
+  injects a header or smuggles a second protocol, an `@` moves the authority, a
+  `/` ends it. The byte does not exist in the input, so no byte-scan can see it,
+  which is why `control_char` cannot reach this class even though it handles every
+  direct form. References: filedescriptor 2015; Node CVE-2018-12116.
+- **Why the isolation guard is the whole design:** truncation-reachability alone
+  is not a usable firing condition. 2,357 assigned code points narrow to CR/LF,
+  ~1,167 to `/`, ~1,167 to `@`, and 492 of the whitespace set are everyday CJK —
+  上 下 不 有 而 名 同 看 國 程 載 選 尋 among them. Flagging on reachability alone
+  would flag 下載 ("download") and a large share of real Chinese and Japanese
+  URLs. The guard makes this a claim about the **string**: CJK clusters with CJK
+  or sits beside punctuation, so a lone non-ASCII code point wedged between two
+  ASCII alphanumerics is itself the structural anomaly, and every reader can check
+  it. Measured: 17/17 realistic multilingual URLs (JP/CN/KR/RU/GR) stay quiet.
+- **Why 0.6:** parity with `control_char`, which catches the direct form of the
+  identical attack. This variant is strictly harder to see, so parity is the
+  defensible floor; pricing it higher would assert it is worse than an actual
+  embedded newline. Revisit tracked at `LINK-tyjxigyc`.
+- **Boundary:** a pure non-ASCII run never fires (`/下載/`, `/한국어/`,
+  `/путь/`), nor does non-ASCII beside punctuation, a path separator or a dot
+  (`/file名.pdf`, `/data下載.zip`). Only the ASCII-sandwich shape does.
+- **Example:** `https://example.com/a嘊b`, `https://example.com/x有y`.
 
 ### `punycode_malformed` — E5 · weight 0.2
 

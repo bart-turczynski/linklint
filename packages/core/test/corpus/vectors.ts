@@ -141,9 +141,57 @@ export const VECTORS: CorpusRow[] = [
   {
     input: `https://${"a".repeat(64)}.com`,
     label: "benign",
+    // Both halves of §1.1's fourth rule in one pin: the score does NOT move
+    // (over-long is not deception — §1.1's worked exclusion, and the reason
+    // LINK-ygglwkuy was reverted), AND the fact is announced at weight 0 rather
+    // than the caller being told there was nothing to say.
+    expectReasons: ["host_length_unresolvable"],
     forbidReasons: ["mixed_script", "invisible_char"],
-    notes: "over-long (64ch) label — linklint is a lexical inspector, not a DNS validator; tolerated",
+    notes: "over-long (64ch) label — not a deception finding; reported at weight 0, score stays 0.00",
     source: "UTS#46 IdnaTestV2 (DNS length)",
+  },
+
+  // ── T2.3 benign guard (LINK-ibwuayzo) — real multilingual URLs whose code
+  // points ARE truncation-reachable but are NOT sandwiched between ASCII
+  // alphanumerics. These are the false-positive class that killed the naive
+  // "flag every truncation-reachable code point" rule: 有 上 下 名 載 all narrow
+  // to a dangerous byte, and all of them appear in ordinary CJK URLs. If a future
+  // weight or scope change makes low_byte_truncation fire here, that is the CJK
+  // regression, not a win. See LINK-tyjxigyc before widening.
+  {
+    input: "https://example.jp/data\u4E0B\u8F09.zip",
+    label: "benign",
+    forbidReasons: ["low_byte_truncation"],
+    notes: "下載 ('download'): 下 is truncation-reachable but its neighbour is CJK, not ASCII",
+    source: "T2.3 realistic-URL measurement",
+  },
+  {
+    input: "https://example.cn/\u4E0B\u8F09/index.html",
+    label: "benign",
+    forbidReasons: ["low_byte_truncation"],
+    notes: "pure-CJK path segment — no ASCII sandwich",
+    source: "T2.3 realistic-URL measurement",
+  },
+  {
+    input: "https://example.cn/file\u540D.pdf",
+    label: "benign",
+    forbidReasons: ["low_byte_truncation"],
+    notes: "名 (U+540D -> CR) preceded by ASCII but followed by '.', not an alphanumeric",
+    source: "T2.3 realistic-URL measurement",
+  },
+  {
+    input: "https://example.cn/\u4E0A\u4F20/img001.jpg",
+    label: "benign",
+    forbidReasons: ["low_byte_truncation"],
+    notes: "上传 ('upload'): 上 is truncation-reachable, neighbours are '/' and CJK",
+    source: "T2.3 realistic-URL measurement",
+  },
+  {
+    input: "https://example.jp/PDF\u7248\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9.pdf",
+    label: "benign",
+    forbidReasons: ["low_byte_truncation"],
+    notes: "ASCII 'PDF' abutting kanji — the kanji's other neighbour is katakana",
+    source: "T2.3 realistic-URL measurement",
   },
 
   // ── PSL vectors — wildcard / exception / multi-level (must stay benign) ────

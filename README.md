@@ -17,7 +17,7 @@ tool call — and it tells you whether the URL is _deceptive_, and **explains ex
 why**, with no network and no data leaving the machine.
 
 It generalizes one insight from hostname analysis: **if `normalize(input) !== input`,
-something may be hiding in the URL.** linklint turns that intuition into 36 deterministic
+something may be hiding in the URL.** linklint turns that intuition into 38 deterministic
 detectors, each emitting a named, documented reason code (five — the agent-mode
 prompt-injection, API-endpoint-impersonation, credential-harvesting, data-exfiltration,
 and cloud-metadata SSRF detectors — are opt-in via `agentMode`).
@@ -90,8 +90,8 @@ Each reason is fully self-describing:
 
 ## What linklint protects against
 
-linklint runs **36 offline detectors** grouped into the families below: 4 structural
-scans and 32 parsed-context detectors, including 5 agent-mode detectors
+linklint runs **38 offline detectors** grouped into the families below: 4 structural
+scans and 34 parsed-context detectors, including 5 agent-mode detectors
 (prompt-injection, API-endpoint-impersonation, credential-harvesting, data-exfiltration,
 and cloud-metadata SSRF) that are opt-in via `agentMode` and off by default. Every
 example is real output. A clean URL like `https://github.com` returns `score: 0`,
@@ -268,7 +268,7 @@ are **version-pinned** (`dataVersions` on every result) so verdicts are reproduc
 
 ```ts
 interface InspectResult {
-  schemaVersion: '1.5';
+  schemaVersion: '1.7';
   status: 'ok' | 'invalid';
   input: string;
   parsed: ParsedUrl | null;        // scheme, userinfo, registrableDomain, publicSuffix,
@@ -424,7 +424,7 @@ This is a pnpm monorepo.
 
 | Path | What |
 |------|------|
-| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 36 detectors, scoring, policy, schema). |
+| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 38 detectors, scoring, policy, schema). |
 | `packages/cli` | `@linklint/cli` — the offline `linklint` command-line wrapper (`check` / `batch`). |
 | `packages/mcp` | `@linklint/mcp` — the local-only MCP server (`check_url` / `check_domain`). |
 | `docs/architecture.md` | System architecture (channels, pipeline, result contract, layers). |
@@ -450,7 +450,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) and [SECURITY.md](./SECURITY.md).
 
 ## Status & roadmap
 
-**v1 — implemented.** The lexical layer is complete: 36 offline, deterministic detectors,
+**v1 — implemented.** The lexical layer is complete: 38 offline, deterministic detectors,
 probabilistic-OR scoring, a caller-configurable policy layer, a stable versioned schema,
 and a local MCP server. Typically < 5 ms per call, zero network.
 
