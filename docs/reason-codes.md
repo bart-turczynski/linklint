@@ -1025,11 +1025,33 @@ instead of minting one. Absent either, this stays closed.
   nested (double-encoding).
 - **Why it's a signal:** encoded `/`, `@`, `:` or repeated `%25` chains hide the
   true structure of a URL. Recursive decoding is bounded (no decode-bomb).
+- **Boundary — which signals are path-scoped, and why (`LINK-dlcyzghg`):** two
+  of the six signals read the path alone, the encoded separator (`%2F`, `%5C`)
+  and the encoded `..` traversal. The other four — double-encoding,
+  ≥3-level nesting, overlong UTF-8, and encoded control characters — scan the
+  whole URL including the userinfo, so `https://user%252e@example.com/` and
+  `https://user%01@example.com/` both fire here alongside `userinfo_present`.
+- **Why an encoded separator in the userinfo is excluded:** the reason is
+  grammatical, not incidental. RFC 3986 §3.2.1 defines
+  `userinfo = *( unreserved / pct-encoded / sub-delims / ":" )`, and `/` is
+  absent from that set — a slash inside a userinfo *has to* be percent-encoded
+  to be legal at all. `%2F` there is compliance with the grammar, not
+  concealment of a delimiter. In a path, `/` is legal unencoded and *is* the
+  segment separator, so `%2F` is a delimiter deliberately stopped from acting as
+  one; that asymmetry is the entire signal. The false-positive class the
+  exclusion protects is ordinary: `https://user:p%2Fss@example.com/` is a
+  correctly-formed URL whose password contains a slash.
+- **What does *not* justify the exclusion:** that `userinfo_present` (0.5)
+  outweighs this code (0.35). Aggregation is probabilistic-OR, not max —
+  measured, that URL scores `0.50`/`medium` today and would score
+  `0.675`/`high` if this code also fired. The widening would cross a severity
+  band, so "it makes no difference either way" is false.
+- The encoded-separator signal is path-scoped rather than path-and-query:
+  `https://example.com/?redir=a%2Fb` stays silent, because an encoded `/` inside
+  a query *value* is the legitimate encoding this code is deliberately narrow
+  enough to avoid flagging.
 - **Example:** `https://evil.com/redirect%2F..%2Fadmin` (encoded `/` in the path)
-  or `https://evil.com/%252e%252e` (double-encoded `..`). Matching is on the path
-  and query: an encoded delimiter in the *userinfo* is reported as
-  `userinfo_present`, which already outweighs this code, not as
-  `encoding_obfuscation`.
+  or `https://evil.com/%252e%252e` (double-encoded `..`).
 
 ### `dangerous_scheme` — FR-D-11 · weight 0.9
 
