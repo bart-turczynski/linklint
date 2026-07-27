@@ -199,6 +199,7 @@ describe("linklint/experimental — curated runtime surface", () => {
         "mixedScript",
         "asciiHomoglyph",
         "hostLengthUnresolvable",
+        "fqdnRootLabel",
         "invisibleChar",
         "bidiOverride",
         "userinfoPresent",

@@ -56,7 +56,7 @@ tracks.
 | `docs/online-runtime-boundary.md` | 9 |
 | `docs/online-source-contract.md` | 11 |
 | `docs/raw-url-tokenization-spike.md` | 1 |
-| `docs/reason-codes.md` | 81 |
+| `docs/reason-codes.md` | 82 |
 | `docs/redirect-chain-resolution.md` | 4 |
 | `docs/safe-transport.md` | 7 |
 | `docs/scoring.md` | 6 |
@@ -117,6 +117,7 @@ with no test behind any of them, the exact `LINK-zsbeqtcr` shape. B3's
 | C5 | Suppression never hides itself: the `suppression` token appears in `checksRun` whenever the option is present, even as `[]` | `docs/architecture.md` §8, `docs/scoring.md` | `packages/core/test/suppress-reasons.test.ts` |
 | C6 | With `suppressReasons` absent, output is byte-for-byte unchanged | `docs/scoring.md` | `packages/core/test/suppress-reasons.test.ts` |
 | C7 | The count of codes that never move the score matches the registry — the prose states a number, not an adjective | `docs/scoring.md` | `packages/core/test/docs-validation.test.ts` (asserts the literal `The remaining **N** codes` against `REASON_CODES` weight-0 membership) |
+| C8 | Two or more trailing dots never reach `fqdn_root_label` — they create an empty label and fail parsing first | `docs/reason-codes.md` (`fqdn_root_label`) | `packages/core/test/fqdn-root-label.test.ts` |
 
 C4 follows the precedent already recorded in `docs-validation.test.ts`: a
 property the type system makes unrepresentable needs no runtime test.

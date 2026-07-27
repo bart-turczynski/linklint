@@ -150,6 +150,20 @@ export const VECTORS: CorpusRow[] = [
     notes: "over-long (64ch) label — not a deception finding; reported at weight 0, score stays 0.00",
     source: "UTS#46 IdnaTestV2 (DNS length)",
   },
+  {
+    input: "https://example.com./",
+    label: "benign",
+    // V7 (LINK-fboctpse). Same shape as the row above: the FQDN form resolves
+    // identically and every parser reads it the same way, so it is NOT deception
+    // and the score stays 0.00 — but a consumer allow-listing host STRINGS is
+    // bypassed by the single trailing character (the Smokescreen bypass), which
+    // is worth saying out loud. ambiguous_authority is forbidden on purpose: it
+    // was the proposed home and was rejected because parsers do not disagree here.
+    expectReasons: ["fqdn_root_label"],
+    forbidReasons: ["ambiguous_authority", "separator_lookalike", "normalization_delta"],
+    notes: "trailing root dot — valid FQDN form, reported at weight 0, score stays 0.00",
+    source: "Smokescreen SSRF allow-list bypass (RFC 1034 §3.1)",
+  },
 
   // ── T2.3 benign guard (LINK-ibwuayzo) — real multilingual URLs whose code
   // points ARE truncation-reachable but are NOT sandwiched between ASCII

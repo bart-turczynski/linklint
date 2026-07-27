@@ -206,7 +206,7 @@ another signal.
 
 ### Zero-weight codes
 
-The remaining **15** codes never move the score. They are listed separately
+The remaining **16** codes never move the score. They are listed separately
 because "weight `0.00`" means three different things, and mixing them into the
 table above is what let this section drift: a reader scanning for weights has no
 reason to read past the last non-zero row.
@@ -216,6 +216,7 @@ reason to read past the last non-zero row.
 | `confusable_char`          | lexical    | annotation     |
 | `confusable_in_path`       | lexical    | annotation     |
 | `content_type_mismatch`    | resolution | annotation     |
+| `fqdn_root_label`          | lexical    | annotation     |
 | `host_denied`              | policy     | policy verdict |
 | `host_length_unresolvable` | lexical    | annotation     |
 | `host_not_allowlisted`     | policy     | policy verdict |

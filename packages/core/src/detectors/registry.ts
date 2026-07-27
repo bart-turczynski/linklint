@@ -28,6 +28,7 @@ import { suspiciousExtension } from "./suspicious-extension.js";
 import { punycodeMalformed } from "./punycode-malformed.js";
 import { percentEncodingMalformed } from "./percent-encoding-malformed.js";
 import { lowByteTruncation } from "./low-byte-truncation.js";
+import { fqdnRootLabel } from "./fqdn-root-label.js";
 import { hostLengthUnresolvable } from "./host-length-unresolvable.js";
 import { excessiveSubdomainDepth } from "./excessive-subdomain-depth.js";
 import { promptInjection } from "./prompt-injection.js";
@@ -81,6 +82,7 @@ export {
   percentEncodingMalformed,
   lowByteTruncation,
   hostLengthUnresolvable,
+  fqdnRootLabel,
   excessiveSubdomainDepth,
   promptInjection,
   apiEndpointImpersonation,

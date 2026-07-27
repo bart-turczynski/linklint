@@ -36,6 +36,7 @@ import { percentEncodingMalformed } from "./percent-encoding-malformed.js";
 import { excessiveSubdomainDepth } from "./excessive-subdomain-depth.js";
 import { promptInjection } from "./prompt-injection.js";
 import { lowByteTruncation } from "./low-byte-truncation.js";
+import { fqdnRootLabel } from "./fqdn-root-label.js";
 import { hostLengthUnresolvable } from "./host-length-unresolvable.js";
 import { apiEndpointImpersonation } from "./api-endpoint-impersonation.js";
 import { credentialHarvesting } from "./credential-harvesting.js";
@@ -323,6 +324,14 @@ export const CHECKS: CheckDescriptor[] = [
     emits: ["host_length_unresolvable"],
     skipReportable: true,
     run: hostLengthUnresolvable.run,
+  },
+  {
+    id: fqdnRootLabel.id,
+    layer: fqdnRootLabel.layer,
+    phase: "parsed",
+    emits: ["fqdn_root_label"],
+    skipReportable: true,
+    run: fqdnRootLabel.run,
   },
   {
     id: excessiveSubdomainDepth.id,

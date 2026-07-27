@@ -21,6 +21,13 @@ export interface ReasonCodeMeta {
 
 export const REASON_CODES = {
   // ── Informational (weight 0) ────────────────────────────────────────────
+  fqdn_root_label: {
+    layer: "lexical",
+    scoring: false,
+    weight: 0,
+    summary:
+      "Authority carries an explicit DNS root label (trailing dot, the FQDN form) — valid and resolves identically, but string-comparing allow-lists do not match it.",
+  },
   normalization_delta: {
     layer: "lexical",
     scoring: false,

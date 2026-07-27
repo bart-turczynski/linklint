@@ -208,9 +208,9 @@ describe("README detector count matches the computed total", () => {
     const parsed = CHECKS.filter((c) => c.phase === "parsed").length;
     const agentGated = CHECKS.filter((c) => c.agentGated === true).length;
 
-    expect(total).toBe(38);
+    expect(total).toBe(39);
     expect(structural).toBe(4);
-    expect(parsed).toBe(34);
+    expect(parsed).toBe(35);
     expect(agentGated).toBe(5);
     expect(DETECTORS.length).toBe(parsed);
     expect(STRUCTURAL_SCANS.length).toBe(structural);
@@ -277,12 +277,12 @@ describe("README detector count matches the computed total", () => {
 });
 
 describe("docs/architecture.md detector families cover every check", () => {
-  // The families table claims to group "the 38 checks", and every cell is a
+  // The families table claims to group "the 39 checks", and every cell is a
   // CHECK ID (not a reason code — one check may emit several). It had drifted to
   // 32 of 37: ip_classification, ambiguous_numeric_host, homograph_latin_skeleton,
   // locale_case_collapse, and idn_host were all missing. Pin it to the registry.
   it("every check id appears in the families table", () => {
-    const tableStart = architectureDoc.indexOf("The 38 checks group into seven families");
+    const tableStart = architectureDoc.indexOf("The 39 checks group into seven families");
     expect(tableStart).toBeGreaterThan(-1);
     const table = architectureDoc.slice(tableStart, architectureDoc.indexOf("## 6."));
 

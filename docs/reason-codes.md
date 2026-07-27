@@ -1107,6 +1107,34 @@ instead of minting one. Absent either, this stays closed.
   sees no change from this code existing.
 - **Example:** `https://` + 64 × `a` + `.com`.
 
+### `fqdn_root_label` — V7 · weight 0 (informational)
+
+- **Meaning:** the authority carries an explicit DNS root label — the trailing dot
+  in `example.com.`, the fully-qualified form. Valid per RFC 1034 §3.1. Scope is
+  the single root dot; two or more (`example.com..`) create an empty label and are
+  rejected at parse time as `invalid`/`parse_error`, so they never reach this check.
+  IP literals are exempt: they are not domain names.
+- **Why it is weight 0 and not a scoring finding:** it resolves identically to the
+  bare form and every URL parser reads it identically, so nothing is disguised and
+  no parser disagrees. `ambiguous_authority` (0.65) was the proposed home and was
+  rejected on exactly that: its contract is *"parsers disagree on the host"*, which
+  is false here, and folding this in would make that code's own summary wrong.
+  Scoring it at 0.65 would also fail the CLI's default `--fail-on high` on a URL
+  that is valid and resolves where it says it does.
+- **Why it is reported at all:** the hazard is one layer downstream, in consumers
+  that compare host **strings**. An allow-list holding `example.com` does not match
+  `example.com.`, which is the documented Smokescreen SSRF-filter bypass — one
+  character defeats the filter. That is a property of the consumer's comparison,
+  not a structural deception in the URL, so §1.1's fourth rule puts it in
+  reporting rather than scoring. The detail text names the bypass rather than just
+  the character, because the character alone is not actionable.
+- **Boundary:** linklint's own policy layer is **not** affected, and this was
+  verified before the check was written. `allowHosts`/`denyHosts` match on the
+  registrable domain, which is already root-label-normalized, so
+  `https://example.com./` matches an `example.com` allow-list and an unlisted host
+  is still refused. The score does not move and the severity does not move.
+- **Example:** `https://example.com./` → `0.00`/`info` with this reason.
+
 ### `low_byte_truncation` — T2.3 · weight 0.6
 
 - **Meaning:** a code point above U+007F whose **low byte is a dangerous ASCII
