@@ -27,6 +27,8 @@ import { openRedirectParam } from "./open-redirect-param.js";
 import { suspiciousExtension } from "./suspicious-extension.js";
 import { punycodeMalformed } from "./punycode-malformed.js";
 import { percentEncodingMalformed } from "./percent-encoding-malformed.js";
+import { lowByteTruncation } from "./low-byte-truncation.js";
+import { hostLengthUnresolvable } from "./host-length-unresolvable.js";
 import { excessiveSubdomainDepth } from "./excessive-subdomain-depth.js";
 import { promptInjection } from "./prompt-injection.js";
 import { apiEndpointImpersonation } from "./api-endpoint-impersonation.js";
@@ -77,6 +79,8 @@ export {
   suspiciousExtension,
   punycodeMalformed,
   percentEncodingMalformed,
+  lowByteTruncation,
+  hostLengthUnresolvable,
   excessiveSubdomainDepth,
   promptInjection,
   apiEndpointImpersonation,

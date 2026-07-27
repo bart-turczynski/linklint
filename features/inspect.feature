@@ -10,7 +10,7 @@ Feature: Core inspect() contract (walking skeleton)
     And the severity is "info"
     And checksRun is "lexical"
     And checksSkipped is "resolution,reputation"
-    And the schemaVersion is "1.5"
+    And the schemaVersion is "1.7"
     And dataVersions is present
 
   Scenario: Unparseable input is invalid, not benign (SC-2a)
