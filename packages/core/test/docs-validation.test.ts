@@ -242,6 +242,41 @@ describe("the scope-of-claim boundary is stated in one canonical place", () => {
     expect(section).toContain("Tian");
   });
 
+  // LINK-riupozbo. Two arguments linklint had earned but never stated. Both are
+  // load-bearing under challenge and both are deletable without breaking a test
+  // unless pinned: the cloaking argument is the only reason offline-first is a
+  // CORRECTNESS property rather than a privacy one, and the CWE-20 quote is the
+  // citable answer to "why not an allowlist".
+  it("§1.1 states the cloaking-immunity argument for offline-first", () => {
+    const start = architectureDoc.indexOf("### 1.1 Scope of claim");
+    const section = architectureDoc.slice(start, architectureDoc.indexOf("\n## 2.", start));
+
+    expect(section).toContain("CrawlPhish");
+    expect(section).toContain("PhishFarm");
+    // The claim is immunity by construction, not a difficulty gradient.
+    expect(section).toContain("structural immunity");
+    // It must not silently widen into claim (b) while making the argument.
+    expect(section.toLowerCase()).toContain("buys nothing against claim (b)");
+  });
+
+  it("§1.1 quotes CWE-20 on denylists including the caveat half", () => {
+    const start = architectureDoc.indexOf("### 1.1 Scope of claim");
+    const section = architectureDoc.slice(start, architectureDoc.indexOf("\n## 2.", start));
+
+    expect(section).toContain("CWE-20");
+
+    // The quote is a wrapped markdown blockquote, so match it with the "> "
+    // prefixes and line breaks flattened — otherwise a reflow breaks the test
+    // without changing a word of the citation.
+    const quoted = section.replace(/^\s*>\s?/gm, "").replace(/\s+/g, " ");
+
+    // The convenient half.
+    expect(quoted).toContain("denylists can be useful for detecting potential attacks");
+    // The half that makes quoting it honest — dropping this turns a defensible
+    // position into the overclaim §1.1 exists to prevent.
+    expect(quoted).toContain("Do not rely exclusively on looking for malicious or malformed inputs");
+  });
+
   it("every reason code §1.1 cites as evidence exists at the weight it claims", () => {
     const start = architectureDoc.indexOf("### 1.1 Scope of claim");
     const section = architectureDoc.slice(start, architectureDoc.indexOf("\n## 2.", start));

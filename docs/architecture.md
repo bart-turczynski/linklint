@@ -162,6 +162,52 @@ direction. `enforcement/` ships both wrappers this way — they deny on a
 deceptive verdict and on invalid input, and a clean verdict merely fails to
 trigger a denial rather than granting one.
 
+**Offline-first is a correctness property, not only a privacy one**
+(`LINK-riupozbo`). The zero-network core is described everywhere else in this
+repo as a privacy, determinism, and latency property — no telemetry, nothing
+leaving the machine, the same answer for the same string for all time. Those are
+true, and they are the weaker half of the argument. The stronger half: **a
+detector that never fetches cannot be served a decoy.**
+
+Cloaking is the standard evasion against anything that does fetch. CrawlPhish
+(Zhang et al., S&P 2021) documents **eight distinct client-side evasion types**
+in deployed phishing kits — fingerprint the visitor, serve benign content to
+anything that looks like a crawler, serve the attack to everyone else. PhishFarm
+(Oest et al., S&P 2019) measured what that is worth: trivial cloaking cut
+blocklisting by **more than 55%**. Every fetch-based detector is exposed to this
+by construction, because the attacker controls the response and can tell the
+detector and the victim apart.
+
+linklint's input is the string the victim was actually handed. There is no
+response for an attacker to vary, no visitor to fingerprint, and no
+crawler-versus-victim divergence to exploit. This is **structural immunity, not
+resistance** — not that cloaking linklint is hard, but that cloaking has no
+surface to act on. It buys nothing against claim (b): a detector that never
+fetches still cannot know what a site does, which is the same limit stated
+throughout this section. Within claim (a), though, what linklint reads is
+exactly what the victim was given.
+
+**Where a denylist legitimately sits** (`LINK-riupozbo`). linklint is regularly —
+and fairly — asked why the watchlist is not an allowlist. The answer is not that
+denylists are underrated. It is that MITRE already positions them exactly where
+linklint sits. CWE-20 (*Improper Input Validation*), verbatim:
+
+> Do not rely exclusively on looking for malicious or malformed inputs. This is
+> likely to miss at least one undesirable input [...] However, denylists can be
+> useful for detecting potential attacks or determining which inputs are so
+> malformed that they should be rejected outright.
+
+Both halves are load-bearing, and quoting only the second would be the same
+overclaim this section exists to prevent. The first half is why linklint is not
+a gate, and it is the consumer-side consequence above restated by the authority
+everyone cites when they say denylists do not work. The second half is the
+charter: a **supplementary detection layer**, composing with an allowlist rather
+than substituting for one. The two answer different questions — an allowlist
+answers *may I go here*, which is a policy the caller owns and which §8 exposes;
+linklint answers *is this string what it presents itself to be*, which no
+allowlist can settle, because a string that folds onto an allowed host is
+precisely the case an allowlist gets wrong.
+
 ## 2. Repository layout
 
 ```
