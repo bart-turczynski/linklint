@@ -430,6 +430,7 @@ This is a pnpm monorepo.
 | `docs/architecture.md` | System architecture (channels, pipeline, result contract, layers). |
 | `docs/reason-codes.md` | The full reason-code registry, with explanations. |
 | `docs/scoring.md` | Version-pinned scoring model and severity bands. |
+| `docs/guarantees.md` | Every unconditional claim in these docs, and the test pinning it. |
 | `features/` | Cucumber success-criteria / critical-path specs. |
 
 ## Development

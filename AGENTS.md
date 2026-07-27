@@ -49,6 +49,14 @@ The prefix goes in the **title**, not only in a label or a comment: `fp tree` an
 
 This is the root cause of the `LINK-tbqeqqvv` failure. §6.1.1 shipped in PR #122 describing an adopted mechanism in the **present tense** while its implementation ticket sat unimplemented for weeks — so every downstream reader saw a working feature and nothing in the repo could contradict them. Present tense is a claim about what the code does; do not write it until the code does it.
 
+## Guarantee statements
+
+**Never / always / unconditional / guarantee is either pinned by a test or qualified in the prose** (`LINK-ltyjctpf`). [`docs/guarantees.md`](docs/guarantees.md) is the register: every such claim across `docs/` and the package READMEs, classified, with the test that pins it.
+
+`packages/core/test/guarantee-register.test.ts` holds a per-file budget of guarantee-word lines, so writing a new unconditional claim fails `pnpm check` until you pin it, qualify it, or classify it as rhetorical in §H. The budget exists to move the triage to authoring time — while you still know whether the code does what the sentence says.
+
+The root cause is `LINK-zsbeqtcr`: an unqualified "`inspect()` never throws" that was false for non-string input and shipped for weeks, because nothing in the repository could contradict it. Same failure shape as the decision-record rule above.
+
 ## Online roadmap handoff
 
 When assigned `LINK-ddsnssrd` or one of its K/L/M descendants, read

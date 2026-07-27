@@ -6,6 +6,7 @@ import { CLOUD_METADATA_ENDPOINTS } from "../src/data/cloud-metadata.js";
 import { CHECKS } from "../src/detectors/checks.js";
 import { DETECTORS } from "../src/detectors/registry.js";
 import { STRUCTURAL_SCANS } from "../src/detectors/structural.js";
+import { analyzeIpv4, analyzeIpv6 } from "../src/parse/ip.js";
 import { REASON_CODES, type ReasonCode } from "../src/schema/reason-codes.js";
 
 // Light validation (NOT generation) that catches the common drift between code
@@ -78,6 +79,23 @@ describe("docs/reason-codes.md stays in sync with the REASON_CODES registry", ()
     // code's attribution must be a prefix of the documented one, not equal.
     for (const [i, row] of rows.entries()) {
       expect(row.provider.startsWith(CLOUD_METADATA_ENDPOINTS[i]!.provider)).toBe(true);
+    }
+  });
+
+  // 5. NO HOSTNAME ROWS — reason-codes.md states that "a hostname is
+  //    deliberately never a row (Tencent documents `metadata.tencentyun.com`,
+  //    GCP `metadata.google.internal`): resolving one is a network call, and
+  //    inspect() is zero-network by contract". That is a guarantee about the
+  //    table, so it belongs on the table, not only in prose (LINK-ltyjctpf).
+  //    A hostname row would parse as neither IPv4 nor IPv6, silently match
+  //    nothing, and invite a resolver call to make it work.
+  it("every endpoint is an IP literal — a hostname row would need a resolver", () => {
+    expect(CLOUD_METADATA_ENDPOINTS.length).toBeGreaterThan(0);
+    for (const endpoint of CLOUD_METADATA_ENDPOINTS) {
+      const parsed = analyzeIpv4(endpoint.address) ?? analyzeIpv6(endpoint.address);
+      expect(parsed, `${endpoint.address} (${endpoint.provider}) is not an IP literal`).not.toBe(
+        null,
+      );
     }
   });
 });

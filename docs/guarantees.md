@@ -1,0 +1,238 @@
+# Guarantee register
+
+Every unconditional claim this repository publishes — **never**, **always**,
+**unconditional**, **guarantee**, **invariant** — enumerated, classified, and
+either pinned by a test or explicitly qualified.
+
+## Why this exists
+
+`LINK-zsbeqtcr` found an unqualified "`inspect()` never throws" in
+`docs/architecture.md` and `README.md` that was **false**: `inspect(null)` threw
+a `TypeError`. The claim had been published for weeks. Nothing in the repository
+could contradict it, because nothing tested it.
+
+Fixing that one claim did not answer the question it raised: *which other
+guarantees are load-bearing prose with nothing behind them?* This register is
+that answer, and the ratchet below is what keeps it answered.
+
+The rule, stated once:
+
+> **A guarantee is either pinned by a test or qualified in the prose.** An
+> unconditional word with neither is a defect, not a stylistic choice.
+
+This is the same doctrine as the decision-record trailer rule in
+[`AGENTS.md`](../AGENTS.md): present-tense prose is a claim about what the code
+does, and it must not outrun the code.
+
+## The ratchet
+
+`packages/core/test/guarantee-register.test.ts` enforces three things, so the
+register cannot rot the way the claims it tracks did:
+
+1. **Claim budget.** It re-extracts every line matching the guarantee-word
+   pattern across `docs/` and the four package READMEs and compares the
+   per-file counts to the budget table below. Adding or removing an
+   unconditional claim fails `pnpm check` until the register is updated —
+   which forces the triage to happen at authoring time.
+2. **Pin integrity.** Every test path named in the *Pinned by* column must
+   exist.
+3. **Exemplar coverage.** Every negative exemplar in the §G audit must appear
+   in at least one test file.
+
+The register itself is excluded from its own budget: it quotes the claims it
+tracks.
+
+### Claim budget
+
+| File | Claim lines |
+| --- | --- |
+| `docs/architecture.md` | 33 |
+| `docs/bundle-size-budget.md` | 0 |
+| `docs/enforcement.md` | 0 |
+| `docs/enrichment-outcomes.md` | 12 |
+| `docs/layer3-reputation-model.md` | 12 |
+| `docs/locale-case-mapping.md` | 4 |
+| `docs/online-roadmap.md` | 12 |
+| `docs/online-runtime-boundary.md` | 9 |
+| `docs/online-source-contract.md` | 11 |
+| `docs/raw-url-tokenization-spike.md` | 1 |
+| `docs/reason-codes.md` | 79 |
+| `docs/redirect-chain-resolution.md` | 4 |
+| `docs/safe-transport.md` | 7 |
+| `docs/scoring.md` | 5 |
+| `docs/wrapper-decoding.md` | 1 |
+| `README.md` | 14 |
+| `packages/cli/README.md` | 1 |
+| `packages/core/README.md` | 2 |
+| `packages/mcp/README.md` | 2 |
+| `packages/online/README.md` | 2 |
+
+## A. Public API contract
+
+The load-bearing class: claims a library caller relies on without reading any
+detector.
+
+| # | Guarantee | Stated in | Pinned by |
+| --- | --- | --- | --- |
+| A1 | `inspect()` never throws — unconditionally, including non-string input | `README.md`, `packages/core/README.md`, `docs/architecture.md` §9, `docs/reason-codes.md` (`parse_error`) | `packages/core/test/non-string-input.test.ts` |
+| A2 | `inspect()` is synchronous — it returns a result, not a `Promise` | `docs/architecture.md` §0, `packages/core/README.md` | `packages/core/test/public-api-contract.test.ts` |
+| A3 | Deterministic — same input + same pinned data versions → same verdict, with no state carried between calls | `README.md`, `docs/architecture.md` §0 | `packages/core/test/public-api-contract.test.ts` |
+| A4 | Core opens no network connection, does no filesystem I/O, and emits no telemetry | `README.md`, `docs/architecture.md` §0 | `packages/core/test/runtime-compat.test.ts` |
+| A5 | `inspectAsync()` with no enrichers is deep-equal to `inspect()` | `docs/architecture.md` §7, `docs/enrichment-outcomes.md` | `packages/core/test/inspect-async.test.ts` |
+| A6 | `confidence` is `1.0` for every deterministic lexical result and never feeds score aggregation | `docs/architecture.md` §7 | `packages/core/test/public-api-contract.test.ts` |
+| A7 | Reason ordering is locale-independent (no `localeCompare`, no `Intl.Collator`) | `docs/locale-case-mapping.md` §1 | `packages/core/test/locale-independence.test.ts` |
+
+**A3 is qualified, deliberately.** `pslSnapshot.stale` is the one time-relative
+field on a result: it reflects wall-clock time at inspection, so two calls a
+year apart can differ in that field alone. The qualification is already stated
+on `PslSnapshot` in `packages/core/src/data/psl-provenance.ts` and is asserted
+as an exclusion — not ignored — in the A3 test, with a verified negative
+control that the flag really does flip under a moved clock.
+
+## B. Package guarantees
+
+Claims published in a package's own `## Guarantees` section — the ones a
+consumer reads on npm.
+
+| # | Guarantee | Stated in | Pinned by |
+| --- | --- | --- | --- |
+| B1 | `@linklint/cli`: no outbound network, no telemetry | `packages/cli/README.md` | `packages/cli/test/offline-guarantee.test.ts` |
+| B2 | `@linklint/mcp`: no outbound network, no telemetry (stdio transport only) | `packages/mcp/README.md` | `packages/mcp/test/offline-guarantee.test.ts` |
+| B3 | `@linklint/mcp`: every tool is annotated read-only and closed-world | `packages/mcp/README.md` | `packages/mcp/test/offline-guarantee.test.ts` |
+| B4 | `@linklint/mcp` returns the exact core schema — the adapter never forks detector or scoring logic | `packages/mcp/README.md` | `packages/mcp/test/parity.test.ts` |
+| B5 | `linklint check` never gains an implicit online mode; core never imports `@linklint/online`, and online never imports CLI or MCP | `docs/online-runtime-boundary.md` §3 | `packages/online/test/package-contract.test.ts` |
+
+B1–B3 were **unpinned before `LINK-ltyjctpf`** — three published guarantees
+with no test behind any of them, the exact `LINK-zsbeqtcr` shape. B3's
+`readOnlyHint` was set in `tools/index.ts` and never asserted over the wire.
+
+## C. Scoring invariants
+
+| # | Guarantee | Stated in | Pinned by |
+| --- | --- | --- | --- |
+| C1 | Probabilistic-OR aggregation is order-independent and saturating — it approaches 1 but never passes it | `README.md`, `docs/scoring.md` | `packages/core/test/score.test.ts` |
+| C2 | Weight-0 informational reasons never change the score | `README.md`, `docs/reason-codes.md` | `packages/core/test/score.test.ts` |
+| C3 | Policy reasons carry `weight: 0` and never change `score` or `severity` | `README.md`, `docs/architecture.md` §5, `docs/reason-codes.md` | `packages/core/test/policy-channel-separation.test.ts` |
+| C4 | Detectors never supply their own weight; core attaches it from the version-pinned table | `docs/architecture.md` §5, `docs/reason-codes.md`, `docs/layer3-reputation-model.md` | type-level — `CollectedFinding` has no `weight` field, so `tsc` rejects one |
+| C5 | Suppression never hides itself: the `suppression` token appears in `checksRun` whenever the option is present, even as `[]` | `docs/architecture.md` §8, `docs/scoring.md` | `packages/core/test/suppress-reasons.test.ts` |
+| C6 | With `suppressReasons` absent, output is byte-for-byte unchanged | `docs/scoring.md` | `packages/core/test/suppress-reasons.test.ts` |
+
+C4 follows the precedent already recorded in `docs-validation.test.ts`: a
+property the type system makes unrepresentable needs no runtime test.
+
+## D. Fail-closed and absence-is-not-safety
+
+| # | Guarantee | Stated in | Pinned by |
+| --- | --- | --- | --- |
+| D1 | `status: "invalid"` carries `score: null` and `severity: null` — never a fallback to a second parser | `docs/architecture.md` §1.1, `docs/scoring.md` | `packages/core/test/invalid-gate-contract.test.ts` |
+| D2 | A clean result is never rendered, described, or field-named as "safe" on any surface | `docs/architecture.md` §1.1, `README.md`, MCP tool descriptions | `packages/core/test/docs-validation.test.ts`, `packages/mcp/test/parity.test.ts` |
+| D3 | An invalid URL is never assumed safe by the CLI exit policy | `packages/cli/README.md`, `docs/scoring.md` | `packages/cli/test/policy.test.ts` |
+| D4 | Unconfigured L2/L3 layers stay skipped — a score never implies unfinished work was clean | `docs/architecture.md` §7, `docs/online-runtime-boundary.md` | `packages/core/test/inspect-async.test.ts` |
+| D5 | A no-match is evidence about one source at one time, never a safety claim | `docs/layer3-reputation-model.md`, `docs/online-source-contract.md` | `packages/online/test/urlhaus-lookup.test.ts`, `packages/online/test/phishtank-lookup.test.ts` |
+
+## E. The name-never-create rule
+
+| # | Guarantee | Stated in | Pinned by |
+| --- | --- | --- | --- |
+| E1 | The brand watchlist may only NAME a structural anomaly already found; it may never CREATE a finding | `README.md`, `docs/architecture.md` §1.1 | `packages/core/test/brand-fold-surface.test.ts` |
+| E2 | A stale bundled PSL can never silently reintroduce the IMC '23 tenant-collapse harm | `docs/architecture.md` §7 | `packages/core/test/freshness-corpus.test.ts` |
+
+## F. Enrichment and online boundary
+
+| # | Guarantee | Stated in | Pinned by |
+| --- | --- | --- | --- |
+| F1 | Skipped, failed, and partial reports are never cached | `README.md`, `docs/architecture.md` §7, `docs/enrichment-outcomes.md` | `packages/core/test/enrichment-cache.test.ts` |
+| F2 | The framework never derives cache key material from the full URL, and rejects a key that discloses it | `docs/architecture.md` §7, `docs/enrichment-outcomes.md` | `packages/core/test/enrichment-cache.test.ts` |
+| F3 | Every pluggable call is a total boundary — an exception becomes an attributed failure outcome and never rejects `inspectAsync()` | `docs/enrichment-outcomes.md` | `packages/core/test/enrichment-resilience.test.ts` |
+| F4 | Online evidence is additive and never replaces the lexical verdict | `docs/layer3-reputation-model.md`, `docs/online-source-contract.md`, `docs/reason-codes.md` | `packages/online/test/reputation-composition.test.ts` |
+| F5 | Evidence-only sources (TLS, DNS) never score a finding and are byte-neutral on the verdict | `docs/layer3-reputation-model.md`, `docs/online-source-contract.md` | `packages/online/test/tls-certificate-enricher.test.ts`, `packages/online/test/dns-enricher.test.ts` |
+| F6 | Redirects are returned to the caller and never followed implicitly; construction is never consent to connect | `packages/online/README.md`, `docs/safe-transport.md`, `docs/online-runtime-boundary.md` | `packages/online/test/safe-transport.test.ts` |
+| F7 | Ambient credential headers are never copied to a destination; `Referer` is never forwarded from caller headers | `docs/safe-transport.md` | `packages/online/test/safe-transport.test.ts` |
+| F8 | Local wrapper decoding never calls a vendor decoder service and performs no I/O at all | `packages/online/README.md`, `docs/wrapper-decoding.md`, `docs/redirect-chain-resolution.md` | `packages/online/test/embedded-wrapper.test.ts`, `packages/online/test/package-contract.test.ts` |
+| F9 | A reputation match is never broadened to the host — a different path, query, subdomain, or parent is a `no-hit` | `docs/layer3-reputation-model.md`, `docs/reason-codes.md`, `docs/online-roadmap.md` | `packages/online/test/urlhaus-lookup.test.ts`, `packages/online/test/phishtank-lookup.test.ts` |
+
+## G. Detector precision claims
+
+The largest group — 79 claim lines in `docs/reason-codes.md` alone, nearly all
+of the form *"`X` never fires for `Y`"*. These are **precision** claims (SC-2):
+each names the false positive its detector deliberately declines to raise.
+
+They are handled as a class rather than one register row each, because the
+class has a structural pin: every detector owns a test file, and a precision
+claim is only worth writing when the exemplar that motivated it is in that
+file. The audit below verifies that link on a curated sample — each exemplar is
+quoted from a `never` sentence in `docs/reason-codes.md`, and the ratchet test
+asserts each appears in the test suite.
+
+| Exemplar | Claim it pins |
+| --- | --- |
+| `1password` | `ascii_homoglyph` skips a leading-digit label |
+| `blink182` | a disqualifying digit blocks the whole label |
+| `bet365` | same, via a non-folding digit |
+| `route53` | same, and it cannot reach a brand |
+| `s3` | below the length floor |
+| `web3` | non-folding digit |
+| `i18n` | digits outnumber letters |
+| `XN--CAF-DMA` | uppercase ACE round-trips, so `punycode_malformed` stays quiet |
+| `cdn.assets` | a legitimate 3-label deep subdomain stays under the depth threshold |
+| `myproject.github.io` | a brand-owned platform host on a sibling eTLD+1 does not trip API impersonation |
+| `openai.example.com` | a brand word in an unrelated subdomain does not trip it either |
+| `myoauth` | OAuth path matching is segment-anchored |
+| `userrole` | prompt-injection parameter matching is set membership, not substring |
+| `payroll` | same |
+| `2001:DB8::1` | pure case differences are not an IPv6 canonicalization anomaly |
+| `64:ff9b::808:808` | a NAT64 wrapper never manufactures a verdict for a public address |
+| `0::1` | …while an uncompressed zero run is one |
+| `пример` | a genuine non-Latin word never folds to pure ASCII |
+| `россия` | same |
+| `İstanbul` | ordinary Turkish orthography never raises severity on its own |
+
+One claim in this class was **not** covered by an exemplar and is now pinned
+directly: *"a hostname is deliberately never a row"* in the cloud-metadata
+table. Nothing asserted it, and a hostname row would match nothing while
+inviting a resolver call that contradicts the zero-network contract. Pinned in
+`packages/core/test/docs-validation.test.ts`.
+
+**Residual, stated honestly.** This is a sampled audit, not an exhaustive
+per-claim proof for all 79 lines. The judgment behind stopping there: a class-G
+failure is a false positive on a named benign input, which the corpus and
+boundary-baseline suites already sweep broadly, whereas a class-A or class-B
+failure is a false *safety* claim reaching a caller — the asymmetry that
+`LINK-zsbeqtcr` demonstrated. The budget ratchet means any *new* claim in this
+class still has to be triaged when it is written.
+
+## H. Not guarantees
+
+Listed so that absence from the register above reads as a decision rather than
+an oversight. These lines match the pattern and are deliberately unpinned:
+
+- **Hedged frequency claims** — "almost never legitimate" (`dangerous_scheme`),
+  "almost always accidental" (`idn_host`), "legitimate sites rarely stack bait
+  words in the host". These are stated *as* probabilistic rationale for a
+  weight; pinning them would be pinning the rationale, not the behavior. The
+  behavior they justify is pinned by the detector's own tests.
+- **Historical narration** — "Former Epic O was never part of this
+  implementation roadmap", "one real locale-dependence defect existed and is
+  fixed". Statements about the past, not about current behavior.
+- **Process rules** — "parked work is never selected by an agent choosing what
+  is next", "caller-owned mirrors are never silently redistributed". These bind
+  contributors, not code; the tracker and review enforce them.
+- **`always` as a discourse marker** — "the match is always recorded as
+  evidence" restates a mechanism described in the same paragraph rather than
+  adding a separate promise.
+- **References to this register** — the `README.md` repository-layout row that
+  points here matches the pattern by naming it. A label is not a claim.
+
+## Adding a claim
+
+If `pnpm check` fails on the claim budget, you added or removed an
+unconditional word. Do one of:
+
+1. **Pin it** — add the test, add the register row, bump the budget.
+2. **Qualify it** — rewrite the sentence so it stops promising more than the
+   code delivers, then bump the budget.
+3. **Classify it as §H** — if it is genuinely rhetorical, note it there and
+   bump the budget.
+
+Bumping the budget without doing one of the three is how `LINK-zsbeqtcr`
+happened.
