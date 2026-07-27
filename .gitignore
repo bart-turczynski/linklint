@@ -4,6 +4,8 @@
 *.log
 .DS_Store
 
+# Fiberplane local issue tracking (backed up separately by tools/backup.sh —
+# `git bundle` cannot contain it).
 .fp/
 _scratch/
 
@@ -21,6 +23,3 @@ vectors/
 node_modules/
 dist/
 coverage/
-
-# Fiberplane local issue tracking
-.fp/
