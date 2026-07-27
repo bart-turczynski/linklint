@@ -36,6 +36,19 @@ Install this repo's fp extensions once per clone, alongside the pre-commit hooks
 
 The prefix goes in the **title**, not only in a label or a comment: `fp tree` and `fp issue list` render neither, and the audit's finding was that abandonment was discoverable *only* by reading a comment. Set the matching `labels` value too, for filtering. A `[SCRATCHED]`/`[SUPERSEDED]` title is its own closing-comment exemption, so the guard above accepts it.
 
+## Decision records
+
+**A decision record that adopts a mechanism must name the ticket implementing it** (`LINK-hsoazwuu`). Any `**… — ADOPTED.**` block in `docs/architecture.md` has to end with a trailer:
+
+```markdown
+**Pending (`LINK-abcdefgh`).**       <- adopted, not yet built; keep the record in future tense
+**Implemented (`LINK-abcdefgh`).**   <- landed; present tense is now earned
+```
+
+`packages/core/test/docs-validation.test.ts` asserts this, so a record without a trailer fails `pnpm check`.
+
+This is the root cause of the `LINK-tbqeqqvv` failure. §6.1.1 shipped in PR #122 describing an adopted mechanism in the **present tense** while its implementation ticket sat unimplemented for weeks — so every downstream reader saw a working feature and nothing in the repo could contradict them. Present tense is a claim about what the code does; do not write it until the code does it.
+
 ## Online roadmap handoff
 
 When assigned `LINK-ddsnssrd` or one of its K/L/M descendants, read

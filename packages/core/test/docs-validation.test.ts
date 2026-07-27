@@ -257,3 +257,46 @@ describe("the scope-of-claim boundary is stated in one canonical place", () => {
     }
   });
 });
+
+describe("an adopted decision record cites its implementing ticket", () => {
+  // LINK-hsoazwuu, stating the root cause of the LINK-tbqeqqvv failure as a rule.
+  //
+  // §6.1.1 shipped in PR #122 describing the adopted fold-gated escalation in the
+  // PRESENT TENSE while its implementation ticket sat unimplemented for weeks.
+  // From that moment every downstream reader — doc, tracker, epic — saw an
+  // adopted, documented, working mechanism, and nothing in the repo could
+  // contradict it. The trailer §6.1.1 now carries was added retrospectively;
+  // this makes it mandatory, so a decision record without one is VISIBLY
+  // unfinished instead of silently false.
+  //
+  // The guard is deliberately narrow: it fires only on the explicit
+  // `**… — ADOPTED.**` marker, which is the point at which a record starts
+  // making a present-tense claim about behavior. Prose that merely uses the word
+  // "adopted" is untouched.
+  const ADOPTION_MARKER = /\*\*[^*]*—\s*ADOPTED\.?\*\*/g;
+  const TICKET_TRAILER = /\*\*(?:Implemented|Pending) \(`LINK-[a-z0-9]+`\)/;
+
+  it("every ADOPTED block in architecture.md names the ticket that implements it", () => {
+    const markers = [...architectureDoc.matchAll(ADOPTION_MARKER)];
+
+    // If this drops to zero the regex has drifted away from the doc's style and
+    // the guard is silently vacuous — the exact failure mode it exists to catch.
+    expect(markers.length).toBeGreaterThan(0);
+
+    for (const marker of markers) {
+      const start = marker.index;
+      // The record runs to the next heading of any level.
+      const nextHeading = architectureDoc.slice(start).search(/\n#{2,4} /);
+      const record = architectureDoc.slice(
+        start,
+        nextHeading === -1 ? undefined : start + nextHeading,
+      );
+
+      // Reported with the marker text so a failure names the offending record.
+      expect(
+        TICKET_TRAILER.test(record) ? "" : marker[0],
+        `adopted record has no **Implemented (\`LINK-…\`)** or **Pending (\`LINK-…\`)** trailer`,
+      ).toBe("");
+    }
+  });
+});
