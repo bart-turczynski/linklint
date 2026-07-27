@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { inspect } from "../src/index.js";
 import * as root from "../src/index.js";
@@ -66,6 +66,77 @@ describe("InspectResult schema contract (schemaVersion + confidence, FR-SCORE-2b
       // Advisory, time-relative staleness against the default 180-day window.
       expect(typeof snap.stale === "boolean" || snap.stale === null).toBe(true);
     }
+  });
+});
+
+/**
+ * LINK-ltyjctpf — the README publishes `inspect()` as **synchronous** and
+ * **deterministic** ("same input + same pinned data versions → same verdict"),
+ * and `docs/architecture.md` §0 opens with the same two words. Both were
+ * load-bearing prose with no test behind them: `runtime-compat.test.ts` pins the
+ * *inputs* to determinism (no network/native imports) but nothing asserted the
+ * property itself, and nothing stopped `inspect` from being made async.
+ *
+ * `pslSnapshot.stale` is the one deliberate exception — advisory, time-relative,
+ * and documented as such on `PslSnapshot`. It is excluded here rather than
+ * ignored, so the carve-out stays visible instead of weakening the claim.
+ */
+describe("inspect() is synchronous and deterministic (published guarantee)", () => {
+  const CORPUS = [
+    "https://www.example.com/path",
+    "https://paypal.com@evil.example.com/login",
+    "https://www.gооgle.com@bad.tk/login",
+    "https://paypa1.com/",
+    "https://xn--pypal-4ve.ru/signin",
+    "http://169.254.169.254/latest/meta-data/",
+    "https://a.b.c.d.e.example.com/",
+    "ht!tp://%%%not a url",
+    "",
+  ];
+
+  it("returns a plain result, not a Promise", () => {
+    for (const input of CORPUS) {
+      const result = inspect(input);
+      expect(result, input).not.toBeInstanceOf(Promise);
+      expect((result as { then?: unknown }).then, input).toBeUndefined();
+    }
+  });
+
+  it("returns a deep-equal result for the same input on every call", () => {
+    for (const input of CORPUS) {
+      expect(inspect(input), input).toEqual(inspect(input));
+    }
+  });
+
+  // Order-independence of the corpus: a detector holding state across calls
+  // would make the verdict depend on what was inspected before it.
+  it("carries no state between calls (reversed order gives the same verdicts)", () => {
+    const forward = CORPUS.map((input) => inspect(input));
+    const reverse = [...CORPUS].reverse().map((input) => inspect(input));
+    expect(forward).toEqual([...reverse].reverse());
+  });
+
+  it("depends on no clock except the advisory pslSnapshot.stale flag", () => {
+    const strip = (result: ReturnType<typeof inspect>): unknown => {
+      const { pslSnapshot, ...rest } = result;
+      return { ...rest, pslSnapshot: { date: pslSnapshot.date } };
+    };
+
+    const before = CORPUS.map((input) => strip(inspect(input)));
+    vi.useFakeTimers();
+    try {
+      // Far enough forward to cross the 180-day PSL freshness window, so the
+      // one field that IS allowed to move actually moves.
+      vi.setSystemTime(new Date("2031-01-01T00:00:00Z"));
+      expect(CORPUS.map((input) => strip(inspect(input)))).toEqual(before);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("states the determinism guarantee it is pinning", () => {
+    expect(publicReadme).toContain("**Deterministic**");
+    expect(architectureDoc).toContain("synchronous, deterministic");
   });
 });
 
