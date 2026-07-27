@@ -163,29 +163,40 @@ describe("documented example verdicts match inspect()", () => {
 const ALL_SCORE_RE =
   /((?:`[a-z0-9.‐-―-]+`(?:,| and|,? and)? ?)+)\s*all score `(\d+\.\d+)`\/`?([a-z]+)`?/g;
 
-describe("prose 'all score' claims hold", () => {
-  const claims: { host: string; score: number; severity: string }[] = [];
-  for (const [source, doc] of [
-    ["docs/architecture.md", architectureDoc],
-    ["README.md", readme],
-  ] as const) {
-    void source;
+// The singular present-tense form: "`host` scores `0.50`/`medium`". Tense is
+// load-bearing. README's "Known gaps" narrates history in the same sentence
+// ("`paypa1-login.com` returned `0.00`" — true before LINK-lippdgpn, false
+// now), so matching "scored"/"returned" would assert a claim the prose is
+// explicitly describing as superseded. Only "scores" states a live fact.
+const SCORES_RE = /`([^`\s]+)` (?:still )?scores `(\d+\.\d+)`(?:\/`?([a-z]+)`?)?/g;
+
+describe("prose score claims hold", () => {
+  const claims: { host: string; score: number; severity?: string }[] = [];
+  for (const doc of [architectureDoc, readme]) {
     for (const m of doc.matchAll(ALL_SCORE_RE)) {
       const hosts = [...(m[1] as string).matchAll(/`([^`]+)`/g)].map((h) => h[1] as string);
       for (const host of hosts) {
         claims.push({ host, score: Number(m[2]), severity: m[3] as string });
       }
     }
+    for (const m of doc.matchAll(SCORES_RE)) {
+      claims.push({
+        host: m[1] as string,
+        score: Number(m[2]),
+        ...(m[3] ? { severity: m[3] } : {}),
+      });
+    }
   }
 
   it("finds the prose score claims", () => {
-    expect(claims.length).toBeGreaterThanOrEqual(3);
+    // 3 "all score" hosts + 5 singular claims today.
+    expect(claims.length).toBeGreaterThanOrEqual(7);
   });
 
   it.each(claims.map((c) => [c.host, c] as const))("%s scores as documented", (_host, claim) => {
     const result = inspect(claim.host);
     expect(result.score).toBe(claim.score);
-    expect(result.severity).toBe(claim.severity);
+    if (claim.severity !== undefined) expect(result.severity).toBe(claim.severity);
   });
 });
 
