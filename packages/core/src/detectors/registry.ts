@@ -17,7 +17,7 @@ import { fileExtensionTld } from "./file-extension-tld.js";
 import { encodingObfuscation } from "./encoding-obfuscation.js";
 import { dangerousScheme } from "./dangerous-scheme.js";
 import { confusableInPath } from "./confusable-in-path.js";
-import { brandLookalike } from "./brand-lookalike.js";
+import { brandHomoglyph } from "./brand-homoglyph.js";
 import { skeletonCollision } from "./skeleton-collision.js";
 import { latinSkeletonHomograph } from "./latin-skeleton-homograph.js";
 import { localeCaseCollapse } from "./locale-case-collapse.js";
@@ -67,7 +67,7 @@ export {
   encodingObfuscation,
   dangerousScheme,
   confusableInPath,
-  brandLookalike,
+  brandHomoglyph,
   skeletonCollision,
   latinSkeletonHomograph,
   localeCaseCollapse,

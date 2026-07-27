@@ -313,7 +313,7 @@ may emit several reason codes):
 |--------|-----------|
 | **Authority spoofing** | `userinfo_present`, `embedded_domain_in_subdomain`, `ambiguous_authority`, `ip_obfuscation`, `ip_classification`, `ambiguous_numeric_host`, `separator_lookalike`, `excessive_subdomain_depth` |
 | **Homographs & confusables** | `mixed_script`, `confusable_char`, `ascii_homoglyph`, `punycode_malformed`, `normalization_delta`, `idna_mapping_ambiguity`, `locale_case_collapse`, `homograph_latin_skeleton`, `idn_host` |
-| **Brand impersonation** | `brand_lookalike`, `homograph_skeleton_collision` |
+| **Brand impersonation** | `brand_homoglyph`, `homograph_skeleton_collision` |
 | **Dangerous payloads** | `dangerous_scheme`, `file_extension_tld`, `suspicious_extension`, `open_redirect_param` |
 | **Hidden characters** | `invisible_char`, `bidi_override`, `control_char`, `encoding_obfuscation`, `percent_encoding_malformed`, `confusable_in_path` |
 | **Contextual signals** | `risky_tld`, `bait_tokens` |
@@ -361,7 +361,7 @@ Key invariants:
 linklint's core claim — "the real host is `evil.com`" — is computed from the
 Public Suffix List bundled inside `tldts` (pinned via
 `dataVersions.publicSuffixList`). A silently stale bundled PSL degrades
-embedded-domain / brand-lookalike / ambiguous-authority reasoning with no signal
+embedded-domain / brand-homoglyph / ambiguous-authority reasoning with no signal
 to callers, so the trust boundary carries its own provenance:
 
 - **Provenance record** (`src/data/psl-provenance.ts`, `PSL_PROVENANCE`): a
@@ -658,7 +658,7 @@ structural fact, and the brand match is the name for it.
 
 **Accepted, deliberate loss of coverage.** `paypai.com`, `gogole.com`,
 `netflicks.com`, `netfliz.com`, and `amazgn.com` all score `0.00`/`info`. That is
-the intended outcome, asserted directly in `test/brand-lookalike.test.ts` and
+the intended outcome, asserted directly in `test/brand-homoglyph.test.ts` and
 carried as *benign* rows in the corpus so a future widening has to argue with
 them. A free consequence: `anthropics.com` — Anthropics Technology Ltd, a real UK
 business that sat at edit-distance 1 from `anthropic.com` — stops reading
@@ -670,12 +670,30 @@ stated non-fold justification — edit-distance or soundsquat coverage, say") no
 longer names anything that exists; a brand label with no pre-images under the
 ASCII digit fold buys nothing and should be declined.
 
-**Naming debt (open).** The surviving check keeps the id `brand_lookalike` and
-lives in `detectors/brand-lookalike.ts`, though it now emits only
-`brand_homoglyph`. The families table above lists **check ids**, so that legacy
-name is what appears there. Renaming the check id is a separate, mechanical
-change (it moves `checksSkipped` strings) and was deliberately left out of this
-unit.
+**Naming debt (closed, `LINK-hyezxjda`).** The surviving check carried the id
+`brand_lookalike` in `detectors/brand-lookalike.ts` while emitting only
+`brand_homoglyph` — a legacy name for a step whose only reason for that name had
+been deleted. The check id is now `brand_homoglyph`, the module is
+`detectors/brand-homoglyph.ts`, and the exported detector is `brandHomoglyph`.
+Check id and reason code now coincide, as they already did for
+`confusable_in_path`, `dangerous_scheme`, and most of the registry.
+
+**The compat question, and why it did not force a schema note.** The check id is
+public surface in three places, and each was checked rather than assumed:
+
+| Surface | Exposure | Disposition |
+|---|---|---|
+| `checksSkipped` | `lexical:<id>`, written only when the check *throws* at runtime | Not the shape of the contract — `checksSkipped` is typed `string[]` with no enumerated domain, and the entry appears only on a should-not-happen fault path |
+| Exported symbol `brandLookalike` | `linklint/experimental` (documented **Unstable**) plus the root's legacy advanced-compatibility re-export | Renamed outright; no deprecated alias |
+| Families table (§ above) | Lists check ids | Updated in the same change |
+
+No `SCHEMA_VERSION` bump: the result shape is unchanged and no field gained or
+lost a documented value. No deprecated alias export either — both packages are
+`0.1.0-dev.0` and unpublished (the npm publish decision is still open under
+`LINK-reilfhac`), so there is no released consumer holding the old symbol, and
+shipping an alias would preserve a name for nobody at the cost of keeping the
+deleted detector's vocabulary alive in the public surface. Reverse the alias
+decision only if a first release ships before this lands — it has not.
 
 ### 6.2 IDNA / UTS-46 conformance & the normalization flag profile
 

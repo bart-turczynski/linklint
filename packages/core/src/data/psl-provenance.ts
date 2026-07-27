@@ -6,7 +6,7 @@
  *
  * linklint's whole "the real host is evil.com" claim rides on the PSL bundled
  * inside tldts (pinned in {@link import("./versions.js").DATA_VERSIONS}). A
- * silently stale bundled PSL degrades embedded-domain / brand-lookalike /
+ * silently stale bundled PSL degrades embedded-domain / brand-homoglyph /
  * ambiguous-authority reasoning with NO signal to callers. This module exposes
  * the snapshot's provenance so consumers learn the provenance of the trust
  * boundary they are handed, and a pure offline staleness check so they can

@@ -73,8 +73,8 @@ import {
  * The skeleton-fold path is a single string pass + set membership.
  */
 
-export const brandLookalike: Detector = {
-  id: "brand_lookalike",
+export const brandHomoglyph: Detector = {
+  id: "brand_homoglyph",
   layer: "lexical",
   run(ctx): DetectorFinding[] {
     if (ctx.isIp) return [];

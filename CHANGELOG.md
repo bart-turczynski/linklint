@@ -4,6 +4,13 @@ All notable changes to this project will be documented here.
 
 ## Unreleased
 
+- Rename the brand-proximity check id `brand_lookalike` to `brand_homoglyph`,
+  matching the single reason code it has emitted since the edit-distance step was
+  deleted. The module is now `detectors/brand-homoglyph.ts` and the experimental
+  export is `brandHomoglyph` (was `brandLookalike`, renamed without a deprecated
+  alias — both packages are unpublished). No `SCHEMA_VERSION` bump: the result
+  shape is unchanged and the id reaches `checksSkipped` only as
+  `lexical:brand_homoglyph` on the detector-threw fault path.
 - Fix `homograph_latin_skeleton` and `homograph_skeleton_collision` missing every
   punycode-spelled homograph: both read the registrable domain as written, so an
   `xn--` host was pure ASCII and failed their non-ASCII guard before any skeleton

@@ -211,7 +211,7 @@ describe("linklint/experimental — curated runtime surface", () => {
         "encodingObfuscation",
         "dangerousScheme",
         "confusableInPath",
-        "brandLookalike",
+        "brandHomoglyph",
         "skeletonCollision",
         "latinSkeletonHomograph",
         "localeCaseCollapse",
