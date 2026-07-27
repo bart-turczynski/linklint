@@ -1025,7 +1025,11 @@ instead of minting one. Absent either, this stays closed.
   nested (double-encoding).
 - **Why it's a signal:** encoded `/`, `@`, `:` or repeated `%25` chains hide the
   true structure of a URL. Recursive decoding is bounded (no decode-bomb).
-- **Example:** `https://example.com%2F@evil.com` or `%252e%252e`.
+- **Example:** `https://evil.com/redirect%2F..%2Fadmin` (encoded `/` in the path)
+  or `https://evil.com/%252e%252e` (double-encoded `..`). Matching is on the path
+  and query: an encoded delimiter in the *userinfo* is reported as
+  `userinfo_present`, which already outweighs this code, not as
+  `encoding_obfuscation`.
 
 ### `dangerous_scheme` — FR-D-11 · weight 0.9
 
