@@ -4,7 +4,9 @@ Feature: Caller-configurable policy layer
   built-in deception analysis. Each axis (TLD, host, scheme, port) supports an
   allow and/or deny mode. Policy hits surface in reasons[] with layer "policy"
   and weight 0, so they annotate without ever moving the deception score or
-  severity, and "policy" appears in checksRun only when an axis is configured.
+  severity, and "policy" appears in checksRun only when an axis is configured
+  and at least one axis completes. Axes are guarded independently: a failing one
+  is reported as "policy:<axis id>" in checksSkipped and costs only itself.
 
   Scenario: denyTlds flags a listed TLD (deny mode)
     When I inspect "https://promo.ru/" with policy:

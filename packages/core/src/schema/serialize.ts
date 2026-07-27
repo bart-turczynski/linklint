@@ -84,9 +84,12 @@ export function buildInvalidResult(
  *
  * `policyFindings` is the separate policy channel (layer `policy`, weight 0):
  * its reasons go through the same map and sort but contribute nothing to the
- * score. `policyRan` records whether the policy channel was configured/ran — it
+ * score. `policyRan` records whether the policy channel actually produced a
+ * verdict — configured AND at least one axis completed (LINK-ymprmvhr) — and
  * gates the `policy` entry in `checksRun` so that, with no policy configured,
- * `checksRun` stays exactly `["lexical"]`.
+ * `checksRun` stays exactly `["lexical"]`. A partially failed channel still
+ * counts as run; its failed axes appear separately as `policy:<axis id>` in
+ * `checksSkipped`, so the two lists never disagree about the same token.
  *
  * `agentRan` is the parallel flag for the agent channel: when `InspectOptions.
  * agentMode` is on AND ≥1 agent-gated check was evaluated, the `agent` channel
