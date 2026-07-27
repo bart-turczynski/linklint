@@ -411,8 +411,16 @@ export const CORPUS: CorpusRow[] = [
   {
     input: "https://[::ffff:127.0.0.1]/",
     label: "deceptive",
-    expectReasons: ["ip_obfuscation", "ip_loopback"],
-    notes: "J5 IPv4-mapped IPv6 — SSRF masquerade for 127.0.0.1; V1b classifies by embedded v4 → ip_loopback",
+    minSeverity: "low",
+    expectReasons: ["ip_loopback"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "LINK-ibwialex — SSRF masquerade for 127.0.0.1, classified by the embedded v4. NOT ip_obfuscation: RFC 5952 §5 RECOMMENDS the mixed spelling behind a well-known prefix, so this scores the same as its hex sibling [::ffff:7f00:1]",
+  },
+  {
+    input: "https://[2001:db8::192.0.2.1]/",
+    label: "deceptive",
+    expectReasons: ["ip_obfuscation"],
+    notes: "LINK-ibwialex — the §5 carve-out is prefix-scoped: 2001:db8::/32 is not a recognized low-32 wrapper, so a dotted tail there IS still non-canonical",
   },
   {
     input: "https://[2001:0db8::1]/",
@@ -928,8 +936,9 @@ export const CORPUS: CorpusRow[] = [
     input: "https://[::ffff:169.254.169.254]/",
     label: "deceptive",
     minSeverity: "high",
-    expectReasons: ["ip_cloud_metadata", "ip_obfuscation"],
-    notes: "V1b v4-in-v6 — embedded metadata endpoint classifies as ip_cloud_metadata (+ ip_obfuscation → high)",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["ip_obfuscation"],
+    notes: "V1b v4-in-v6 — embedded metadata endpoint classifies as ip_cloud_metadata (0.75 → high on its own). LINK-ibwialex removed the ip_obfuscation stack: the mixed spelling is RFC 5952 §5-recommended here, and the dangerous property is the destination, which the bucket already carries",
   },
 
   // S1 — the wrapper forms in their HEX spelling. Same 128 bits as the dotted

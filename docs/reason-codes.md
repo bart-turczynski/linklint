@@ -650,10 +650,10 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 - **Meaning:** the host is an obfuscated IP address.
   - **IPv4** — decimal, octal, hex, or dotless form.
   - **IPv6 (J5)** — a non-canonical literal (leading zeros, uncompressed zero
-    runs like `0::1` / `2001:db8:0:0:0:0:0:1`, or a dotted-quad tail such as
-    `[::ffff:127.0.0.1]`, which is never the RFC 5952 spelling of its own bits).
-    Pure case differences (`2001:DB8::1`) are tolerated (not a deception
-    vector).
+    runs like `0::1` / `2001:db8:0:0:0:0:0:1`, or a dotted-quad tail under a
+    prefix that is *not* a recognized low-32 wrapper, such as
+    `[2001:db8::192.0.2.1]`). Pure case differences (`2001:DB8::1`) are
+    tolerated (not a deception vector).
 - **Why it's a signal:** obfuscated IPs evade human and naive string checks.
 - **Detail:** renders the canonical form so the real destination is explained;
   for an IPv4-embedding IPv6 literal it also names the embedded IPv4. Canonical
@@ -662,8 +662,26 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   obfuscation. `[::ffff:808:808]` is the exact canonical spelling of its bits
   and hides nothing; what a wrapper changes is *where the host points*, which
   the range buckets below report instead.
+- **Not** flagged either — **both spellings of a wrapped IPv4, not just the hex
+  one** (`LINK-ibwialex`). Behind a recognized low-32 wrapper there are **two**
+  canonical spellings. RFC 5952 §5 *RECOMMENDS* the mixed one whenever the
+  embedded IPv4 is identifiable "solely from the address field through the use
+  of a well-known prefix", and RFC 6052 §2.4 extends that to the NAT64 prefixes,
+  tabulating its own examples in dotted decimal. Flagging it scored the
+  RFC-recommended, more legible spelling at 0.4 while the discouraged all-hex
+  spelling scored 0.0 — backwards for an obfuscation signal, and reachable for
+  free by any attacker who preferred hex. `[64:ff9b::192.0.2.1]` and
+  `[64:ff9b::c000:201]` now reach the same verdict.
+  - The carve-out is **prefix-scoped and spelling-exact**. Under any other
+    prefix §5 gives only a MAY, resting on external knowledge, so
+    `[2001:db8::192.0.2.1]` still flags; and only the §5 form itself is
+    accepted, so an uncompressed `[0:0:0:0:0:ffff:192.0.2.1]` still flags.
+  - What is dangerous about `[::ffff:127.0.0.1]` is the *destination*, and that
+    is carried notation-independently by the range buckets below
+    (`ip_loopback`) — which is exactly what its hex sibling
+    `[::ffff:7f00:1]` already scores.
 - **Example:** `http://2130706433/` (decimal for `127.0.0.1`);
-  `https://[::ffff:127.0.0.1]/` (IPv6 literal embedding `127.0.0.1`).
+  `https://[2001:db8::192.0.2.1]/` (dotted tail, unrecognized prefix).
 
 ### Literal-IP range buckets — V1a · weights 0.2 / 0.5
 

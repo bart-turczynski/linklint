@@ -66,13 +66,33 @@ describe("J5 analyzeIpv6", () => {
     });
   });
 
-  it("IPv4-mapped form is obfuscated and surfaces the embedded IPv4 (SSRF masquerade)", () => {
+  // LINK-ibwialex — the mixed form is the RFC 5952 §5 RECOMMENDED spelling behind
+  // a recognized wrapper, so it is a canonical form and not obfuscation. The
+  // embedded IPv4 is still surfaced: that is what carries the SSRF masquerade.
+  it("IPv4-mapped mixed form is NOT obfuscated but still surfaces the embedded IPv4", () => {
     expect(analyzeIpv6("::ffff:127.0.0.1")).toEqual({
-      obfuscated: true,
+      obfuscated: false,
       canonical: "::ffff:7f00:1",
       embeddedIpv4: "127.0.0.1",
       embeddedIpv4Via: "IPv4-mapped prefix ::ffff:0:0/96",
     });
+  });
+
+  it("the §5 carve-out accepts ONLY the exact mixed form, per wrapper", () => {
+    // Accepted: the §5 spelling for each recognized wrapper.
+    for (const accepted of [
+      "::ffff:127.0.0.1",
+      "64:ff9b::127.0.0.1",
+      "64:ff9b:1::127.0.0.1",
+      "::192.0.2.1",
+    ]) {
+      expect(analyzeIpv6(accepted)?.obfuscated).toBe(false);
+    }
+    // Rejected: same bits, but not the §5 spelling (uncompressed zero run), and
+    // a dotted tail under a prefix that is not a recognized wrapper at all.
+    for (const rejected of ["0:0:0:0:0:ffff:127.0.0.1", "2001:db8::192.0.2.1"]) {
+      expect(analyzeIpv6(rejected)?.obfuscated).toBe(true);
+    }
   });
 
   // S1 — the embedded IPv4 is read from the BITS, so the hex spelling of a
@@ -212,13 +232,42 @@ describe("J5 ip_obfuscation — IPv6 in inspect()", () => {
     }
   });
 
-  it("IPv4-mapped literal flags ip_obfuscation and names the embedded IPv4", () => {
-    const r = inspect("https://[::ffff:127.0.0.1]/");
-    expect(r.status).toBe("ok");
+  // LINK-ibwialex. RFC 5952 §5 RECOMMENDS the mixed spelling when a well-known
+  // prefix makes the embedded IPv4 identifiable from the address field alone, and
+  // RFC 6052 §2.4 extends that to the NAT64 prefixes. Both spellings of one
+  // address must therefore reach the same verdict — the destination is what is
+  // dangerous, not the notation.
+  it("both spellings behind a recognized wrapper agree, and neither is obfuscation", () => {
+    for (const [dotted, hex] of [
+      ["https://[::ffff:127.0.0.1]/", "https://[::ffff:7f00:1]/"],
+      ["https://[64:ff9b::127.0.0.1]/", "https://[64:ff9b::7f00:1]/"],
+      ["https://[64:ff9b:1::127.0.0.1]/", "https://[64:ff9b:1::7f00:1]/"],
+      ["https://[::192.0.2.1]/", "https://[::c000:201]/"],
+    ]) {
+      const left = inspect(dotted!);
+      const right = inspect(hex!);
+      expect(left.status).toBe("ok");
+      expect(left.reasons.map((x) => x.code)).not.toContain("ip_obfuscation");
+      expect(left.score).toBe(right.score);
+      expect(left.reasons.map((x) => x.code).sort()).toEqual(
+        right.reasons.map((x) => x.code).sort(),
+      );
+    }
+  });
+
+  it("a dotted tail under an UNRECOGNIZED prefix is still obfuscation", () => {
+    // §5 recommends mixed notation only behind a well-known prefix; elsewhere it
+    // is a MAY resting on external knowledge, so the carve-out must not apply.
+    const r = inspect("https://[2001:db8::192.0.2.1]/");
     const reason = r.reasons.find((x) => x.code === "ip_obfuscation");
     expect(reason).toBeDefined();
-    expect(reason!.detail).toContain("127.0.0.1");
-    expect(["medium", "high", "critical"]).toContain(r.severity);
+    expect(reason!.detail).toContain("2001:db8::c000:201");
+  });
+
+  it("a wrapper literal that is non-canonical for another reason still flags", () => {
+    // The carve-out accepts exactly the §5 mixed form — not an uncompressed one.
+    const r = inspect("https://[0:0:0:0:0:ffff:192.0.2.1]/");
+    expect(r.reasons.map((x) => x.code)).toContain("ip_obfuscation");
   });
 
   it("non-canonical literal (leading zeros) flags with canonical form", () => {

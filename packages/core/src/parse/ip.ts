@@ -284,6 +284,42 @@ function canonicalizeIpv6(groups: number[]): string {
   return `${head}::${tail}`;
 }
 
+/**
+ * Render the RFC 5952 §5 MIXED canonical form: the upper 96 bits compressed by
+ * the same §4 rules, then the embedded IPv4 in dotted decimal.
+ *
+ * §5 RECOMMENDS this spelling — over the all-hex §4 form — whenever the embedded
+ * IPv4 is identifiable "solely from the address field through the use of a
+ * well-known prefix". {@link LOW32_WRAPPERS} membership IS that condition, which
+ * is why this is only ever consulted for a recognized wrapper (LINK-ibwialex).
+ */
+function mixedCanonicalIpv6(groups: number[], dotted: string): string {
+  let bestStart = -1;
+  let bestLen = 0;
+  let curStart = -1;
+  let curLen = 0;
+  // Only the upper six hextets participate; the low 32 bits are the dotted quad.
+  for (let i = 0; i < 6; i++) {
+    if (groups[i] === 0) {
+      if (curStart === -1) curStart = i;
+      curLen++;
+      if (curLen > bestLen) {
+        bestLen = curLen;
+        bestStart = curStart;
+      }
+    } else {
+      curStart = -1;
+      curLen = 0;
+    }
+  }
+  const hex = groups.slice(0, 6).map((g) => g.toString(16));
+  // §4.2.2 — `::` must not stand in for a single zero group.
+  if (bestLen < 2) return `${hex.join(":")}:${dotted}`;
+  const head = hex.slice(0, bestStart).join(":");
+  const tail = hex.slice(bestStart + bestLen).join(":");
+  return `${head}::${tail === "" ? "" : `${tail}:`}${dotted}`;
+}
+
 /** Analyze a host as a possible IPv6 literal. Returns null if it is not one. */
 export function analyzeIpv6(host: string): Ipv6Analysis | null {
   // Must look like IPv6; reject zone IDs (`fe80::1%eth0`) — keep them invalid.
@@ -315,16 +351,27 @@ export function analyzeIpv6(host: string): Ipv6Analysis | null {
   if (groups.length !== 8) return null;
 
   const canonical = canonicalizeIpv6(groups);
-  // Obfuscated when the input as written is not already the canonical form
-  // (uppercase, leading zeros, unnecessary/uncompressed zero groups, or a
-  // dotted-quad tail — `::ffff:127.0.0.1` never equals `::ffff:7f00:1`).
+  const embedded = unwrapLow32Ipv4(groups);
+  const lower = host.toLowerCase();
+  // Obfuscated when the input as written is not already a canonical form
+  // (uppercase, leading zeros, unnecessary/uncompressed zero groups).
   //
   // Wrapping an IPv4 is NOT itself obfuscation: `::ffff:808:808` is the exact
   // RFC 5952 spelling of its own bits and hides nothing. What the wrapper does
   // is change WHERE the address points, which is the ip_classification
   // detector's business (via `embeddedIpv4`), not this flag's.
-  const obfuscated = host.toLowerCase() !== canonical;
-  const embedded = unwrapLow32Ipv4(groups);
+  //
+  // LINK-ibwialex — behind a RECOGNIZED wrapper prefix there are TWO canonical
+  // spellings, not one. RFC 5952 §5 RECOMMENDS the mixed form for exactly the
+  // prefixes {@link LOW32_WRAPPERS} lists, and RFC 6052 §2.4 extends that to the
+  // NAT64 prefixes, tabulating its own examples in dotted decimal. Treating the
+  // mixed form as obfuscation scored the RFC-recommended, more legible spelling
+  // at 0.4 while the discouraged all-hex spelling scored 0.0 — backwards for an
+  // obfuscation signal. Under any OTHER prefix §5 gives only a MAY, so a dotted
+  // tail there (`2001:db8::192.0.2.1`) stays non-canonical and still fires.
+  const obfuscated =
+    lower !== canonical &&
+    !(embedded !== null && lower === mixedCanonicalIpv6(groups, embedded.address));
   return embedded
     ? {
         obfuscated,

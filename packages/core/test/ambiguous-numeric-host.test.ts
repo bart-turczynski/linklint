@@ -83,6 +83,12 @@ describe("ambiguous_numeric_host — precision guards (must NOT fire)", () => {
     "https://example.com/", // ordinary name
     "https://v2.api.example.com/", // numeric-ish but non-numeric labels
     "http://999/", // single dotless number IS a valid inet_aton IP (0.0.3.231)
+    // LINK-ibwialex — a valid IPv6 literal never enters WHATWG's IPv4 path, so
+    // premise (a) cannot hold however its text ends. These used to fire purely
+    // because splitting on "." left a numeric final label.
+    "https://[64:ff9b::192.0.2.1]/", // NAT64 well-known prefix, mixed notation
+    "https://[::ffff:127.0.0.1]/", // IPv4-mapped, mixed notation
+    "https://[2001:db8::192.0.2.1]/", // dotted tail under an unrecognized prefix
   ];
 
   it.each(benign)("does not fire on %s", (input) => {

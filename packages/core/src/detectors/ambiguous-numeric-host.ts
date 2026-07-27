@@ -1,5 +1,5 @@
 import type { Detector, DetectorFinding } from "./types.js";
-import { analyzeIpv4, stripTrailingRootDot } from "../parse/ip.js";
+import { analyzeIpv4, analyzeIpv6, stripTrailingRootDot } from "../parse/ip.js";
 
 /**
  * FR-D-7b — ambiguous numeric host (P3 / LINK-slcjsjcs). Scoring, pure lexical,
@@ -48,6 +48,16 @@ export const ambiguousNumericHost: Detector = {
   layer: "lexical",
   run(ctx): DetectorFinding[] {
     if (ctx.host === "") return [];
+
+    // LINK-ibwialex — a valid IPv6 literal never enters WHATWG's IPv4 path, so
+    // premise (a) cannot hold for one no matter how its text ends. Without this
+    // guard `64:ff9b::192.0.2.1` split on "." on a final label of `1`, a strict
+    // IPv4 parse of the whole string failed, and the code fired with a detail
+    // claiming a browser would reject the host — which is false; a browser
+    // parses the literal successfully, as IPv6. The spelling-dependence was the
+    // giveaway: the same address as `64:ff9b::c000:201` has no dots and never
+    // fired.
+    if (analyzeIpv6(ctx.host) !== null) return [];
 
     const host = stripTrailingRootDot(ctx.host);
     const labels = host.split(".");
