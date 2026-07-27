@@ -56,7 +56,7 @@ tracks.
 | `docs/online-runtime-boundary.md` | 9 |
 | `docs/online-source-contract.md` | 11 |
 | `docs/raw-url-tokenization-spike.md` | 1 |
-| `docs/reason-codes.md` | 82 |
+| `docs/reason-codes.md` | 83 |
 | `docs/redirect-chain-resolution.md` | 4 |
 | `docs/safe-transport.md` | 7 |
 | `docs/scoring.md` | 6 |
@@ -132,6 +132,7 @@ property the type system makes unrepresentable needs no runtime test.
 | D4 | Unconfigured L2/L3 layers stay skipped — a score never implies unfinished work was clean | `docs/architecture.md` §7, `docs/online-runtime-boundary.md` | `packages/core/test/inspect-async.test.ts` |
 | D5 | A no-match is evidence about one source at one time, never a safety claim | `docs/layer3-reputation-model.md`, `docs/online-source-contract.md` | `packages/online/test/urlhaus-lookup.test.ts`, `packages/online/test/phishtank-lookup.test.ts` |
 | D6 | Report what you can determine, never silently pass: a host that cannot resolve returns a weight-0 reason saying so, not an empty reason list | `docs/architecture.md` §1.1 | `packages/core/test/host-length-unresolvable.test.ts` |
+| D8 | The parser's `stripInvisible` never strips U+2028/U+2029, so a line separator in the *host* stays fail-closed `invalid` rather than being stripped into a host that parses; the detector's set is wider than the parser's on purpose | `docs/reason-codes.md` (`invisible_char`) | `packages/core/test/line-separator.test.ts` |
 
 | D7 | `checksRun` and `checksSkipped` never carry the same token — a failed policy axis is `policy:<axis id>` in the skip list while the `policy` channel token stays in the run list; a failed *dispatcher* is bare `policy` in the skip list and absent from the run list | `docs/architecture.md` §5 | `packages/core/test/policy-failure-injection.test.ts` |
 

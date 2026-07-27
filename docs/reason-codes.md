@@ -610,11 +610,25 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 
 ### `invisible_char` — FR-D-4 · weight 1.0 (blocker)
 
-- **Meaning:** invisible, zero-width, or control characters appear anywhere in
-  the URL (excluding bidi controls, which are reported as `bidi_override`).
+- **Meaning:** invisible, zero-width, control, or line/paragraph-separator
+  characters appear anywhere in the URL (excluding bidi controls, which are
+  reported as `bidi_override`). The set is Unicode `Cc`/`Cf`, **plus U+2028 LINE
+  SEPARATOR and U+2029 PARAGRAPH SEPARATOR**.
 - **Why it's a signal:** invisible characters hide differences between a
-  deceptive host and a legitimate one.
-- **Example:** `exa​mple.com` (zero-width space inside the host).
+  deceptive host and a legitimate one. The two separators are additionally line
+  terminators in JavaScript source (ECMA-262), so a URL carrying one breaks in
+  half wherever it is interpolated into a script or a log line.
+- **Why U+2028/U+2029 needed adding explicitly (`LINK-bitralnj`):** they are
+  category `Zl`/`Zp`, not `Cc`/`Cf`, so the class that catches U+200B and the
+  Tags block never matched them. They were silent in path, query and fragment
+  (`0.00`, zero reasons) while the host case was already caught at parse time.
+- **Scope boundary:** the *detector's* notion of invisible is deliberately wider
+  than the *parser's*. `stripInvisible`, which derives the visual host, does
+  **not** strip line separators — if it did, a U+2028 in the host would be
+  stripped into a host that parses cleanly, turning a fail-closed `invalid` into
+  a pass. Pinned in `packages/core/test/line-separator.test.ts`.
+- **Example:** `exa​mple.com` (zero-width space inside the host);
+  `https://example.com/a b` (line separator in the path).
 
 ### `bidi_override` — FR-D-5 · weight 1.0 (blocker)
 

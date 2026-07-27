@@ -164,6 +164,24 @@ export const VECTORS: CorpusRow[] = [
     notes: "trailing root dot — valid FQDN form, reported at weight 0, score stays 0.00",
     source: "Smokescreen SSRF allow-list bypass (RFC 1034 §3.1)",
   },
+  {
+    // V9 (LINK-bitralnj). U+2028 LINE SEPARATOR in the path. It is category Zl,
+    // not Cc/Cf, which is exactly why the \p{Cc}\p{Cf} class missed it while
+    // catching U+200B and the Tags block. It is a line terminator in JavaScript
+    // source, so a URL carrying one breaks in half wherever it is interpolated.
+    input: "https://example.com/a\u2028b",
+    label: "deceptive",
+    expectReasons: ["invisible_char"],
+    notes: "U+2028 LINE SEPARATOR in path — Zl, not Cc/Cf",
+    source: "ECMA-262 line terminators / corpus verify list V9",
+  },
+  {
+    input: "https://example.com/?a=\u2029",
+    label: "deceptive",
+    expectReasons: ["invisible_char"],
+    notes: "U+2029 PARAGRAPH SEPARATOR in query — Zp, not Cc/Cf",
+    source: "ECMA-262 line terminators / corpus verify list V9",
+  },
 
   // ── T2.3 benign guard (LINK-ibwuayzo) — real multilingual URLs whose code
   // points ARE truncation-reachable but are NOT sandwiched between ASCII

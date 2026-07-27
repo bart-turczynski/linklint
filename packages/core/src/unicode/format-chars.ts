@@ -29,11 +29,34 @@ export function isInvisible(ch: string): boolean {
 }
 
 /**
+ * Line and paragraph separators (V7's sibling gap, `LINK-bitralnj`): U+2028
+ * LINE SEPARATOR and U+2029 PARAGRAPH SEPARATOR.
+ *
+ * These are Unicode category **Zl/Zp**, not Cc/Cf, so `INVISIBLE` above does not
+ * match them — that category boundary is the whole reason they were invisible to
+ * the detector while U+200B and the Tags block were caught. They render as
+ * nothing and they are **line terminators in JavaScript source**, so a URL
+ * carrying one breaks in half wherever it is interpolated into a script or a log
+ * line.
+ */
+const LINE_SEPARATOR = new RegExp("[\\u2028\\u2029]", "u");
+
+export function isLineSeparator(ch: string): boolean {
+  return LINE_SEPARATOR.test(ch);
+}
+
+/**
  * Invisible characters that are NOT bidi controls — what the invisible_char
  * detector owns (bidi controls are reported separately by bidi_override).
+ *
+ * Deliberately WIDER than `isInvisible`/`stripInvisible`, which the parser uses
+ * to derive a visual "clean" host. Line separators are added here only, so the
+ * detector sees them while the parser's notion of the host is untouched: a
+ * U+2028 in the *host* stays `invalid`/`parse_error` (already the correct
+ * answer) rather than being stripped into a host that parses.
  */
 export function isInvisibleNonBidi(ch: string): boolean {
-  return isInvisible(ch) && !isBidiControl(ch);
+  return (isInvisible(ch) || isLineSeparator(ch)) && !isBidiControl(ch);
 }
 
 /** Strip all invisible/format/control characters — yields the visual string. */
