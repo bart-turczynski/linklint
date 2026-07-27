@@ -18,12 +18,16 @@
 # guess — the same fail-closed doctrine the codebase applies to inspection
 # results (docs/architecture.md 1.1).
 #
+# SCOPE, DECIDED: same-volume only. `~/Projects/linklint-backups` sits on the
+# same filesystem as the working copy, so these archives protect against a bad
+# git operation, a bad merge, or a deleted `.fp/` — NOT against losing the
+# disk. That residual is accepted deliberately; do not re-propose an
+# off-volume or remote destination. The `<dir>` argument stays for writing an
+# extra copy elsewhere on this volume, not as a hint to leave it.
+#
 # Usage:
 #   ./tools/backup.sh            # write to the default directory
-#   ./tools/backup.sh <dir>      # write somewhere else (e.g. an external volume)
-#
-# A copy on the SAME filesystem protects against a bad git operation, not
-# against losing the disk. Pass an off-volume directory periodically.
+#   ./tools/backup.sh <dir>      # write to another directory on this volume
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -55,11 +59,4 @@ else
   echo "backup: WARNING — no .fp/ directory; tracker state was NOT backed up" >&2
 fi
 
-# Report where this lives relative to the working copy, since a same-volume
-# copy is not protection against losing the disk.
-repo_vol="$(df -P "$repo_root" | awk 'NR==2{print $1}')"
-dest_vol="$(df -P "$dest_dir" | awk 'NR==2{print $1}')"
-if [[ "$repo_vol" == "$dest_vol" ]]; then
-  echo "backup: NOTE — $dest_dir is on the same volume ($repo_vol) as the repo."
-  echo "backup:        Run './tools/backup.sh /Volumes/<external>/linklint' as well."
-fi
+echo "backup: done   $(ls -1 "$dest_dir"/*.bundle 2>/dev/null | wc -l | tr -d ' ') bundle(s) in $dest_dir"

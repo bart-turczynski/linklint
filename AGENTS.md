@@ -20,7 +20,9 @@ The pre-push hook runs `pnpm check` (the same chain as CI). This is the stand-in
 
 **Nothing may sit on a branch.** Finish the slice, merge to `main`, delete the branch. `git branch --no-merged main` should be empty every time you check — nine branches accumulated there unnoticed and cost `LINK-wgsbhovi` and `LINK-nwqrqjdc` twelve wrongly-closed issues.
 
-**Back up after every landed unit** with `./tools/backup.sh`. It writes a verified bundle *and* a `.fp/` archive, because `.fp/` is gitignored and no `git bundle` has ever contained it — losing it would lose every decision record while leaving the code intact. Pass a directory on another volume periodically; the default is same-disk and protects only against a bad git operation.
+**Back up after every landed unit** with `./tools/backup.sh`. It writes a verified bundle *and* a `.fp/` archive, because `.fp/` is gitignored and no `git bundle` has ever contained it — losing it would lose every decision record while leaving the code intact.
+
+**Backups stay on this volume — decided, not overlooked.** `~/Projects/linklint-backups` shares a filesystem with the working copy, so it protects against a bad git operation, a bad merge, or a deleted `.fp/`, and not against losing the disk. That residual is accepted. Do not propose an off-volume, cloud, or remote destination.
 
 **Reflog expiry is disabled** in this clone (`gc.reflogExpire=never`, `gc.reflogExpireUnreachable=never`, `gc.pruneExpire=90.days.ago`), so `git gc` cannot quietly discard the history that makes a stranded commit recoverable. Re-apply after a fresh clone.
 
