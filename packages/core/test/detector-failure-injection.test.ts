@@ -50,8 +50,10 @@ afterEach(() => {
 });
 
 describe("a parsed detector that throws is skipped, not fatal", () => {
-  // `brand_lookalike` is the check that emits `brand_homoglyph` — the reason a
-  // reader most often looks up. Baseline: 0.60 from brand_homoglyph (0.50) and
+  // The check id and the reason code are both `brand_homoglyph` since
+  // LINK-hyezxjda; before that the check was still called `brand_lookalike`,
+  // which is why `lexical:<id>` below reads the way it does.
+  // Baseline: 0.60 from brand_homoglyph (0.50) and
   // ascii_homoglyph (0.20) under probabilistic OR.
   const URL = "https://paypa1.com/";
 
@@ -60,19 +62,19 @@ describe("a parsed detector that throws is skipped, not fatal", () => {
     expect(r.status).toBe("ok");
     expect(r.score).toBeCloseTo(0.6, 5);
     expect(r.reasons.map((x) => x.code).sort()).toEqual(["ascii_homoglyph", "brand_homoglyph"]);
-    expect(r.checksSkipped).not.toContain("lexical:brand_lookalike");
+    expect(r.checksSkipped).not.toContain("lexical:brand_homoglyph");
   });
 
   it("records lexical:<id> and still returns a usable result", () => {
-    breakDetector("brand_lookalike");
+    breakDetector("brand_homoglyph");
     const r = inspect(URL);
 
     expect(r.status).toBe("ok");
-    expect(r.checksSkipped).toContain("lexical:brand_lookalike");
+    expect(r.checksSkipped).toContain("lexical:brand_homoglyph");
   });
 
   it("degrades the score to a lower bound instead of aborting", () => {
-    breakDetector("brand_lookalike");
+    breakDetector("brand_homoglyph");
     const r = inspect(URL);
 
     // THE DOCUMENTED CONSEQUENCE. The lost detector's weight is simply absent,
@@ -84,7 +86,7 @@ describe("a parsed detector that throws is skipped, not fatal", () => {
   });
 
   it("keeps every other detector's findings", () => {
-    breakDetector("brand_lookalike");
+    breakDetector("brand_homoglyph");
     const r = inspect(URL);
 
     // Degrade, not abort: the neighbouring detector still reported.

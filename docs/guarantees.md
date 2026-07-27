@@ -46,7 +46,7 @@ tracks.
 
 | File | Claim lines |
 | --- | --- |
-| `docs/architecture.md` | 36 |
+| `docs/architecture.md` | 41 |
 | `docs/bundle-size-budget.md` | 0 |
 | `docs/enforcement.md` | 0 |
 | `docs/enrichment-outcomes.md` | 12 |
@@ -131,6 +131,8 @@ property the type system makes unrepresentable needs no runtime test.
 | D4 | Unconfigured L2/L3 layers stay skipped — a score never implies unfinished work was clean | `docs/architecture.md` §7, `docs/online-runtime-boundary.md` | `packages/core/test/inspect-async.test.ts` |
 | D5 | A no-match is evidence about one source at one time, never a safety claim | `docs/layer3-reputation-model.md`, `docs/online-source-contract.md` | `packages/online/test/urlhaus-lookup.test.ts`, `packages/online/test/phishtank-lookup.test.ts` |
 | D6 | Report what you can determine, never silently pass: a host that cannot resolve returns a weight-0 reason saying so, not an empty reason list | `docs/architecture.md` §1.1 | `packages/core/test/host-length-unresolvable.test.ts` |
+
+| D7 | `checksRun` and `checksSkipped` never carry the same token — a failed policy axis is `policy:<axis id>` in the skip list while the `policy` channel token stays in the run list; a failed *dispatcher* is bare `policy` in the skip list and absent from the run list | `docs/architecture.md` §5 | `packages/core/test/policy-failure-injection.test.ts` |
 
 D6 is the fourth rule of §1.1, and `host_length_unresolvable` is its worked
 case: a hostname over the 63-octet label or 253-octet name limit still scores
@@ -229,7 +231,9 @@ an oversight. These lines match the pattern and are deliberately unpinned:
   (`docs/architecture.md` §1.1 and `docs/reason-codes.md`) belongs here too: it
   narrates why the fourth rule was added, and the behavior it argues for is
   D6 above.
-- **Process rules** — "parked work is never selected by an agent choosing what
+- **Process rules** — "reopen only against a concrete named gap — never by
+  importing a list wholesale" (§6.1.3, binding the next proposer rather than the
+  code), "parked work is never selected by an agent choosing what
   is next", "caller-owned mirrors are never silently redistributed". These bind
   contributors, not code; the tracker and review enforce them.
 - **`always` as a discourse marker** — "the match is always recorded as
@@ -237,6 +241,14 @@ an oversight. These lines match the pattern and are deliberately unpinned:
   adding a separate promise.
 - **References to this register** — the `README.md` repository-layout row that
   points here matches the pattern by naming it. A label is not a claim.
+- **Descriptions of a *declined* design** — §6.1.3's "a skeleton table decoupled
+  from `BRAND_DOMAINS` so `brand_homoglyph` never sees it" describes the narrow
+  widening the section goes on to decline. It states what the rejected design
+  would have done, so there is no behavior to pin; the section's actual
+  disposition is the decline.
+- **Cross-references to a rule stated elsewhere** — "§5's result-invariant list",
+  "satisfies §1.1's name-never-create rule". These point at a claim rather than
+  making one; the claim is pinned where it is stated (D7 and E1 respectively).
 
 ## Adding a claim
 
