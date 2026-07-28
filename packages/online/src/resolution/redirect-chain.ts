@@ -96,6 +96,12 @@ type TransitionDecision =
       readonly targetUrl?: string;
     };
 
+/**
+ * `maxBytes` bounds only the declarative-refresh scan, so exceeding it stops the
+ * chain as `skipped`, never `failure` — the hops themselves resolved. No cap can
+ * avoid this: measured 2026-07-28, 4 of 10 real landing pages exceed the 64 KiB
+ * default and cloudflare.com (1,299,550 bytes) exceeds even `MAX_REFRESH_BYTES`.
+ */
 interface RefreshPolicy {
   readonly maxBytes: number;
   readonly maxDelayMs: number;
@@ -334,7 +340,7 @@ function transitionFor(
     return { status: "terminal" };
   }
   if (response.body.byteLength > policy.maxBytes) {
-    return stop("failure", "refresh-body-too-large", {
+    return stop("skipped", "refresh-body-too-large", {
       maxRefreshBytes: policy.maxBytes,
       observedBytes: response.body.byteLength,
     });
@@ -359,7 +365,7 @@ function refreshEligibility(
   policy: RefreshPolicy,
 ): TransitionDecision | null {
   if (body.byteLength > policy.maxBytes) {
-    return stop("failure", "refresh-body-too-large", {
+    return stop("skipped", "refresh-body-too-large", {
       maxRefreshBytes: policy.maxBytes,
       observedBytes: body.byteLength,
     });

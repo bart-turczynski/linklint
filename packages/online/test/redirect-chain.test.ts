@@ -295,7 +295,7 @@ describe("L1 bounded declarative refresh expansion", () => {
       body: '<meta http-equiv="refresh" content="0;url=/next">',
       options: { maxRefreshBytes: 8 },
       code: "refresh-body-too-large",
-      status: "failure",
+      status: "skipped",
     },
     {
       name: "grammar",
@@ -322,6 +322,33 @@ describe("L1 bounded declarative refresh expansion", () => {
       testCase.status,
     ]);
     expect(result.enrichment?.outcomes[1]?.cause?.code).toBe(testCase.code);
+    harness.assertExhausted();
+  });
+
+  it("reports no failure when every hop resolved and only the refresh scan was skipped", async () => {
+    const start = "http://origin.example/start";
+    const landing = "https://origin.example/landing";
+    const { harness, enricher } = fixtureEnricher(
+      [
+        { url: start, status: 301, headers: { location: landing } },
+        {
+          url: landing,
+          status: 200,
+          headers: { "content-type": "text/html; charset=utf-8" },
+          body: "<p>a real landing page larger than the scan budget</p>",
+        },
+      ],
+      { maxRefreshBytes: 8 },
+    );
+    const result = await inspectAsync(start, { enrichers: [enricher] });
+    const outcomes = result.enrichment?.outcomes ?? [];
+    expect(outcomes.map((outcome) => outcome.status)).toEqual([
+      "success",
+      "success",
+      "skipped",
+    ]);
+    expect(outcomes.some((outcome) => outcome.status === "failure")).toBe(false);
+    expect(outcomes[2]?.cause?.code).toBe("refresh-body-too-large");
     harness.assertExhausted();
   });
 

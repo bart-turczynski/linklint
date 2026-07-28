@@ -79,6 +79,14 @@ Policy and parse stops are explicit: `refresh-body-too-large`,
 `refresh-delay-exceeded`, and `invalid-refresh`. A refresh with no URL targets
 the current document and is therefore reported through the normal loop stop.
 
+`refresh-body-too-large` and `refresh-mime-unsupported` stop the chain as
+**skipped**, not failed: the scan budget bounds one optional sub-observation, so
+exceeding it says nothing about whether the hops resolved. A chain whose every
+hop returned a response therefore reports no `failure` outcome. Raising the limit
+is not an alternative — measured on 2026-07-28, 4 of 10 real landing pages exceed
+the 64 KiB default and one exceeds the 1 MiB hard ceiling, so any fixed cap is
+exceeded by some real page and the outcome type has to stay honest when it is.
+
 ## Outcomes and scoring
 
 Each completed request emits an ordered `resolution.chain-hop` artifact with its
