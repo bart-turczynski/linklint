@@ -12,8 +12,17 @@ on:
 
 jobs:
   verify:
-    name: build + typecheck + test + features
+    name: build + typecheck + test + features (node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    strategy:
+      # Both entries must pass. 24 is the floor declared by engines.node in
+      # every package; 26 is the current release line, and engines has no upper
+      # bound, so users install on it. Nothing is known to differ between them —
+      # the gate has been measured byte-identical on both (LINK-wpaieeen) — and
+      # the matrix exists to keep it that way, not to chase a known break.
+      fail-fast: false
+      matrix:
+        node-version: [24, 26]
     steps:
       - uses: actions/checkout@v7
 
@@ -23,7 +32,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: ${{ matrix.node-version }}
           cache: pnpm
 
       - name: Install dependencies
