@@ -964,6 +964,58 @@ instead of minting one. Absent either, this stays closed.
 - **Why it's a signal:** not a normal public destination. Same low band.
 - **Example:** `http://0.0.0.0/`, `https://[ff02::1]/`.
 
+### Crosswalk: LNA address spaces vs. the `ip_*` buckets (T2.12)
+
+Local Network Access (LNA) is a **WICG Draft Community Group Report** —
+<https://wicg.github.io/local-network-access/>, as cited on **2026-07-28** — not
+a settled W3C standard. Its address table is editable and has changed before, so
+the rows below are a snapshot of that draft on that date rather than a pin.
+
+LNA sorts an address into one of three **address spaces** — `public`, `local`,
+`loopback` — and gates a page's request on the step from a less private space
+into a more private one. It is the successor vocabulary to **Private Network
+Access (PNA)**, whose trichotomy was `public` / `private` / `local`. The rename
+shifted the names one slot: PNA `private` reads as LNA `local`, and PNA `local`
+as LNA `loopback`. A reader arriving with the older terms should re-map before
+comparing anything here.
+
+**The two classifications answer different questions**, which is why they do not
+line up. linklint's `ip_*` buckets are **structural**: they record what the IANA
+special-purpose registries say an address *is* (see *Where the ranges come from*
+above), a property of the address itself. LNA's spaces describe **browser
+network reachability**: which fetch a user agent will permit from a given
+document. A registry fact and a reachability policy are not the same predicate,
+so a total mapping between the two should not be expected — and none is offered
+here.
+
+`ip_reserved` shows the mismatch most sharply. It is a single bucket by
+construction — the registry residue that is not globally reachable and not one
+of the more specific buckets — and its members land in **all three** LNA spaces:
+
+| Range | Registry name (RFC) | linklint bucket | LNA space (draft, 2026-07-28) |
+| --- | --- | --- | --- |
+| `0.0.0.0/32` | "This host on this network" (RFC 1122) | `ip_reserved` | loopback |
+| `198.18.0.0/15` | Benchmarking (RFC 2544) | `ip_reserved` | loopback |
+| `0.0.0.0/8` (remainder) | "This network" (RFC 791) | `ip_reserved` | local |
+| `100.64.0.0/10` | Shared Address Space, CGNAT (RFC 6598) | `ip_reserved` | local |
+| `240.0.0.0/4` | Reserved, future use (RFC 1112) | `ip_reserved` | public (unlisted) |
+| `255.255.255.255/32` | Limited Broadcast (RFC 919, RFC 8190) | `ip_reserved` | public (unlisted) |
+
+Those six rows are **representative examples, not a complete table**. Unlisted
+ranges fall through to `public` under the draft, so the residue inside
+`ip_reserved` is exactly where the two schemes diverge fastest.
+
+`ip_cloud_metadata` straddles in the same way, for its own reason: two of its
+rows — `168.63.129.16` and `192.0.0.192` — sit in ordinary public space to every
+range rule (noted under that code above), while the rest nest inside link-local
+or CGNAT. A vendor-documented endpoint table has no reason to respect an address
+space boundary.
+
+**This record changes nothing in the implementation.** No derived field, no
+reason code, no weight, and no data version is added, removed, or adjusted by
+it. It documents a mapping that does not cleanly exist; the buckets stay as
+specified above.
+
 ### `ambiguous_numeric_host` — FR-D-7b (P3) · weight 0.3 (medium)
 
 - **Meaning:** the host's last label is numeric/hex/octal, so a browser tries to
