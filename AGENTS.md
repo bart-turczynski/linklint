@@ -50,13 +50,19 @@ This closes the hole that cost `LINK-wgsbhovi` and `LINK-nwqrqjdc`: **nine branc
 
 **`done` means shipped. Work that ends any other way says so in its title** (`LINK-owjeewpe`):
 
-| Prefix | Meaning |
-|---|---|
-| `[SCRATCHED]` | Abandoned — the code never merged and nothing replaces it |
-| `[SUPERSEDED]` | Replaced by another issue; name it, e.g. `(by LINK-tqlqshlt)` |
-| `[PARKED]` | Not started and not scheduled; stays `todo` |
+| Prefix | Meaning | End state |
+|---|---|---|
+| `[SCRATCHED]` | Abandoned — the code never merged and nothing replaces it | `done` |
+| `[SUPERSEDED]` | Replaced by another issue; name it, e.g. `(by LINK-tqlqshlt)` | `done` |
+| `[PARKED]` | Not started and not scheduled | stays `todo` |
+| `[DECLINED]` | Considered and rejected under a recorded decision — not merely dropped, and not to be revisited under the current architecture | `done` |
+| `[ALREADY-SATISFIED]` | The ask was found to hold on `main` before any work started, so there was nothing to build | `done` |
 
-The prefix goes in the **title**, not only in a label or a comment: `fp tree` and `fp issue list` render neither, and the audit's finding was that abandonment was discoverable *only* by reading a comment. Set the matching `labels` value too, for filtering. A `[SCRATCHED]`/`[SUPERSEDED]` title is its own closing-comment exemption, so the guard above accepts it.
+The prefix goes in the **title**, not only in a label or a comment: `fp tree` and `fp issue list` render neither, and the audit's finding was that abandonment was discoverable *only* by reading a comment. Set the matching `labels` value too, for filtering.
+
+A `[SCRATCHED]`/`[SUPERSEDED]` title is its own closing-comment exemption, so the guard above accepts it — there is no evidence to cite. `[DECLINED]` and `[ALREADY-SATISFIED]` are **not** exemptions: both rest on evidence, so both still need a closing comment carrying it — the governing decision (record or issue id) for `[DECLINED]`, the probe that showed the behavior present on `main` for `[ALREADY-SATISFIED]`.
+
+`[ALREADY-SATISFIED]` replaces the undocumented comment-only `VERIFY-AND-CLOSE … Already implemented on main:` convention (`LINK-yotoonba`, `LINK-zkybktdk`, `LINK-xpdvmjdw`), which put the outcome where no listing renders it — the exact failure this rule exists to prevent. Keep the probe in the comment; move the outcome into the title.
 
 ## Decision records
 
