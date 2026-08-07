@@ -54,9 +54,15 @@ function renderHuman(result: InspectResult, noColor: boolean): string {
   const lines: string[] = [];
   lines.push(`${badge(result, noColor)}  ${formatScore(result.score)}  ${result.input}`);
 
-  // Advisory: warn only when the PSL trust boundary is actually stale, so normal
+  // Advisory: warn only when the PSL trust boundary is PROVABLY stale, so normal
   // output is unchanged (schema 1.2, LINK-rkhuihjx). The registrable-domain
   // reasoning below rests on this snapshot.
+  //
+  // `stale` is tri-state and one-directional (LINK-elzuacby): `true` is proven
+  // staleness, `null` is undetermined — the normal value, since the bundled
+  // date is a release proxy that bounds age from below only. Test `=== true`,
+  // never `!== false`: `null` is not evidence of staleness, and it is not
+  // evidence of freshness either, so it earns neither a warning nor a claim.
   if (result.pslSnapshot.stale === true) {
     lines.push(
       `  ⚠ PSL snapshot (${result.pslSnapshot.date ?? "unknown date"}) is stale — registrable-domain reasoning may be outdated`,

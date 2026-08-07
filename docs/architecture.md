@@ -368,7 +368,7 @@ Key invariants:
 - `status: "invalid"` → `score: null`, `severity: null`, `parse_error` reason, `checksRun: []`. Invalid input is **not** benign.
 - `score: 0` → `severity: "info"`. A parsed URL with zero scoring weight is benign even when informational reasons are present.
 - `dataVersions` is present on both valid and invalid results for reproducibility.
-- `pslSnapshot` (schema 1.2) is present on both valid and invalid results. `date` is the deterministic provenance date of the bundled PSL snapshot (the pinned `tldts` release date, a tight upper bound on the true list date); `stale` is an **advisory, time-relative** flag — the one field on the result that reflects wall-clock time — computed against a 180-day freshness window and `null` when the date is unknown. See §6.1.
+- `pslSnapshot` (schema 1.2) is present on both valid and invalid results. `date` is the deterministic provenance date of the bundled PSL snapshot (the pinned `tldts` release date — a packaging proxy, so the true list is that date **or older**); `stale` is an **advisory, time-relative, one-directional** verdict — the one field on the result that reflects wall-clock time — `true` only when the snapshot is provably past the 180-day window, and `null` (undetermined) both when the date is unknown and while the proxy bound is still inside the window. See §6.1.
 - `enrichment` (schema 1.3) is present only when `inspectAsync()` receives configured enrichers. It contains independently versioned source outcomes/evidence and is absent from synchronous and empty-plan output.
 - A non-empty `confusables[]` requires a corresponding `confusable_char` or `confusable_in_path` reason, and vice versa.
 - If a lexical scoring detector fails, its ID appears in `checksSkipped` as `lexical:<id>`. The layer stays in `checksRun`; the score is a lower bound. Fail-closed consumers should treat results with `lexical:*` in `checksSkipped` as untrusted rather than benign.
@@ -385,15 +385,20 @@ embedded-domain / brand-homoglyph / ambiguous-authority reasoning with no signal
 to callers, so the trust boundary carries its own provenance:
 
 - **Provenance record** (`src/data/psl-provenance.ts`, `PSL_PROVENANCE`): a
-  hand-captured `{ tldtsVersion, pslListDate, retrievedAt }` verified at
-  dependency-pin time. `pslListDate` is the pinned `tldts` npm-release date used
-  as the snapshot proxy — `tldts` regenerates its bundled list from upstream at
-  release-build time, so the release date is a tight **upper bound** on the
-  snapshot's age (staleness computed from it is conservative). Bump all three
-  fields together with `dataVersions.publicSuffixList` on every `tldts` pin.
+  hand-captured `{ tldtsVersion, pslListDate, dateKind, retrievedAt }` verified
+  at dependency-pin time. `tldts` publishes no snapshot timestamp of any kind, so
+  `pslListDate` is the pinned `tldts` npm-release date and `dateKind` records
+  what that date is: `"release-proxy"`. `tldts` regenerates its bundled list from
+  upstream *at or before* release-build time (`S ≤ R`), so the age computed from
+  it is a **lower bound** — a *minimum* age, not the age. Bump the fields
+  together with `dataVersions.publicSuffixList` on every `tldts` pin; a
+  `dateKind: "exact"` record (none exists today) would make the age exact.
 - **`pslOutdated(maxAgeDays = 180)`**: a **pure, offline** check reading only the
-  provenance record → `{ stale, ageDays }`. Unknown/unparseable date →
-  `{ stale: null, ageDays: null }` (undetermined, never assumed either way).
+  provenance record → `{ stale, ageDays }`. The verdict is *one-directional*,
+  because the evidence is: a minimum age past the window proves staleness
+  (`true`); an unknown/unparseable date gives `{ stale: null, ageDays: null }`;
+  and a proxy bound still inside the window also gives `stale: null` —
+  undetermined, never assumed either way. Only an `"exact"` date returns `false`.
 - **`result.pslSnapshot`**: `{ date, stale }` surfaced on every result so
   consumers learn the provenance of the boundary they were handed.
 - **Freshness-corpus CI** (`test/freshness-corpus.test.ts`): pins the IMC '23
@@ -944,14 +949,31 @@ snapshot-to-snapshot diffing.
 
 **On `pslSnapshot.stale` semantics.** pslr retired its boolean `psl_outdated()`
 in 1.1.1 because a boolean conflates *content age* with *knowledge of the remote
-endpoint*. linklint keeps the boolean, and the distinction is load-bearing:
-`stale: false` means **"the bundled snapshot is under 180 days old"** — it does
-**not** mean "verified current against publicsuffix.org". linklint has no network
-path and never contacts the upstream list, so a bundled snapshot can be
-`stale: false` and still be missing rules added last week. `stale: true` is a
-prompt to consider bumping the pin; `stale: false` is *not* a freshness
-guarantee, and `null` means the snapshot date is unknown — undetermined, never
-assumed either way.
+endpoint*. linklint keeps a flag, and two separate limits are load-bearing.
+
+*Age is not verification.* Even a `stale: false` would mean only **"the bundled
+snapshot is under 180 days old"** — not "verified current against
+publicsuffix.org". linklint has no network path and never contacts the upstream
+list, so a young snapshot can still be missing rules added last week.
+`stale: true` is a prompt to consider bumping the pin; it is not a claim that
+anything is broken.
+
+*The proxy date bounds age from one side only (`LINK-elzuacby`).* The bundled
+date is the `tldts` release date `R`, and the list it ships was regenerated at or
+before that build, so the true snapshot time `S` satisfies `S ≤ R` and
+`now − R ≤ now − S`. The computed age is therefore a **minimum**: once it clears
+the window, the true age has cleared it too, and `stale: true` is sound. Inside
+the window it proves nothing at all — the real list could be years older — so the
+verdict is `null`, not `false`. **A release date can prove staleness; it cannot
+prove freshness.** `false` is reserved for a `dateKind: "exact"` record, which no
+current dependency supplies. Read the field as `=== true`, never as `!== false`.
+
+This corrected an inverted claim: the record previously called `R` an *upper*
+bound on age and returned `stale: false` from it, so every result asserted a
+freshness the offline evidence could not support. No `SCHEMA_VERSION` bump: the
+result shape is unchanged and `stale` neither gained nor lost a documented value
+— it is typed `boolean | null` before and after, and `null` was already a value
+consumers had to handle. What changed is which value the *evidence* justifies.
 
 ## 7. Scoring
 

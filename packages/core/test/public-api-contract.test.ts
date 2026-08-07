@@ -65,6 +65,11 @@ describe("InspectResult schema contract (schemaVersion + confidence, FR-SCORE-2b
       expect(snap.date).toBe("2026-06-15");
       // Advisory, time-relative staleness against the default 180-day window.
       expect(typeof snap.stale === "boolean" || snap.stale === null).toBe(true);
+      // …and one-directional (LINK-elzuacby): the pinned date is a packaging
+      // proxy that bounds the snapshot's age from BELOW, so it can prove
+      // staleness but never freshness. `false` is unreachable from it at any
+      // clock reading — this holds on every calendar date, not just today.
+      expect(snap.stale).not.toBe(false);
     }
   });
 });

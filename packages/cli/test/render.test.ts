@@ -60,6 +60,47 @@ describe("renderResults — quiet mode", () => {
   });
 });
 
+/**
+ * LINK-elzuacby — `pslSnapshot.stale` is tri-state and ONE-DIRECTIONAL: the
+ * bundled date is a packaging-release proxy that bounds the snapshot's age from
+ * below, so `true` is proven staleness, `null` is undetermined (the normal value
+ * for the pinned bundle) and `false` is reachable only from an exact snapshot
+ * date. The CLI must warn on the proven case and stay silent on the other two —
+ * `!== false` would put a warning on every ordinary run and drown the real one.
+ *
+ * The snapshot is substituted rather than clock-driven, so all three states are
+ * covered on any calendar date and after any tldts bump.
+ */
+describe("renderResults — PSL staleness advisory (tri-state)", () => {
+  const withSnapshot = (stale: boolean | null): InspectResult => ({
+    ...benign,
+    pslSnapshot: { date: "2026-06-15", stale },
+  });
+  const render = (stale: boolean | null): string =>
+    renderResults([withSnapshot(stale)], { quiet: false, noColor: true });
+
+  it("warns when the snapshot is provably stale", () => {
+    const out = render(true);
+    expect(out).toContain("PSL snapshot (2026-06-15) is stale");
+  });
+
+  it("stays silent when staleness is undetermined", () => {
+    expect(render(null)).not.toContain("PSL snapshot");
+  });
+
+  it("stays silent when the snapshot is provably fresh", () => {
+    expect(render(false)).not.toContain("PSL snapshot");
+  });
+
+  it("names the unknown date rather than printing null", () => {
+    const out = renderResults([{ ...benign, pslSnapshot: { date: null, stale: true } }], {
+      quiet: false,
+      noColor: true,
+    });
+    expect(out).toContain("PSL snapshot (unknown date) is stale");
+  });
+});
+
 describe("renderResults — color control", () => {
   it("emits no ANSI escape when noColor is true", () => {
     const out = renderResults([medium], { quiet: false, noColor: true });

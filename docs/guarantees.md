@@ -89,6 +89,19 @@ on `PslSnapshot` in `packages/core/src/data/psl-provenance.ts` and is asserted
 as an exclusion — not ignored — in the A3 test, with a verified negative
 control that the flag really does flip under a moved clock.
 
+**And it is one-directional (`LINK-elzuacby`).** The field is tri-state, and the
+only positive claim it makes is staleness. The bundled snapshot date is a
+`tldts` packaging-release date, which bounds the list's age from *below*: it can
+show a snapshot is **at least** N days old, never that it is no older than N.
+So `stale: true` is proven, `stale: null` is undetermined — the ordinary value
+for the pinned bundle — and `stale: false` is emitted only from a `dateKind:
+"exact"` provenance record, which no current dependency supplies. Consumers must
+branch on `=== true`; treating `!== false` (or `!== true`) as a freshness signal
+reads a claim linklint has never made. Pinned by
+`packages/core/test/psl-provenance.test.ts` (both provenance kinds at the
+window boundary, on an injected clock) and
+`packages/cli/test/render.test.ts` (the CLI warns on `true` only).
+
 ## B. Package guarantees
 
 Claims published in a package's own `## Guarantees` section — the ones a

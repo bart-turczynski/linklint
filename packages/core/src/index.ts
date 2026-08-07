@@ -98,6 +98,7 @@ export {
   PSL_PROVENANCE,
   pslOutdated,
   type PslProvenance,
+  type PslDateKind,
   type PslStaleness,
   type PslSnapshot,
 } from "./data/psl-provenance.js";
