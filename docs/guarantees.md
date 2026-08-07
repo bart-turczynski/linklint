@@ -58,7 +58,7 @@ tracks.
 | `docs/raw-url-tokenization-spike.md` | 1 |
 | `docs/reason-codes.md` | 82 |
 | `docs/redirect-chain-resolution.md` | 4 |
-| `docs/safe-transport.md` | 7 |
+| `docs/safe-transport.md` | 8 |
 | `docs/scoring.md` | 6 |
 | `docs/wrapper-decoding.md` | 1 |
 | `README.md` | 14 |
@@ -163,6 +163,21 @@ that the reason fires at each limit and that the reason list is not empty.
 | F7 | Ambient credential headers are never copied to a destination; `Referer` is never forwarded from caller headers | `docs/safe-transport.md` | `packages/online/test/safe-transport.test.ts` |
 | F8 | Local wrapper decoding never calls a vendor decoder service and performs no I/O at all | `packages/online/README.md`, `docs/wrapper-decoding.md`, `docs/redirect-chain-resolution.md` | `packages/online/test/embedded-wrapper.test.ts`, `packages/online/test/package-contract.test.ts` |
 | F9 | A reputation match is never broadened to the host — a different path, query, subdomain, or parent is a `no-hit` | `docs/layer3-reputation-model.md`, `docs/reason-codes.md`, `docs/online-roadmap.md` | `packages/online/test/urlhaus-lookup.test.ts`, `packages/online/test/phishtank-lookup.test.ts` |
+| F10 | The built-in Node transport never routes through Node's ambient proxy configuration — `HTTP_PROXY`/`HTTPS_PROXY`, `NODE_USE_ENV_PROXY`, or a runtime `http.setGlobalProxyFromEnv()` | `docs/safe-transport.md` | `packages/online/test/node-transport-live.test.ts`, `packages/online/test/node-transport-tls-live.test.ts` |
+
+**F10 is scoped to the built-ins, deliberately.** It is a claim about
+`createNodeSafeTransport()`'s own connector and HTTP port, not about a
+caller-supplied adapter — a custom port owns its own proxy behavior, and the
+prose in `docs/safe-transport.md` states that limit rather than leaving a reader
+to infer a wider promise. `LINK-xscdzrji` added the pin: the claim had been
+published since the boundary shipped with nothing behind it, the same shape as
+`LINK-zsbeqtcr`. Both regressions aim Node at a **dead loopback proxy
+sentinel** and require the production `NodeConnectionPorts` path to reach a real
+loopback destination anyway, so switching the built-in path to an ambient proxy
+fails as a deterministic `ECONNREFUSED` with no external network. Each case
+carries a live control — a default-global-agent request that must die on the
+sentinel — because an isolation test whose proxy was never installed passes
+vacuously.
 
 ## G. Detector precision claims
 

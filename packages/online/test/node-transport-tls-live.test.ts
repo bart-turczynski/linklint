@@ -24,6 +24,13 @@ import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { NodeConnectionPorts } from "../src/transport/node.js";
+import {
+  RUNTIME_GLOBAL_PROXY_SUPPORTED,
+  deadLoopbackPort,
+  globalAgentIsProxied,
+  runUnderStartupProxyEnv,
+  withRuntimeGlobalProxy,
+} from "./proxy-isolation-harness.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "tls");
 const pem = (name: string) => readFileSync(join(FIXTURES, name), "utf8");
@@ -315,4 +322,78 @@ describe("node TLS transport (live loopback)", () => {
       await new Promise<void>((resolve) => plain.close(() => resolve()));
     }
   });
+});
+
+/**
+ * The HTTPS half of the ambient-proxy isolation regression (`LINK-xscdzrji`,
+ * register row F10). It is a separate case from the HTTP one on purpose:
+ * `HTTPS_PROXY` is the variable that would apply here, and a proxied HTTPS
+ * client tunnels with `CONNECT` rather than rewriting the request target — a
+ * different code path in Node from the plain-HTTP one.
+ *
+ * `openSocket` reaches `tls.connect` directly, so there is nothing for either
+ * switch to attach to. Both cases aim at a dead loopback sentinel, so a
+ * regression here is an `ECONNREFUSED`, not a slow test.
+ *
+ * Scope: the *built-in* adapters only. A caller that supplies its own connector
+ * or HTTP port owns whatever proxy behavior that adapter has, which is why
+ * `docs/safe-transport.md` states the limit rather than leaving it implied.
+ */
+describe("node TLS transport — ambient proxy isolation (live loopback)", () => {
+  it.skipIf(!RUNTIME_GLOBAL_PROXY_SUPPORTED)(
+    "completes a verified handshake while a runtime global proxy points at a dead sentinel",
+    async () => {
+      const proxyPort = await deadLoopbackPort();
+      const { port, seen } = await startTlsServer(identity("valid"), "direct over tls");
+
+      await withRuntimeGlobalProxy(proxyPort, async () => {
+        // Control: the ambient proxy really is installed in this process.
+        expect(await globalAgentIsProxied()).toBe(true);
+
+        const ports = new NodeConnectionPorts();
+        const connection = await ports.connect({
+          protocol: "https:",
+          hostname: "origin.example",
+          address: "127.0.0.1",
+          port,
+        });
+        try {
+          expect(connection.tls?.authorized).toBe(true);
+          expect(connection.remoteAddress).toBe("127.0.0.1");
+          expect(connection.remotePort).toBe(port);
+          expect(connection.remotePort).not.toBe(proxyPort);
+          // SNI reached the origin itself, not a tunnel endpoint.
+          expect(seen.servername).toBe("origin.example");
+
+          const response = await ports.request({
+            connectionId: connection.id,
+            url: `https://origin.example:${port}/probe`,
+            method: "GET",
+            headers: { host: "origin.example" },
+          });
+          expect(response.status).toBe(200);
+          expect(await readBody(response.body)).toBe("direct over tls");
+        } finally {
+          ports.close(connection.id);
+        }
+      });
+    },
+  );
+
+  it("completes a verified handshake in a process started under NODE_USE_ENV_PROXY", async () => {
+    const proxyPort = await deadLoopbackPort();
+    const { port } = await startTlsServer(identity("valid"), "direct over tls");
+
+    const report = await runUnderStartupProxyEnv("https:", port, proxyPort);
+
+    // Control: the child really was launched into an active ambient proxy.
+    expect(report.control.proxied).toBe(true);
+    expect(report.control.code).toBe("ECONNREFUSED");
+    expect(report.control.port).toBe(proxyPort);
+
+    expect(report.direct.status).toBe(200);
+    expect(report.direct.body).toBe("direct over tls");
+    expect(report.direct.remoteAddress).toBe("127.0.0.1");
+    expect(report.direct.remotePort).toBe(port);
+  }, 30_000);
 });

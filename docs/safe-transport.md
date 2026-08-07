@@ -36,6 +36,15 @@ TCP/TLS connector, HTTP/1.1 client, and clock. Construction performs no DNS or
 network I/O. The raw built-in socket implementation is not exported, so other
 built-in adapters cannot bypass the authorization layer.
 
+Those built-in adapters never route through Node's ambient proxy configuration.
+The connector opens its own `net`/`tls` socket to the pinned address, and the
+HTTP/1.1 client hangs that already-connected socket off a freshly constructed
+agent that is given no proxy environment, so `HTTP_PROXY`, `HTTPS_PROXY`,
+`NODE_USE_ENV_PROXY`, and a runtime `http.setGlobalProxyFromEnv()` all leave the
+connection direct. The limit of that claim is the built-ins: a caller-supplied
+connector or HTTP port owns its own proxy behavior, and this boundary makes no
+statement about an adapter it did not build.
+
 ## Binding request rules
 
 - Only absolute `http:` and `https:` URLs and `GET`/`HEAD` are accepted.

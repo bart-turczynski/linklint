@@ -15,6 +15,13 @@ import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { NodeConnectionPorts } from "../src/transport/node.js";
+import {
+  RUNTIME_GLOBAL_PROXY_SUPPORTED,
+  deadLoopbackPort,
+  globalAgentIsProxied,
+  runUnderStartupProxyEnv,
+  withRuntimeGlobalProxy,
+} from "./proxy-isolation-harness.js";
 
 let server: Server | undefined;
 
@@ -114,4 +121,77 @@ describe("node transport ports (live loopback)", () => {
       ports.close(connection.id);
     }
   });
+});
+
+/**
+ * `docs/safe-transport.md` states the built-in transport has no proxy, and F10
+ * in `docs/guarantees.md` is the register row these tests pin.
+ *
+ * The property is not an accident of configuration: `openSocket` calls
+ * `net.connect` / `tls.connect` directly, and `request()` hangs the pinned
+ * socket off a freshly constructed `http.Agent` that was never handed a
+ * `proxyEnv`. Both switches below are aimed at a dead loopback sentinel, so a
+ * transport that started honouring them would fail with `ECONNREFUSED` rather
+ * than degrade quietly.
+ */
+describe("node transport ports — ambient proxy isolation (live loopback)", () => {
+  it.skipIf(!RUNTIME_GLOBAL_PROXY_SUPPORTED)(
+    "stays direct while a runtime global proxy points at a dead sentinel",
+    async () => {
+      const proxyPort = await deadLoopbackPort();
+      const port = await startServer(() => ({ status: 200, body: "direct" }));
+
+      await withRuntimeGlobalProxy(proxyPort, async () => {
+        // Control first. Without this the test could pass because the proxy was
+        // never installed, which is the failure mode that makes an isolation
+        // test worthless.
+        expect(await globalAgentIsProxied()).toBe(true);
+
+        const ports = new NodeConnectionPorts();
+        const connection = await ports.connect({
+          protocol: "http:",
+          hostname: "origin.example",
+          address: "127.0.0.1",
+          port,
+        });
+        try {
+          // The observed peer is the destination. Had the socket been tunnelled
+          // it would name the proxy instead — and with a dead sentinel there
+          // would be no socket at all.
+          expect(connection.remoteAddress).toBe("127.0.0.1");
+          expect(connection.remotePort).toBe(port);
+          expect(connection.remotePort).not.toBe(proxyPort);
+
+          const response = await ports.request({
+            connectionId: connection.id,
+            url: `http://origin.example:${port}/probe`,
+            method: "GET",
+            headers: { host: "origin.example" },
+          });
+          expect(response.status).toBe(200);
+          expect(await readBody(response.body)).toBe("direct");
+        } finally {
+          ports.close(connection.id);
+        }
+      });
+    },
+  );
+
+  it("stays direct in a process started under NODE_USE_ENV_PROXY", async () => {
+    const proxyPort = await deadLoopbackPort();
+    const port = await startServer(() => ({ status: 200, body: "direct hello" }));
+
+    const report = await runUnderStartupProxyEnv("http:", port, proxyPort);
+
+    // Control: the child really was launched into an active ambient proxy, and
+    // it was *this* sentinel that swallowed the default global agent.
+    expect(report.control.proxied).toBe(true);
+    expect(report.control.code).toBe("ECONNREFUSED");
+    expect(report.control.port).toBe(proxyPort);
+
+    expect(report.direct.status).toBe(200);
+    expect(report.direct.body).toBe("direct hello");
+    expect(report.direct.remoteAddress).toBe("127.0.0.1");
+    expect(report.direct.remotePort).toBe(port);
+  }, 30_000);
 });
