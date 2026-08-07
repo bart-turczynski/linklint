@@ -279,8 +279,10 @@ describe("ip_classification — literal-IP range buckets", () => {
 
     it("LINK-evooubiz RFC 6052 network-specific prefixes are never speculatively unwrapped", () => {
       // These are ordinary-looking addresses that WOULD decode to a sensitive
-      // IPv4 if the network-specific layouts were tried. Speculating costs 14%
-      // of random addresses a spurious bucket, so nothing here may classify.
+      // IPv4 if the network-specific layouts were tried. Speculating costs 59.0%
+      // of random addresses a spurious bucket, or 0.22% with the RFC 6052 §2.2
+      // u-byte enforced at all six lengths (`nsp-experiment.ts`), so nothing
+      // here may classify.
       for (const h of [
         "2001:db8::a9fe:a9fe", // /96 layout — v4 sits in the low 32 bits
         "2001:db8:122:344:a9:fea9:fe00::", // /64 layout, u-byte zero

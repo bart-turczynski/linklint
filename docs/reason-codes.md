@@ -807,12 +807,31 @@ unwrapped; the other three are declined, for reasons that differ per mechanism.
 - **RFC 6052 network-specific prefixes — not unwrapped, because they cannot be
   recognized.** They are drawn from operator address space and have no registry,
   so unwrapping one means speculatively decoding *every* IPv6 address at all six
-  permitted prefix lengths. Measured over 20 000 random addresses, that hands a
-  spurious bucket to **59.2%** of them; enforcing the reserved u-byte at octet 8,
-  which must be zero, cuts it to **14.0%**. The residue is almost entirely the
-  `/96` layout, which has no u-byte to check and reads the low 32 bits directly —
-  so the u-byte is what makes the *other* five lengths tractable, not what rules
-  them out. Against a `precision === 1` corpus gate, 14% is disqualifying.
+  permitted prefix lengths. What that costs is measured rather than asserted:
+  `packages/core/test/nsp-experiment.ts` draws 200 000 addresses from a seeded
+  SplitMix64 stream, decodes each at all six layouts, and buckets the candidates
+  through linklint's own range table. Its artifact is committed
+  (`packages/core/test/data/nsp-experiment.json`) and re-derived on every
+  `pnpm check`, so the rates below are reproducible from a clone (LINK-qunjjduo).
+
+  Trying all six layouts blind hands a spurious bucket to **59.0%** of the
+  addresses that carry none today. RFC 6052 §2.2 reserves bits 64-71 — octet 8,
+  the *u-byte* — and requires them to be zero at *every* permitted prefix length,
+  `/96` included; under `/96` the u-byte sits inside the operator prefix rather
+  than straddling the embedded IPv4, but it is just as checkable there.
+  Enforcing it on the five lengths where it straddles the IPv4 while exempting
+  `/96` — the filter behind the **14.0%** previously recorded here, which the
+  experiment reproduces — leaves a residue that is ~99% the `/96` layout.
+  Enforcing it at all six, as §2.2 reads, leaves **0.22%**, spread across the six
+  layouts rather than concentrated in one.
+
+  The decline stands on the first sentence, not on the rate: an NSP is not
+  discoverable from the address bits, so extraction needs a trusted operator or
+  resolver prefix as context and linklint has none. The rate prices what
+  accepting the layouts would cost on top of that, and at 0.22% against a
+  `precision === 1` corpus gate it is a materially weaker supporting argument
+  than 14.0% made it appear. It is recorded at its corrected size so that a
+  re-proposal argues against the real number.
 
 #### Declined: a malformed-6to4 anomaly code (LINK-gxwyxkyg)
 

@@ -140,8 +140,10 @@ interface EmbeddedIpv4 {
  * - RFC 6052 NETWORK-SPECIFIC prefixes — unrecognizable by construction. They
  *   come from operator address space with no registry, so unwrapping one means
  *   speculatively decoding every IPv6 address at all six permitted lengths;
- *   measured, that hands a spurious bucket to 14% of random addresses even with
- *   the u-byte enforced. See docs/reason-codes.md.
+ *   measured, that hands a spurious bucket to 59.0% of random addresses, or
+ *   0.22% once the RFC 6052 §2.2 reserved u-byte is enforced at all six lengths
+ *   (`packages/core/test/nsp-experiment.ts` — the earlier 14% figure exempted
+ *   /96 from the u-byte, which §2.2 does not). See docs/reason-codes.md.
  */
 const LOW32_WRAPPERS: ReadonlyArray<{
   hextets: readonly [number, number, number, number, number, number];
