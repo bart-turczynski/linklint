@@ -41,6 +41,12 @@ FAIL_ON="${LINKLINT_FAIL_ON:-high}"
 # data-exfiltration) are ON by default. Set LINKLINT_AGENT=0 to disable.
 # Note: prompt_injection_url is weight 0.5 (severity `medium`); to make it BLOCK,
 # pair this with LINKLINT_FAIL_ON=medium.
+# NOTE: every expansion of AGENT_FLAG below uses the `${a[@]+"${a[@]}"}` idiom.
+# In bash 3.2 — still /bin/bash on macOS — expanding an EMPTY array as bare
+# "${AGENT_FLAG[@]}" under `set -u` is an unbound-variable error: the script
+# dies with 127 before reaching any `exit 2`, i.e. fails OPEN on exactly the
+# LINKLINT_AGENT=0 path. bash 5 does not reproduce it, so CI alone cannot catch
+# this.
 if [[ "${LINKLINT_AGENT:-1}" == "0" ]]; then
   AGENT_FLAG=()
 else
@@ -56,9 +62,14 @@ url=$(printf '%s' "$input" | jq -r '.tool_input.url // empty') \
 # No URL in the tool input -> fail closed.
 [[ -z "$url" ]] && { echo "linklint: no URL in tool input — blocking" >&2; exit 2; }
 
+# An option-shaped "URL" -> fail closed. No URL scheme starts with '-', but
+# `linklint check --version` / `--help` / `--allow-invalid` all exit 0, so
+# handing such a string to the CLI as a positional would ALLOW the fetch.
+[[ "$url" == -* ]] && { echo "linklint: option-shaped URL in tool input — blocking" >&2; exit 2; }
+
 # Any non-zero exit — threshold hit, invalid input, missing binary (127),
 # internal error — falls into the deny branch.
-if ! linklint check "$url" --fail-on "$FAIL_ON" "${AGENT_FLAG[@]}" >/dev/null 2>&1; then
+if ! linklint check "$url" --fail-on "$FAIL_ON" ${AGENT_FLAG[@]+"${AGENT_FLAG[@]}"} >/dev/null 2>&1; then
   echo "linklint blocked: $url (>= $FAIL_ON, invalid, or check failed)" >&2
   exit 2
 fi

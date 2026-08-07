@@ -46,8 +46,13 @@ docs — an earlier example hook was broken and failed **open**):
   code 1 is non-blocking** — a block verdict that exits 1 lets the fetch proceed.
 - `set -uo pipefail`, **not** `-e`: a `jq`/`linklint` crash must hit the explicit
   `exit 2`, not bubble up as a non-blocking exit 1.
-- Every failure path — unreadable input, missing/empty URL, threshold hit,
-  invalid input, missing binary (`127`) — explicitly `exit 2`s. Default-deny.
+- Every failure path — unreadable input, missing/empty URL, an option-shaped
+  URL (one starting with `-`, which the CLI would consume as a flag and exit
+  `0` on), threshold hit, invalid input, missing binary (`127`) — explicitly
+  `exit 2`s. Default-deny.
+- It runs under `/bin/bash`, which on macOS is still 3.2. Empty-array
+  expansions there use the `${a[@]+"${a[@]}"}` form; the bare form is an
+  unbound-variable abort under `set -u` and would exit non-blocking `127`.
 - The hook sees only the **original** URL. WebFetch's own redirect-following
   happens later, inside tool execution, out of the hook's reach (per-hop
   revalidation is roadmap, not v1).
@@ -74,8 +79,19 @@ not just `high`/`critical`.
 
 It detects the current shell's rc file, is idempotent (guarded by a sentinel
 comment), and is uninstalled by deleting the `>>> linklint guard >>>` block.
-This wraps **interactive** shell use — it is intentionally not a system-wide
-interception (see non-goals below).
+It exits `1` — not the hook's `2` — when `linklint` is absent from `PATH` or
+the rc file cannot be written; the exit codes are not shared between the two
+wrappers because only the hook's `2` carries a blocking meaning.
+
+Two scope limits worth stating plainly, since the wrapper is a shell function
+and not an interceptor:
+
+- Only arguments containing `://` are inspected. A scheme-less argument such as
+  `curl example.com` reaches the tool uninspected, as does `command curl …`,
+  which bypasses the function by design.
+- This wraps **interactive** shell use — it is intentionally not a system-wide
+  interception (see non-goals below). A script or program that does not source
+  the rc file is unmediated.
 
 ## MCP
 

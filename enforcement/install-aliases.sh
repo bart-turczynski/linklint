@@ -67,6 +67,9 @@ if [[ -f "$rc" ]] && grep -q '>>> linklint guard >>>' "$rc"; then
   exit 0
 fi
 
-printf '\n%s\n' "$GUARD" >> "$rc"
+# A failed append must not report success: an unwritable rc would otherwise
+# leave the caller believing curl/wget are guarded when nothing was installed.
+printf '\n%s\n' "$GUARD" >> "$rc" \
+  || { echo "install-aliases: could not write $rc — guard NOT installed." >&2; exit 1; }
 echo "install-aliases: appended linklint guard to $rc"
 echo "Open a new shell or run: source \"$rc\""
