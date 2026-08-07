@@ -9,6 +9,9 @@
 .fp/
 _scratch/
 
+# Orchestration run logs and worklogs (tmp/orchestrate/<run-id>/).
+tmp/
+
 # Heavy artifacts — never commit (a big blob bloats .git history even after deletion).
 *.db
 *.db-shm
