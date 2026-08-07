@@ -18,9 +18,15 @@
 export interface TlsHandshakeObservation {
   /** Original hostname presented for SNI and used for identity checks. */
   readonly serverName: string;
-  /** The remote address actually connected to; re-checked against the pinned address. */
+  /**
+   * The peer address the socket OBSERVED, re-checked against the pinned
+   * {@link TlsObserveConnectRequest.address}. A port that cannot observe it must
+   * fail the observation rather than echo the requested value: the check compares
+   * this field with the pin, so a substituted pin would confirm itself
+   * (LINK-abozdqtp).
+   */
   readonly remoteAddress: string;
-  /** The remote port actually connected to. */
+  /** The peer port the socket OBSERVED, under the same rule as the address. */
   readonly remotePort: number;
   /** Leaf-first DER certificates the peer presented. */
   readonly certificateChain: readonly Uint8Array[];

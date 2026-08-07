@@ -22,6 +22,7 @@ import {
 
 import { createSafeTlsInspector, type CreateSafeTlsInspectorOptions } from "./tls-inspect.js";
 import { NodeResolver } from "./node-resolver.js";
+import { observedPeer } from "./peer.js";
 import { SystemClock } from "./system-clock.js";
 import type { TlsInspectionPolicy } from "./tls-types.js";
 import type {
@@ -33,7 +34,9 @@ import type {
 import type { ResolverPort } from "./types.js";
 
 class NodeTlsObserveFailure extends Error {
-  constructor(readonly code: "connect-refused" | "connect-timeout" | "tls-handshake") {
+  constructor(
+    readonly code: "connect-refused" | "connect-timeout" | "connect-error" | "tls-handshake",
+  ) {
     super("node tls observation failed");
     this.name = "NodeTlsObserveFailure";
   }
@@ -100,14 +103,19 @@ function captureObservation(
   socket: TLSSocket,
   request: TlsObserveConnectRequest,
 ): TlsHandshakeObservation {
+  // Report the OBSERVED peer or nothing. Falling back to `request.address` /
+  // `request.port` here would hand the inspector its own pin back and let the
+  // address check confirm itself (LINK-abozdqtp).
+  const peer = observedPeer(socket);
+  if (peer === null) throw new NodeTlsObserveFailure("connect-error");
   const authorized = socket.authorized;
   const authorizationErrorCode = errorCodeOf(socket.authorizationError);
   const chainTrusted =
     authorized || (authorizationErrorCode !== null && VALIDITY_ONLY_ERRORS.has(authorizationErrorCode));
   return {
     serverName: request.serverName,
-    remoteAddress: socket.remoteAddress ?? request.address,
-    remotePort: socket.remotePort ?? request.port,
+    remoteAddress: peer.address,
+    remotePort: peer.port,
     certificateChain: collectChain(socket.getPeerCertificate(true)),
     chainTrusted,
     trustErrorCode: authorized ? null : authorizationErrorCode,

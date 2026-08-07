@@ -17,6 +17,7 @@ import {
 } from "node:tls";
 
 import { NodeResolver, systemErrorCode } from "./node-resolver.js";
+import { observedPeer } from "./peer.js";
 import { createSafeTransport } from "./safe-transport.js";
 import { SystemClock } from "./system-clock.js";
 import type { TransportPolicy } from "./policy.js";
@@ -59,13 +60,21 @@ export class NodeConnectionPorts implements ConnectorPort, HttpPort {
 
   async connect(request: ConnectRequest): Promise<TransportConnection> {
     const socket = await this.openSocket(request);
+    // Report the OBSERVED peer or nothing. Falling back to `request.address` /
+    // `request.port` here would hand the caller its own pin back and let the
+    // address check confirm itself (LINK-abozdqtp).
+    const peer = observedPeer(socket);
+    if (peer === null) {
+      socket.destroy();
+      throw new NodePortFailure("connect-error");
+    }
     const id = `node-${this.nextConnectionId++}`;
     this.sockets.set(id, socket);
     const base = {
       id,
       protocol: request.protocol,
-      remoteAddress: socket.remoteAddress ?? request.address,
-      remotePort: socket.remotePort ?? request.port,
+      remoteAddress: peer.address,
+      remotePort: peer.port,
     } as const;
     if (request.protocol === "http:") return base;
 

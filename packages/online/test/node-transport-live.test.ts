@@ -62,6 +62,11 @@ describe("node transport ports (live loopback)", () => {
     });
 
     try {
+      // Both peer fields come off the socket. The adapter has no fallback to the
+      // requested address/port to fill them in with (LINK-abozdqtp).
+      expect(connection.remoteAddress).toBe("127.0.0.1");
+      expect(connection.remotePort).toBe(port);
+
       const response = await ports.request({
         connectionId: connection.id,
         url: `http://origin.example:${port}/probe?q=1`,

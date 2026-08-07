@@ -9,6 +9,7 @@ import {
   TransportFixtureHarness,
   type TransportFixtureScript,
 } from "../src/testing/index.js";
+import type { TlsHandshakeObservation } from "../src/transport/tls-types.js";
 import { handshake } from "./fixtures/tls-certificates.js";
 
 const PUBLIC_A = "93.184.216.34";
@@ -148,6 +149,44 @@ describe("createSafeTlsInspector — incomplete causes", () => {
       status: "incomplete",
       cause: { code: "connection-address-mismatch" },
     });
+  });
+
+  /**
+   * LINK-abozdqtp — the observation's peer fields are compared against the pin,
+   * so an observer that reports nothing must not report the pin back. Absent and
+   * malformed peer evidence fails on the same footing as a wrong address.
+   */
+  it.each([
+    ["an absent remote address", { remoteAddress: undefined }],
+    ["an absent remote port", { remotePort: undefined }],
+    ["a malformed remote address", { remoteAddress: "example.com" }],
+    ["an out-of-range remote port", { remotePort: 65_536 }],
+    ["a wrong remote port", { remotePort: 8443 }],
+    // The pinned IPv4 literal written in mapped form. Refused: the boundary
+    // compares within one family, and an unobserved equivalence is not a
+    // confirmed one.
+    ["an IPv4-mapped form of the pinned address", { remoteAddress: `::ffff:${PUBLIC_A}` }],
+  ])("refuses %s as connection-address-mismatch", async (_label, override) => {
+    const observation = {
+      ...handshake("valid"),
+      ...override,
+    } as unknown as TlsHandshakeObservation;
+    const { inspect } = inspector({
+      resolver: resolveExample(),
+      tlsObserver: observeStep(observation),
+    });
+    await expect(inspect.inspect({ url: URL })).resolves.toMatchObject({
+      status: "incomplete",
+      cause: { code: "connection-address-mismatch" },
+    });
+  });
+
+  it("observes normally when the reported peer matches the pinned address and port", async () => {
+    const { inspect } = inspector({
+      resolver: resolveExample(),
+      tlsObserver: observeStep(handshake("valid", { remoteAddress: PUBLIC_A, remotePort: 443 })),
+    });
+    await expect(inspect.inspect({ url: URL })).resolves.toMatchObject({ status: "observed" });
   });
 
   it("treats certificate-analysis limits as incomplete, never blocked", async () => {

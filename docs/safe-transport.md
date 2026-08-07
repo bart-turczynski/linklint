@@ -59,6 +59,11 @@ built-in adapters cannot bypass the authorization layer.
 - The selected allowed address is passed explicitly to the connector. The
   connected remote address and port must match it. HTTPS keeps the original
   hostname for SNI and certificate identity validation.
+- The built-in HTTP and TLS-observation adapters report the peer address and
+  port they observed on the socket, and fail the connect when either is absent
+  or malformed instead of echoing the requested values. Because that same check
+  compares the reported peer against the pin, a substituted pin would confirm
+  itself.
 - HTTP redirects remain manual. This boundary never converts a response into
   permission to connect to its target.
 

@@ -451,6 +451,67 @@ describe("safe HTTP(S) authorization and DNS pinning", () => {
       harness.assertExhausted();
     }
   });
+
+  /**
+   * LINK-abozdqtp — the address check compares the connection's reported peer
+   * against the pin, so a connector that cannot observe the peer must fail
+   * rather than report the requested values back. Absent and malformed peer
+   * evidence is refused on exactly the same footing as a wrong address.
+   */
+  it.each([
+    ["an absent remote address", { remoteAddress: undefined }],
+    ["an absent remote port", { remotePort: undefined }],
+    ["a malformed remote address", { remoteAddress: "origin.example" }],
+    ["an out-of-range remote port", { remotePort: 65_536 }],
+    ["a wrong remote port", { remotePort: 8443 }],
+    // `::ffff:93.184.216.34` is the same host as the pinned IPv4 literal written
+    // in mapped form. It is refused: the boundary compares within one family,
+    // and an unobserved-equivalence is not a confirmed one.
+    ["an IPv4-mapped form of the pinned address", { remoteAddress: "::ffff:93.184.216.34" }],
+  ])("refuses %s as connection-address-mismatch", async (_label, override) => {
+    const badConnection = { ...connection("c1"), ...override } as unknown as FixtureConnection;
+    const script: TransportFixtureScript = {
+      ...publicSuccessScript(),
+      connector: [{
+        expect: {
+          protocol: "https:", hostname: "origin.example", address: PUBLIC_A,
+          port: 443, serverName: "origin.example",
+        },
+        outcome: { value: badConnection },
+      }],
+      http: [],
+    };
+    const { harness, session: transportSession } = session(script);
+
+    const outcome = await transportSession.fetch({
+      url: URL_A,
+      authorization: authorization(URL_A),
+    });
+
+    expect(outcome).toMatchObject({
+      status: "incomplete",
+      cause: { code: "connection-address-mismatch" },
+    });
+    expect(harness.http.calls).toEqual([]);
+    expect(harness.connector.closedConnectionIds).toEqual(["c1"]);
+    harness.assertExhausted();
+  });
+
+  it("accepts a connection whose observed peer matches the pinned address and port", async () => {
+    const { harness, session: transportSession } = session(publicSuccessScript());
+
+    const outcome = await transportSession.fetch({
+      url: URL_A,
+      authorization: authorization(URL_A),
+    });
+
+    expect(outcome).toMatchObject({
+      status: "success",
+      evidence: { selectedAddress: PUBLIC_A },
+    });
+    expect(harness.connector.closedConnectionIds).toEqual(["c1"]);
+    harness.assertExhausted();
+  });
 });
 
 describe("mandatory transport budgets and incomplete outcomes", () => {

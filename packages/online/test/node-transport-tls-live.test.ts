@@ -145,6 +145,9 @@ describe("node TLS transport (live loopback)", () => {
       expect(connection.tls?.serverName).toBe("origin.example");
       expect(connection.tls?.peerDnsNames).toEqual(["origin.example"]);
       expect(connection.remoteAddress).toBe("127.0.0.1");
+      // Both peer fields come off the socket. The adapter has no fallback to the
+      // requested address/port to fill them in with (LINK-abozdqtp).
+      expect(connection.remotePort).toBe(port);
       // SNI is sent for a DNS name even though the socket is pinned to a
       // literal address.
       expect(seen.servername).toBe("origin.example");

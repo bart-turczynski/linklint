@@ -28,7 +28,14 @@ export interface ConnectRequest {
 export interface TransportConnection {
   readonly id: string;
   readonly protocol: TransportProtocol;
+  /**
+   * The peer address the socket OBSERVED, re-checked against the pinned
+   * {@link ConnectRequest.address}. A port that cannot observe it must fail the
+   * connect rather than echo the requested value: the check compares this field
+   * with the pin, so a substituted pin would confirm itself (LINK-abozdqtp).
+   */
   readonly remoteAddress: string;
+  /** The peer port the socket OBSERVED, under the same rule as the address. */
   readonly remotePort: number;
   readonly tls?: {
     readonly authorized: boolean;
