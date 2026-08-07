@@ -853,11 +853,14 @@ allowlist — the file's header states that an implementation leaving a flag fal
 Every remaining code (`P*`, `V1`, `V4`, `V6`, `V7`, `A3`) is a hard error
 linklint must still reproduce.
 
-**Result: 100.00% on all three operations — zero divergences to document.** The
-figure is kept honest by pinning the corpus shape alongside it: 4,181 rows must
-still *fail* under this profile and 2,210 must *succeed*, of which 1,661 succeed
-only because a flag is off. A relaxation rule that had quietly swallowed the
-corpus would also report 100%, so the split is asserted too.
+**Result under the flag profile above: 100.00% on all three operations — zero
+divergences to document.** The figure is profile-relative — conformance to
+UTS-46 as linklint configures it, not a strict-admission result, since a row the
+corpus fails only through a disabled check counts here as a pass. It is kept
+honest by pinning the corpus shape alongside it: 4,181 rows must still *fail*
+under this profile and 2,210 must *succeed*, of which 1,661 succeed only because
+a flag is off. A relaxation rule that had quietly swallowed the corpus would also
+report a profile-relative 100%, so the split is asserted too.
 
 **Decision — compatibility folds get no signal distinct from `normalization_delta`.**
 Investigated and **declined** (`LINK-qrktkbtg`). A host label can contain

@@ -45,9 +45,13 @@ import {
  * relaxation rule, not a linklint allowlist. Every remaining code (P*, V1, V4,
  * V6, V7, A3) is a hard error linklint must still reproduce.
  *
- * RESULT: 100.00% on all three operations, zero divergences. The shape assertions
- * below keep that number honest — a relaxation that swallowed the corpus would
- * also score 100%, so the error/success split is pinned too.
+ * RESULT under that profile: 100.00% on all three operations, zero divergences.
+ * The figure is profile-relative — conformance to UTS-46 as linklint configures
+ * it, not a claim that linklint admits only strict-IDNA-valid hosts, since a row
+ * the corpus fails only through a disabled check counts here as a pass. The shape
+ * assertions below keep that number honest — a relaxation that swallowed the
+ * corpus would also score a profile-relative 100%, so the error/success split is
+ * pinned too.
  */
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -215,10 +219,10 @@ describe("IdnaTestV2 corpus provenance", () => {
   });
 });
 
-describe("corpus shape — keeps the 100% figure honest", () => {
-  // A relaxation rule that forgave everything would also report 100%. Pinning the
-  // split proves both channels are exercised: 4,181 rows must still FAIL under
-  // linklint's profile, and 2,210 must SUCCEED.
+describe("corpus shape — keeps the profile-relative 100% figure honest", () => {
+  // A relaxation rule that forgave everything would also report a profile-relative
+  // 100%. Pinning the split proves both channels are exercised: 4,181 rows must
+  // still FAIL under linklint's profile, and 2,210 must SUCCEED.
   const errorRows = ROWS.filter((r) => expectsError(r.toAsciiNStatus));
   const okRows = ROWS.filter((r) => !expectsError(r.toAsciiNStatus));
 
@@ -285,7 +289,7 @@ describe("UTS-46 conformance under linklint's documented flag profile", () => {
     expect(failures).toHaveLength(0);
   });
 
-  it("no divergences to document (contrast: punycoder's 99.08%)", () => {
+  it("no divergences to document under this profile (contrast: punycoder's 99.08%)", () => {
     // If a tr46 bump ever breaks this, the divergence must be triaged as a bug or
     // a documented profile difference — never silently allowlisted (per the epic).
     expect(sweep("N", (s) => toAsciiUnder(s, false), (r) => ({ value: r.toAsciiN, status: r.toAsciiNStatus }))).toEqual([]);
