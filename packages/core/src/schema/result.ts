@@ -54,7 +54,7 @@ export interface DataVersions {
   idna: string;
   riskyTlds: string;
   /**
-   * Curated cloud instance-metadata endpoint table. Vendor-documented, NOT
+   * Curated cloud metadata / provider-internal endpoint table. Vendor-documented, NOT
    * IANA-derived (IANA registers ranges, not which address inside them a cloud
    * answers metadata on), so it carries its own stamp independent of any
    * registry pin.

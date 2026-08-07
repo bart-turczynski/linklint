@@ -114,14 +114,15 @@ export const REASON_CODES = {
     layer: "lexical",
     scoring: true,
     weight: 0.75,
-    summary: "Host is the cloud instance-metadata endpoint (169.254.169.254, fd00:ec2::254).",
+    summary:
+      "Host is a cloud instance-metadata or provider-internal infrastructure endpoint (169.254.169.254, fd00:ec2::254, 168.63.129.16).",
   },
   ssrf_cloud_metadata: {
     layer: "lexical",
     scoring: true,
     weight: 1,
     summary:
-      "Agent context: the host is the cloud instance-metadata endpoint — an in-flight SSRF credential-theft target, blocked. Agent-gated (emits only under agentMode).",
+      "Agent context: the host is a cloud instance-metadata or provider-internal infrastructure endpoint — an in-flight SSRF credential-theft target, blocked. Agent-gated (emits only under agentMode).",
   },
   ip_reserved: {
     layer: "lexical",

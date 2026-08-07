@@ -1,7 +1,11 @@
 import type { Detector, DetectorFinding } from "./types.js";
 import type { ReasonCode } from "../schema/reason-codes.js";
 import { analyzeIpv4, analyzeIpv6 } from "../parse/ip.js";
-import { CLOUD_METADATA_ENDPOINTS } from "../data/cloud-metadata.js";
+import {
+  CLOUD_METADATA_ENDPOINTS,
+  type CloudEndpointKind,
+  type CloudMetadataEndpoint,
+} from "../data/cloud-metadata.js";
 import { matchIpv4Range, matchIpv6Range, type IpRangeBucket } from "../data/ip-ranges.js";
 
 /**
@@ -33,6 +37,8 @@ interface BucketMatch {
   bucket: Bucket;
   /** Cloud vendor owning a matched metadata endpoint; absent for range buckets. */
   provider?: string;
+  /** Which flavour of cloud endpoint matched; absent for range buckets. */
+  endpointKind?: CloudEndpointKind;
   /** IANA registry name of the matched range; absent for the metadata table. */
   rangeName?: string;
   /** RFC citation of the matched range; absent for the metadata table. */
@@ -59,16 +65,30 @@ function dottedToInt(dotted: string): number {
  * table-integrity test asserts every row parses, so a typo fails CI loudly
  * instead of degrading silently at runtime.
  */
-const METADATA_IPV4 = new Map<number, string>();
-const METADATA_IPV6 = new Map<string, string>();
+const METADATA_IPV4 = new Map<number, CloudMetadataEndpoint>();
+const METADATA_IPV6 = new Map<string, CloudMetadataEndpoint>();
 for (const endpoint of CLOUD_METADATA_ENDPOINTS) {
   const v4 = analyzeIpv4(endpoint.address);
   if (v4) {
-    METADATA_IPV4.set(dottedToInt(v4.canonical), endpoint.provider);
+    METADATA_IPV4.set(dottedToInt(v4.canonical), endpoint);
     continue;
   }
   const v6 = analyzeIpv6(endpoint.address);
-  if (v6) METADATA_IPV6.set(v6.canonical, endpoint.provider);
+  if (v6) METADATA_IPV6.set(v6.canonical, endpoint);
+}
+
+/**
+ * Bucket decision for a matched table row. The bucket — and therefore the
+ * emitted reason code — is `ip_cloud_metadata` for EVERY row: the row's `kind`
+ * rides along for wording only, so correcting a mis-described endpoint never
+ * moves it to a different code (LINK-mjbrzxeo).
+ */
+function metadataMatch(endpoint: CloudMetadataEndpoint): BucketMatch {
+  return {
+    bucket: "ip_cloud_metadata",
+    provider: endpoint.provider,
+    endpointKind: endpoint.kind ?? "instance-metadata",
+  };
 }
 
 /**
@@ -107,7 +127,7 @@ function classifyIpv4(dotted: string): BucketMatch | null {
   // assignments block) classifies as metadata, not as the enclosing range. It is
   // a /32 overlay, i.e. the most specific match there is.
   const metadata = METADATA_IPV4.get(n);
-  if (metadata !== undefined) return { bucket: "ip_cloud_metadata", provider: metadata };
+  if (metadata !== undefined) return metadataMatch(metadata);
 
   // Everything else: longest-prefix-match against the IANA table.
   const range = matchIpv4Range(n);
@@ -126,7 +146,7 @@ function classifyIpv6(canonical: string): BucketMatch | null {
   // are parsed and re-rendered, so `fd00:0ec2::254` and `FD00:EC2:0:0:0:0:0:254`
   // match the same row as `fd00:ec2::254` — a text prefix test would not.
   const metadata = METADATA_IPV6.get(c);
-  if (metadata !== undefined) return { bucket: "ip_cloud_metadata", provider: metadata };
+  if (metadata !== undefined) return metadataMatch(metadata);
 
   // Everything else: longest-prefix-match against the IANA table, on the
   // EXPANDED hextets. The old first-hextet test could only express /16-aligned
@@ -142,7 +162,11 @@ function classifyIpv6(canonical: string): BucketMatch | null {
 }
 
 const SUMMARY: Record<Bucket, string> = {
-  ip_cloud_metadata: "the cloud instance-metadata endpoint (SSRF target)",
+  // Bucket-level fallback, used only if a row somehow carries no provider. Kept
+  // kind-neutral: the bucket spans instance metadata AND other provider-internal
+  // infrastructure, so naming one of them here would re-introduce the very
+  // mis-description this file's `endpointKind` exists to prevent.
+  ip_cloud_metadata: "a cloud provider-internal endpoint (SSRF target)",
   ip_loopback: "a loopback address",
   ip_link_local: "a link-local address",
   ip_private: "a private (internal) address",
@@ -162,6 +186,17 @@ export interface IpClassification {
    * generic range buckets have no provider.
    */
   provider?: string;
+  /**
+   * Which flavour of endpoint the matched row is — an IMDS
+   * (`"instance-metadata"`) or other vendor platform infrastructure
+   * (`"provider-internal"`). Present only on `ip_cloud_metadata`, alongside
+   * {@link provider}.
+   *
+   * Affects the DETAIL WORDING only. The reason code is `ip_cloud_metadata` for
+   * both kinds and the weight is identical, so a consumer keying off `code` is
+   * unaffected by a row being re-described (LINK-mjbrzxeo).
+   */
+  endpointKind?: CloudEndpointKind;
   /**
    * IANA registry name of the matched range (`"Private-Use"`, `"Loopback"`, …).
    * Present on every range bucket; absent on `ip_cloud_metadata`, whose table is
@@ -232,13 +267,31 @@ export const ipClassification: Detector = {
 };
 
 /**
- * Bucket wording for the detail string. A matched metadata endpoint names the
- * owning cloud provider so the reader learns WHOSE credentials are at stake;
- * every other bucket keeps its generic phrasing.
+ * Noun phrase for a matched `ip_cloud_metadata` endpoint, shared by the two
+ * detectors that describe one so they cannot drift apart.
+ *
+ * The provider is named so the reader learns WHOSE credentials are at stake,
+ * and the noun follows the row's kind: `168.63.129.16` is Azure's WireServer
+ * channel, documented separately from the Azure IMDS at `169.254.169.254`, so
+ * calling it an instance-metadata endpoint stated something Microsoft's own
+ * page contradicts (LINK-mjbrzxeo). Wording only — see
+ * {@link IpClassification.endpointKind}.
+ */
+export function cloudEndpointPhrase(c: IpClassification): string {
+  const noun =
+    c.endpointKind === "provider-internal"
+      ? "provider-internal infrastructure endpoint"
+      : "instance-metadata endpoint";
+  return c.provider === undefined ? `the cloud ${noun}` : `the ${c.provider} ${noun}`;
+}
+
+/**
+ * Bucket wording for the detail string. A matched cloud endpoint gets the
+ * provider-and-kind phrase above; every other bucket keeps its generic phrasing.
  */
 function summaryFor(c: IpClassification): string {
   if (c.bucket === "ip_cloud_metadata" && c.provider !== undefined) {
-    return `the ${c.provider} instance-metadata endpoint (SSRF target)`;
+    return `${cloudEndpointPhrase(c)} (SSRF target)`;
   }
   return SUMMARY[c.bucket];
 }

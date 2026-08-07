@@ -860,9 +860,10 @@ instead of minting one. Absent either, this stays closed.
 
 ### `ip_cloud_metadata` — V1a · weight 0.75 (high)
 
-- **Meaning:** the host is a cloud instance-metadata endpoint, matched against a
-  curated per-provider table (`data/cloud-metadata.ts`) rather than a single
-  hardcoded address:
+- **Meaning:** the host is a cloud instance-metadata endpoint, or other
+  provider-internal platform infrastructure, matched against a curated
+  per-provider table (`data/cloud-metadata.ts`) rather than a single hardcoded
+  address:
 
   | Endpoint | Provider |
   | --- | --- |
@@ -870,7 +871,7 @@ instead of minting one. Absent either, this stays closed.
   | `fd00:ec2::254` | AWS (IPv6 IMDS) |
   | `192.0.0.192` | Oracle Cloud |
   | `100.100.100.200` | Alibaba Cloud |
-  | `168.63.129.16` | Azure (WireServer host channel) |
+  | `168.63.129.16` | Azure (WireServer host channel) — provider-internal, **not** the Azure IMDS |
   | `169.254.170.2` | AWS (ECS task credentials) |
   | `169.254.170.23` | AWS (EKS Pod Identity) |
   | `fd00:ec2::23` | AWS (EKS Pod Identity, IPv6) |
@@ -881,6 +882,19 @@ instead of minting one. Absent either, this stays closed.
   reader learns whose credentials are at stake. This table is checked against
   `CLOUD_METADATA_ENDPOINTS` by `docs-validation.test.ts`, so it cannot drift
   silently.
+
+  Rows come in two kinds and the detail says which. Most are an **IMDS**, read
+  as "the *provider* instance-metadata endpoint". `168.63.129.16` is
+  **provider-internal**: Microsoft documents it as the WireServer / virtual
+  platform channel — DHCP, DNS, load-balancer health probes, guest-agent goal
+  state — separately from the Azure IMDS, which answers on the shared
+  `169.254.169.254` row above. Describing it as an instance-metadata endpoint
+  contradicted the vendor page the row is cited to, so it now reads "the Azure
+  (WireServer host channel) provider-internal infrastructure endpoint"
+  (`LINK-mjbrzxeo`). The **reason code is `ip_cloud_metadata` for both kinds**,
+  at the same 0.75 weight: the kind selects emitted wording, not a schema or
+  scoring input, so a consumer keying off `code` is untouched by a row being
+  re-described.
 
   `168.63.129.16` and `192.0.0.192` are the rows **not** carved out of a
   special-use range. Microsoft presents the former as a "virtual public IP"
@@ -916,8 +930,11 @@ instead of minting one. Absent either, this stays closed.
 
 ### `ssrf_cloud_metadata` — weight 1.0 (blocker, agent-gated)
 
-- **Meaning:** the agentMode escalation of `ip_cloud_metadata` — the host is the
-  cloud instance-metadata endpoint **and** `InspectOptions.agentMode` is on.
+- **Meaning:** the agentMode escalation of `ip_cloud_metadata` — the host is a
+  cloud instance-metadata or provider-internal endpoint **and**
+  `InspectOptions.agentMode` is on. It describes the endpoint with the same
+  shared phrase `ip_cloud_metadata` uses, so the two details agree on what the
+  address is.
 - **Why it blocks:** in an agent / tool-use context, fetching the metadata
   endpoint is an in-flight SSRF credential-theft attempt with no defensible
   purpose, so it **blocks** (weight 1.0 → saturates the score to `critical`). It

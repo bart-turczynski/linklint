@@ -37,6 +37,16 @@
  * such a row degrades silently to `info` 0.00 with zero reasons rather than
  * visibly to a weaker bucket, so they carry dedicated tests.
  *
+ * NOT EVERY ROW IS AN IMDS (LINK-mjbrzxeo). The table's job is "well-known
+ * address a cloud answers on from inside a VM", and instance metadata is the
+ * common — not the only — shape of that. Azure's `168.63.129.16` is the
+ * WireServer / virtual platform channel, which Microsoft documents SEPARATELY
+ * from the Azure IMDS at `169.254.169.254`; describing it as an
+ * instance-metadata endpoint is simply wrong. Each row therefore declares a
+ * {@link CloudMetadataEndpoint.kind}, which selects the emitted wording. It does
+ * NOT select the reason code: every row here scores as `ip_cloud_metadata`
+ * regardless of kind, so the taxonomy fix costs schema consumers nothing.
+ *
  * HOSTNAMES ARE NOT ROWS. Several vendors document a name instead of, or as well
  * as, an address (`metadata.tencentyun.com`, `metadata.google.internal`).
  * Resolving one is a network call and `inspect()` is zero-network by contract,
@@ -49,9 +59,22 @@
  * `dataVersions.cloudMetadata`. Bump deliberately whenever a row is added,
  * removed, or re-attributed.
  */
-export const CLOUD_METADATA_VERSION = "2026-07-25-second-tier";
+export const CLOUD_METADATA_VERSION = "2026-08-07-endpoint-kind";
 
-/** One cloud vendor's well-known instance-metadata endpoint. */
+/**
+ * What a row IS, which selects the noun used to describe it in the emitted
+ * detail. Wording only — both kinds classify as the same `ip_cloud_metadata`
+ * bucket and carry the same weight, so this is not a scoring or schema input.
+ *
+ * - `instance-metadata` — an IMDS: the address a guest queries for its own
+ *   instance identity and, in practice, for role credentials.
+ * - `provider-internal` — other vendor platform infrastructure reachable only
+ *   from inside a VM, which the vendor documents as something OTHER than its
+ *   IMDS. Azure's WireServer is the case this exists for.
+ */
+export type CloudEndpointKind = "instance-metadata" | "provider-internal";
+
+/** One cloud vendor's well-known metadata / provider-internal endpoint. */
 export interface CloudMetadataEndpoint {
   /**
    * The endpoint address. Any legal IPv4/IPv6 spelling is accepted — consumers
@@ -64,6 +87,12 @@ export interface CloudMetadataEndpoint {
    * together rather than guessing one.
    */
   provider: string;
+  /**
+   * Which flavour of vendor endpoint this is. Omitted means
+   * `"instance-metadata"` — the overwhelmingly common case, so only the
+   * exceptions carry the field and a new IMDS row needs no ceremony.
+   */
+  kind?: CloudEndpointKind;
   /** Vendor documentation the row was verified against (auditability). */
   source: string;
 }
@@ -121,8 +150,17 @@ export const CLOUD_METADATA_ENDPOINTS: readonly CloudMetadataEndpoint[] = [
     // ever reach it. Microsoft: "The virtual machine Agent requires outbound
     // communication over ports 80/tcp and 32526/tcp with WireServer
     // (168.63.129.16)." The agent fetches goal state and certificates there.
+    //
+    // Hence `provider-internal` (LINK-mjbrzxeo): Microsoft's own page for this
+    // address describes a virtual platform channel used for VM/host
+    // communication — DHCP, DNS, load-balancer health probes, guest agent goal
+    // state — and points elsewhere for instance metadata. Calling this an
+    // instance-metadata endpoint in the emitted detail contradicts the vendor
+    // documentation the row is cited to. Blocking and scoring it is untouched:
+    // it is security-sensitive provider-internal infrastructure either way.
     address: "168.63.129.16",
     provider: "Azure (WireServer host channel)",
+    kind: "provider-internal",
     source:
       "https://learn.microsoft.com/en-us/azure/virtual-network/what-is-ip-address-168-63-129-16",
   },

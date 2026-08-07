@@ -392,9 +392,51 @@ describe("cloud-metadata provider table", () => {
     { host: "fd00:ec2::23", provider: "AWS (EKS Pod Identity, IPv6)" },
     { host: "169.254.0.23", provider: "Tencent Cloud" },
   ])("detail for $host names the provider ($provider)", ({ host, provider }) => {
-    const detail = detailFor(host);
-    expect(detail).toContain(provider);
-    expect(detail).toContain("instance-metadata endpoint");
+    expect(detailFor(host)).toContain(provider);
+  });
+
+  // The IMDS rows keep the wording they shipped with — the WireServer fix below
+  // is a correction of ONE row, not a rewrite of the bucket's phrasing.
+  it.each([
+    "169.254.169.254",
+    "fd00:ec2::254",
+    "192.0.0.192",
+    "100.100.100.200",
+    "169.254.170.2",
+    "169.254.170.23",
+    "fd00:ec2::23",
+    "169.254.0.23",
+  ])("%s is an IMDS row and still reads as an instance-metadata endpoint", (host) => {
+    expect(classifyHost(host)?.endpointKind).toBe("instance-metadata");
+    expect(detailFor(host)).toContain("instance-metadata endpoint");
+  });
+
+  // LINK-mjbrzxeo. Microsoft documents 168.63.129.16 as WireServer / virtual
+  // platform infrastructure, SEPARATELY from the Azure IMDS at 169.254.169.254,
+  // so the shared bucket wording rendered a sentence the cited vendor page
+  // contradicts: "the Azure (WireServer host channel) instance-metadata
+  // endpoint". The negative half is the point — nothing else in the suite can
+  // catch a regression back to calling this row an IMDS.
+  it("the Azure WireServer row is provider-internal, NEVER described as Azure IMDS", () => {
+    const c = classifyHost("168.63.129.16");
+    expect(c?.endpointKind).toBe("provider-internal");
+    const detail = detailFor("168.63.129.16");
+    expect(detail).toContain("Azure (WireServer host channel)");
+    expect(detail).toContain("provider-internal infrastructure endpoint");
+    expect(detail).not.toContain("instance-metadata");
+    expect(detail).not.toMatch(/IMDS/i);
+  });
+
+  // Reason-code compatibility is the whole reason this was a wording fix rather
+  // than a new code: a consumer keying off `code` (or off the weight) sees no
+  // change from the row being re-described.
+  it("the WireServer correction leaves the reason code and the score untouched", () => {
+    expect(classifyHost("168.63.129.16")?.bucket).toBe("ip_cloud_metadata");
+    const r = inspect("http://168.63.129.16/machine?comp=goalstate");
+    const reason = r.reasons.find((x) => x.code === "ip_cloud_metadata");
+    expect(reason).toBeDefined();
+    expect(reason?.weight).toBeCloseTo(0.75, 5);
+    expect(r.severity).toBe("high");
   });
 
   // The Azure WireServer row is the only one in the table that no range rule can
@@ -468,6 +510,27 @@ describe("ip_cloud_metadata scoring + agentMode SSRF escalation (ssrf_cloud_meta
     expect(codes("http://100.100.100.200/latest/meta-data/", { agentMode: true })).toContain(
       "ssrf_cloud_metadata",
     );
+  });
+
+  // LINK-mjbrzxeo — the agent-gated detail is built from the SAME shared phrase
+  // as ip_cloud_metadata's, so the taxonomy fix reaches both. Before that, this
+  // detector hardcoded "the cloud instance-metadata endpoint" for every match
+  // and would have kept mis-describing WireServer after the classifier was fixed.
+  it("the agent-gated detail describes WireServer as provider-internal, not as IMDS", () => {
+    const r = inspect("http://168.63.129.16/machine?comp=goalstate", { agentMode: true });
+    const blocker = r.reasons.find((x) => x.code === "ssrf_cloud_metadata");
+    expect(blocker).toBeDefined();
+    expect(blocker?.detail).toContain("Azure (WireServer host channel)");
+    expect(blocker?.detail).toContain("provider-internal infrastructure endpoint");
+    expect(blocker?.detail).not.toContain("instance-metadata");
+    expect(r.severity).toBe("critical");
+  });
+
+  it("the agent-gated detail keeps IMDS wording for a real metadata endpoint", () => {
+    const r = inspect("http://169.254.169.254/latest/meta-data/", { agentMode: true });
+    const blocker = r.reasons.find((x) => x.code === "ssrf_cloud_metadata");
+    expect(blocker?.detail).toContain("instance-metadata endpoint");
+    expect(blocker?.detail).not.toContain("provider-internal");
   });
 
   it("does NOT escalate the generic internal buckets under agentMode (loopback stays low)", () => {
