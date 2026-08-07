@@ -1618,7 +1618,8 @@ exactly `["lexical"]`.
 - **Meaning:** the input's **explicit** port is on the caller's `denyPorts`
   list, **or** — when `denyNonStandardPorts: true` — is not the standard default
   for its scheme. Only an explicit port is evaluated; an input with no explicit
-  port never emits this code.
+  port never emits this code. An out-of-range port is rejected at parse time
+  (see `parse_error`), so it does not reach this axis.
 - **Why it's surfaced:** a caller-owned policy decision — e.g. blocking known
   exfil/phishing ports (`:8080`, `:31337`) by enumeration, or refusing any
   non-standard port without listing them. Advisory only; a separate channel from
@@ -1648,6 +1649,22 @@ exactly `["lexical"]`.
   offending type (`input is not a string (got null)`), and `input` echoes the
   coerced value (`""` when the value cannot be coerced at all). No separate
   reason code is minted, so the registry and its documented count are unchanged.
+- **Out-of-range port (LINK-drucugmm):** a decimal port is bounded to
+  **`0`–`65535` inclusive**, matching WHATWG. A value above the ceiling makes the
+  whole authority unparseable and resolves here, for both the plain form
+  (`http://example.com:65536/`, `:999999`, a 400-digit port) and the bracketed
+  IPv6 form (`http://[::1]:99999/`). Port `0` **parses** — WHATWG accepts it
+  (`new URL("http://example.com:0/").port === "0"`), it is syntactically legal,
+  and whether a host answers on it is a transport question the offline core does
+  not ask. Leading zeros are stripped before bounding, as WHATWG does, so
+  `:0000080` is port `80` and `:065536` is out of range. Signed forms (`:-80`,
+  `:+80`) were already rejected: the tail is not decimal, so it is read as part
+  of the host and fails host validation. The out-of-range value is not clamped
+  and not wrapped — reporting `65535` or `16959` for an input that wrote `999999`
+  would attribute a port the input did not name. The raw text survives in the
+  verbatim `input` echo. No port-specific reason code is minted; see
+  `packages/core/test/port-range.test.ts` for the pinned outcomes and the
+  differential against `new URL()`.
 - **Result shape:** `status: "invalid"`, `parsed/score/severity: null`. An
   invalid result is **not benign** — a fail-closed consumer must reject it
   (FR-IN-4, SC-2a). An invalid result may instead carry an `ambiguous_authority`

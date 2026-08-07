@@ -246,6 +246,30 @@ describe.each(GROUPS)("adversarial strings — %s (LINK-sgcovhzr)", (_group, cas
   });
 });
 
+/**
+ * The sweep's contract helper accepts `ok | invalid`, which is right for a
+ * never-throws guarantee and wrong for a case whose whole point is *which* of
+ * the two you get. The port cases below were passing in both directions before
+ * LINK-drucugmm bounded the decimal port: `:999999` returned `ok` with
+ * `port: 999999` and nothing here could tell. Pinned to the specific outcome so
+ * a regression is a failure, not a shrug. Full coverage of the range decision
+ * lives in `port-range.test.ts`.
+ */
+describe("port abuse resolves to a specific outcome (LINK-drucugmm)", () => {
+  const PINNED: ReadonlyArray<readonly [label: string, status: "ok" | "invalid"]> = [
+    ["bare port colon", "invalid"],
+    ["out-of-range port", "invalid"],
+    ["negative port", "invalid"],
+    ["non-numeric port", "invalid"],
+  ];
+
+  it.each(PINNED)("%s is always %s", (label, status) => {
+    const found = AUTHORITY_ABUSE.find(([l]) => l === label);
+    expect(found, `case "${label}" is no longer in AUTHORITY_ABUSE`).toBeDefined();
+    expect(inspect(found![1]).status).toBe(status);
+  });
+});
+
 describe("the corpus itself (LINK-sgcovhzr)", () => {
   it("covers every hostile-input family the sweep found", () => {
     // A guard against a group being silently emptied or dropped from GROUPS
