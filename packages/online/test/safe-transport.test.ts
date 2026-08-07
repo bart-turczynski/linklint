@@ -933,8 +933,34 @@ describe("total deadline during synchronous response decoding", () => {
     { encoding: "br", compress: brotliCompressSync },
   ] as const;
 
-  /** Large enough that every decoder needs milliseconds, not microseconds. */
-  const DECODED_BYTES = 16 * 1024 * 1024;
+  /**
+   * Large enough that every decoder needs tens of milliseconds, not
+   * microseconds: measured 20-37 ms per attempt inside this suite.
+   */
+  const DECODED_BYTES = 32 * 1024 * 1024;
+
+  /**
+   * The session deadline these tests run against.
+   *
+   * LINK-dvshjpik. It has to sit inside a window with headroom at both ends,
+   * because both ends are wall-clock races:
+   *
+   *  - Below it: the session budget starts running at `createSession()`, so a
+   *    deadline shorter than the gap between constructing the session and
+   *    entering `fetch` is already spent before any work starts, and the
+   *    attempt times out at the pre-flight check without ever reaching the
+   *    decode. That gap measures ~0.07 ms here, but the original
+   *    `maxTotalTimeMs: 1` left no room for the millisecond tick to land
+   *    inside it, and these tests failed ~7% of runs with
+   *    `usage.decompressedBytes` still 0.
+   *  - Above it: the decode has to actually overrun the deadline, or the
+   *    refusal tests prove nothing.
+   *
+   * 5 ms is ~70x the setup gap and ~4x under the fastest attempt observed
+   * (20.2 ms). Neither violation can pass vacuously: too short and the guards
+   * below see `decompressedBytes` of 0, too long and the outcome is `success`.
+   */
+  const DEADLINE_MS = 5;
 
   function realClockSession(
     script: TransportFixtureScript,
@@ -970,7 +996,7 @@ describe("total deadline during synchronous response decoding", () => {
       const encoded = new Uint8Array(compress(raw));
       const { harness, session: transportSession } = realClockSession(
         encodedScript(encoding, encoded),
-        { maxTotalTimeMs: 1, maxDecompressedBytes: 32 * 1024 * 1024 },
+        { maxTotalTimeMs: DEADLINE_MS, maxDecompressedBytes: 64 * 1024 * 1024 },
       );
 
       const outcome = await transportSession.fetch({
@@ -983,7 +1009,7 @@ describe("total deadline during synchronous response decoding", () => {
       // completed the decode, and must have overrun the deadline doing it —
       // not timed out earlier on some unrelated path.
       expect(transportSession.usage.decompressedBytes).toBe(DECODED_BYTES);
-      expect(transportSession.usage.elapsedMs).toBeGreaterThan(1);
+      expect(transportSession.usage.elapsedMs).toBeGreaterThanOrEqual(DEADLINE_MS);
       expect(harness.connector.closedConnectionIds).toEqual(["c1"]);
       harness.assertExhausted();
     },
@@ -1013,11 +1039,32 @@ describe("total deadline during synchronous response decoding", () => {
     },
   );
 
-  it("keeps the decoded-byte cap ahead of the deadline check", async () => {
+  /**
+   * The deadline check runs after the decode and after the decoded-byte budget
+   * is charged, so an over-cap body reports the cap rather than being rewritten
+   * into a timeout. This pins that ordering under the same tight deadline the
+   * refusal tests above use. The cap short-circuits the decode within
+   * microseconds — zlib stops at `maxOutputLength`, it does not inflate the
+   * whole body first — and everything from the deadline's pre-flight check to
+   * the decode is a microtask chain over scripted fixtures, so the deadline is
+   * still unspent when the cap error is raised.
+   *
+   * What this deliberately does not pin is the case where the cap and the
+   * deadline are exhausted *together*. The implementation defines no precedence
+   * there: the cap error and the raced `DeadlineError` reach `fetch`'s catch by
+   * different routes, and which one is reported depends on whether anything
+   * yields to the event loop between the decode throwing and the race settling.
+   * Pinning an order for that case would pin the fixture's scheduling, not the
+   * transport's contract. Nor is there an elapsed assertion here: `usage` can
+   * only be read after the outcome resolves, so a bound on it would measure the
+   * harness's own scheduling rather than the deadline's state at the moment the
+   * cap fired — it read 6 ms under a loaded full-suite run (LINK-dvshjpik).
+   */
+  it("reports the decoded-byte cap, not a timeout, when the cap is hit inside the deadline", async () => {
     const raw = new Uint8Array(DECODED_BYTES).fill(0x78);
     const { harness, session: transportSession } = realClockSession(
       encodedScript("gzip", new Uint8Array(gzipSync(raw))),
-      { maxTotalTimeMs: 1, maxDecompressedBytes: 1_024 },
+      { maxTotalTimeMs: DEADLINE_MS, maxDecompressedBytes: 1_024 },
     );
 
     await expect(transportSession.fetch({
@@ -1030,6 +1077,9 @@ describe("total deadline during synchronous response decoding", () => {
         details: { maxDecompressedBytes: 1_024 },
       },
     });
+    // Guards against a vacuous pass: the attempt reached the decode and charged
+    // the cap, rather than timing out somewhere ahead of it.
+    expect(transportSession.usage.decompressedBytes).toBe(1_024);
     expect(harness.connector.closedConnectionIds).toEqual(["c1"]);
     harness.assertExhausted();
   });
