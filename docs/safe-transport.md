@@ -154,6 +154,18 @@ DNS SANs and certificate-policy OIDs (`readCertificatePolicyOids`, parsed from
 preserved DER because Node's high-level APIs omit them). Chain depth, certificate
 size, handshake time, and parsing are all bounded.
 
+Chain trust is the socket's own `authorized` verdict, passed through without
+reinterpretation. A TLS verifier exposes a single verification error even when
+several faults coexist, so the codes are ambiguous by construction: the committed
+`expired` test leaf reports `CERT_HAS_EXPIRED` whether or not the CA that signed it
+is trusted. Discounting such "validity-only" codes as still-trusted therefore
+reported expired-and-untrusted chains as trusted (`LINK-zgmixagu`). The validity axis
+stays independent regardless, because it is recomputed from the leaf's own
+notBefore/notAfter against the observation instant, and `trustErrorCode` records the
+fault the verifier stopped at. Read the consequence correctly: an expired certificate
+carries both the `expired` and the `untrusted` defect, since a verifier that halted at
+expiry did not go on to check the rest of the chain.
+
 `TlsObservationOutcome.status` is `observed`, `blocked`, or `incomplete`.
 `blocked` is reserved for transport-policy refusal (a prohibited pinned address);
 DNS, connection, handshake, certificate-analysis, timeout, and cancellation

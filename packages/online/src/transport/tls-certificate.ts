@@ -4,7 +4,9 @@
  * Turns a raw {@link TlsHandshakeObservation} into a {@link NormalizedTlsObservation}
  * with three validation axes kept strictly independent:
  *
- * - trust: taken from the handshake's chain-trust signal;
+ * - trust: taken from the handshake's chain-trust signal, verbatim. `untrusted` is
+ *   derived from that signal and from nothing else, so it can co-occur with `expired`
+ *   without either defect having produced the other (LINK-zgmixagu);
  * - validity window: computed from the certificate's own notBefore/notAfter versus
  *   the observation instant, never from a socket verdict;
  * - hostname identity: computed with Node's standard identity checker

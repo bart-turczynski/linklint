@@ -65,7 +65,16 @@ describe("normalizeTlsCertificate — independent validation axes", () => {
     });
   });
 
-  it("distinguishes expired from a trust or hostname problem", () => {
+  /**
+   * The two `chainTrusted: true` probes below are SYNTHETIC: a real verifier cannot
+   * report an out-of-window leaf as trusted, so the Node observer no longer produces
+   * this pair (LINK-zgmixagu). They are kept deliberately, because they are what pins
+   * the normalizer's own rule — `untrusted` is derived from the `chainTrusted` input
+   * and from nothing else. A future change that let expiry manufacture an `untrusted`
+   * defect would re-conflate the axes, and these are the tests that would say so.
+   * Each is paired with the observation the Node observer really emits.
+   */
+  it("derives expired from the certificate's own dates, not from the trust signal", () => {
     const result = normalize("expired", { chainTrusted: true, trustErrorCode: null });
     expect(result.validation.withinValidity).toBe(false);
     expect(result.validation.defects).toContain("expired");
@@ -73,14 +82,41 @@ describe("normalizeTlsCertificate — independent validation axes", () => {
     expect(result.validation.defects).not.toContain("hostname-mismatch");
   });
 
+  it("records an observable expired leaf as expired AND untrusted", () => {
+    // What a live handshake yields: the verifier refused the chain and named expiry
+    // as the fault it stopped at, so trust was not established either.
+    const result = normalize("expired", {
+      chainTrusted: false,
+      trustErrorCode: "CERT_HAS_EXPIRED",
+    });
+    expect(result.validation.withinValidity).toBe(false);
+    expect(result.validation.defects).toEqual(expect.arrayContaining(["expired", "untrusted"]));
+    expect(result.validation.defects).not.toContain("hostname-mismatch");
+  });
+
   it("distinguishes not-yet-valid", () => {
     const result = normalize("notYetValid", { chainTrusted: true, trustErrorCode: null });
     expect(result.validation.defects).toContain("not-yet-valid");
     expect(result.validation.defects).not.toContain("expired");
+    expect(result.validation.defects).not.toContain("untrusted");
+  });
+
+  it("records an observable not-yet-valid leaf as not-yet-valid AND untrusted", () => {
+    const result = normalize("notYetValid", {
+      chainTrusted: false,
+      trustErrorCode: "CERT_NOT_YET_VALID",
+    });
+    expect(result.validation.withinValidity).toBe(false);
+    expect(result.validation.defects).toEqual(
+      expect.arrayContaining(["not-yet-valid", "untrusted"]),
+    );
+    expect(result.validation.defects).not.toContain("expired");
   });
 
   it("computes hostname mismatch independently of the trust signal", () => {
-    // Trust asserted true, yet the SAN set does not cover the queried host.
+    // Not synthetic: the observer's checkServerIdentity is a no-op, so a leaf signed
+    // by a trusted CA for the wrong name really does authorize at the socket. Identity
+    // is the one axis a socket verdict can be separated from, and it stays separated.
     const result = normalize("hostnameMismatch", { chainTrusted: true, trustErrorCode: null });
     expect(result.validation.hostnameMatch).toBe(false);
     expect(result.validation.defects).toContain("hostname-mismatch");

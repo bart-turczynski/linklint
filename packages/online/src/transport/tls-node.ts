@@ -9,8 +9,18 @@
  * connector so observe mode cannot leak into the fail-closed fetch path.
  *
  * Hostname identity is excluded from the socket verdict (checkServerIdentity is a
- * no-op) and recomputed downstream; pure validity errors are treated as still-trusted
- * so trust and validity stay independent axes in the normalized evidence.
+ * no-op) and recomputed downstream, so identity stays an independent axis.
+ *
+ * Chain trust is reported exactly as the verifier decided it, with no reinterpretation
+ * (LINK-zgmixagu). OpenSSL exposes only ONE verification error even when several
+ * faults coexist, so the codes are provably ambiguous: the committed `expired` leaf
+ * signed by the private test CA reports `CERT_HAS_EXPIRED` whether or not that CA is
+ * trusted. A rule that discounted "validity-only" codes therefore reported an
+ * expired-AND-untrusted chain as trusted. Validity remains an independent axis anyway
+ * — it is recomputed downstream from the leaf's own notBefore/notAfter against the
+ * observation instant — and `trustErrorCode` carries the verifier's reason verbatim so
+ * a consumer can tell "trust was not established, and expiry is what it stopped at"
+ * from a forged-signature verdict.
  */
 
 import { isIP } from "node:net";
@@ -49,13 +59,16 @@ class NodeAbortError extends Error {
   }
 }
 
-/** Validity errors that do not, on their own, mean the chain is untrusted. */
-const VALIDITY_ONLY_ERRORS = new Set(["CERT_HAS_EXPIRED", "CERT_NOT_YET_VALID"]);
-
 /** Hard cap on presented certificates walked from the peer chain. */
 const MAX_OBSERVED_CHAIN = 16;
 
-class NodeTlsObserver implements TlsObservationPort {
+/**
+ * Internal to the package — deliberately absent from `transport/index.ts`. It is
+ * exported from this module so the live loopback regression can drive the real
+ * socket and read the raw handshake verdict, which no fixture can prove
+ * (LINK-zgmixagu).
+ */
+export class NodeTlsObserver implements TlsObservationPort {
   observe(request: TlsObserveConnectRequest): Promise<TlsHandshakeObservation> {
     return new Promise((resolve, reject) => {
       let settled = false;
@@ -110,8 +123,9 @@ function captureObservation(
   if (peer === null) throw new NodeTlsObserveFailure("connect-error");
   const authorized = socket.authorized;
   const authorizationErrorCode = errorCodeOf(socket.authorizationError);
-  const chainTrusted =
-    authorized || (authorizationErrorCode !== null && VALIDITY_ONLY_ERRORS.has(authorizationErrorCode));
+  // Trust is the verifier's verdict, unmodified. Nothing here can subtract a fault
+  // from a result that reports at most one of them (LINK-zgmixagu).
+  const chainTrusted = authorized;
   return {
     serverName: request.serverName,
     remoteAddress: peer.address,
@@ -142,10 +156,23 @@ function collectChain(
   return chain;
 }
 
-function errorCodeOf(error: Error | undefined): string | null {
-  if (!error) return null;
+/**
+ * The verifier's reason code, from whatever shape Node hands over.
+ *
+ * `@types/node` declares `TLSSocket.authorizationError` as `Error`, but Node 26
+ * populates it with the bare OpenSSL code STRING (`"CERT_HAS_EXPIRED"`). Reading it as
+ * an object made this throw a `TypeError` for every unauthorized peer, which the
+ * observe loop turned into a `tls-handshake` rejection — so no untrusted chain ever
+ * reached the normalizer, and the trust rule this function feeds had no live coverage
+ * to contradict it (found while pinning LINK-zgmixagu). Accept both shapes.
+ */
+function errorCodeOf(error: unknown): string | null {
+  if (error === null || error === undefined) return null;
+  if (typeof error === "string") return error === "" ? null : error;
+  if (typeof error !== "object") return null;
   if ("code" in error && typeof error.code === "string") return error.code;
-  return error.message === "" ? null : error.message;
+  const message = "message" in error ? error.message : undefined;
+  return typeof message === "string" && message !== "" ? message : null;
 }
 
 function isCode(error: unknown, code: string): boolean {

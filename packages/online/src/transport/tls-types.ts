@@ -4,8 +4,10 @@
  * This is a strictly non-authoritative evidence path. A raw handshake is captured
  * with certificate validation DISABLED at the socket so that expired, not-yet-valid,
  * hostname-mismatched, and untrusted/self-signed certificates can be OBSERVED
- * instead of refused. Trust, validity, and identity are then evaluated separately
- * from the preserved DER, never inferred from a single socket verdict. A successful
+ * instead of refused. Validity and identity are recomputed from the preserved DER and
+ * are never inferred from the socket verdict; chain trust IS the socket verdict, and
+ * is passed through without reinterpretation, because the verdict names at most one
+ * fault and so cannot be decomposed (LINK-zgmixagu). A successful
  * observation NEVER implies that a normal L0 fetch to the same destination would be
  * permitted; observe sockets are captured, read, and discarded, never reused.
  */
@@ -32,11 +34,19 @@ export interface TlsHandshakeObservation {
   readonly certificateChain: readonly Uint8Array[];
   /**
    * The peer's chain-trust verdict against the caller's trust store, isolated from
-   * hostname identity and — as far as the port can manage — from validity window.
-   * This is a trust signal, never an identity claim.
+   * hostname identity but NOT from the validity window — no verifier can isolate it,
+   * because it reports one error at a time and a validity failure hides whatever else
+   * is wrong with the chain (LINK-zgmixagu). Read `true` as "the chain verified" and
+   * `false` as "trust was not established", not as "the chain is forged"; the
+   * distinction lives in {@link trustErrorCode}. This is a trust signal, never an
+   * identity claim.
    */
   readonly chainTrusted: boolean;
-  /** Peer authorization error code when the chain is not trusted, else `null`. */
+  /**
+   * Peer authorization error code when the chain is not trusted, else `null`. It names
+   * the fault the verifier stopped at, which may be one of several; a validity code
+   * here does not mean the rest of the chain checked out.
+   */
   readonly trustErrorCode: string | null;
   /** Negotiated protocol version string, e.g. `TLSv1.3`, when known. */
   readonly protocolVersion: string | null;
@@ -68,7 +78,9 @@ export interface NormalizedCertificate {
 /**
  * A structured certificate/validation defect. Multiple defects can hold at once
  * (for example an expired self-signed certificate is both `expired` and
- * `self-signed`), so consumers must inspect the whole set.
+ * `self-signed`), so consumers must inspect the whole set. In particular `untrusted`
+ * accompanies `expired` / `not-yet-valid` whenever the observation came from a real
+ * verifier, which stops at the first fault and cannot certify the rest of the chain.
  */
 export type TlsCertificateDefect =
   | "expired"
@@ -79,7 +91,11 @@ export type TlsCertificateDefect =
 
 /** Independently computed validation state for an observed leaf certificate. */
 export interface TlsCertificateValidation {
-  /** Chain trusts to a configured root, taken from the handshake trust signal. */
+  /**
+   * Chain verification succeeded against a configured root, taken verbatim from the
+   * handshake trust signal. `false` means trust was not established — see the
+   * observation's `trustErrorCode` for the fault the verifier stopped at.
+   */
   readonly chainTrusted: boolean;
   /** Original-host identity match, computed via the standard Node identity checker. */
   readonly hostnameMatch: boolean;

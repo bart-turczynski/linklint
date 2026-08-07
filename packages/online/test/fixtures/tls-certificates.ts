@@ -49,7 +49,17 @@ export interface ObservationOverrides {
   readonly extraChain?: readonly TlsCertificateFixture[];
 }
 
-/** Build a raw handshake observation around a leaf fixture, with sane defaults. */
+/**
+ * Build a raw handshake observation around a leaf fixture, with sane defaults.
+ *
+ * The default is a trusted chain, which suits the in-window leaves. For `expired` and
+ * `notYetValid` it is a state no verifier can report — trust cannot be established for
+ * an out-of-window leaf, and the verifier names only the fault it stopped at
+ * (LINK-zgmixagu). Pass `{ chainTrusted: false, trustErrorCode: "CERT_HAS_EXPIRED" }`
+ * (or `"CERT_NOT_YET_VALID"`) for the pair the Node observer really emits; the default
+ * is left alone so the normalizer's axis-separation probes can still assert the
+ * impossible combination on purpose.
+ */
 export function handshake(
   leaf: TlsCertificateFixture,
   overrides: ObservationOverrides = {},

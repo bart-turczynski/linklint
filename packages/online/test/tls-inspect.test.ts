@@ -67,16 +67,25 @@ describe("createSafeTlsInspector — observed", () => {
     harness.assertExhausted();
   });
 
-  it("still OBSERVES an expired certificate rather than failing", async () => {
+  it("still OBSERVES an expired, unverifiable certificate rather than failing", async () => {
+    // The pair a live verifier emits for an expired leaf: refused, stopping at expiry
+    // (LINK-zgmixagu). The point of the test is the outcome — `observed`, not
+    // `incomplete` — with both faults recorded as evidence rather than as a refusal.
     const { inspect } = inspector({
       resolver: resolveExample(),
-      tlsObserver: observeStep(handshake("expired", { chainTrusted: true, trustErrorCode: null })),
+      tlsObserver: observeStep(
+        handshake("expired", { chainTrusted: false, trustErrorCode: "CERT_HAS_EXPIRED" }),
+      ),
     });
 
     const outcome = await inspect.inspect({ url: URL });
     expect(outcome.status).toBe("observed");
     if (outcome.status !== "observed") throw new Error("unreachable");
-    expect(outcome.observation.validation.defects).toContain("expired");
+    expect(outcome.observation.validation.defects).toEqual(
+      expect.arrayContaining(["expired", "untrusted"]),
+    );
+    expect(outcome.observation.validation.withinValidity).toBe(false);
+    expect(outcome.observation.validation.chainTrusted).toBe(false);
   });
 
   it("still OBSERVES an untrusted self-signed certificate", async () => {
