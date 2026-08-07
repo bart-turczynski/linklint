@@ -58,7 +58,7 @@ tracks.
 | `docs/raw-url-tokenization-spike.md` | 1 |
 | `docs/reason-codes.md` | 82 |
 | `docs/redirect-chain-resolution.md` | 4 |
-| `docs/safe-transport.md` | 8 |
+| `docs/safe-transport.md` | 9 |
 | `docs/scoring.md` | 6 |
 | `docs/wrapper-decoding.md` | 1 |
 | `README.md` | 14 |
@@ -177,6 +177,7 @@ that the reason fires at each limit and that the reason list is not empty.
 | F8 | Local wrapper decoding never calls a vendor decoder service and performs no I/O at all | `packages/online/README.md`, `docs/wrapper-decoding.md`, `docs/redirect-chain-resolution.md` | `packages/online/test/embedded-wrapper.test.ts`, `packages/online/test/package-contract.test.ts` |
 | F9 | A reputation match is never broadened to the host — a different path, query, subdomain, or parent is a `no-hit` | `docs/layer3-reputation-model.md`, `docs/reason-codes.md`, `docs/online-roadmap.md` | `packages/online/test/urlhaus-lookup.test.ts`, `packages/online/test/phishtank-lookup.test.ts` |
 | F10 | The built-in Node transport never routes through Node's ambient proxy configuration — `HTTP_PROXY`/`HTTPS_PROXY`, `NODE_USE_ENV_PROXY`, or a runtime `http.setGlobalProxyFromEnv()` | `docs/safe-transport.md` | `packages/online/test/node-transport-live.test.ts`, `packages/online/test/node-transport-tls-live.test.ts` |
+| F11 | The connector is never handed an address outside the set the hop's own resolution returned, and every member of that set is classified before one is selected | `docs/safe-transport.md` | `packages/online/test/safe-transport.test.ts` |
 
 **F10 is scoped to the built-ins, deliberately.** It is a claim about
 `createNodeSafeTransport()`'s own connector and HTTP port, not about a
@@ -191,6 +192,22 @@ fails as a deterministic `ECONNREFUSED` with no external network. Each case
 carries a live control — a default-global-agent request that must die on the
 sentinel — because an isolation test whose proxy was never installed passes
 vacuously.
+
+**F11 is a closure claim, not a completeness one.** It says the pinned address
+came from the returned set; it does *not* say the returned set is the
+authoritative A/AAAA RRset. The built-in resolver is one
+`dns.lookup(hostname, { all: true, verbatim: true })` — `getaddrinfo`, subject
+to hosts-file/`nsswitch` sources, the stub-resolver cache, RFC 6724 filtering
+and `AI_ADDRCONFIG`, and returning no TTL. `docs/safe-transport.md` states that
+limit rather than leaving a reader to infer the wider promise. `LINK-rbghrpru`
+added the pin: the prose across five documents and the published
+`packages/online/README.md` read as the wider claim, and the suite had no case
+with **two allowed answers at once**, so first-allowed selection and
+set-membership were both unexercised — the same shape as `LINK-zsbeqtcr`. The
+regression drives `pinDestination` directly, because it is the seam both
+`safeFetch` and the TLS-observe path share, and re-checks the property through
+a full session so the address the connector actually receives is compared
+against the recorded set.
 
 ## G. Detector precision claims
 

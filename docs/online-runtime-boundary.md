@@ -230,9 +230,10 @@ mapping.
   `@linklint/online`.
 - Online transport/provider tests use injected deterministic fixtures; CI needs
   no live network, provider account, credential, or feed mirror.
-- The L0 suite proves address classification, DNS pinning, original-host SNI and
-  hostname verification, per-hop reauthorization, credential stripping, and
-  mandatory hop/byte/decompression/time budgets.
+- The L0 suite covers address classification, pinning to an address the hop's
+  own resolution returned, original-host SNI and hostname verification, per-hop
+  reauthorization, credential stripping, and mandatory
+  hop/byte/decompression/time budgets.
 - Package-export tests prevent accidental deep imports and prevent browser,
   offline CLI, and MCP bundles from resolving online implementations.
 - Monitoring acceptance tests use local fixtures for leases, replay,

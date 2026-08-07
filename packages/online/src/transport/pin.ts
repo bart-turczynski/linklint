@@ -8,6 +8,15 @@
  * Resolver errors propagate unchanged so each caller maps them into its own
  * outcome vocabulary. Keeping this in one place means a policy change cannot make the
  * observe path more permissive than fetch, or vice versa.
+ *
+ * "Every answer" is scoped to the set the injected {@link ResolverPort} returned for
+ * this call — for the built-in `NodeResolver` that is one
+ * `dns.lookup(hostname, { all: true, verbatim: true })`, i.e. `getaddrinfo` subject to
+ * the platform's hosts file/`nsswitch` sources, the stub-resolver cache, RFC 6724
+ * filtering and `AI_ADDRCONFIG`. It is not an authoritative A/AAAA RRset and carries no
+ * TTL. The property this function holds is closure over that returned set, not its
+ * completeness: `selected` is always a member of `resolvedAddresses`, and every member
+ * is classified before one is chosen (`LINK-rbghrpru`).
  */
 
 import { isIP } from "node:net";

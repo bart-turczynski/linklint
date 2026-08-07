@@ -1067,7 +1067,7 @@ dependency direction, consent, secret, licensing, and migration rules are in
 [`online-runtime-boundary.md`](online-runtime-boundary.md).
 
 The online package exposes L0 through `@linklint/online/transport`. Its
-exact-URL authorization, all-answer address policy, DNS-pinned socket,
+exact-URL authorization, resolver-returned-set address policy, DNS-pinned socket,
 original-host TLS identity, fresh header set, manual redirects, cumulative
 budgets, and structured outcomes are documented in
 [`safe-transport.md`](safe-transport.md). The internal LT harness remains the

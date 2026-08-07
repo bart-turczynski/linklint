@@ -41,8 +41,9 @@ and context that should survive individual work sessions.
   streamed HTTP responses, stable operational failures, and a manually advanced
   shared clock without concrete DNS, socket, TLS, HTTP, or `fetch` calls.
 - L0 (`LINK-cjkdyxau`) is done. `@linklint/online/transport` requires exact-URL
-  authorization for every manual hop, classifies every DNS answer before
-  connecting, pins the selected address with original-host TLS identity, strips
+  authorization for every manual hop, classifies every address that resolution
+  returns for that hop before connecting, pins the selected address with
+  original-host TLS identity, strips
   ambient headers, and enforces cumulative hop, byte, decompression, and time
   budgets with structured blocked/incomplete outcomes.
 - L2 (`LINK-ehhmrblq`) is done. `@linklint/online/resolution` locally decodes

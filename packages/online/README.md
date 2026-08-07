@@ -8,8 +8,9 @@ no network I/O, and the existing `linklint`, `@linklint/cli`, and
 
 The Node-only `@linklint/online/transport` subpath exposes the shipped L0 safe
 destination boundary. Each manual HTTP(S) hop requires exact-URL caller
-authorization, re-resolves and classifies every DNS answer, pins the approved
-socket while preserving Host/SNI/certificate identity, strips ambient headers,
+authorization, re-resolves the hostname and classifies every address that
+resolution returns, pins the approved socket while preserving
+Host/SNI/certificate identity, strips ambient headers,
 and enforces cumulative hop, encoded-byte, decoded-byte, and total-time limits.
 Redirects are returned to the caller; they are never followed implicitly.
 

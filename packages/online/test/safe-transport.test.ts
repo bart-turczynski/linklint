@@ -10,6 +10,8 @@ import {
   type DestinationFetchAuthorization,
   type SafeFetchRequest,
 } from "../src/transport/index.js";
+import { pinDestination } from "../src/transport/pin.js";
+import type { DnsAddress, ResolverPort } from "../src/transport/types.js";
 import {
   TransportFixtureHarness,
   type FixtureConnection,
@@ -18,6 +20,7 @@ import {
 
 const PUBLIC_A = "93.184.216.34";
 const PUBLIC_B = "93.184.216.35";
+const PUBLIC_V6 = "2606:4700:4700::1111";
 const URL_A = "https://origin.example/start";
 
 function authorization(url: string): DestinationFetchAuthorization {
@@ -137,6 +140,148 @@ describe("safe destination address policy", () => {
       RangeError,
     );
     expect(resolveTransportPolicy(undefined)).toEqual(DEFAULT_TRANSPORT_POLICY);
+  });
+});
+
+/**
+ * F11 (`LINK-rbghrpru`) — the pinned address is a member of the set the hop's own
+ * resolution returned.
+ *
+ * The docs claimed an "all-answer" / "every DNS answer" policy, but nothing pinned the
+ * positive half of it. The existing prohibited-answer case pins only the NEGATIVE (a
+ * mixed set connects to nothing), and every other case in this file resolves a
+ * single-element answer array — so with one answer, "selected is a member of the
+ * returned set" is true by arithmetic rather than by the code. These cases are the
+ * first in the suite with TWO ALLOWED answers, which is what makes first-allowed
+ * selection and set membership separable properties at all.
+ *
+ * They drive {@link pinDestination} directly because it is the seam `safeFetch` and the
+ * TLS-observe path share; a case written against the fetch session alone would cover
+ * one of the two. The last case then re-checks the property end to end, against the
+ * address the connector actually received.
+ */
+describe("pinned address membership in the resolver-returned set (LINK-rbghrpru)", () => {
+  function fixedResolver(answers: readonly DnsAddress[]): ResolverPort & {
+    readonly calls: string[];
+  } {
+    const calls: string[] = [];
+    return {
+      calls,
+      resolve: ({ hostname }) => {
+        calls.push(hostname);
+        return Promise.resolve(answers.map((answer) => ({ ...answer })));
+      },
+    };
+  }
+
+  function answer(address: string, family: 4 | 6 = 4): DnsAddress {
+    return { address, family, ttlSeconds: 60 };
+  }
+
+  const allowedSets: readonly (readonly DnsAddress[])[] = [
+    [answer(PUBLIC_A), answer(PUBLIC_B)],
+    [answer(PUBLIC_B), answer(PUBLIC_A)],
+    [answer(PUBLIC_V6, 6), answer(PUBLIC_A)],
+    [answer(PUBLIC_A), answer(PUBLIC_V6, 6), answer(PUBLIC_B)],
+  ];
+
+  it.each(allowedSets.map((set) => [set.map((a) => a.address).join(","), set] as const))(
+    "pins a member of the returned set and reports the set verbatim: %s",
+    async (_label, set) => {
+      const resolver = fixedResolver(set);
+      const result = await pinDestination(
+        resolver,
+        "origin.example",
+        new AbortController().signal,
+      );
+
+      expect(result.kind).toBe("pinned");
+      if (result.kind !== "pinned") return;
+      // The recorded set is exactly what resolution returned — same members, same
+      // order, nothing added and nothing dropped.
+      expect(result.resolvedAddresses).toEqual(set.map(({ address }) => address));
+      // The claim itself: the pin is drawn from that set.
+      expect(result.resolvedAddresses).toContain(result.selected.address);
+      // …and specifically the first allowed member, which is the selection rule.
+      expect(result.selected).toEqual(set[0]);
+      expect(resolver.calls).toEqual(["origin.example"]);
+    },
+  );
+
+  it("pins the first ALLOWED member when an earlier answer is only unroutable, never a substitute", async () => {
+    // Guards the inverse mistake: with more than one allowed answer available, a
+    // prohibited member must not cause a fallback to some other address — the whole
+    // set is refused, and nothing is selected.
+    const resolver = fixedResolver([answer("169.254.169.254"), answer(PUBLIC_A), answer(PUBLIC_B)]);
+    const result = await pinDestination(resolver, "origin.example", new AbortController().signal);
+
+    expect(result).toMatchObject({
+      kind: "prohibited",
+      address: "169.254.169.254",
+      category: "ip_cloud_metadata",
+    });
+    expect(result.resolvedAddresses).toEqual(["169.254.169.254", PUBLIC_A, PUBLIC_B]);
+    expect(result).not.toHaveProperty("selected");
+  });
+
+  it("pins a literal address to itself and asks the resolver nothing", async () => {
+    const resolver = fixedResolver([answer(PUBLIC_B)]);
+    const result = await pinDestination(resolver, PUBLIC_A, new AbortController().signal);
+
+    expect(result).toMatchObject({ kind: "pinned", resolvedAddresses: [PUBLIC_A] });
+    if (result.kind !== "pinned") return;
+    expect(result.resolvedAddresses).toContain(result.selected.address);
+    expect(resolver.calls).toEqual([]);
+  });
+
+  it("hands the connector an address from the recorded set on the full fetch path", async () => {
+    const { harness, session: transportSession } = session({
+      startTime: "2026-07-17T12:00:00.000Z",
+      resolver: [
+        {
+          hostname: "origin.example",
+          outcome: {
+            value: [
+              { address: PUBLIC_A, family: 4, ttlSeconds: 60 },
+              { address: PUBLIC_B, family: 4, ttlSeconds: 60 },
+            ],
+          },
+        },
+      ],
+      connector: [
+        {
+          expect: {
+            protocol: "https:",
+            hostname: "origin.example",
+            address: PUBLIC_A,
+            port: 443,
+            serverName: "origin.example",
+          },
+          outcome: { value: connection("c1") },
+        },
+      ],
+      http: [
+        {
+          expect: { connectionId: "c1", url: URL_A, method: "GET" },
+          outcome: { value: { status: 200, body: "ok" } },
+        },
+      ],
+    });
+
+    const outcome = await transportSession.fetch({
+      url: URL_A,
+      authorization: authorization(URL_A),
+    });
+
+    expect(outcome.status).toBe("success");
+    expect(outcome.evidence.resolvedAddresses).toEqual([PUBLIC_A, PUBLIC_B]);
+    expect(harness.connector.calls).toHaveLength(1);
+    const connected = harness.connector.calls[0]!.address;
+    // Read the claim off the evidence the caller is given, not off a literal: the
+    // address the connector received must appear in the set that was classified.
+    expect(outcome.evidence.resolvedAddresses).toContain(connected);
+    expect(outcome.evidence.selectedAddress).toBe(connected);
+    harness.assertExhausted();
   });
 });
 

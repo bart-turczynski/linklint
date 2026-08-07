@@ -62,9 +62,10 @@ statement about an adapter it did not build.
   Anything else blocks the request with `referer-not-same-origin` before any
   DNS or connection, so a caller-held cross-origin or private referrer cannot
   leave through this boundary.
-- Every hostname is resolved again for every authorized hop. All answers are
-  validated and classified before connection; one prohibited or malformed
-  answer prevents any connection. Literal addresses are classified directly.
+- Every hostname is resolved again for every authorized hop, and every address
+  that resolution returns is validated and classified before connection; one
+  prohibited or malformed answer prevents any connection. Literal addresses are
+  classified directly.
 - The selected allowed address is passed explicitly to the connector. The
   connected remote address and port must match it. HTTPS keeps the original
   hostname for SNI and certificate identity validation.
@@ -82,6 +83,24 @@ documentation, benchmarking, discard, translation, transition, mapped-address,
 and other non-global ranges that may be useful lexical examples but are unsafe
 as network destinations. If a DNS set mixes global and prohibited answers, the
 entire request is blocked before socket creation.
+
+### What "every address" is scoped to
+
+The policy is scoped to what resolution returned for that hop, not to what the
+authoritative zone holds. The built-in resolver makes one
+`dns.lookup(hostname, { all: true, verbatim: true })` call per hop. That is a
+`getaddrinfo` query, so its answer set is whatever the platform's configured
+sources produce — `nsswitch`/hosts-file entries, the stub-resolver cache, RFC
+6724 destination-address filtering, and `AI_ADDRCONFIG` family suppression can
+each add to it or take from it — and it carries no TTL, which is why the
+reported records show a `ttlSeconds` of 0. A caller-supplied resolver port
+defines its own set. Neither is an authoritative A/AAAA RRset, and this
+boundary does not claim one.
+
+What the boundary is closed over is that returned set, not the completeness of
+it: the connector is never handed an address outside the set that the hop's own
+resolution returned, and every member of that set is classified before any
+member is selected (`LINK-rbghrpru`).
 
 ## Mandatory cumulative budgets
 
@@ -132,7 +151,7 @@ overrun in the low milliseconds.
 
 Every outcome carries the URL subject, observation time, and
 `transport.attempt` evidence. Once known, the evidence also records the hop,
-protocol, hostname, port, complete resolved-address set, and selected pinned
+protocol, hostname, port, resolver-returned address set, and selected pinned
 address. Runtime-specific exception messages are not copied into causes.
 
 These are transport outcomes, not phishing verdicts. L1 maps them into the

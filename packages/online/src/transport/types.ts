@@ -179,6 +179,11 @@ export interface TransportEvidence {
   readonly protocol?: TransportProtocol;
   readonly hostname?: string;
   readonly port?: number;
+  /**
+   * The addresses the resolver returned for this hop — for the built-in resolver, one
+   * `dns.lookup(hostname, { all: true, verbatim: true })`, not an authoritative A/AAAA
+   * RRset. `selectedAddress` is always one of these (`LINK-rbghrpru`).
+   */
   readonly resolvedAddresses?: readonly string[];
   readonly selectedAddress?: string;
 }
