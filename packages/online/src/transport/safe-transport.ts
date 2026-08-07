@@ -140,7 +140,14 @@ class SafeSession implements SafeTransportSession {
         return this.incomplete(state, error.code, budgetDetails(error.code, this.policy));
       }
       if (error instanceof OperationError) {
-        return this.incomplete(state, operationCause(error));
+        // `budgetDetails` answers `undefined` for every non-budget code, so this
+        // is the same outcome as before for them. It matters for the one code an
+        // adapter can raise that IS a budget stop: the built-in HTTP port maps
+        // its parser's header overflow to `response-headers-too-large`, and that
+        // arrives here rather than as a `BudgetError`. Without this the same
+        // cause would carry its limits on one path and not the other.
+        const code = operationCause(error);
+        return this.incomplete(state, code, budgetDetails(code, this.policy));
       }
       return this.incomplete(state, "http-error");
     } finally {
@@ -247,6 +254,14 @@ class SafeSession implements SafeTransportSession {
       if (signal.aborted) throw new OperationError("http", { code: "http-timeout" });
       if (!Number.isInteger(response.status) || response.status < 100 || response.status > 599) {
         throw new OperationError("http", { code: "http-malformed" });
+      }
+      // Re-measured here, and not only pushed down into the built-in adapter's
+      // parser limit, because this is the seam every HTTP port passes through.
+      // A budget a caller-supplied port could sidestep would be a budget of the
+      // built-in adapter, not of this boundary. Runs before the body is read,
+      // so an oversized head costs no body work.
+      if (exceedsHeaderBudget(response.headers, this.policy)) {
+        throw new BudgetError("response-headers-too-large");
       }
 
       const encoded = await wrapOperation("http", this.readEncodedBody(response.body));
@@ -507,8 +522,39 @@ const STABLE_OPERATION_CODES = new Set<TransportCauseCode>([
   "http-malformed",
   "http-reset",
   "http-timeout",
+  "response-headers-too-large",
   "decompression-error",
 ]);
+
+/**
+ * Charges the parsed header block the way HTTP/1.1 frames it on the wire —
+ * `name: value\r\n` per field OCCURRENCE — against both header limits.
+ *
+ * Header field content is latin-1 on the wire, so a parsed string's `.length`
+ * is its byte count for anything an HTTP parser produced. Two deliberate
+ * imprecisions remain: the status line is not charged, and duplicate names a
+ * parser folded into one comma-joined value are charged as a single field. Both
+ * make this measure a lower bound on the real wire size, which is the safe
+ * direction for a check that runs after the bytes have already arrived — the
+ * tight bound is the adapter's parser limit, and this is the port-agnostic
+ * backstop behind it.
+ */
+function exceedsHeaderBudget(
+  headers: Readonly<Record<string, readonly string[]>>,
+  policy: TransportPolicy,
+): boolean {
+  let fields = 0;
+  let bytes = 0;
+  for (const [name, values] of Object.entries(headers)) {
+    for (const value of values) {
+      fields += 1;
+      if (fields > policy.maxResponseHeaderFields) return true;
+      bytes += name.length + value.length + 4;
+      if (bytes > policy.maxResponseHeaderBytes) return true;
+    }
+  }
+  return false;
+}
 
 function budgetDetails(
   code: TransportCauseCode,
@@ -523,6 +569,12 @@ function budgetDetails(
   }
   if (code === "decompressed-response-too-large") {
     return { maxDecompressedBytes: policy.maxDecompressedBytes };
+  }
+  if (code === "response-headers-too-large") {
+    return {
+      maxResponseHeaderBytes: policy.maxResponseHeaderBytes,
+      maxResponseHeaderFields: policy.maxResponseHeaderFields,
+    };
   }
   return undefined;
 }

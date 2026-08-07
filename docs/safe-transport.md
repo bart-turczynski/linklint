@@ -115,6 +115,8 @@ configuration is rejected.
 | `maxTotalTimeMs` | 10,000 ms | Whole session, including time between hops and body decoding |
 | `minThroughputBytes` | 512 B | Encoded body bytes required per throughput window |
 | `minThroughputWindowMs` | 2,000 ms | Length of that window while a body is read |
+| `maxResponseHeaderBytes` | 16,384 B | Response header block accepted on one hop |
+| `maxResponseHeaderFields` | 128 | Response header field occurrences on one hop |
 
 The wall-clock deadline caps how long a destination can hold the session; the
 throughput floor caps how long it can hold it *while delivering nothing useful*.
@@ -123,6 +125,27 @@ below the floor and the attempt ends with `response-too-slow` — the Slowloris
 pattern inverted onto the client. The two limits are independent: the floor is
 set far below the rate any body finishing inside `maxTotalTimeMs` must sustain,
 so a slow but progressing response is not cut short.
+
+The two header limits are per-hop rather than cumulative, because a header block
+is a per-response resource: a session that spent its whole encoded-byte budget
+on bodies would otherwise leave each head unbounded. They are enforced at two
+seams. The built-in HTTP/1.1 adapter hands `maxResponseHeaderBytes` to Node's
+response parser as `maxHeaderSize`, so an oversized head stops while it is still
+coming off the socket, and the parser's `HPE_HEADER_OVERFLOW` is mapped to the
+`response-headers-too-large` cause instead of falling through to the generic
+`http-error`. The transport then re-measures the parsed header block against both
+limits, before the body is read — that second seam is the one a caller-supplied
+HTTP port also passes through, since the adapter option reaches only the
+built-in adapter. The re-measurement charges `name: value\r\n` per field
+occurrence and leaves the status line free, making it a lower bound on the real
+wire size rather than the exact count the parser saw; the adapter's parser limit
+is the tight bound and this is the port-agnostic backstop behind it.
+
+The byte default is Node's own `--max-http-header-size`, restated so the limit is
+this boundary's rather than the host runtime's — before this budget the head was
+bounded by whatever flags the process happened to start with, an overflow was
+reported as an ordinary socket fault, and the field count had no bound at all,
+since the parser caps total header bytes and not how many fields fit inside them.
 
 Gzip, deflate, and Brotli are decoded under the remaining decompressed-byte
 budget. Unknown encodings, malformed compressed bodies, byte exhaustion,

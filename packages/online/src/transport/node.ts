@@ -20,7 +20,11 @@ import { NodeResolver, systemErrorCode } from "./node-resolver.js";
 import { observedPeer } from "./peer.js";
 import { createSafeTransport } from "./safe-transport.js";
 import { SystemClock } from "./system-clock.js";
-import type { TransportPolicy } from "./policy.js";
+import {
+  DEFAULT_TRANSPORT_POLICY,
+  resolveTransportPolicy,
+  type TransportPolicy,
+} from "./policy.js";
 import type {
   ConnectRequest,
   ConnectorPort,
@@ -57,6 +61,17 @@ class NodeAbortError extends Error {
 export class NodeConnectionPorts implements ConnectorPort, HttpPort {
   private nextConnectionId = 1;
   private readonly sockets = new Map<string, Socket | TLSSocket>();
+
+  /**
+   * @param maxResponseHeaderBytes Handed to the response parser as
+   * `maxHeaderSize`, so an oversized head is refused while it is still coming
+   * off the socket. Defaults to the policy default, which is also Node's own
+   * `--max-http-header-size`, so a bare construction behaves as before.
+   */
+  constructor(
+    private readonly maxResponseHeaderBytes: number =
+      DEFAULT_TRANSPORT_POLICY.maxResponseHeaderBytes,
+  ) {}
 
   async connect(request: ConnectRequest): Promise<TransportConnection> {
     const socket = await this.openSocket(request);
@@ -117,6 +132,12 @@ export class NodeConnectionPorts implements ConnectorPort, HttpPort {
           path: `${url.pathname}${url.search}`,
           headers: request.headers,
           agent,
+          // The tight seam for the header-byte budget: llhttp stops parsing at
+          // this bound, so an oversized head never finishes being buffered.
+          // Node applies its own `--max-http-header-size` when this is absent,
+          // which is a runtime-dependent cap this boundary would be inheriting
+          // rather than stating.
+          maxHeaderSize: this.maxResponseHeaderBytes,
           ...(request.signal === undefined ? {} : { signal: request.signal }),
         },
         (response: IncomingMessage) => {
@@ -135,6 +156,11 @@ export class NodeConnectionPorts implements ConnectorPort, HttpPort {
           reject(new NodePortFailure("http-reset"));
         } else if (code === "ETIMEDOUT") {
           reject(new NodePortFailure("http-timeout"));
+        } else if (code === "HPE_HEADER_OVERFLOW") {
+          // Without this the budget still stops the response, but reports as the
+          // generic `http-error` — indistinguishable from a socket fault, and so
+          // useless as evidence that a policy limit is what refused the head.
+          reject(new NodePortFailure("response-headers-too-large"));
         } else {
           reject(error);
         }
@@ -222,13 +248,18 @@ export interface CreateNodeSafeTransportOptions {
 export function createNodeSafeTransport(
   options: CreateNodeSafeTransportOptions = {},
 ): SafeTransport {
-  const network = new NodeConnectionPorts();
+  // Resolved once here so the adapter's parser limit and the transport's own
+  // re-measurement read the same number. `resolveTransportPolicy` is pure and
+  // idempotent, so handing the resolved policy back to `createSafeTransport`
+  // yields the same values it would have computed itself.
+  const policy = resolveTransportPolicy(options.policy);
+  const network = new NodeConnectionPorts(policy.maxResponseHeaderBytes);
   return createSafeTransport({
     resolver: options.resolver ?? new NodeResolver(),
     connector: network,
     http: network,
     clock: new SystemClock(),
-    ...(options.policy === undefined ? {} : { policy: options.policy }),
+    policy,
   });
 }
 

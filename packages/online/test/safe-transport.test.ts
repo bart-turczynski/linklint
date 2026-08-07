@@ -139,6 +139,8 @@ describe("safe destination address policy", () => {
     expect(() => resolveTransportPolicy({ maxTotalTimeMs: Number.POSITIVE_INFINITY })).toThrow(
       RangeError,
     );
+    expect(() => resolveTransportPolicy({ maxResponseHeaderBytes: 0 })).toThrow(RangeError);
+    expect(() => resolveTransportPolicy({ maxResponseHeaderFields: 1.5 })).toThrow(RangeError);
     expect(resolveTransportPolicy(undefined)).toEqual(DEFAULT_TRANSPORT_POLICY);
   });
 });
@@ -708,6 +710,125 @@ describe("mandatory transport budgets and incomplete outcomes", () => {
     expect(harness.http.bodies[0]).toMatchObject({ chunksRead: 2, bytesRead: 8 });
     expect(transportSession.usage.encodedBytes).toBe(6);
     harness.assertExhausted();
+  });
+
+  /**
+   * The response-header budget (`LINK-vwnccgxf`).
+   *
+   * These cases drive the PORT-AGNOSTIC seam deliberately: the fixture HTTP port
+   * is exactly the shape of a caller-supplied port, and the built-in adapter's
+   * `maxHeaderSize` cannot reach it. If enforcement lived only in
+   * `transport/node.ts`, every case here would return `success`.
+   *
+   * There is no scripted `FixtureFailureCode` for this cause, on purpose. It is
+   * derived from header CONTENT rather than raised by a port, so a fixture can
+   * produce it authentically by scripting an oversized head; a scripted shortcut
+   * would let a fixture claim the budget tripped without content that trips it.
+   */
+  describe("response-header budget", () => {
+    function headerScript(
+      headers: Readonly<Record<string, string | readonly string[]>>,
+    ): TransportFixtureScript {
+      return {
+        ...publicSuccessScript(),
+        http: [{
+          expect: { connectionId: "c1", url: URL_A, method: "GET" },
+          outcome: { value: { status: 200, headers, body: "must-not-be-read" } },
+        }],
+      };
+    }
+
+    it("stops an oversized header block before the body is read", async () => {
+      const script = headerScript({ "x-pad": "a".repeat(4_000) });
+      const { harness, session: transportSession } = session(script, {
+        maxResponseHeaderBytes: 512,
+      });
+
+      const outcome = await transportSession.fetch({
+        url: URL_A,
+        authorization: authorization(URL_A),
+      });
+
+      expect(outcome).toMatchObject({
+        status: "incomplete",
+        cause: {
+          code: "response-headers-too-large",
+          details: { maxResponseHeaderBytes: 512, maxResponseHeaderFields: 128 },
+        },
+      });
+      // The head is refused without spending any body work, and the socket goes
+      // with it rather than being left for the deadline to reap.
+      expect(harness.http.bodies[0]).toMatchObject({ chunksRead: 0, bytesRead: 0 });
+      expect(transportSession.usage.encodedBytes).toBe(0);
+      expect(harness.connector.closedConnectionIds).toEqual(["c1"]);
+      harness.assertExhausted();
+    });
+
+    it("stops a header block that is small but has too many fields", async () => {
+      // Well inside the byte budget: the field count is a separate axis because a
+      // byte cap alone lets thousands of tiny fields through.
+      const many: Record<string, string> = {};
+      for (let index = 0; index < 40; index++) many[`x-${index}`] = "v";
+      const { harness, session: transportSession } = session(headerScript(many), {
+        maxResponseHeaderFields: 8,
+      });
+
+      const outcome = await transportSession.fetch({
+        url: URL_A,
+        authorization: authorization(URL_A),
+      });
+
+      expect(outcome).toMatchObject({
+        status: "incomplete",
+        cause: {
+          code: "response-headers-too-large",
+          details: { maxResponseHeaderFields: 8 },
+        },
+      });
+      harness.assertExhausted();
+    });
+
+    it("counts repeated occurrences of one name as separate fields", async () => {
+      // Guards against measuring `Object.keys(...).length`: fifty Set-Cookie
+      // values arrive under a single key but cost fifty fields on the wire.
+      const cookies = Array.from({ length: 50 }, (_unused, index) => `s${index}=1`);
+      const { harness, session: transportSession } = session(
+        headerScript({ "set-cookie": cookies }),
+        { maxResponseHeaderFields: 10 },
+      );
+
+      const outcome = await transportSession.fetch({
+        url: URL_A,
+        authorization: authorization(URL_A),
+      });
+
+      expect(outcome).toMatchObject({
+        status: "incomplete",
+        cause: { code: "response-headers-too-large" },
+      });
+      harness.assertExhausted();
+    });
+
+    it("lets an ordinary header block through under the defaults", async () => {
+      const { harness, session: transportSession } = session(headerScript({
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+        "set-cookie": ["a=1; Path=/", "b=2; Path=/"],
+      }));
+
+      const outcome = await transportSession.fetch({
+        url: URL_A,
+        authorization: authorization(URL_A),
+      });
+
+      expect(outcome).toMatchObject({ status: "success" });
+      harness.assertExhausted();
+    });
+
+    it("rejects a non-positive header budget", () => {
+      expect(() => resolveTransportPolicy({ maxResponseHeaderBytes: -1 })).toThrow(RangeError);
+      expect(() => resolveTransportPolicy({ maxResponseHeaderFields: 0 })).toThrow(RangeError);
+    });
   });
 
   // The Slowloris mirror (LINK-xawdtzfd). Before the floor these two shapes ran

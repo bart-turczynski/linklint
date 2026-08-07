@@ -36,11 +36,12 @@ async function startServer(
   handler: (path: string, headers: Record<string, string | string[] | undefined>) => {
     status: number;
     body: string;
+    headers?: Record<string, string | string[]>;
   },
 ): Promise<number> {
   const created = createServer((req, res) => {
-    const { status, body } = handler(req.url ?? "/", req.headers);
-    res.writeHead(status, { "content-type": "text/plain" });
+    const { status, body, headers } = handler(req.url ?? "/", req.headers);
+    res.writeHead(status, { "content-type": "text/plain", ...headers });
     res.end(body);
   });
   server = created;
@@ -117,6 +118,82 @@ describe("node transport ports (live loopback)", () => {
       expect(response.status).toBe(204);
       expect(seenPath).toBe("/deep/path?a=b");
       expect(seenHost).toBe("origin.example");
+    } finally {
+      ports.close(connection.id);
+    }
+  });
+
+  /**
+   * The adapter half of the response-header budget (`LINK-vwnccgxf`).
+   *
+   * `maxHeaderSize` is an option on the real `http.request` call, so nothing in
+   * the fixture suite can exercise it. Before the budget existed an oversized
+   * head still failed — Node's default `--max-http-header-size` caught it — but
+   * `HPE_HEADER_OVERFLOW` is neither ECONNRESET/EPIPE nor ETIMEDOUT, so it fell
+   * through to the raw error and surfaced as the generic `http-error`,
+   * indistinguishable from a socket fault.
+   */
+  it("refuses an oversized response head with a header-budget cause, not a socket fault", async () => {
+    const port = await startServer(() => ({
+      status: 200,
+      body: "unreachable",
+      headers: { "x-pad": "p".repeat(2_000) },
+    }));
+    // Set well below the 2 KB head the server sends AND below Node's 16 KB
+    // default, so a pass proves this bound was applied rather than the runtime's.
+    const ports = new NodeConnectionPorts(512);
+
+    const connection = await ports.connect({
+      protocol: "http:",
+      hostname: "origin.example",
+      address: "127.0.0.1",
+      port,
+    });
+
+    try {
+      const failure = await ports.request({
+        connectionId: connection.id,
+        url: `http://origin.example:${port}/big`,
+        method: "GET",
+        headers: { host: "origin.example" },
+      }).then(
+        () => null,
+        (error: unknown) => error,
+      );
+
+      expect(failure).not.toBeNull();
+      expect((failure as { code?: unknown }).code).toBe("response-headers-too-large");
+    } finally {
+      ports.close(connection.id);
+    }
+  });
+
+  it("accepts a head that fits the configured budget", async () => {
+    // Guards against a vacuous pass above: the same server shape, under a budget
+    // the head fits, must still complete.
+    const port = await startServer(() => ({
+      status: 200,
+      body: "ok",
+      headers: { "x-pad": "p".repeat(2_000) },
+    }));
+    const ports = new NodeConnectionPorts(8_192);
+
+    const connection = await ports.connect({
+      protocol: "http:",
+      hostname: "origin.example",
+      address: "127.0.0.1",
+      port,
+    });
+
+    try {
+      const response = await ports.request({
+        connectionId: connection.id,
+        url: `http://origin.example:${port}/big`,
+        method: "GET",
+        headers: { host: "origin.example" },
+      });
+      expect(response.status).toBe(200);
+      expect(await readBody(response.body)).toBe("ok");
     } finally {
       ports.close(connection.id);
     }

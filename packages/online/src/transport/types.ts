@@ -147,6 +147,7 @@ export type TransportCauseCode =
   | "response-too-large"
   | "response-too-slow"
   | "decompressed-response-too-large"
+  | "response-headers-too-large"
   | "unsupported-content-encoding"
   | "timeout"
   | "caller-aborted"
