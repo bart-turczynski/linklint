@@ -1,4 +1,4 @@
-import { gzipSync } from "node:zlib";
+import { brotliCompressSync, deflateSync, gzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -6,6 +6,7 @@ import {
   createSafeTransport,
   DEFAULT_TRANSPORT_POLICY,
   resolveTransportPolicy,
+  SystemClock,
   type DestinationFetchAuthorization,
   type SafeFetchRequest,
 } from "../src/transport/index.js";
@@ -849,5 +850,126 @@ describe("mandatory transport budgets and incomplete outcomes", () => {
     }));
     expect(JSON.stringify(outcome)).not.toContain("scripted fixture failure");
     failed.harness.assertExhausted();
+  });
+});
+
+/**
+ * LINK-ktjbhvqd — the total deadline has to bound the *reported* success, not
+ * only the start of the last operation.
+ *
+ * `decodeResponseBody` runs zlib's synchronous entry points, so while it works
+ * the event loop is blocked and the timer racing the operation cannot fire. A
+ * transport that only races the deadline therefore returns `success` after
+ * `maxTotalTimeMs` has already passed. These tests use the real wall clock —
+ * with a fixture clock the decode costs zero measured time and the bug is
+ * invisible — while the fixture ports stay scripted with no step delays, so the
+ * only elapsed time in the session is the decode itself.
+ */
+describe("total deadline during synchronous response decoding", () => {
+  const DECODERS = [
+    { encoding: "gzip", compress: gzipSync },
+    { encoding: "deflate", compress: deflateSync },
+    { encoding: "br", compress: brotliCompressSync },
+  ] as const;
+
+  /** Large enough that every decoder needs milliseconds, not microseconds. */
+  const DECODED_BYTES = 16 * 1024 * 1024;
+
+  function realClockSession(
+    script: TransportFixtureScript,
+    policy: Parameters<typeof createSafeTransport>[0]["policy"],
+  ) {
+    const harness = new TransportFixtureHarness(script);
+    const transport = createSafeTransport({
+      resolver: harness.resolver,
+      connector: harness.connector,
+      http: harness.http,
+      clock: new SystemClock(),
+      ...(policy === undefined ? {} : { policy }),
+    });
+    return { harness, session: transport.createSession() };
+  }
+
+  function encodedScript(encoding: string, encoded: Uint8Array): TransportFixtureScript {
+    return {
+      ...publicSuccessScript(),
+      http: [{
+        expect: { connectionId: "c1", url: URL_A, method: "GET" },
+        outcome: {
+          value: { status: 200, headers: { "Content-Encoding": encoding }, body: encoded },
+        },
+      }],
+    };
+  }
+
+  it.each(DECODERS)(
+    "refuses a $encoding body whose decode finishes after maxTotalTimeMs",
+    async ({ encoding, compress }) => {
+      const raw = new Uint8Array(DECODED_BYTES).fill(0x78);
+      const encoded = new Uint8Array(compress(raw));
+      const { harness, session: transportSession } = realClockSession(
+        encodedScript(encoding, encoded),
+        { maxTotalTimeMs: 1, maxDecompressedBytes: 32 * 1024 * 1024 },
+      );
+
+      const outcome = await transportSession.fetch({
+        url: URL_A,
+        authorization: authorization(URL_A),
+      });
+
+      expect(outcome).toMatchObject({ status: "incomplete", cause: { code: "timeout" } });
+      // Guards against a vacuous pass: the attempt must have reached and
+      // completed the decode, and must have overrun the deadline doing it —
+      // not timed out earlier on some unrelated path.
+      expect(transportSession.usage.decompressedBytes).toBe(DECODED_BYTES);
+      expect(transportSession.usage.elapsedMs).toBeGreaterThan(1);
+      expect(harness.connector.closedConnectionIds).toEqual(["c1"]);
+      harness.assertExhausted();
+    },
+  );
+
+  it.each(DECODERS)(
+    "still completes a $encoding body whose decode finishes inside maxTotalTimeMs",
+    async ({ encoding, compress }) => {
+      const raw = new Uint8Array(64 * 1024).fill(0x79);
+      const encoded = new Uint8Array(compress(raw));
+      const { harness, session: transportSession } = realClockSession(
+        encodedScript(encoding, encoded),
+        undefined,
+      );
+
+      const outcome = await transportSession.fetch({
+        url: URL_A,
+        authorization: authorization(URL_A),
+      });
+
+      expect(outcome).toMatchObject({
+        status: "success",
+        response: { status: 200, decompressedBytes: raw.byteLength },
+      });
+      expect(harness.connector.closedConnectionIds).toEqual(["c1"]);
+      harness.assertExhausted();
+    },
+  );
+
+  it("keeps the decoded-byte cap ahead of the deadline check", async () => {
+    const raw = new Uint8Array(DECODED_BYTES).fill(0x78);
+    const { harness, session: transportSession } = realClockSession(
+      encodedScript("gzip", new Uint8Array(gzipSync(raw))),
+      { maxTotalTimeMs: 1, maxDecompressedBytes: 1_024 },
+    );
+
+    await expect(transportSession.fetch({
+      url: URL_A,
+      authorization: authorization(URL_A),
+    })).resolves.toMatchObject({
+      status: "incomplete",
+      cause: {
+        code: "decompressed-response-too-large",
+        details: { maxDecompressedBytes: 1_024 },
+      },
+    });
+    expect(harness.connector.closedConnectionIds).toEqual(["c1"]);
+    harness.assertExhausted();
   });
 });

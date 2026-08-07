@@ -79,7 +79,7 @@ configuration is rejected.
 | `maxHops` | 10 | Explicitly authorized requests in the session |
 | `maxResponseBytes` | 1 MiB | Encoded response-body bytes across all hops |
 | `maxDecompressedBytes` | 4 MiB | Decoded body bytes across all hops |
-| `maxTotalTimeMs` | 10,000 ms | Whole session, including time between hops |
+| `maxTotalTimeMs` | 10,000 ms | Whole session, including time between hops and body decoding |
 | `minThroughputBytes` | 512 B | Encoded body bytes required per throughput window |
 | `minThroughputWindowMs` | 2,000 ms | Length of that window while a body is read |
 
@@ -96,6 +96,16 @@ budget. Unknown encodings, malformed compressed bodies, byte exhaustion,
 throughput starvation, and deadline exhaustion stop with explicit incomplete
 causes. `response.body` is
 the decoded bounded body; response headers remain the observed original headers.
+
+Decoding uses zlib's synchronous entry points, which offer no interruptible
+form, so a large body can hold the event loop past `maxTotalTimeMs` while the
+timer racing the operation is unable to fire. `maxTotalTimeMs` is a bound on the
+reported *outcome* rather than on CPU time: the session's elapsed time is read
+again once decoding returns, and a decode that lands after the deadline ends the
+attempt with `timeout` instead of `success` (`LINK-ktjbhvqd`). The encoded and
+decoded byte caps are what bound the decode work itself — with the defaults, at
+most 1 MiB in and 4 MiB out across the whole session, which keeps the practical
+overrun in the low milliseconds.
 
 ## Outcomes and evidence
 

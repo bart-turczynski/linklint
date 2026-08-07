@@ -270,6 +270,17 @@ class SafeSession implements SafeTransportSession {
       }
       this.decompressedBytes += body.byteLength;
 
+      // LINK-ktjbhvqd. Content decoding is synchronous — zlib exposes no
+      // interruptible synchronous form — so it holds the event loop and the
+      // deadline timer racing this operation cannot fire while it runs. Without
+      // this check a decode that starts just inside `maxTotalTimeMs` returns
+      // `success` after it, which would make the session deadline a bound on
+      // when work *starts* rather than on when a success is reported. The
+      // elapsed re-read closes that: a decode that lands late ends the attempt
+      // as `timeout`, on the same path as the raced deadline, with the encoded
+      // and decoded byte budgets already charged above.
+      if (this.remainingTimeMs() <= 0) throw new DeadlineError();
+
       return this.success(state, {
         url: url.href,
         status: response.status,
