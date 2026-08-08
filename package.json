@@ -16,6 +16,7 @@
     "data:confusables": "node tools/build-confusables.mjs",
     "data:ip-ranges": "node tools/build-ip-ranges.mjs",
     "data:boundary": "tsx packages/core/test/boundary-baseline.ts",
+    "data:upstream-check": "tsx tools/check-upstream.ts",
     "data:nsp": "tsx packages/core/test/nsp-experiment.ts",
     "check": "pnpm build && pnpm typecheck && pnpm test && pnpm features"
   },

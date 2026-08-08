@@ -20,6 +20,7 @@
     "tests/**/*.ts",
     "features/**/*.ts",
     "vitest.config.ts",
+    "tools/check-upstream.ts",
     "tools/fp-extensions/*/predicate.ts"
   ]
 }

@@ -3,12 +3,20 @@
 # CI moved to GitLab in LINK-yrbwwyrj; this file is kept, unedited apart from
 # this notice, so the configuration survives if the account is restored.
 #
-# The consequence is tracked in LINK-rlrdiqhm and it is not cosmetic: the
-# reasoning below — that these PRs are the repository's ONLY automatic signal
-# that the bundled Public Suffix List moved — was correct and is now unserved.
-# Until a replacement lands, the pinned trust boundary can age with nothing in
-# the repository able to say so. tldts@7.4.10 already shipped past the 7.4.9
-# pin, unnoticed, which is the failure mode in miniature.
+# The data-pin half of that job now has a replacement (LINK-rlrdiqhm):
+#
+#     pnpm data:upstream-check
+#
+# asks the npm registry whether any `<name>@<version>` stamp in DATA_VERSIONS
+# has moved, and exits non-zero when one has. It is a manual/scheduled command,
+# never part of the pre-push gate, because `tools/verify.sh` has to work
+# offline. So the reasoning below still governs — these PRs were the only
+# automatic signal that the bundled Public Suffix List moved — but the signal it
+# describes now comes from that command instead of from this file.
+#
+# Still unserved while the account is suspended: dev-dependency bumps and the
+# GitHub Actions group. Those are ordinary upgrades, not trust-boundary data,
+# so they wait for the account rather than getting a replacement mechanism.
 version: 2
 updates:
   # Group all GitHub Actions bumps into a single weekly PR to limit noise.

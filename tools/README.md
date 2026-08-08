@@ -8,6 +8,10 @@ Generated files are committed (they are source the library imports) but must
 > guards, which live here because `.fp/` is gitignored. See
 > [`fp-extensions/README.md`](fp-extensions/README.md).
 
+> `check-upstream.ts` is not a data build either — it generates nothing and
+> writes nothing. It watches the two data-carrying npm pins for movement. See
+> [below](#check-upstreamts--npm-backed-pin-movement).
+
 ## `build-confusables.mjs` — UTS#39 confusables (E1)
 
 Generates `packages/core/src/data/confusables.generated.ts` from the official
@@ -142,3 +146,59 @@ the full mapping and the reasoning.
 **License.** IANA registry data is public domain — no restrictions on reuse.
 Source URLs, byte counts, row counts, and a `sha256` of each parsed file are
 recorded in the generated header.
+
+## `check-upstream.ts` — npm-backed pin movement
+
+Asks the npm registry whether any `<name>@<version>` stamp in `DATA_VERSIONS`
+has moved. Reads nothing else and writes nothing.
+
+```bash
+# Check every npm-backed data pin, and date any release found:
+pnpm data:upstream-check
+
+# Skip the publish-date lookup (see the cost note below):
+pnpm data:upstream-check --no-dates
+```
+
+Exit codes are three, because "could not check" must not read as "all clear":
+`0` every pin matches the registry's `latest`, `1` at least one has moved, `2`
+the check could not run — no network, an unparseable answer, or a stamp shaped
+like a package the registry does not know.
+
+**Why it exists (`LINK-rlrdiqhm`).** `tldts` and `tr46` carry the Public Suffix
+List and the UTS-46 tables that linklint's verdicts are computed from, so a
+release of either is a data change, not a version bump. Until 2026-08 the only
+automatic signal that one had shipped was a dependabot PR; the GitHub account is
+suspended, dependabot stopped, and `tldts@7.4.10` slipped past the 7.4.9 pin
+unnoticed. Nothing inside the repository can close that gap on its own —
+linklint has no network path, and `PSL_PROVENANCE.pslListDate` is a
+packaging-release proxy that bounds the snapshot's age from below only, so
+`pslOutdated()` reads `null` (undetermined) inside its window rather than
+"current".
+
+**It reads the stamps, not the installed tree.** `data-versions.test.ts` already
+pins each stamp to the version actually installed, so the stamp *is* the pin and
+there is one source of truth rather than two.
+
+**Which packages are watched is derived, not listed.** Any `DATA_VERSIONS` value
+shaped `<name>@<version>` is checked, so a stamp added later for a new npm-backed
+source comes under the check by being stamped. Dated and curated stamps
+(`riskyTlds`, `brands`, `ipRanges`, …) carry no `@` and are skipped — they have
+no registry to ask. `tests/unit/check-upstream.test.ts` pins the derived set
+against the shipped record.
+
+**Not in the pre-push hook, deliberately.** `tools/verify.sh` is the primary gate
+and has to work offline; a network call there would turn a plane ride into a
+failed push. A GitLab schedule is the natural second home and is blocked only on
+runner minutes (`LINK-ozgkfjow`).
+
+**Cost note.** The `latest` lookup is a few kilobytes per package. The publish
+date lives only in the full packument (~3.4 MB for `tldts`), so it is fetched
+only for a package that already turned out to have moved, and `--no-dates` skips
+it. The date is worth one fetch because it is exactly what
+`PSL_PROVENANCE.pslListDate` records.
+
+**What it cannot tell you.** Whether the list *inside* `tldts` moved. A current
+pin says nothing about the bundled snapshot's currency; that question needs a
+bump plus `pnpm data:boundary --check`, per CONTRIBUTING.md §"Bumping the
+`tldts` or `tr46` pin".
