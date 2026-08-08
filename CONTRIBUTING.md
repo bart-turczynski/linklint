@@ -32,6 +32,23 @@ move a normalization result. Treat it as a data change, not a version bump.
 
 `pnpm check` already runs all three gates below; this is the order to work in.
 
+**The dependabot PR is a notification, not a merge candidate.** Dependabot opens
+one per `tldts`/`tr46` release and it arrives **red**, because it moves the pin
+without moving the stamps and `data-versions.test.ts` catches that. That is the
+gate working, not a broken PR. Do not merge it and do not "fix CI" on it — do
+the procedure below on your own branch, land that, and close the dependabot PR
+as superseded.
+
+Keeping these PRs is deliberate, and the reason is that nothing else can tell us
+upstream moved. linklint has no network path and never contacts
+publicsuffix.org, and `PSL_PROVENANCE.pslListDate` is a packaging-release
+**proxy** — it bounds the snapshot's age from below only, so inside the freshness
+window `pslOutdated()` returns `null` (undetermined) and can never say "a new
+list shipped". The dependabot PR is the repository's only automatic signal that
+the bundled data changed. An `ignore:` entry would buy a quieter PR list at the
+cost of the one mechanism that surfaces a silently ageing trust boundary — the
+exact failure the provenance record exists to make visible.
+
 1. **Bump the pin and its stamps together.** Update `DATA_VERSIONS`
    (`src/data/versions.ts`) and, for `tldts`, all three fields of
    `PSL_PROVENANCE` (`src/data/psl-provenance.ts`). `data-versions.test.ts`
@@ -44,8 +61,8 @@ move a normalization result. Treat it as a data change, not a version bump.
    pnpm data:boundary --check
    ```
 
-   This diffs the committed baseline (255 hosts: the brand watchlist, every
-   corpus vector, the upstream PSL corpus, and the IMC '23 multi-tenant eTLDs)
+   This diffs the committed baseline (currently 264 hosts: the brand watchlist,
+   every corpus vector, the upstream PSL corpus, and the IMC '23 multi-tenant eTLDs)
    against what the new pin produces, and reports every host whose registrable
    domain, PSL section, or normalization result moved. **Read the diff.** A
    `SECTION MOVES` entry — a rule crossing the ICANN/PRIVATE boundary — deserves

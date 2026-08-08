@@ -19,6 +19,18 @@ updates:
   # verdicts are computed from, so a patch bump can silently redraw a
   # registrable-domain boundary. Each gets its own PR and the review procedure
   # in CONTRIBUTING.md ("Bumping the tldts or tr46 pin").
+  #
+  # Their PRs arrive RED, by design: dependabot moves the pin but not the
+  # version stamps, and data-versions.test.ts fails on the mismatch. Do not
+  # merge one and do not repair its CI — run the procedure on a branch, land
+  # that, close the PR as superseded.
+  #
+  # There is deliberately NO `ignore:` entry for them. linklint never contacts
+  # publicsuffix.org, and the PSL provenance date is a packaging proxy that can
+  # prove staleness but never freshness, so `pslOutdated()` reads "undetermined"
+  # inside its window. These PRs are the only automatic signal that the bundled
+  # data moved; silencing them would trade a tidier PR list for the one
+  # mechanism that surfaces a silently ageing trust boundary.
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
