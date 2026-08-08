@@ -61,8 +61,12 @@ describe("InspectResult schema contract (schemaVersion + confidence, FR-SCORE-2b
     // reproducible against a known trust-boundary snapshot (LINK-rkhuihjx).
     for (const input of ["https://www.example.com/", "ht!tp://%%%not a url"]) {
       const snap = inspect(input).pslSnapshot;
-      // Deterministic provenance date (the pinned tldts@7.4.3 snapshot).
-      expect(snap.date).toBe("2026-06-15");
+      // Deterministic provenance date: whatever the pinned snapshot records,
+      // unchanged, on every result. Read off the record rather than repeated as
+      // a literal — `psl-provenance.test.ts` and `data-versions.test.ts` are
+      // what pin the record itself to the installed tldts, so duplicating the
+      // date here only adds a place for a pin bump to break spuriously.
+      expect(snap.date).toBe(metadata.PSL_PROVENANCE.pslListDate);
       // Advisory, time-relative staleness against the default 180-day window.
       expect(typeof snap.stale === "boolean" || snap.stale === null).toBe(true);
       // …and one-directional (LINK-elzuacby): the pinned date is a packaging

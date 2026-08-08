@@ -2,6 +2,10 @@ import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { inspect, type InspectResult } from "linklint";
+// The parity claim is "the MCP channel reports what core reports", so the
+// expected provenance is core's own record — not a literal duplicated here that
+// every tldts pin bump would have to chase.
+import { PSL_PROVENANCE } from "linklint/metadata";
 import { createServer } from "../src/server.js";
 
 let client: Client;
@@ -89,13 +93,13 @@ describe("schema parity with core inspect() (no channel drift)", () => {
     const ok = await call("check_url", { url: "https://example.com/" });
     expect(ok.schemaVersion).toBe("1.7");
     expect(ok.confidence).toBe(1);
-    expect(ok.pslSnapshot.date).toBe("2026-06-15");
+    expect(ok.pslSnapshot.date).toBe(PSL_PROVENANCE.pslListDate);
 
     const invalid = await call("check_url", { url: "ht!tp://%%%not a url" });
     expect(invalid.status).toBe("invalid");
     expect(invalid.schemaVersion).toBe("1.7");
     expect(invalid.confidence).toBe(1);
-    expect(invalid.pslSnapshot.date).toBe("2026-06-15");
+    expect(invalid.pslSnapshot.date).toBe(PSL_PROVENANCE.pslListDate);
   });
 
   it("check_domain returns the same shape as check_url", async () => {

@@ -115,7 +115,10 @@ describe("the diff actually detects the changes it claims to", () => {
     (after.hosts as Record<string, unknown>)["brand-new.example"] = rowFor("brand-new.example");
     (after._meta as { publicSuffixList: string }).publicSuffixList = "tldts@9.9.9";
     const diff = diffBaselines(current, after).join("\n");
-    expect(diff).toContain("PIN  tldts: tldts@7.4.3 -> tldts@9.9.9");
+    // Read the "before" side off the live stamp: this asserts the PIN line is
+    // RENDERED, not what the pin currently is (`data-versions.test.ts` owns
+    // that), so a legitimate bump does not fail the formatter's own test.
+    expect(diff).toContain(`PIN  tldts: ${DATA_VERSIONS.publicSuffixList} -> tldts@9.9.9`);
     expect(diff).toContain("REMOVED  paypal.com");
     expect(diff).toContain("ADDED    brand-new.example");
   });
