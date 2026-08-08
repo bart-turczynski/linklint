@@ -1,3 +1,14 @@
+# NOT RUNNING. The GitHub account is suspended (the API returns 403 on every
+# call), so nothing here is in effect and no PR described below will arrive.
+# CI moved to GitLab in LINK-yrbwwyrj; this file is kept, unedited apart from
+# this notice, so the configuration survives if the account is restored.
+#
+# The consequence is tracked in LINK-rlrdiqhm and it is not cosmetic: the
+# reasoning below — that these PRs are the repository's ONLY automatic signal
+# that the bundled Public Suffix List moved — was correct and is now unserved.
+# Until a replacement lands, the pinned trust boundary can age with nothing in
+# the repository able to say so. tldts@7.4.10 already shipped past the 7.4.9
+# pin, unnoticed, which is the failure mode in miniature.
 version: 2
 updates:
   # Group all GitHub Actions bumps into a single weekly PR to limit noise.

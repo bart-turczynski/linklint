@@ -1,0 +1,109 @@
+# Remote half of the verify gate (LINK-yrbwwyrj).
+#
+# The gate itself is `pnpm check` (build + typecheck + test + features) across
+# the Node matrix, and it runs LOCALLY on every push via the pre-push hook —
+# `tools/verify.sh` covers both majors on this machine, so the ordinary case
+# needs no runner at all.
+#
+# GitLab's shared runners are metered, so this file is deliberately quiet: the
+# `workflow:rules` below mean most pushes create NO PIPELINE, not a pipeline
+# that skips its jobs. A skipped job still costs a runner slot; an uncreated
+# pipeline costs nothing.
+#
+# What is left running remotely is the change class the local gate is weakest
+# on — dependency, toolchain and pinned-data movement. That is where an
+# independent machine and a genuinely clean install earn their minutes:
+# `tools/verify.sh` reuses a warm store and the Node builds this laptop happens
+# to have, while these jobs resolve from the lockfile on stock images.
+#
+# To force a run at any time: CI/CD -> Pipelines -> "Run pipeline" (the `web`
+# source below always builds).
+
+stages: [verify]
+
+variables:
+  # Keep the pnpm store inside the project so GitLab's cache can carry it
+  # between runs; a cold store is most of the wall time of these jobs.
+  PNPM_STORE: "$CI_PROJECT_DIR/.pnpm-store"
+
+workflow:
+  # Supersede a running pipeline when a newer commit lands on the same ref
+  # rather than paying for both.
+  auto_cancel:
+    on_new_commit: interruptible
+  rules:
+    # Always: explicitly requested from the UI or the API.
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+    # Always: the scheduled canary. Nothing in the repo changes between these,
+    # so a failure means the world moved underneath us — a base image, a
+    # transitive floating dep, a registry change. Configure the cadence under
+    # CI/CD -> Schedules; monthly is enough.
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    # Always: release tags. The one moment the artifact leaves this machine.
+    - if: $CI_COMMIT_TAG
+    # Otherwise only when dependencies, the toolchain, the pinned data stamps
+    # or the gate's own definition moved.
+    #
+    # `versions.ts` and `psl-provenance.ts` are in here because a `tldts`/`tr46`
+    # pin bump is a DATA change (see CONTRIBUTING.md): it can redraw a
+    # registrable-domain boundary, and it is exactly the case where a clean
+    # resolve on a stock image is worth more than a local run against a warm
+    # node_modules that may still hold the old package.
+    - if: $CI_PIPELINE_SOURCE == "push"
+      changes:
+        - pnpm-lock.yaml
+        - package.json
+        - packages/*/package.json
+        - .node-version
+        - .gitlab-ci.yml
+        - tools/verify.sh
+        - packages/core/src/data/versions.ts
+        - packages/core/src/data/psl-provenance.ts
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - pnpm-lock.yaml
+        - package.json
+        - packages/*/package.json
+        - .node-version
+        - .gitlab-ci.yml
+        - tools/verify.sh
+        - packages/core/src/data/versions.ts
+        - packages/core/src/data/psl-provenance.ts
+    # No other pipeline is created. Ordinary code pushes are gated by the
+    # pre-push hook; see AGENTS.md ("Git hygiene").
+
+verify:
+  stage: verify
+  # Node majors, kept in sync with MATRIX in tools/verify.sh. 24 is the floor
+  # declared by `engines.node` in every package and pinned in `.node-version`;
+  # 26 is the current release line, and `engines` has no upper bound, so users
+  # install on it. Nothing is known to differ between them (LINK-wpaieeen
+  # measured the gate byte-identical on both) — the matrix exists to keep it
+  # that way, not to chase a known break.
+  parallel:
+    matrix:
+      - NODE_MAJOR: ["24", "26"]
+  image: node:${NODE_MAJOR}
+  interruptible: true
+  # A green run is ~2 minutes; anything past 15 is hung, and a hung job on a
+  # metered runner bills until it is killed.
+  timeout: 15m
+  cache:
+    key:
+      files: [pnpm-lock.yaml]
+    paths: [.pnpm-store]
+  before_script:
+    # Install the pinned pnpm rather than relying on corepack, which is bundled
+    # on some Node majors and not others — reading `packageManager` keeps the
+    # version in one place (package.json) across both legs.
+    - npm install -g "pnpm@$(node -p "require('./package.json').packageManager.split('@')[1]")"
+    - pnpm config set store-dir "$PNPM_STORE"
+  script:
+    - node -v
+    - pnpm install --frozen-lockfile
+    # `pnpm check` directly, not `tools/verify.sh`: the script's job is to walk
+    # the matrix on one machine, and here the matrix is `parallel:matrix`, one
+    # Node per job. Running the script would re-run both majors inside each leg.
+    - pnpm check

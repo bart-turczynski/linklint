@@ -21,9 +21,15 @@ repos:
       - id: check-case-conflict
   - repo: local
     hooks:
+      # The verify gate. This is the PRIMARY gate, not a mirror of a remote one:
+      # GitLab's shared runners are metered, so .gitlab-ci.yml only builds on
+      # dependency/toolchain/pinned-data changes and every other push is gated
+      # here. tools/verify.sh runs `pnpm check` across the whole Node matrix
+      # plus a --frozen-lockfile install, which is what a warm local
+      # node_modules would otherwise hide.
       - id: verify
-        name: verify (mirrors CI)
-        entry: bash -c "pnpm check"
+        name: verify (full Node matrix — the gate)
+        entry: tools/verify.sh
         language: system
         pass_filenames: false
         always_run: true

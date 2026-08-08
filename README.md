@@ -2,7 +2,6 @@
 
 > An explainable, offline-first, agent-native **URL inspector** — _"safe-chain for links."_
 
-[![CI](https://github.com/bart-turczynski/linklint/actions/workflows/ci.yml/badge.svg)](https://github.com/bart-turczynski/linklint/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/linklint.svg)](https://www.npmjs.com/package/linklint)
 [![Known Vulnerabilities](https://snyk.io/test/github/bart-turczynski/linklint/badge.svg)](https://snyk.io/test/github/bart-turczynski/linklint)
 [![Socket Badge](https://socket.dev/api/badge/npm/package/linklint)](https://socket.dev/npm/package/linklint)
@@ -11,6 +10,13 @@
 [![node](https://img.shields.io/badge/node-%3E%3D24-3c873a.svg)](./packages/core/package.json)
 [![types](https://img.shields.io/badge/types-included-3178c6.svg?logo=typescript&logoColor=white)](./packages/core/src/index.ts)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+
+<sub>**Verification:** every commit passes `pnpm check` — build, typecheck, 3568
+tests, 51 feature scenarios — on both supported Node majors before it is pushed.
+Remote CI runs the same matrix on dependency, toolchain and pinned-data changes.
+There is no CI badge here because the pipeline lives on a private project and
+the badge would not render; see
+[CONTRIBUTING.md](./CONTRIBUTING.md#the-verify-gate) for how the gate is split.</sub>
 
 Hand **linklint** a single URL — from an email, a chat message, or an LLM agent's
 tool call — and it tells you whether the URL is _deceptive_, and **explains exactly

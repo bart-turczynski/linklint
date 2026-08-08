@@ -21,6 +21,48 @@ pnpm check
 
 Source lives in `src/`, behavior features live in `features/`, tests live in `tests/`, and durable project context lives in `docs/`.
 
+## The verify gate
+
+The gate is `pnpm check` — build, typecheck, test, features — across the Node
+matrix declared by `engines.node` (24, the floor, and 26, the current line).
+
+**It runs locally, on every push, and that is the primary gate.** The pre-push
+hook calls `tools/verify.sh`, which does what a bare `pnpm check` does not:
+
+```sh
+tools/verify.sh                # frozen-lockfile install, then the gate on each Node major
+tools/verify.sh --no-install   # skip the install step
+```
+
+The `pnpm install --frozen-lockfile` catches lockfile drift that a warm
+`node_modules` hides, and the matrix walk catches cross-version breakage that
+your default `node` cannot see on its own. Node 24 is usually keg-only on
+Homebrew (installed, but off `PATH`), so the script resolves each major by path
+rather than trusting `node -v`; if a major is missing it says so loudly and
+names the `brew install` that fixes it, because a matrix leg that quietly does
+not run is not a gate.
+
+**Remote CI is deliberately narrow.** GitLab's shared runners are metered, so
+`.gitlab-ci.yml` creates no pipeline at all for an ordinary code push — an
+uncreated pipeline is free, whereas a job that merely skips still costs a runner
+slot. It builds on:
+
+- changes to `pnpm-lock.yaml`, any `package.json`, `.node-version`,
+  `.gitlab-ci.yml`, `tools/verify.sh`, or the pinned-data stamps
+  (`versions.ts`, `psl-provenance.ts`)
+- release tags
+- the schedule (a canary — nothing in the repo changed, so a failure means the
+  world moved: a base image, a transitive dep, a registry)
+- **Run pipeline** in the UI, any time you want one
+
+So remote runs buy the two things local runs cannot: a genuinely clean resolve
+from the lockfile on stock images, and a machine that is not this one. Those are
+worth minutes exactly when dependencies move — which is why that is when they
+happen.
+
+Read the README's pipeline badge with that in mind: it reports the last remote
+run, not the last commit.
+
 Keep local-only planning state in `_scratch/`. Do not commit `_scratch/`, `.fp/`, secrets, dependency folders, build outputs, or generated caches.
 
 ## Bumping the `tldts` or `tr46` pin
@@ -31,6 +73,13 @@ from. A patch-level bump can silently redraw a registrable-domain boundary or
 move a normalization result. Treat it as a data change, not a version bump.
 
 `pnpm check` already runs all three gates below; this is the order to work in.
+
+> **This notification is currently OFFLINE** (`LINK-rlrdiqhm`). The GitHub
+> account is suspended, so dependabot is not running and no PR will arrive. The
+> reasoning below is unchanged and still governs — it just has no mechanism
+> behind it right now, which means the pinned PSL can age with nothing able to
+> report it. Until a replacement lands, check the pins by hand when you touch
+> them.
 
 **The dependabot PR is a notification, not a merge candidate.** Dependabot opens
 one per `tldts`/`tr46` release and it arrives **red**, because it moves the pin

@@ -12,7 +12,11 @@ Do not commit `_scratch/`, `.fp/`, secrets, dependencies, build outputs, or loca
 pre-commit install && pre-commit install --hook-type pre-push
 ```
 
-The pre-push hook runs `pnpm check` (the same chain as CI). This is the stand-in for branch protection, which is unavailable on this GitHub plan — a push whose tree turns CI red is blocked locally.
+The pre-push hook runs `tools/verify.sh`: a `--frozen-lockfile` install, then `pnpm check` on every Node major in the matrix (24 and 26). This is the **primary** gate, not a mirror of a remote one — GitLab's shared runners are metered, so `.gitlab-ci.yml` creates no pipeline for an ordinary push and only builds on dependency, toolchain, pinned-data and tag changes. See [*The verify gate*](CONTRIBUTING.md#the-verify-gate).
+
+It is also the stand-in for branch protection, which this project has never had on either host.
+
+If the script reports a matrix leg as NOT RUN, that leg is genuinely ungated on your machine until you install the runtime it names — `brew install node@24` for the usual case, since Homebrew keeps it keg-only and off `PATH`. Do not read a pass on one major as a pass on the matrix.
 
 ### While the remote is unreachable
 
