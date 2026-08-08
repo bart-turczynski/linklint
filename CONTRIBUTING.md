@@ -60,8 +60,13 @@ from the lockfile on stock images, and a machine that is not this one. Those are
 worth minutes exactly when dependencies move — which is why that is when they
 happen.
 
-Read the README's pipeline badge with that in mind: it reports the last remote
-run, not the last commit.
+> **Remote CI is not executing right now** (`LINK-ozgkfjow`). The rules above are
+> live and correct — the first push created a pipeline exactly as designed — but
+> the namespace is out of shared-runner compute minutes, so both jobs failed with
+> `ci_quota_exceeded` without starting. Until that is resolved, `tools/verify.sh`
+> is not merely the primary gate, it is the only one. A red pipeline on GitLab
+> right now means the quota, not your tree: check `failure_reason` on the job
+> before believing it.
 
 Keep local-only planning state in `_scratch/`. Do not commit `_scratch/`, `.fp/`, secrets, dependency folders, build outputs, or generated caches.
 

@@ -18,6 +18,15 @@
 #
 # To force a run at any time: CI/CD -> Pipelines -> "Run pipeline" (the `web`
 # source below always builds).
+#
+# STATUS, 2026-08-08: shared-runner compute minutes for this namespace are
+# EXHAUSTED. The rules below work — the first push created pipeline #1 as
+# intended — but both jobs failed to start with `ci_quota_exceeded`, so remote
+# verification currently provides NOTHING and `tools/verify.sh` is not merely
+# the primary gate, it is the only one. This config is correct and starts
+# working again when the allowance resets or a self-hosted runner is attached
+# (LINK-ozgkfjow). Do not read a red pipeline here as a red tree until you have
+# checked `failure_reason` on the job.
 
 stages: [verify]
 
