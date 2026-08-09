@@ -81,7 +81,7 @@ workflow:
         - packages/core/src/data/versions.ts
         - packages/core/src/data/psl-provenance.ts
     # No other pipeline is created. Ordinary code pushes are gated by the
-    # pre-push hook; see AGENTS.md ("Git hygiene").
+    # pre-push hook; see docs/local-workflow.md ("Hooks").
 
 verify:
   stage: verify

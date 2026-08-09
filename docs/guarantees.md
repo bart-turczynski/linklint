@@ -51,6 +51,7 @@ tracks.
 | `docs/enforcement.md` | 0 |
 | `docs/enrichment-outcomes.md` | 12 |
 | `docs/layer3-reputation-model.md` | 12 |
+| `docs/local-workflow.md` | 3 |
 | `docs/locale-case-mapping.md` | 4 |
 | `docs/online-roadmap.md` | 12 |
 | `docs/online-runtime-boundary.md` | 9 |
@@ -60,6 +61,7 @@ tracks.
 | `docs/redirect-chain-resolution.md` | 4 |
 | `docs/safe-transport.md` | 9 |
 | `docs/scoring.md` | 6 |
+| `docs/tracker-hygiene.md` | 3 |
 | `docs/wrapper-decoding.md` | 1 |
 | `README.md` | 14 |
 | `packages/cli/README.md` | 1 |
@@ -273,7 +275,10 @@ an oversight. These lines match the pattern and are deliberately unpinned:
   behavior they justify is pinned by the detector's own tests.
 - **Historical narration** — "Former Epic O was never part of this
   implementation roadmap", "one real locale-dependence defect existed and is
-  fixed". Statements about the past, not about current behavior. The pair
+  fixed", "branch protection, which this project has never had on either host"
+  and the `[SCRATCHED]` row's "the code never merged"
+  (`docs/local-workflow.md`, `docs/tracker-hygiene.md`). Statements about the
+  past, not about current behavior. The pair
   "failing to score it was always correct; failing to *mention* it was not"
   (`docs/architecture.md` §1.1 and `docs/reason-codes.md`) belongs here too: it
   narrates why the fourth rule was added, and the behavior it argues for is
@@ -286,8 +291,14 @@ an oversight. These lines match the pattern and are deliberately unpinned:
 - **`always` as a discourse marker** — "the match is always recorded as
   evidence" restates a mechanism described in the same paragraph rather than
   adding a separate promise.
+- **Literal configuration values** — `gc.reflogExpire=never` and
+  `gc.reflogExpireUnreachable=never` (`docs/local-workflow.md`) are git config
+  tokens quoted verbatim. The word is the value being set, not a promise about
+  linklint.
 - **References to this register** — the `README.md` repository-layout row that
-  points here matches the pattern by naming it. A label is not a claim.
+  points here matches the pattern by naming it, and
+  `docs/tracker-hygiene.md`'s "the same doctrine governs unconditional prose
+  claims" points here from the decision-record rule. A label is not a claim.
 - **Descriptions of a *declined* design** — §6.1.3's "a skeleton table decoupled
   from `BRAND_DOMAINS` so `brand_homoglyph` never sees it" describes the narrow
   widening the section goes on to decline. It states what the rejected design

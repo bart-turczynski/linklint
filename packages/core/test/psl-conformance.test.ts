@@ -101,7 +101,7 @@ const inClass = (cls: DivergenceClass) =>
 describe("PSL conformance corpus provenance", () => {
   it("is the pinned upstream file, byte for byte", () => {
     expect(createHash("sha256").update(corpusBytes).digest("hex")).toBe(PINNED_SHA256);
-    expect(corpusBytes.includes("\r".charCodeAt(0))).toBe(false); // LF-only (see AGENTS.md)
+    expect(corpusBytes.includes("\r".charCodeAt(0))).toBe(false); // LF-only (see .gitattributes)
     expect(corpusBytes.toString("utf8")).toContain("dedicated to the Public Domain");
   });
 
