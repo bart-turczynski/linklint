@@ -62,6 +62,11 @@ The repository includes deterministic resolver, connector, HTTP, and clock
 fixtures for transport tests. They are internal test infrastructure rather than
 a supported package export; production code cannot discover or enable them.
 
+A worked composition root — transport, redirect chain, DNS, and TLS wired
+together, with the per-hop `authorize` contract and a guide to reading
+`result.enrichment.outcomes[]` — is in
+[`docs/online-composition-root.md`](../../docs/online-composition-root.md).
+
 See [`docs/online-runtime-boundary.md`](../../docs/online-runtime-boundary.md)
 for ownership and [`docs/safe-transport.md`](../../docs/safe-transport.md) for
 the complete authorization, address, budget, and outcome contract. Local

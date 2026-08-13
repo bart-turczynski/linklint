@@ -480,6 +480,7 @@ replacing the offline verdict. The deterministic zero-I/O transport harness,
 L0 boundary, and L2 local wrapper decoder are shipped; bounded
 redirect/refresh expansion is the next Epic L frontier. See
 [`docs/online-roadmap.md`](./docs/online-roadmap.md),
+[`docs/online-composition-root.md`](./docs/online-composition-root.md),
 [`docs/online-runtime-boundary.md`](./docs/online-runtime-boundary.md),
 [`docs/safe-transport.md`](./docs/safe-transport.md),
 [`docs/wrapper-decoding.md`](./docs/wrapper-decoding.md), and
