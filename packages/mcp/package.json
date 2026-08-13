@@ -24,7 +24,7 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "linklint": "workspace:*",
     "zod": "^4.0.0"
   },
