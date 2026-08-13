@@ -32,6 +32,7 @@ import { fetchRdapDomain, RDAP_SOURCE_ID, RDAP_SOURCE_VERSION } from "./rdap-cli
 import { RDAP_SOURCE_DESCRIPTOR } from "./rdap-descriptor.js";
 import type {
   RdapBootstrapRegistry,
+  RdapBootstrapSnapshot,
   RdapCache,
   RdapDomainRecord,
   RdapFetchResult,
@@ -60,8 +61,24 @@ const MS_PER_DAY = 86_400_000;
 export interface RdapAgeEnricherOptions {
   /** Provider-scoped RDAP HTTP client (deterministic fixture in tests). */
   readonly client: RdapHttpClient;
-  /** IANA DNS bootstrap registry used for authoritative routing. */
-  readonly registry: RdapBootstrapRegistry;
+  /**
+   * IANA DNS bootstrap data used for authoritative routing. Three shapes, all
+   * explicit:
+   *
+   * - {@link RdapBootstrapSnapshot} — the preferred form, produced by
+   *   `updateRdapBootstrap`. Its metadata carries an `expiresAt`, so an
+   *   out-of-date routing table becomes an answerable question rather than an
+   *   invisible one; past that instant every lookup is `skipped` with
+   *   `rdap-bootstrap-stale`.
+   * - {@link RdapBootstrapRegistry} — a bare registry, the pre-LINK-mkddydzr
+   *   form. Kept for callers that already own one; it carries no freshness at
+   *   all, so nothing here can claim any, and it is never treated as stale.
+   * - `null` — the caller has no bootstrap data (no snapshot stored yet, or the
+   *   last update failed). Every lookup is `skipped` with
+   *   `rdap-bootstrap-unavailable`. This is the explicit missing-data state: the
+   *   enricher never guesses a base URL and never silently falls back.
+   */
+  readonly registry: RdapBootstrapSnapshot | RdapBootstrapRegistry | null;
   /** Observation clock; defaults to `Date`. */
   readonly now?: () => Date;
   /** Optional read-through record cache. */
@@ -104,9 +121,17 @@ export function createRdapAgeEnricher(options: RdapAgeEnricherOptions): Enricher
         );
       }
 
+      // Bootstrap availability and freshness are decided BEFORE any lookup: a
+      // missing or expired routing table is an explicit skip with a
+      // machine-readable cause, never a guessed endpoint.
+      const bootstrap = resolveBootstrap(options.registry, observedAt);
+      if (bootstrap.status !== "usable") {
+        return report(skippedOutcome(subject, observedAt, bootstrap.cause));
+      }
+
       const fetchOptions = {
         client: options.client,
-        registry: options.registry,
+        registry: bootstrap.registry,
         registrableDomain,
         clock: { now },
         ...(options.cache ? { cache: options.cache } : {}),
@@ -133,6 +158,65 @@ export function createRdapAgeEnricher(options: RdapAgeEnricherOptions): Enricher
       }
     },
   };
+}
+
+interface EnricherCause {
+  readonly code: string;
+  readonly message: string;
+  readonly retryable: boolean;
+  readonly details?: EnrichmentCause["details"];
+}
+
+type BootstrapResolution =
+  | { readonly status: "usable"; readonly registry: RdapBootstrapRegistry }
+  | { readonly status: "unusable"; readonly cause: EnricherCause };
+
+/**
+ * Decide whether the caller's bootstrap data may route a lookup.
+ *
+ * The two forms are discriminated structurally: a snapshot has a `registry`
+ * field, the bare registry has `services`. A snapshot is checked against its own
+ * `expiresAt`; a bare registry has no freshness to check, so it is used as
+ * given rather than having a fabricated one attributed to it.
+ *
+ * Staleness is a skip rather than a downgrade because a stale bootstrap is not
+ * merely old data — it is a routing table that may point a query at an endpoint
+ * that is no longer authoritative for the TLD.
+ */
+function resolveBootstrap(
+  bootstrap: RdapBootstrapSnapshot | RdapBootstrapRegistry | null,
+  now: Date,
+): BootstrapResolution {
+  if (bootstrap === null) {
+    return {
+      status: "unusable",
+      cause: {
+        code: "rdap-bootstrap-unavailable",
+        message: "no IANA bootstrap registry is available to route the query",
+        // Retryable: acquiring a snapshot is exactly what makes this succeed.
+        retryable: true,
+      },
+    };
+  }
+
+  if (!("registry" in bootstrap)) return { status: "usable", registry: bootstrap };
+
+  const expiresAt = bootstrap.metadata.expiresAt;
+  if (expiresAt !== null) {
+    const expiry = Date.parse(expiresAt);
+    if (Number.isFinite(expiry) && now.getTime() >= expiry) {
+      return {
+        status: "unusable",
+        cause: {
+          code: "rdap-bootstrap-stale",
+          message: "the stored IANA bootstrap registry expired and may misroute the query",
+          retryable: true,
+          details: { observedAt: bootstrap.metadata.observedAt, expiresAt },
+        },
+      };
+    }
+  }
+  return { status: "usable", registry: bootstrap.registry };
 }
 
 interface FoundContext {
