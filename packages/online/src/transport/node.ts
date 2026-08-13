@@ -284,7 +284,12 @@ function peerDnsNames(certificate: PeerCertificate): readonly string[] {
     .map((entry) => entry.slice(4));
 }
 
-function isCertificateError(code: string | null): boolean {
+/**
+ * Exported for the RDAP provider client (`reputation/rdap-node.ts`), which sits
+ * outside L0 but must map the same OpenSSL codes to the same cause. Module-level
+ * only — deliberately absent from `transport/index.ts`, like `NodeConnectionPorts`.
+ */
+export function isCertificateError(code: string | null): boolean {
   return code !== null && (
     code.startsWith("ERR_TLS_CERT") ||
     code === "DEPTH_ZERO_SELF_SIGNED_CERT" ||

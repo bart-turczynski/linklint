@@ -55,6 +55,9 @@ describe("@linklint/online package boundary", () => {
     expect(Object.keys(resolutionExport)).toEqual(["types", "default"]);
     expect(reputation.fetchRdapDomain).toBeTypeOf("function");
     expect(reputation.resolveRdapBase).toBeTypeOf("function");
+    // LINK-mkddydzr: every other capability ships a Node factory; RDAP now does
+    // too, so `fetchRdapDomain`'s injected client contract is actually runnable.
+    expect(reputation.createNodeRdapHttpClient).toBeTypeOf("function");
     expect(reputation.RDAP_SOURCE_DESCRIPTOR).toBeTypeOf("object");
     // M7b: live TLS certificate evidence enricher.
     expect(reputation.createTlsCertificateEnricher).toBeTypeOf("function");
@@ -110,6 +113,29 @@ describe("@linklint/online package boundary", () => {
     expect(source).not.toMatch(/from\s+["']node:(?:dns|net|tls|http|https)["']/);
     expect(source).not.toMatch(/\bfetch\s*\(/);
     expect(source).not.toContain("tap-api-v2.proofpoint.com/v2/url/decode");
+  });
+
+  /**
+   * The RDAP client is the one concrete network client that deliberately sits
+   * OUTSIDE L0 (a registry is a provider, not an inspected destination). The
+   * two properties that keep that safe are pinned here as source facts: it
+   * borrows L0's address table rather than declaring a second one, and it has
+   * no credential or ambient-configuration surface at all.
+   */
+  it("keeps the RDAP provider client credential-free, ambient-free, and on the shared address policy", () => {
+    const source = readFileSync(join(packageRoot, "src", "reputation", "rdap-node.ts"), "utf8");
+    // Comments are stripped first: the file explains at length that it reads no
+    // ambient configuration and sends no credential, and a prose mention of
+    // `process.env` is the opposite of the thing being forbidden.
+    const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+
+    expect(code).not.toContain("process.env");
+    expect(code).not.toMatch(/["']authorization["']/i);
+    expect(code).not.toMatch(/["']cookie["']/i);
+    expect(source).toContain("classifyTransportAddress");
+    // A second classifier, rather than a reuse of the shared table, would show
+    // up as this package's block-list primitive appearing here.
+    expect(code).not.toContain("BlockList");
   });
 
   it("routes redirect expansion through the injected L0 session without concrete clients", () => {

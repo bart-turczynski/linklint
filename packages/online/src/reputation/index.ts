@@ -16,6 +16,12 @@ export {
   RDAP_SOURCE_ID,
   RDAP_SOURCE_VERSION,
 } from "./rdap-client.js";
+export {
+  createNodeRdapHttpClient,
+  RdapHttpAbortError,
+  RdapHttpFailure,
+} from "./rdap-node.js";
+export type { NodeRdapHttpClientOptions } from "./rdap-node.js";
 export { normalizeRdapDomain } from "./rdap-normalize.js";
 export { RDAP_SOURCE_DESCRIPTOR } from "./rdap-descriptor.js";
 export {
