@@ -46,7 +46,7 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "tldts": "^7.4.9",
+    "tldts": "^7.4.10",
     "tr46": "^6.0.0"
   },
   "publishConfig": {
