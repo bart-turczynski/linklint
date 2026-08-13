@@ -5,6 +5,7 @@ import {
   createRdapAgeEnricher,
   DEFAULT_YOUNG_DOMAIN_THRESHOLD_DAYS,
   type RdapBootstrapRegistry,
+  type RdapBootstrapSnapshot,
   type RdapHttpClient,
   type RdapHttpResponse,
 } from "../src/reputation/index.js";
@@ -204,6 +205,113 @@ describe("createRdapAgeEnricher — degraded outcomes", () => {
     const outcome = report.outcomes[0]!;
     expect(outcome.status).toBe("skipped");
     if (outcome.status === "skipped") expect(outcome.cause.code).toBe("rdap-no-registrable-domain");
+  });
+});
+
+/**
+ * LINK-mkddydzr sub-unit B: bootstrap data the enricher cannot trust must reach
+ * the caller as an explicit, machine-readable skip — never a guessed base URL
+ * and never a silent fallback.
+ */
+describe("createRdapAgeEnricher — bootstrap availability", () => {
+  const brand = [{ code: "brand_homoglyph" }];
+
+  /** A snapshot envelope around the shared registry, expiring at `expiresAt`. */
+  function snapshot(expiresAt: string | null): RdapBootstrapSnapshot {
+    return {
+      metadata: {
+        source: "iana.rdap-bootstrap",
+        version: "1.0.0",
+        etag: null,
+        lastModified: null,
+        observedAt: "2026-07-23T00:00:00.000Z",
+        expiresAt,
+        registryVersion: registry.version,
+        registryPublication: registry.publication,
+        serviceCount: registry.services.length,
+        insecureBaseUrlsDropped: 0,
+      },
+      registry,
+    };
+  }
+
+  async function runWith(
+    bootstrap: RdapBootstrapSnapshot | RdapBootstrapRegistry | null,
+    client: OneShotClient,
+  ): Promise<EnrichmentReport> {
+    const enricher = createRdapAgeEnricher({
+      client,
+      registry: bootstrap,
+      now: () => new Date(NOW),
+    });
+    return (await enricher.enrich(fakeResult({ registrableDomain: "paypa1.com", reasons: brand }), {
+      previousOutcomes: [],
+    })) as EnrichmentReport;
+  }
+
+  it("skips with an explicit cause when no bootstrap data is available", async () => {
+    const client = new OneShotClient(resp(200, rdapJson({ registrationDate: daysAgo(7) })));
+
+    const report = await runWith(null, client);
+
+    const outcome = report.outcomes[0]!;
+    expect(outcome.status).toBe("skipped");
+    if (outcome.status === "skipped") {
+      expect(outcome.cause.code).toBe("rdap-bootstrap-unavailable");
+      expect(outcome.cause.retryable).toBe(true);
+    }
+    // Nothing was guessed: no request left the enricher at all.
+    expect(client.requests).toEqual([]);
+    expect(outcome.findings).toEqual([]);
+  });
+
+  it("skips with an explicit cause when the stored bootstrap snapshot has expired", async () => {
+    const client = new OneShotClient(resp(200, rdapJson({ registrationDate: daysAgo(7) })));
+
+    const report = await runWith(snapshot("2026-07-23T12:00:00.000Z"), client);
+
+    const outcome = report.outcomes[0]!;
+    expect(outcome.status).toBe("skipped");
+    if (outcome.status === "skipped") {
+      expect(outcome.cause.code).toBe("rdap-bootstrap-stale");
+      expect(outcome.cause.retryable).toBe(true);
+      expect(outcome.cause.details).toEqual({
+        observedAt: "2026-07-23T00:00:00.000Z",
+        expiresAt: "2026-07-23T12:00:00.000Z",
+      });
+    }
+    expect(client.requests).toEqual([]);
+  });
+
+  it("routes normally from a snapshot that is still within its freshness window", async () => {
+    const client = new OneShotClient(
+      resp(200, rdapJson({ ldhName: "paypa1.com", registrationDate: daysAgo(7) })),
+    );
+
+    const report = await runWith(snapshot("2026-07-25T00:00:00.000Z"), client);
+
+    expect(report.outcomes[0]?.status).toBe("success");
+    expect(client.requests).toEqual(["https://rdap.verisign.example/v1/domain/paypa1.com"]);
+  });
+
+  it("still accepts a bare registry, which carries no freshness to go stale", async () => {
+    const client = new OneShotClient(
+      resp(200, rdapJson({ ldhName: "paypa1.com", registrationDate: daysAgo(7) })),
+    );
+
+    const report = await runWith(registry, client);
+
+    expect(report.outcomes[0]?.status).toBe("success");
+  });
+
+  it("treats a snapshot with no declared expiry as usable rather than fabricating one", async () => {
+    const client = new OneShotClient(
+      resp(200, rdapJson({ ldhName: "paypa1.com", registrationDate: daysAgo(7) })),
+    );
+
+    const report = await runWith(snapshot(null), client);
+
+    expect(report.outcomes[0]?.status).toBe("success");
   });
 });
 

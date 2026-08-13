@@ -64,7 +64,12 @@ import { isCertificateError } from "../transport/node.js";
 import { resolveTransportPolicy, type TransportPolicy } from "../transport/policy.js";
 import type { TransportAddressDecision, TransportCauseCode } from "../transport/types.js";
 
-import type { RdapHttpClient, RdapHttpRequest, RdapHttpResponse } from "./types.js";
+import type {
+  RdapConditionalRequest,
+  RdapHttpClient,
+  RdapHttpRequest,
+  RdapHttpResponse,
+} from "./types.js";
 
 /**
  * A typed provider-transport failure. Reuses L0's {@link TransportCauseCode}
@@ -165,7 +170,7 @@ class NodeRdapHttpClient implements RdapHttpClient {
     deadline.unref();
 
     try {
-      return await this.send(url, controller.signal);
+      return await this.send(url, controller.signal, request.conditional);
     } catch (error) {
       // Caller cancellation is reported ahead of the deadline: an abort that
       // races the timer is still the caller's abort.
@@ -178,7 +183,11 @@ class NodeRdapHttpClient implements RdapHttpClient {
     }
   }
 
-  private send(url: URL, signal: AbortSignal): Promise<RdapHttpResponse> {
+  private send(
+    url: URL,
+    signal: AbortSignal,
+    conditional: RdapConditionalRequest | undefined,
+  ): Promise<RdapHttpResponse> {
     // An IP-LITERAL host never reaches the lookup gate: `net.connect` skips
     // resolution entirely when `host` is already an address, so a bootstrap
     // entry written as `http://169.254.169.254/` would otherwise walk straight
@@ -211,7 +220,7 @@ class NodeRdapHttpClient implements RdapHttpClient {
           port: url.port === "" ? (secure ? 443 : 80) : Number(url.port),
           path: `${url.pathname}${url.search}`,
           method: "GET",
-          headers: this.requestHeaders(),
+          headers: this.requestHeaders(conditional),
           agent,
           // The address gate. Node connects to exactly the answers this returns,
           // and it returns none that the policy refused.
@@ -319,13 +328,27 @@ class NodeRdapHttpClient implements RdapHttpClient {
     }
   }
 
-  private requestHeaders(): Readonly<Record<string, string>> {
+  private requestHeaders(
+    conditional: RdapConditionalRequest | undefined,
+  ): Readonly<Record<string, string>> {
     // Node supplies `Host`. Nothing else is added: no Authorization, no cookie,
     // no referer, no ambient client identity.
+    //
+    // The conditional validators are the ONLY caller-influenced headers, and
+    // they arrive as two named fields rather than a header map precisely so a
+    // caller cannot name the header — a source declaring
+    // `credentials: { kind: "none" }` must have no seam through which one could
+    // be added.
     return {
       accept: RDAP_ACCEPT,
       "accept-encoding": RDAP_ACCEPT_ENCODING,
       ...(this.userAgent === null ? {} : { "user-agent": this.userAgent }),
+      ...(conditional?.ifNoneMatch === undefined
+        ? {}
+        : { "if-none-match": conditional.ifNoneMatch }),
+      ...(conditional?.ifModifiedSince === undefined
+        ? {}
+        : { "if-modified-since": conditional.ifModifiedSince }),
     };
   }
 

@@ -58,6 +58,10 @@ describe("@linklint/online package boundary", () => {
     // LINK-mkddydzr: every other capability ships a Node factory; RDAP now does
     // too, so `fetchRdapDomain`'s injected client contract is actually runnable.
     expect(reputation.createNodeRdapHttpClient).toBeTypeOf("function");
+    // LINK-mkddydzr sub-unit B: the bootstrap registry is now acquirable rather
+    // than something every caller had to obtain and freshness-check by hand.
+    expect(reputation.updateRdapBootstrap).toBeTypeOf("function");
+    expect(reputation.IANA_RDAP_BOOTSTRAP_URL).toBe("https://data.iana.org/rdap/dns.json");
     expect(reputation.RDAP_SOURCE_DESCRIPTOR).toBeTypeOf("object");
     // M7b: live TLS certificate evidence enricher.
     expect(reputation.createTlsCertificateEnricher).toBeTypeOf("function");
@@ -136,6 +140,35 @@ describe("@linklint/online package boundary", () => {
     // A second classifier, rather than a reuse of the shared table, would show
     // up as this package's block-list primitive appearing here.
     expect(code).not.toContain("BlockList");
+  });
+
+  /**
+   * LINK-mkddydzr sub-unit B. The IANA bootstrap registry is provider data the
+   * caller downloads and owns. `docs/online-runtime-boundary.md` forbids
+   * bundling a feed snapshot in the npm artifact, and the easiest way to break
+   * that is to check in a `dns.json` "for convenience" and quietly read it as a
+   * fallback. Neither the shipped tree nor the acquisition module may contain
+   * one.
+   */
+  it("ships no bundled IANA bootstrap document and no filesystem store", () => {
+    const srcDir = join(packageRoot, "src");
+    const jsonInSrc = readdirSync(srcDir, { recursive: true, encoding: "utf8" }).filter((entry) =>
+      entry.endsWith(".json"),
+    );
+    expect(jsonInSrc).toEqual([]);
+
+    const updater = readFileSync(
+      join(packageRoot, "src", "reputation", "rdap-bootstrap-updater.ts"),
+      "utf8",
+    );
+    const code = updater.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    // The caller owns the directory or database; this module ships the store
+    // interface and reaches for no filesystem of its own.
+    expect(code).not.toMatch(/from\s+["']node:(?:fs|fs\/promises|path|os)["']/);
+    expect(code).not.toContain("process.env");
+    // No credential slot exists to reveal into.
+    expect(code).not.toContain("credential");
+    expect(code).not.toMatch(/["']authorization["']/i);
   });
 
   it("routes redirect expansion through the injected L0 session without concrete clients", () => {

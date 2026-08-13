@@ -11,6 +11,13 @@ export {
   resolveRdapBase,
 } from "./rdap-bootstrap.js";
 export {
+  DEFAULT_RDAP_BOOTSTRAP_CADENCE_MS,
+  IANA_RDAP_BOOTSTRAP_URL,
+  RDAP_BOOTSTRAP_SOURCE_ID,
+  RDAP_BOOTSTRAP_SOURCE_VERSION,
+  updateRdapBootstrap,
+} from "./rdap-bootstrap-updater.js";
+export {
   DEFAULT_RDAP_MAX_REDIRECTS,
   fetchRdapDomain,
   RDAP_SOURCE_ID,
@@ -76,15 +83,23 @@ export type {
 } from "./dns-types.js";
 export type {
   FetchRdapDomainOptions,
+  RdapBootstrapCause,
+  RdapBootstrapCauseCode,
   RdapBootstrapRegistry,
+  RdapBootstrapSnapshot,
+  RdapBootstrapSnapshotMetadata,
+  RdapBootstrapStore,
+  RdapBootstrapUpdateResult,
   RdapCache,
   RdapCause,
   RdapCauseCode,
   RdapClock,
+  RdapConditionalRequest,
   RdapDomainRecord,
   RdapFetchResult,
   RdapHttpClient,
   RdapHttpRequest,
   RdapHttpResponse,
   RdapRouting,
+  UpdateRdapBootstrapOptions,
 } from "./types.js";
