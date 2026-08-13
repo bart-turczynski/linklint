@@ -57,7 +57,7 @@ export interface PslProvenance {
    * whether it dates the snapshot itself or merely its packaging.
    *
    * tldts exposes no upstream PSL commit date and no snapshot timestamp of any
-   * kind (re-probed against tldts@7.4.9: its public surface is `parse`,
+   * kind (re-probed against tldts@7.4.10: its public surface is `parse`,
    * `getHostname`, `getPublicSuffix`, `getDomain`, `getFullDomain`,
    * `getSubdomain`, `getDomainWithoutSuffix` — nothing carries provenance), so
    * we record the tldts npm-release date as a **proxy**.
@@ -74,21 +74,21 @@ export interface PslProvenance {
 }
 
 /**
- * Provenance for the currently-pinned bundled PSL snapshot (tldts@7.4.9).
+ * Provenance for the currently-pinned bundled PSL snapshot (tldts@7.4.10).
  *
- * tldts@7.4.9 was published to npm on 2026-07-16. tldts regenerates its bundled
+ * tldts@7.4.10 was published to npm on 2026-07-30. tldts regenerates its bundled
  * list from upstream at release-build time, so the true snapshot is that date or
  * OLDER — the date is a `"release-proxy"`, not the snapshot's own timestamp, and
  * the age derived from it is a minimum (see {@link PslDateKind}). Verified
- * 2026-08-08. Bump the version, date and retrieval stamp together with
+ * 2026-08-13. Bump the version, date and retrieval stamp together with
  * `DATA_VERSIONS.publicSuffixList` on every tldts pin change; only switch
  * `dateKind` to `"exact"` if tldts ever starts publishing the snapshot's date.
  */
 export const PSL_PROVENANCE: PslProvenance = {
-  tldtsVersion: "7.4.9",
-  pslListDate: "2026-07-16",
+  tldtsVersion: "7.4.10",
+  pslListDate: "2026-07-30",
   dateKind: "release-proxy",
-  retrievedAt: "2026-08-08",
+  retrievedAt: "2026-08-13",
 };
 
 /** Result of a {@link pslOutdated} check. `null` fields mean "undetermined". */

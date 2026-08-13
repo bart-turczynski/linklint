@@ -13,7 +13,7 @@ import { IP_RANGES_VERSION } from "./ip-ranges.js";
  */
 export const DATA_VERSIONS: DataVersions = {
   // Public Suffix List ships inside tldts; we pin the tldts release.
-  publicSuffixList: "tldts@7.4.9",
+  publicSuffixList: "tldts@7.4.10",
   // Confusables generated from the official UTS#39 list (OQ-1 / NFR-DATA-2).
   unicodeConfusables: CONFUSABLES_VERSION,
   // Script detection uses the runtime's Unicode property data (\p{Script=...}).
