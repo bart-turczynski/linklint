@@ -12,8 +12,10 @@
  * layer.
  */
 import { createServer, type Server } from "node:http";
+import { brotliCompressSync, deflateSync, gzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { decodeResponseBody } from "../src/transport/decompression.js";
 import { NodeConnectionPorts } from "../src/transport/node.js";
 import {
   RUNTIME_GLOBAL_PROXY_SUPPORTED,
@@ -35,7 +37,7 @@ afterEach(async () => {
 async function startServer(
   handler: (path: string, headers: Record<string, string | string[] | undefined>) => {
     status: number;
-    body: string;
+    body: string | Buffer;
     headers?: Record<string, string | string[]>;
   },
 ): Promise<number> {
@@ -52,9 +54,13 @@ async function startServer(
 }
 
 async function readBody(body: AsyncIterable<Uint8Array>): Promise<string> {
+  return Buffer.from(await readBodyBytes(body)).toString("utf8");
+}
+
+async function readBodyBytes(body: AsyncIterable<Uint8Array>): Promise<Uint8Array> {
   const chunks: Uint8Array[] = [];
   for await (const chunk of body) chunks.push(chunk);
-  return Buffer.concat(chunks).toString("utf8");
+  return new Uint8Array(Buffer.concat(chunks));
 }
 
 describe("node transport ports (live loopback)", () => {
@@ -271,4 +277,138 @@ describe("node transport ports — ambient proxy isolation (live loopback)", () 
     expect(report.direct.remoteAddress).toBe("127.0.0.1");
     expect(report.direct.remotePort).toBe(port);
   }, 30_000);
+});
+
+/**
+ * LINK-syeupoav — response decoding against a real server, not a fixture port.
+ *
+ * The decoder had fixture-port coverage only, and every fixture supplied a
+ * NON-EMPTY body. Nothing in the suite had ever put a real HEAD, 204 or empty
+ * 200 from a compressing origin through the real HTTP/1.1 parser, so the shape
+ * that breaks the decoder was the one shape never tested.
+ *
+ * These drive `NodeConnectionPorts` directly and call `decodeResponseBody` on
+ * what actually came off the socket. They stop at the ports layer on purpose:
+ * `SafeTransport` pins the destination through `classifyTransportAddress`,
+ * which correctly refuses loopback, and its post-connect check compares the
+ * OBSERVED peer against that pin (LINK-abozdqtp). Faking either to host a
+ * decompression test would disarm a live security guard for an unrelated
+ * assertion, so the transport-level outcome and budget assertions live in
+ * `safe-transport.test.ts` over the fixture ports instead. Between them the two
+ * halves cover the path end to end without either one lying.
+ */
+describe("node transport response decoding (live loopback)", () => {
+  async function fetchRaw(
+    port: number,
+    method: "GET" | "HEAD",
+    path = "/",
+  ): Promise<{ status: number; headers: Readonly<Record<string, readonly string[]>>; bytes: Uint8Array }> {
+    const ports = new NodeConnectionPorts();
+    const connection = await ports.connect({
+      protocol: "http:",
+      hostname: "origin.example",
+      address: "127.0.0.1",
+      port,
+    });
+    try {
+      const response = await ports.request({
+        connectionId: connection.id,
+        url: `http://origin.example:${port}${path}`,
+        method,
+        headers: { host: "origin.example" },
+      });
+      return {
+        status: response.status,
+        headers: response.headers,
+        bytes: await readBodyBytes(response.body),
+      };
+    } finally {
+      ports.close(connection.id);
+    }
+  }
+
+  const PAYLOAD = "<html><body>hello</body></html>";
+
+  /**
+   * RFC 9110 9.3.2: a HEAD response carries the header fields it would send for
+   * a GET, `Content-Encoding` included, with no body. nginx, Apache and
+   * Cloudflare all comply, so this is the shape a real compressing origin
+   * returns — and the shape the transport used to report as
+   * `decompression-error`.
+   */
+  it("decodes a HEAD response against a gzip resource to an empty body", async () => {
+    const compressed = gzipSync(PAYLOAD);
+    const port = await startServer(() => ({
+      status: 200,
+      body: compressed,
+      headers: {
+        "content-encoding": "gzip",
+        "content-type": "text/html",
+        "content-length": String(compressed.byteLength),
+      },
+    }));
+
+    const { status, headers, bytes } = await fetchRaw(port, "HEAD");
+
+    // The server really did advertise the encoding, so the case is not vacuous.
+    expect(status).toBe(200);
+    expect(headers["content-encoding"]).toEqual(["gzip"]);
+    expect(bytes.byteLength).toBe(0);
+    expect(decodeResponseBody(bytes, headers, 1_000_000).byteLength).toBe(0);
+  });
+
+  it("decodes a 204 carrying a gzip encoding to an empty body", async () => {
+    const port = await startServer(() => ({
+      status: 204,
+      body: "",
+      headers: { "content-encoding": "gzip" },
+    }));
+
+    const { status, headers, bytes } = await fetchRaw(port, "GET");
+
+    expect(status).toBe(204);
+    expect(headers["content-encoding"]).toEqual(["gzip"]);
+    expect(bytes.byteLength).toBe(0);
+    expect(decodeResponseBody(bytes, headers, 1_000_000).byteLength).toBe(0);
+  });
+
+  it("decodes an empty 200 carrying a gzip encoding to an empty body", async () => {
+    const port = await startServer(() => ({
+      status: 200,
+      body: "",
+      headers: { "content-encoding": "gzip", "content-length": "0" },
+    }));
+
+    const { status, headers, bytes } = await fetchRaw(port, "GET");
+
+    expect(status).toBe(200);
+    expect(headers["content-encoding"]).toEqual(["gzip"]);
+    expect(bytes.byteLength).toBe(0);
+    expect(decodeResponseBody(bytes, headers, 1_000_000).byteLength).toBe(0);
+  });
+
+  /**
+   * The compressed round trip existed only over the fixture port, where the
+   * bytes are handed straight to the decoder. Here they cross a real socket and
+   * the real HTTP/1.1 parser first, which is what makes the empty cases above
+   * meaningful: the same path carries a real body correctly.
+   */
+  it.each([
+    { encoding: "gzip", compress: gzipSync },
+    { encoding: "deflate", compress: deflateSync },
+    { encoding: "br", compress: brotliCompressSync },
+  ])("round-trips a $encoding body over a real socket", async ({ encoding, compress }) => {
+    const compressed = compress(PAYLOAD);
+    const port = await startServer(() => ({
+      status: 200,
+      body: compressed,
+      headers: { "content-encoding": encoding, "content-type": "text/html" },
+    }));
+
+    const { headers, bytes } = await fetchRaw(port, "GET");
+
+    expect(bytes.byteLength).toBeGreaterThan(0);
+    expect(Buffer.from(decodeResponseBody(bytes, headers, 1_000_000)).toString("utf8"))
+      .toBe(PAYLOAD);
+  });
 });

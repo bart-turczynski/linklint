@@ -297,13 +297,11 @@ class NodeRdapHttpClient implements RdapHttpClient {
   }
 
   private decode(encoded: Uint8Array, headers: IncomingHttpHeaders): string {
-    // LINK-syeupoav: `decodeResponseBody` throws on a zero-byte body whenever a
-    // `Content-Encoding` header is present, because it hands the empty buffer
-    // to zlib. A 204, or an empty RDAP error body served with a stale encoding
-    // header, must not surface as a decompression failure — so the empty case
-    // is answered here instead of inheriting that defect. The fix to
-    // `decompression.ts` itself belongs to LINK-syeupoav, not to this client.
-    if (encoded.byteLength === 0) return "";
+    // LINK-syeupoav: the local zero-byte guard that used to stand here is gone.
+    // `decodeResponseBody` now answers an empty body with an empty body itself,
+    // regardless of any declared `Content-Encoding`, so a 204 or an empty RDAP
+    // error body served with a stale encoding header no longer needs this
+    // client to compensate for a defect in the shared decoder.
     try {
       const decoded = decodeResponseBody(
         encoded,

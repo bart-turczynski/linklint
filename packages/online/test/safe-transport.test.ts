@@ -1350,3 +1350,104 @@ describe("total deadline during synchronous response decoding", () => {
     harness.assertExhausted();
   });
 });
+
+/**
+ * LINK-syeupoav — an empty body carrying a `Content-Encoding` is an empty body,
+ * not a decompression failure.
+ *
+ * These drive the whole transport, so they pin the reported outcome and the
+ * budget accounting rather than the decoder in isolation. Every shape here is
+ * one a spec-conformant origin actually produces: RFC 9110 9.3.2 requires a
+ * HEAD response to carry the header fields it would send for a GET,
+ * `Content-Encoding` included, with no body, and nginx, Apache and Cloudflare
+ * all comply. A 204 and an empty 200 reach the same decode on GET, which is why
+ * the fix belongs in the decoder and not in a HEAD special case.
+ */
+describe("empty response bodies declaring a content encoding", () => {
+  interface EmptyCase {
+    readonly label: string;
+    readonly method: "GET" | "HEAD";
+    readonly status: number;
+    readonly headers: Record<string, string>;
+  }
+
+  const CASES: readonly EmptyCase[] = [
+    {
+      label: "a HEAD response against a gzip resource",
+      method: "HEAD",
+      status: 200,
+      headers: { "Content-Encoding": "gzip", "Content-Type": "text/html" },
+    },
+    {
+      label: "a 204 carrying a gzip encoding",
+      method: "GET",
+      status: 204,
+      headers: { "Content-Encoding": "gzip" },
+    },
+    {
+      label: "an empty 200 carrying a gzip encoding",
+      method: "GET",
+      status: 200,
+      headers: { "Content-Encoding": "gzip", "Content-Length": "0" },
+    },
+    {
+      label: "an empty 200 carrying a brotli encoding",
+      method: "GET",
+      status: 200,
+      headers: { "Content-Encoding": "br", "Content-Length": "0" },
+    },
+  ];
+
+  it.each(CASES)("succeeds with an empty body for $label", async ({ method, status, headers }) => {
+    const script: TransportFixtureScript = {
+      ...publicSuccessScript(),
+      http: [{
+        expect: { connectionId: "c1", url: URL_A, method },
+        outcome: { value: { status, headers, body: new Uint8Array(0) } },
+      }],
+    };
+    const { harness, session: transportSession } = session(script);
+
+    const outcome = await transportSession.fetch({
+      url: URL_A,
+      method,
+      authorization: authorization(URL_A),
+    });
+
+    expect(outcome).toMatchObject({
+      status: "success",
+      response: { status, encodedBytes: 0, decompressedBytes: 0 },
+    });
+    expect((outcome as { response: { body: Uint8Array } }).response.body.byteLength).toBe(0);
+    expect(transportSession.usage.decompressedBytes).toBe(0);
+    harness.assertExhausted();
+  });
+
+  /**
+   * The guard sits above the encoding parse, so an empty body under an encoding
+   * the transport cannot decode is still an empty body. Nothing can be smuggled
+   * in zero bytes, and `unsupported-content-encoding` would be as spurious a
+   * failure here as `decompression-error` was.
+   */
+  it("succeeds for an empty body under an unsupported encoding", async () => {
+    const script: TransportFixtureScript = {
+      ...publicSuccessScript(),
+      http: [{
+        expect: { connectionId: "c1", url: URL_A, method: "GET" },
+        outcome: {
+          value: { status: 204, headers: { "Content-Encoding": "compress" }, body: new Uint8Array(0) },
+        },
+      }],
+    };
+    const { harness, session: transportSession } = session(script);
+
+    await expect(transportSession.fetch({
+      url: URL_A,
+      authorization: authorization(URL_A),
+    })).resolves.toMatchObject({
+      status: "success",
+      response: { status: 204, decompressedBytes: 0 },
+    });
+    harness.assertExhausted();
+  });
+});
