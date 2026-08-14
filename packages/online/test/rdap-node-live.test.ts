@@ -137,10 +137,14 @@ describe("node RDAP HTTP client (live loopback)", () => {
   });
 
   /**
-   * LINK-syeupoav: `decodeResponseBody` hands a zero-byte buffer to zlib and
-   * throws whenever a `Content-Encoding` header is present. A 204 — or an empty
-   * error body served with a stale encoding header — must be an ordinary
-   * response here, not a decompression failure.
+   * LINK-syeupoav: a 204 — or an empty error body served with a stale encoding
+   * header — is an ordinary response here, not a decompression failure.
+   *
+   * These two cases originally passed because this client carried its own
+   * zero-byte guard, working around `decodeResponseBody` handing an empty
+   * buffer to zlib. That guard is gone: the shared decoder now answers an empty
+   * body with an empty body, so these assertions pin the real path rather than
+   * a local compensation.
    */
   it("returns an empty body rather than a decode failure when a Content-Encoding header is present", async () => {
     const port = await startServer(() => ({

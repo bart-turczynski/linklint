@@ -33,7 +33,23 @@ export function decodeResponseBody(
   headers: Readonly<Record<string, readonly string[]>>,
   maxOutputBytes: number,
 ): Uint8Array {
-  if (maxOutputBytes === 0 && encoded.byteLength > 0) throw new DecompressedLimitError();
+  // LINK-syeupoav: a zero-byte body is decoded, not decompressed. RFC 9110
+  // 9.3.2 requires a HEAD response to carry the header fields it would send
+  // for a GET — `Content-Encoding` included — with no body, and nginx, Apache
+  // and Cloudflare all comply; a 204 and an empty 200 reach here the same way
+  // on GET. Handing those zero bytes to zlib throws, which surfaced as a
+  // `decompression-error` claiming the response was malformed when in fact
+  // nothing was: the correct outcome is an empty body.
+  //
+  // This guard deliberately sits above the encoding parse, so an *unsupported*
+  // declared encoding on an empty body is also answered with empty rather than
+  // `UnsupportedContentEncodingError`. With zero bytes there is no
+  // representation to decode and nothing can be smuggled, whereas every cause
+  // in the transport vocabulary asserts something went wrong with a body that
+  // exists. Auditing a peer's declared encoding is header inspection, and does
+  // not belong in the decoder's error channel.
+  if (encoded.byteLength === 0) return new Uint8Array(0);
+  if (maxOutputBytes === 0) throw new DecompressedLimitError();
   const encodings = contentEncodings(headers);
   let body = encoded;
   for (const encoding of encodings.reverse()) {

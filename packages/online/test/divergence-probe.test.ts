@@ -431,4 +431,53 @@ describe("L4 controlled-variant divergence probe", () => {
     expect(authorize).not.toHaveBeenCalled();
     expect(harness.http.calls).toEqual([]);
   });
+
+  /**
+   * LINK-syeupoav — the probe's documented HEAD mode, against a compressing
+   * origin.
+   *
+   * `DivergenceProbeEnricherOptions.method` has always documented HEAD as
+   * supported, but nothing exercised it. Against a spec-conformant origin it was
+   * unusable: RFC 9110 9.3.2 gives a HEAD response the `Content-Encoding` it
+   * would send for a GET with no body, the decoder handed those zero bytes to
+   * zlib, and each variant died with `decompression-error`.
+   *
+   * The failure mode was worse than a visible error. The probe simply dropped
+   * the dead variants and reported `divergent: false` off whatever survived — a
+   * transport fault silently becoming "no divergence observed". This pins all
+   * three variants sampling successfully, which is what makes the verdict mean
+   * anything.
+   */
+  it("samples every variant in HEAD mode against a gzip origin", async () => {
+    const url = "https://origin.example/page";
+    const head: ResponseStep = {
+      url,
+      method: "HEAD",
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8", "content-encoding": "gzip" },
+      body: "",
+    };
+    const { harness, enricher } = fixtureEnricher([head, head, head], { method: "HEAD" });
+
+    const result = await inspectAsync(url, { enrichers: [enricher] });
+    const outcomes = result.enrichment?.outcomes ?? [];
+
+    expect(outcomes.map((outcome) => outcome.status)).toEqual([
+      "success",
+      "success",
+      "success",
+      "success",
+    ]);
+    const variantRecords = outcomes
+      .flatMap((outcome) => outcome.evidence)
+      .filter((item) => item.type === "resolution.variant-response");
+    expect(variantRecords).toHaveLength(3);
+
+    const divergence = findEvidence(result, "resolution.divergence");
+    // Not a vacuous `divergent: false`: it rests on three samples, not on one
+    // survivor standing in for three.
+    expect((divergence?.payload as { variants: unknown[] }).variants).toHaveLength(3);
+    expect(divergence?.payload).toMatchObject({ divergent: false });
+    harness.assertExhausted();
+  });
 });

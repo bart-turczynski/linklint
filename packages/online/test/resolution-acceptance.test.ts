@@ -390,8 +390,15 @@ describe("L2 partial/incomplete outcomes carry machine-readable causes", () => {
 
   it("records a MIME incomplete evidence record with a machine-readable cause on a HEAD hop", async () => {
     const start = "https://origin.example/asset";
+    // LINK-syeupoav: the body here is EMPTY, and a realistic HEAD response is
+    // why. This fixture used to answer a HEAD with `<script>x</script>`, a shape
+    // no real server produces — RFC 9110 9.3.2 gives a HEAD response the header
+    // fields of the GET with no body at all. That single unrealistic fixture was
+    // the only HEAD-with-content case in the repo, and it is precisely what hid
+    // the empty-body decompression defect. `no-body` is the cause either way:
+    // the enricher declines to sniff a HEAD hop because it has no body to sniff.
     const { harness, transport, authorize, now } = fixtureTransport([
-      { url: start, method: "HEAD", status: 200, headers: { "content-type": "image/png" }, body: "<script>x</script>" },
+      { url: start, method: "HEAD", status: 200, headers: { "content-type": "image/png" }, body: "" },
     ]);
     const result = await inspectAsync(start, {
       enrichers: [createRedirectChainEnricher({ transport, authorize, now, method: "HEAD" })],
