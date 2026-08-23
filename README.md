@@ -3,9 +3,7 @@
 > An explainable, offline-first, agent-native **URL inspector** — _"safe-chain for links."_
 
 [![npm version](https://img.shields.io/npm/v/linklint.svg)](https://www.npmjs.com/package/linklint)
-[![Known Vulnerabilities](https://snyk.io/test/github/bart-turczynski/linklint/badge.svg)](https://snyk.io/test/github/bart-turczynski/linklint)
 [![Socket Badge](https://socket.dev/api/badge/npm/package/linklint)](https://socket.dev/npm/package/linklint)
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fbart-turczynski%2Flinklint.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fbart-turczynski%2Flinklint?ref=badge_shield)
 [![minzipped size](https://img.shields.io/bundlephobia/minzip/linklint)](https://bundlephobia.com/package/linklint)
 [![node](https://img.shields.io/badge/node-%3E%3D24-3c873a.svg)](./packages/core/package.json)
 [![types](https://img.shields.io/badge/types-included-3178c6.svg?logo=typescript&logoColor=white)](./packages/core/src/index.ts)

@@ -14,17 +14,17 @@ reporting.
 
 ## Reporting a vulnerability
 
-**Please do not report security vulnerabilities through public GitHub issues.**
+**Please do not report security vulnerabilities in a public issue tracker.**
 
-Preferred channel — **GitHub private vulnerability reporting**:
+Preferred channel — **email the maintainer at
+[bartek@turczynski.pl](mailto:bartek@turczynski.pl)**.
 
-1. Go to the repository's **Security** tab.
-2. Click **Report a vulnerability**.
+Put `linklint security` in the subject line. Include the input that triggers the
+finding, the package and version, and what you observed. A minimal reproduction
+is worth more than a long description.
 
-This opens a private security advisory visible only to the maintainers.
-
-If you cannot use that channel, email the maintainer at
-**bartek@turczynski.pl** instead.
+If you would rather not use email, open a **confidential issue** on the GitLab
+project. Confidential issues are visible only to project members.
 
 ## What to expect
 
