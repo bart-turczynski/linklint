@@ -49,6 +49,13 @@ export interface DnsNsRecord {
  * An MX record with its TTL. RFC 7505 "null MX" is reported faithfully here as a
  * single record with `exchange: "."` and `preference: 0`; recognizing that shape
  * is the normalizer's responsibility, not the port's.
+ *
+ * `"."` is the ONE spelling of the root label this port emits, and normalizing
+ * onto it is the port's obligation. A resolver that renders the root label
+ * differently — c-ares, and therefore `node:dns`, renders it as the empty string
+ * — must map it here, because the normalizer matches `"."` exactly. A port that
+ * passes the raw value through inverts the signal, reporting a domain that
+ * accepts no mail as one with working mail (LINK-kfillkxk).
  */
 export interface DnsMxRecord {
   readonly exchange: string;
