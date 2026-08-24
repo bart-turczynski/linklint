@@ -66,8 +66,17 @@ export interface DnsMxRecord {
 /**
  * The resolver answer states this port distinguishes. Authoritative states
  * (`ok`, `nodata`, `nxdomain`) describe DNS reality; operational states
- * (`servfail`, `refused`, `timeout`, `aborted`, `error`) mean the resolver could
- * not answer and the observation is unavailable, never "no records exist".
+ * (`servfail`, `refused`, `timeout`, `aborted`, `invalid-name`, `error`) mean the
+ * resolver could not answer and the observation is unavailable, never "no
+ * records exist".
+ *
+ * `invalid-name` is the one operational state that is DETERMINISTIC: the
+ * resolver rejected the name locally, before any query reached the wire, so
+ * nothing about the network changed the answer and no retry can change it
+ * either. It exists because the alternatives both lie — `nodata` would assert
+ * authoritatively that a name we never queried has no records, and `error`
+ * groups a permanent local rejection with the transient failures the enricher
+ * reports as retryable (LINK-enbiprjm).
  */
 export type DnsAnswerState =
   | "ok"
@@ -77,12 +86,13 @@ export type DnsAnswerState =
   | "refused"
   | "timeout"
   | "aborted"
+  | "invalid-name"
   | "error";
 
 /** The operational (non-authoritative) subset of {@link DnsAnswerState}. */
 export type DnsUnresolvedState = Extract<
   DnsAnswerState,
-  "servfail" | "refused" | "timeout" | "aborted" | "error"
+  "servfail" | "refused" | "timeout" | "aborted" | "invalid-name" | "error"
 >;
 
 interface DnsAnswerBase {

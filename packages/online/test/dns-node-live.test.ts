@@ -154,6 +154,29 @@ describe("createNodeDnsResolver (live)", () => {
     expect(mailSemanticFor(answer)).toBe("explicit-mx");
   });
 
+  /**
+   * Malformed names, answered locally (LINK-enbiprjm).
+   *
+   * No external network and no loopback server: c-ares rejects both of these
+   * before a packet leaves the host, which is the whole point — the answer must
+   * not be an authoritative claim about a name that was never queried.
+   */
+  it("answers an empty name as invalid-name without querying", async () => {
+    const answer = await createNodeDnsResolver().query({ name: "", type: "A" });
+
+    expect(answer.state).toBe("invalid-name");
+    // The regression: c-ares reports ENODATA here, which used to be taken at
+    // face value as "this name authoritatively has no records".
+    expect(answer.state).not.toBe("nodata");
+  });
+
+  it("answers a syntactically malformed name as invalid-name", async () => {
+    // An empty label is rejected by c-ares as EBADNAME, locally.
+    const answer = await createNodeDnsResolver().query({ name: "bad..dots", type: "A" });
+
+    expect(answer.state).toBe("invalid-name");
+  });
+
   it("records the configured resolver name on the observation", async () => {
     const port = await startMxServer(".");
     const answer = await createNodeDnsResolver({

@@ -216,6 +216,7 @@ interface Disposition {
 const UNRESOLVED_PRIORITY: readonly DnsUnresolvedState[] = [
   "aborted",
   "timeout",
+  "invalid-name",
   "refused",
   "servfail",
   "error",
@@ -226,6 +227,11 @@ const UNRESOLVED_PRIORITY: readonly DnsUnresolvedState[] = [
  * and timeout are transient `skipped` non-results; a server failure, refusal, or
  * unexpected error is a `failure`. Priority favors the most caller-actionable
  * reason (abort/timeout) over server-side ones.
+ *
+ * `invalid-name` ranks just below them for the same reason: it is the only
+ * reason here the CALLER can act on and the only one that is not retryable, so
+ * it must not be masked by a server-side reason from one of the other three
+ * queries (LINK-enbiprjm).
  */
 function dominantFailure(answers: readonly DnsAnswer[]): Disposition {
   const seen = new Set(answers.map((answer) => answer.state));
@@ -239,6 +245,10 @@ function dominantFailure(answers: readonly DnsAnswer[]): Disposition {
       return { status: "failure", code: "dns-refused", reason, retryable: true };
     case "servfail":
       return { status: "failure", code: "dns-servfail", reason, retryable: true };
+    // The one non-retryable reason: the name was rejected locally, so the same
+    // call will fail identically forever. Retrying is the caller's waste.
+    case "invalid-name":
+      return { status: "failure", code: "dns-invalid-name", reason, retryable: false };
     case "error":
       return { status: "failure", code: "dns-resolver-error", reason, retryable: true };
   }
