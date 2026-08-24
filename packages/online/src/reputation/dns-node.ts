@@ -39,6 +39,16 @@ export interface NodeDnsResolverOptions {
   readonly timeoutMs?: number;
   /** Resolver identity recorded on the observation. */
   readonly resolverName?: string;
+  /**
+   * Upstream resolvers to query, as `node:dns` server strings (`"9.9.9.9"`,
+   * `"9.9.9.9:1053"`, `"[2620:fe::fe]"`). Defaults to the system configuration.
+   *
+   * This is the choosing half of {@link resolverName}'s labelling half: a
+   * deployment that wants a known resolver rather than whatever the host or
+   * container inherited sets both, so the observation names the resolver that
+   * was actually queried.
+   */
+  readonly servers?: readonly string[];
 }
 
 /** Build a bounded `node:dns/promises`-backed {@link DnsResolverPort}. */
@@ -58,6 +68,9 @@ export function createNodeDnsResolver(options: NodeDnsResolverOptions = {}): Dns
         options.timeoutMs !== undefined && options.timeoutMs > 0
           ? new Resolver({ timeout: options.timeoutMs })
           : new Resolver();
+      if (options.servers !== undefined && options.servers.length > 0) {
+        resolver.setServers([...options.servers]);
+      }
 
       const onAbort = (): void => resolver.cancel();
       request.signal?.addEventListener("abort", onAbort, { once: true });
@@ -116,7 +129,7 @@ async function runQuery(
     case "MX": {
       const rows = await resolver.resolveMx(request.name);
       const records: DnsMxRecord[] = rows.map((row) => ({
-        exchange: row.exchange,
+        exchange: mxExchange(row.exchange),
         preference: row.priority,
         ttlSeconds: -1,
       }));
@@ -125,6 +138,21 @@ async function runQuery(
         : { type: "MX", state: "ok", exchanges: records, observation };
     }
   }
+}
+
+/**
+ * Map a c-ares MX target onto the `DnsMxRecord` contract in `dns-types.ts`.
+ *
+ * DO NOT copy `row.exchange` raw. c-ares renders the DNS root label as the EMPTY
+ * STRING, but the port's documented contract spells it `"."` and that is what
+ * `dns-normalize.ts`'s `isNullMx` matches on. Copying the raw value inverted the
+ * signal (LINK-kfillkxk): a domain publishing RFC 7505 "I accept no mail at all"
+ * was reported as `explicit-mx`, i.e. as having working mail, and `null-mx` was
+ * unreachable outside fixtures. `dns-node-live.test.ts` pins this against a real
+ * DNS server that answers with the root label on the wire.
+ */
+function mxExchange(exchange: string): string {
+  return exchange === "" ? "." : exchange;
 }
 
 function addressRecords(
