@@ -480,4 +480,112 @@ describe("L4 controlled-variant divergence probe", () => {
     expect(divergence?.payload).toMatchObject({ divergent: false });
     harness.assertExhausted();
   });
+
+  /**
+   * The two-sample floor (LINK-oevpffva).
+   *
+   * `divergent: false` is a claim that variants were compared and agreed. The
+   * probe used to emit it whenever `divergentDimensions` came back empty, which
+   * it always does when there is nothing to compare — so every variant being
+   * refused, or two of three dying, read in `resolution.divergence` exactly like
+   * three variants answering identically. The per-variant degradations were in
+   * the same report, but that makes the summary honest only for a consumer who
+   * reads past it.
+   */
+  it("reports divergent:null when every variant is denied", async () => {
+    const url = "https://origin.example/page";
+    // No steps: nothing should reach the transport at all.
+    const harness = new TransportFixtureHarness(scriptFor([]));
+    const transport = createSafeTransport({
+      resolver: harness.resolver,
+      connector: harness.connector,
+      http: harness.http,
+      clock: harness.clock,
+    });
+    const authorize = vi.fn(async () => null);
+    const enricher = createDivergenceProbeEnricher({
+      transport,
+      authorize,
+      now: () => harness.clock.now(),
+    });
+
+    const result = await inspectAsync(url, { enrichers: [enricher] });
+    const outcomes = result.enrichment?.outcomes ?? [];
+
+    expect(outcomes.filter((outcome) => outcome.cause?.code === "authorization-denied")).toHaveLength(3);
+    const divergence = findEvidence(result, "resolution.divergence");
+    expect((divergence?.payload as { variants: unknown[] }).variants).toHaveLength(0);
+    // Zero samples: not "they agreed", but "nothing was compared".
+    expect(divergence?.payload).toMatchObject({ divergent: null, divergentDimensions: [] });
+    expect(divergence?.payload.divergent).not.toBe(false);
+    harness.assertExhausted();
+  });
+
+  it("reports divergent:null when only one variant survives", async () => {
+    // The shape LINK-syeupoav surfaced: a single survivor standing in for three.
+    // Fixing the decompression fault removed one trigger, not this shape.
+    const url = "https://origin.example/page";
+    const allowed: ResponseStep = {
+      url,
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8" },
+      body: "<html><body>real</body></html>",
+    };
+    const harness = new TransportFixtureHarness(scriptFor([allowed]));
+    const transport = createSafeTransport({
+      resolver: harness.resolver,
+      connector: harness.connector,
+      http: harness.http,
+      clock: harness.clock,
+    });
+    const authorize = vi.fn(async ({ variant, url: target }: { variant: string; url: string }) =>
+      variant === "baseline" ? { kind: "destination-fetch" as const, url: target } : null,
+    );
+    const enricher = createDivergenceProbeEnricher({
+      transport,
+      authorize,
+      now: () => harness.clock.now(),
+    });
+
+    const result = await inspectAsync(url, { enrichers: [enricher] });
+
+    const divergence = findEvidence(result, "resolution.divergence");
+    expect((divergence?.payload as { variants: unknown[] }).variants).toHaveLength(1);
+    expect(divergence?.payload).toMatchObject({ divergent: null, divergentDimensions: [] });
+    harness.assertExhausted();
+  });
+
+  it("still reports divergent:false once two variants are actually compared", async () => {
+    // The floor is exactly two, and a real agreement must survive it — otherwise
+    // the fix would trade a false clean for a lost observation.
+    const url = "https://origin.example/page";
+    const allowed: ResponseStep = {
+      url,
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8" },
+      body: "<html><body>real</body></html>",
+    };
+    const harness = new TransportFixtureHarness(scriptFor([allowed, allowed]));
+    const transport = createSafeTransport({
+      resolver: harness.resolver,
+      connector: harness.connector,
+      http: harness.http,
+      clock: harness.clock,
+    });
+    const authorize = vi.fn(async ({ variant, url: target }: { variant: string; url: string }) =>
+      variant === "same-origin-referer" ? null : { kind: "destination-fetch" as const, url: target },
+    );
+    const enricher = createDivergenceProbeEnricher({
+      transport,
+      authorize,
+      now: () => harness.clock.now(),
+    });
+
+    const result = await inspectAsync(url, { enrichers: [enricher] });
+
+    const divergence = findEvidence(result, "resolution.divergence");
+    expect((divergence?.payload as { variants: unknown[] }).variants).toHaveLength(2);
+    expect(divergence?.payload).toMatchObject({ divergent: false, divergentDimensions: [] });
+    harness.assertExhausted();
+  });
 });
