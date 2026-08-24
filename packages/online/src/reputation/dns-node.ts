@@ -5,9 +5,10 @@
  * caller `AbortSignal` maps to `resolver.cancel()` and surfaces as an `aborted`
  * answer rather than a thrown rejection. Every c-ares/libuv error code is mapped
  * to an explicit {@link DnsAnswerState}: an authoritative negative (ENOTFOUND /
- * ENODATA) becomes `nxdomain` / `nodata`, while an operational failure
- * (ESERVFAIL, EREFUSED, ETIMEOUT, ECANCELLED, or anything else) becomes the
- * matching non-answer state. The resolver never scores and never interprets mail
+ * ENODATA) becomes `nxdomain` / `nodata`, a deterministic local rejection
+ * (EBADNAME / EBADSTR, plus a name too empty to query at all) becomes
+ * `invalid-name`, and an operational failure (ESERVFAIL, EREFUSED, ETIMEOUT,
+ * ECANCELLED, or anything else) becomes the matching non-answer state. The resolver never scores and never interprets mail
  * semantics.
  *
  * This file legitimately imports `node:dns` because it lives in `@linklint/online`
@@ -62,6 +63,16 @@ export function createNodeDnsResolver(options: NodeDnsResolverOptions = {}): Dns
 
       if (request.signal?.aborted === true) {
         return negative("aborted", request, observation);
+      }
+
+      // An empty name cannot form a query. c-ares rejects it locally with
+      // ENODATA, which stateForError would otherwise take at face value and
+      // report as an AUTHORITATIVE "this name has no records" — a claim about
+      // DNS reality derived from a query that never happened (LINK-enbiprjm).
+      // Guarding here makes the answer deterministic instead of depending on
+      // which code the local resolver happens to pick.
+      if (request.name === "") {
+        return negative("invalid-name", request, observation);
       }
 
       const resolver =
@@ -182,7 +193,24 @@ function negative(
 }
 
 /** Map a `node:dns` rejection to the answer state it represents. */
-function stateForError(error: unknown, signal: AbortSignal | undefined): Exclude<DnsAnswerState, "ok"> {
+/**
+ * Map a c-ares/libuv error code onto an explicit {@link DnsAnswerState}.
+ *
+ * Exported for `dns-node.test.ts` only — this table is unreachable from any
+ * injected fixture, so pinning it needs the function itself. It is deliberately
+ * NOT re-exported from the package index, matching `systemErrorCode` in
+ * `transport/node-resolver.ts`.
+ *
+ * The `default` is `error`, the honest catch-all for a code this port did not
+ * anticipate. Codes that would mean this port misused the c-ares API — EBADFLAGS,
+ * EBADFAMILY, EBADHINTS, EBADQUERY — are left to it on purpose: the port passes
+ * fixed flags and a fixed family, so it cannot produce them, and inventing a
+ * mapping for an unreachable path would claim coverage that no test can prove.
+ */
+export function stateForError(
+  error: unknown,
+  signal: AbortSignal | undefined,
+): Exclude<DnsAnswerState, "ok"> {
   const code = errorCode(error);
   switch (code) {
     case "ENODATA":
@@ -199,6 +227,13 @@ function stateForError(error: unknown, signal: AbortSignal | undefined): Exclude
       return "refused";
     case "ETIMEOUT":
       return "timeout";
+    // Deterministic LOCAL rejections: c-ares refused to build a query from the
+    // name it was given, so no packet left the host and no retry can help.
+    // EBADRESP and EFORMERR stay on `servfail` above — those are a server
+    // sending garbage, which is a network condition and can differ on a retry.
+    case "EBADNAME":
+    case "EBADSTR":
+      return "invalid-name";
     case "ECANCELLED":
       return signal?.aborted === true ? "aborted" : "timeout";
     default:

@@ -272,6 +272,42 @@ describe("createDnsStateEnricher — degraded outcomes are never safety claims",
     }
   });
 
+  it("fails as dns-invalid-name, NOT retryable, when the name is rejected locally", async () => {
+    // Every other unresolved reason is retryable; this one cannot be. The name
+    // was rejected before a query left the host, so the identical call fails
+    // identically forever and retrying is pure waste (LINK-enbiprjm).
+    const resolver = new FakeDnsResolver({
+      A: neg("A", "invalid-name"),
+      AAAA: neg("AAAA", "invalid-name"),
+      NS: neg("NS", "invalid-name"),
+      MX: neg("MX", "invalid-name"),
+    });
+    const outcome = (await run(resolver, HOST_INPUT)).outcomes[0]!;
+    expect(outcome.status).toBe("failure");
+    expect(outcome.evidence).toEqual([]);
+    if (outcome.status === "failure") {
+      expect(outcome.cause.code).toBe("dns-invalid-name");
+      expect(outcome.cause.retryable).toBe(false);
+    }
+  });
+
+  it("does not let a server-side reason mask a locally rejected name", async () => {
+    // invalid-name outranks refused/servfail in UNRESOLVED_PRIORITY: it is the
+    // only reason the caller can act on, so a slow or hostile server answering
+    // one of the other three queries must not turn it back into "try again".
+    const resolver = new FakeDnsResolver({
+      A: neg("A", "invalid-name"),
+      AAAA: neg("AAAA", "invalid-name"),
+      NS: neg("NS", "servfail"),
+      MX: neg("MX", "refused"),
+    });
+    const outcome = (await run(resolver, HOST_INPUT)).outcomes[0]!;
+    if (outcome.status === "failure") {
+      expect(outcome.cause.code).toBe("dns-invalid-name");
+      expect(outcome.cause.retryable).toBe(false);
+    }
+  });
+
   it("fails as dns-refused when the resolver refuses every query", async () => {
     const resolver = new FakeDnsResolver({
       A: neg("A", "refused"),
