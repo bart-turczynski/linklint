@@ -84,6 +84,11 @@ const CHALLENGE_MARKERS: readonly { readonly id: string; readonly needles: reado
  * across the bounded variant set. Divergence is emitted as EVIDENCE ONLY: no
  * finding, no score, never an independently scored cloaking claim. A challenge
  * gate degrades that variant to an explicit resolution-incomplete outcome.
+ *
+ * The comparison observes a two-sample floor. `resolution.divergence` reports
+ * `divergent: null` when fewer than two variants were successfully sampled,
+ * because a verdict of `false` off zero or one sample says "compared and agreed"
+ * about a comparison that never happened.
  */
 export function createDivergenceProbeEnricher(
   options: DivergenceProbeEnricherOptions,
@@ -355,7 +360,15 @@ function divergenceOutcome(
 ): EnrichmentOutcome {
   const subject = { kind: "url" as const, value: input };
   const provenance = declaredProvenance();
-  const divergentDimensions = summaries.length < 2 ? [] : divergentAmong(summaries);
+  // Comparing needs two samples. Below that there is no observation to report,
+  // so `divergent` is null rather than false: `false` is a claim that variants
+  // were compared and agreed, and emitting it off zero or one sample turns a
+  // transport fault into "no divergence observed" (LINK-oevpffva). Null is the
+  // conservative spelling — a consumer testing `payload.divergent` truthily
+  // reads it as "no divergence claim", while `=== false` correctly stops
+  // matching the degenerate case it used to match silently.
+  const comparable = summaries.length >= 2;
+  const divergentDimensions = comparable ? divergentAmong(summaries) : [];
   return {
     sourceId: DIVERGENCE_PROBE_SOURCE_ID,
     layer: "resolution",
@@ -373,7 +386,7 @@ function divergenceOutcome(
         freshness: FRESHNESS,
         payload: {
           variants: summaries.map((summary) => ({ ...summary })),
-          divergent: divergentDimensions.length > 0,
+          divergent: comparable ? divergentDimensions.length > 0 : null,
           divergentDimensions,
         },
       },
