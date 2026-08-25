@@ -191,6 +191,38 @@ describe("node TLS transport (live loopback)", () => {
     }
   });
 
+  // REAL, not fixture: this drives `NodeConnectionPorts.connect` against a live
+  // loopback TLS server and reads the leaf off the actual handshake. The values
+  // below are the fixture CA's real certificate fields (LINK-boqmfrcn).
+  it("surfaces the leaf certificate the authorized handshake already carried", async () => {
+    const { port } = await startTlsServer(identity("valid"));
+    const ports = new NodeConnectionPorts();
+
+    const connection = await ports.connect({
+      protocol: "https:",
+      hostname: "origin.example",
+      address: "127.0.0.1",
+      port,
+    });
+
+    try {
+      const certificate = connection.tls?.certificate;
+      expect(certificate).toBeDefined();
+      expect(certificate?.subject).toContain("origin.example");
+      expect(certificate?.issuer).toContain("linklint test CA");
+      expect(certificate?.subjectAltNames).toEqual(["origin.example"]);
+      // Structurally CA-issued, so this must not read as self-issued.
+      expect(certificate?.selfIssued).toBe(false);
+      // No certificate-policy OIDs in the fixture, so no assurance can be inferred.
+      expect(certificate?.assuranceLevel).toBe("unknown");
+      // The validity window is carried as ISO-8601, not as Node's own format.
+      expect(certificate?.notBefore).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(new Date(certificate!.notAfter).getTime()).toBeGreaterThan(Date.now());
+    } finally {
+      ports.close(connection.id);
+    }
+  });
+
   it("does not send SNI when the identity is an IP literal", async () => {
     const { port, seen } = await startTlsServer(identity("valid"));
     const ports = new NodeConnectionPorts();

@@ -1,3 +1,5 @@
+import type { NormalizedCertificate } from "./tls-types.js";
+
 export type TransportProtocol = "http:" | "https:";
 export type TransportMethod = "GET" | "HEAD";
 
@@ -41,6 +43,15 @@ export interface TransportConnection {
     readonly authorized: boolean;
     readonly serverName: string;
     readonly peerDnsNames: readonly string[];
+    /**
+     * The leaf the peer presented on THIS connection, normalized from the DER the
+     * handshake already carried — no second connection and no second handshake
+     * (`LINK-boqmfrcn`). Optional because a {@link ConnectorPort} is an interface
+     * others implement and normalization is best-effort: a chain this port cannot
+     * parse degrades to absent evidence rather than failing an otherwise authorized
+     * hop. Absence therefore means "not recovered here", never "no certificate".
+     */
+    readonly certificate?: NormalizedCertificate;
   };
 }
 
@@ -222,6 +233,23 @@ export interface TransportEvidence {
    */
   readonly resolvedAddresses?: readonly string[];
   readonly selectedAddress?: string;
+  /**
+   * What the hop's own TLS handshake observed. Present only for an `https:` hop that
+   * was authorized AND identity-matched — the transport throws `tls-certificate`
+   * before this is recorded — so a populated block is never an unverified peer.
+   *
+   * This is evidence the chain already had and used to discard (`LINK-boqmfrcn`).
+   * It costs zero extra connections and raises no new authorization question: the
+   * hop passed `options.authorize` before it was fetched, so consent already covers
+   * exactly this endpoint. That is what distinguishes it from wiring the TLS
+   * enricher into the chain, declined 2-0 under `LINK-wwnrkjnm`.
+   */
+  readonly tls?: {
+    readonly authorized: boolean;
+    readonly serverName: string;
+    readonly peerDnsNames: readonly string[];
+    readonly certificate?: NormalizedCertificate;
+  };
 }
 
 export interface SafeFetchResponse {
