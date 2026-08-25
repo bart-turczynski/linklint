@@ -53,10 +53,10 @@ tracks.
 | `docs/layer3-reputation-model.md` | 12 |
 | `docs/local-workflow.md` | 3 |
 | `docs/locale-case-mapping.md` | 4 |
-| `docs/online-composition-root.md` | 0 |
+| `docs/online-composition-root.md` | 1 |
 | `docs/online-roadmap.md` | 12 |
-| `docs/online-runtime-boundary.md` | 9 |
-| `docs/online-source-contract.md` | 11 |
+| `docs/online-runtime-boundary.md` | 10 |
+| `docs/online-source-contract.md` | 14 |
 | `docs/raw-url-tokenization-spike.md` | 1 |
 | `docs/reason-codes.md` | 82 |
 | `docs/redirect-chain-resolution.md` | 4 |
@@ -68,7 +68,7 @@ tracks.
 | `packages/cli/README.md` | 1 |
 | `packages/core/README.md` | 2 |
 | `packages/mcp/README.md` | 2 |
-| `packages/online/README.md` | 3 |
+| `packages/online/README.md` | 4 |
 
 ## A. Public API contract
 
@@ -207,6 +207,7 @@ that the reason fires at each limit and that the reason list is not empty.
 | F11 | The connector is never handed an address outside the set the hop's own resolution returned, and every member of that set is classified before one is selected | `docs/safe-transport.md` | `packages/online/test/safe-transport.test.ts` |
 | F12 | A caller header value carrying CR, LF, or NUL is never forwarded to any HTTP port, caller-supplied ports included | `docs/safe-transport.md` | `packages/online/test/node-transport-headers.test.ts` |
 | F13 | A caller header value the built-in HTTP/1.1 adapter cannot put on the wire ends the attempt as `incomplete` / `http-malformed` before the request is sent, and the cause never quotes the refused value; the sendable set is Latin-1, so `Accept-Language: de-DE, fr;q=0.9` and any value containing `ü` still reach the destination byte for byte | `docs/safe-transport.md` | `packages/online/test/node-transport-headers.test.ts` |
+| F14 | A source is never constructed under terms it cannot honor and never silently downgraded to a weaker default — every reputation factory takes a required `terms` argument and runs `assertSourceTermsAccepted` before the enricher exists; the gate is terms-only and never demands a feed credential to construct a query-side enricher | `docs/online-source-contract.md`, `docs/online-runtime-boundary.md`, `docs/online-composition-root.md`, `packages/online/README.md` | `packages/online/test/contract/terms-gate-wiring.test.ts` |
 
 **F10 is scoped to the built-ins, deliberately.** It is a claim about
 `createNodeSafeTransport()`'s own connector and HTTP port, not about a
