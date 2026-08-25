@@ -12,6 +12,11 @@ Generated files are committed (they are source the library imports) but must
 > writes nothing. It watches the two data-carrying npm pins for movement. See
 > [below](#check-upstreamts--npm-backed-pin-movement).
 
+> `audit-dependencies.ts` is not a data build either, and `audit-exceptions.json`
+> is not generated data — it is a hand-maintained policy file, the one file under
+> `tools/` that is *supposed* to be edited by hand. See
+> [below](#audit-dependenciests--dependency-vulnerability-audit).
+
 ## `build-confusables.mjs` — UTS#39 confusables (E1)
 
 Generates `packages/core/src/data/confusables.generated.ts` from the official
@@ -202,3 +207,50 @@ it. The date is worth one fetch because it is exactly what
 pin says nothing about the bundled snapshot's currency; that question needs a
 bump plus `pnpm data:boundary --check`, per CONTRIBUTING.md §"Bumping the
 `tldts` or `tr46` pin".
+
+## `audit-dependencies.ts` — dependency vulnerability audit
+
+Scans the whole workspace lockfile (production, dev and optional, every
+workspace project) against the npm advisory database and applies this
+repository's severity policy. Generates nothing.
+
+```bash
+pnpm audit:deps
+```
+
+Exit codes are three, on the same rule as `check-upstream.ts`: `0` nothing
+blocking, `1` at least one high/critical advisory with no live exception, `2` the
+audit could not be evaluated — no network, a registry error, an unparseable or
+filtered report, or an invalid exception ledger. Moderate, low and info are
+listed and never block.
+
+**Why a wrapper and not `pnpm audit --audit-level high` (`LINK-urjaxlrz`).** Two
+properties of pnpm 11.8.0, measured rather than read: `--audit-level` *prunes*
+the advisory list instead of only setting a threshold, so the below-threshold
+findings survive as an aggregate count and nothing more; and exit `1` means both
+"found something" and "could not reach the registry" — the failure arrives as
+`{"error":{"code":"pnpm","message":"fetch failed"}}` on stdout, with an empty
+stderr, so only the shape of stdout distinguishes it. `--ignore-registry-errors`
+exists and turns a failed scan into exit `0`, which is the fail-open this check
+is built to refuse. The tool therefore reads the full report and decides itself,
+and rejects a report that arrives already filtered.
+
+**`audit-exceptions.json` is policy, not generated data.** It is the one file
+under `tools/` meant to be hand-edited. Each entry records an advisory, the
+module it is accepted for, a reason, an `acceptedOn` and an inclusive `reviewBy`
+after which the exception stops suppressing. `pnpm audit --ignore` is never used:
+it carries no reason and no expiry. The full field rules are in CONTRIBUTING.md
+§"Auditing dependencies for known vulnerabilities".
+
+**Not in the pre-push hook, deliberately** — and for one more reason than
+`check-upstream.ts` has. Beyond `tools/verify.sh` needing to work offline, the
+gate is expected to be deterministic; the advisory database moves under a tree
+that has not, so the same commit would pass and then fail. Run it before a
+release and after any dependency change. A GitLab schedule is the natural second
+home and is blocked on runner minutes (`LINK-ozgkfjow`, follow-up
+`LINK-txxcwplc`).
+
+**What it cannot tell you.** Whether an advisory is *reachable* from linklint's
+own code paths. It reports what the resolved tree contains, which is a floor: a
+vulnerable transitive package that nothing ever calls still appears, and a
+genuine exploit path in a package with no advisory does not.

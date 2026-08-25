@@ -70,6 +70,101 @@ happen.
 
 Keep local-only planning state in `_scratch/`. Do not commit `_scratch/`, `.fp/`, secrets, dependency folders, build outputs, or generated caches.
 
+## Auditing dependencies for known vulnerabilities
+
+```sh
+pnpm audit:deps
+```
+
+Scans the whole workspace lockfile — production, dev and optional, every
+workspace project — against the npm advisory database, and applies this
+repository's policy to what comes back:
+
+- **high and critical fail it.** Exit `1`, with the package, the GHSA id, the
+  patched range and the path it is reached through.
+- **moderate, low and info are reported and do not block.** They are listed, not
+  counted: which package, which advisory, which fix.
+- **exit `2` means the audit could not be evaluated** — no network, a registry
+  error, an unparseable or filtered report, or an invalid exception ledger.
+  That is not a pass. Same rule as `pnpm data:upstream-check` above.
+
+**It is deliberately not in `pnpm check` and not in `tools/verify.sh`,** for the
+same reason `pnpm data:upstream-check` is not: the gate has to work offline, and
+a network call in the pre-push hook turns a plane ride into a failed push. There
+is a second reason here. The gate is expected to be deterministic — the same
+tree gives the same answer — and an advisory database changes under a tree that
+has not moved, so wiring this in would mean a green push and a red one on
+identical source. It is a separately-invoked check: **run it before a release and
+after any dependency change**, which is exactly when the lockfile can have picked
+up something new.
+
+It cannot go in a GitLab schedule yet either, for want of runner minutes
+(`LINK-ozgkfjow`); that follow-up is `LINK-txxcwplc`. Until then it is yours to
+run.
+
+### Why it is a wrapper and not `pnpm audit --audit-level high`
+
+Two measured properties of pnpm 11.8.0, both recorded at the top of
+`tools/audit-dependencies.ts` with the commands that produced them:
+
+1. **`--audit-level` prunes the report rather than only setting a threshold.**
+   It deletes every advisory below the threshold from the output while leaving
+   `metadata.vulnerabilities` intact, so "report moderate and low" survives the
+   flag only as an aggregate number. pnpm's own help says "only *print*
+   advisories with severity greater than or equal to".
+2. **Exit `1` means both "found something" and "could not ask".** With an
+   unreachable registry, `pnpm audit --json` exits `1` with an empty stderr and
+   `{"error":{"code":"pnpm","message":"fetch failed"}}` on stdout. Only the shape
+   of stdout separates a failed scan from a real finding, so something has to
+   read stdout. `--ignore-registry-errors` exists and does the opposite of what
+   is wanted: it turns a failed scan into exit `0`.
+
+So the wrapper runs `pnpm audit --json` with no `--audit-level` and applies the
+severity policy itself. It also **refuses a report that was filtered before it
+arrived** — if `metadata` counts a severity the advisory list does not carry at
+all, that is exit `2` rather than a quiet under-report.
+
+### Accepting a risk: the exception ledger
+
+`pnpm audit --ignore GHSA-…` is a silent ignore — no reason, no date, no expiry,
+living in a command line nobody reads. It is not used here. Accepted risk goes in
+[`tools/audit-exceptions.json`](./tools/audit-exceptions.json):
+
+```json
+{
+  "exceptions": [
+    {
+      "advisory": "GHSA-xxxx-xxxx-xxxx",
+      "module": "some-package",
+      "reason": "Why this is accepted, in enough words to be an argument.",
+      "acceptedOn": "2026-08-25",
+      "reviewBy": "2026-11-01"
+    }
+  ]
+}
+```
+
+- **`reviewBy` is inclusive.** On that date the exception stops suppressing and
+  the advisory blocks again. Extending one is a deliberate edit with a fresh
+  reason, not a bump.
+- **`module` is checked against the advisory.** A copy-pasted entry naming a
+  different package fails rather than suppressing something nobody read.
+- **`reason` has a length floor.** "TODO" is a silent ignore wearing a ledger's
+  clothes.
+- **A malformed ledger is exit `2`,** not a skipped entry: an unreadable policy
+  is not a pass.
+- An entry matching no advisory in the current report is printed as stale and
+  should be deleted. It does not fail the command — a dependency being fixed
+  upstream is good news.
+
+The ledger ships empty. Accepting a known-vulnerable dependency is a maintainer
+decision, and none are pre-made.
+
+`tests/unit/audit-dependencies.test.ts` pins all of the above against fixtures
+transcribed from a real run. Nothing in that suite opens a socket, so the offline
+gate stays offline and an advisory being published or withdrawn cannot move a
+test result.
+
 ## Bumping the `tldts` or `tr46` pin
 
 These two dependencies are **not ordinary dependencies** — they carry the Public
