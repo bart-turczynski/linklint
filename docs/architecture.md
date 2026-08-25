@@ -376,7 +376,7 @@ Key invariants:
 - If a policy axis fails, it appears in `checksSkipped` as `policy:<axis id>` (`tld`, `host`, `scheme`, `port`) and the other axes still report. The channel token `policy` stays in `checksRun`, and the score is unaffected — policy findings are weight 0, so a skipped axis is a gap in the **policy** verdict, not in the deception verdict. Bare `policy` in `checksSkipped` is the rarer case: the dispatcher itself failed, no axis verdict exists, and `policy` is correspondingly absent from `checksRun`. The two lists never carry the same token.
 - If the caller supplies an option key `inspect()` does not recognize, that key appears in `checksSkipped` as `options:<key>`; if the options argument itself is not a usable object, it appears as bare `options`. The namespace is deliberately `options:` and not `policy:` — an unrecognized key is not attributable to an axis (`maxDecodeDeph` is not a policy typo), and `policy:<axis id>` is pinned to the four axis ids above. As with the policy channel, the bare and qualified forms never describe the same run. Absent an unrecognized key neither token appears, so the default path is byte-for-byte unchanged. This closes a **fail-open** that only a runtime caller could hit: TypeScript rejects an unknown key on an object literal, but options arriving as JSON — MCP tool input, a config file, plain JS — silently lost the whole channel, and `{ allowHost: [...] }` was indistinguishable from configuring no policy at all (`LINK-sjsxfqoo`).
 - `confidence` is `1.0` for every deterministic lexical result (sync `inspect()`, including `status: "invalid"`). It is **independent** of `score`/`weight` and never feeds score aggregation; `inspectAsync()` lowers it to the **minimum** over the lexical base (`1.0`) and each successful probabilistic enricher finding's `confidence` (default `1.0`). With no enrichers it stays `1.0`, so `inspectAsync(url)` remains deep-equal to `inspect(url)`.
-- `Reason.suppressed` is an OPTIONAL marker, present and `true` only when the caller's `suppressReasons` escape hatch (§8) matched that reason. It is **additive** and absent by default, so it needs no `SCHEMA_VERSION` bump: with no `suppressReasons` option every result is byte-for-byte identical to the pre-existing `1.1` output.
+- `Reason.suppressed` is an OPTIONAL marker, present and `true` only when the caller's `suppressReasons` escape hatch (§8) matched that reason. With no `suppressReasons` option every result is byte-for-byte identical to the pre-existing `1.1` output. Byte-identity on the default path is **not** the bump test, though (§6.4): an optional field is still a serialized field, so this addition owed a `SCHEMA_VERSION` bump and did not get one — it entered the contract at `1.1`. `CHANGELOG.md` records the miss instead of baselining it in silence; it is not retro-bumped only because no package has ever been published.
 
 ### 6.1 PSL snapshot provenance & staleness
 
@@ -979,6 +979,86 @@ freshness the offline evidence could not support. No `SCHEMA_VERSION` bump: the
 result shape is unchanged and `stale` neither gained nor lost a documented value
 — it is typed `boolean | null` before and after, and `null` was already a value
 consumers had to handle. What changed is which value the *evidence* justifies.
+
+### 6.4 Version stamps — what each one owns
+
+Four stamps travel with a verdict, and until `LINK-zzydqrkd` the repository
+stated two incompatible rules for the first of them. `schema/base.ts` said every
+contract change, additive ones included, while `schema/options.ts`, §6's
+invariant list and `docs/scoring.md` each carried a sentence excusing an
+additive field from a bump. `base.ts` is the rule that stands, and the other
+three sentences are deleted.
+
+**The bump matrix — ADOPTED.**
+
+| Stamp | Owns | Moves on |
+|---|---|---|
+| `SCHEMA_VERSION` (`schema/base.ts`) | the serialized `InspectResult`: its fields, their nullability, their documented meanings, and their CLOSED value domains | any change to those, **including an additive one** — a field added, a documented meaning widened or narrowed, a value added to or removed from a closed domain |
+| `ENRICHMENT_SCHEMA_VERSION` (`schema/enrich.ts`) | the structured enrichment report: outcome states, evidence shapes, cause vocabulary | a change to those. It keeps its existing narrower ownership rather than folding into `SCHEMA_VERSION`, and it is also the cache-namespace key (§7) |
+| `WEIGHTS_VERSION` (`scoring/weights.ts`) | the scoring weights and the severity bands | a weight or a band change (NFR-DATA-1) |
+| `DataVersions` (`data/versions.ts`) | the pinned data snapshots — PSL, confusables, scripts, IDNA, risky TLDs, cloud metadata, IP ranges, brands | a snapshot re-pin, per §6.3 |
+| package version + `CHANGELOG.md` | everything that is not the result contract: package semantics, `InspectOptions`, `linklint/experimental` exports, free-form `Reason.detail` prose | any such change — **unless** it also alters the result contract, in which case the stamp above applies as well |
+
+Why additive counts, against the ordinary semver instinct: `base.ts` states the
+purpose as *"so consumers can pin behavior"*, and a consumer pinning `1.7` is
+asserting it knows the full set of values it can be handed. An additive change
+is invisible to a reader that ignores unknown fields and load-bearing for one
+that switches on a closed domain, and the version string is the only channel
+that lets the second reader tell the two situations apart. The cost of the rule
+is one line edited per contract change; the cost of the other rule is a change
+the artifact cannot express.
+
+**Closedness is decided by the documented registry, not by the TypeScript
+annotation.** `Reason.code` is typed `string` on `InspectResult` and
+`ReasonCode` (`keyof typeof REASON_CODES`) in the registry, so "closed value
+domain at the serialized boundary" reads both ways if the type is left to
+settle it. It is not left to the type. A domain is CLOSED when this repository
+publishes an enumeration of its values — `docs/reason-codes.md` plus the
+exported `REASON_CODES` — and OPEN when it does not. The `string` annotation
+on the wire is a serialization convenience, and loosening an annotation is not a
+route around a bump.
+
+Three worked cases, so the matrix is testable rather than aspirational:
+
+| Change | Stamp | Why |
+|---|---|---|
+| a new `checksSkipped` token | **no bump** | open domain. §6 documents `checksSkipped` as `string[]` with no enumerated domain, and the shipped `agent` channel token and the `options:<key>` family both entered under that reading |
+| a new reason code | **`SCHEMA_VERSION`** | `ReasonCode` is a closed, publicly exported union. A new reason code never enters the registry without a bump: `test/docs-validation.test.ts` pins the key set to the version it registered under |
+| a new enrichment cause | **`ENRICHMENT_SCHEMA_VERSION`** | the cause vocabulary belongs to the enrichment report, not to `InspectResult`. `SCHEMA_VERSION` stays put |
+
+The matrix ratifies the three no-bump notes already in this document rather than
+contradicting them: the tier-2 brand escalation (§6.1.1) reused an existing
+code at an existing weight, the `brand_lookalike` → `brand_homoglyph` rename
+(§6.1.2) moved a CHECK id, which reaches `checksSkipped` as
+`lexical:<id>` in the open domain above, and the `pslSnapshot` correction
+(§6.3) changed which value the evidence justifies without adding or removing
+one. That is exactly why a prose grep for *"no `SCHEMA_VERSION` bump"* is the
+weak guard here — it cannot separate those three from a defect. The guard
+that bites is mechanical: `packages/core/test/docs-validation.test.ts` checks
+in the `REASON_CODES` key set beside the `SCHEMA_VERSION` it was registered
+under, and fails if either moves without the other. It reddens on the case that
+actually recurs (see `CHANGELOG.md` for the two historical misses) and on a
+bump that leaves the pin stale.
+
+**The dissent, recorded (2–1 on the rule).** A BREAKING-ONLY rule — bump
+only when a consumer that already handles the documented shape would break
+— was argued and checkably grounded: nothing consumes `schemaVersion` (zero
+references in `packages/cli/src` and `packages/mcp/src`),
+`ENRICHMENT_SCHEMA_VERSION` is the only stamp with a real reader, and a strict
+reading of the adopted rule implies roughly 35 bumps against the 7 that actually
+happened. It lost on where the error is recoverable, not on the facts. A bump
+nobody needed costs a consumer one pin edit and is visible in the artifact; a
+bump that was owed and skipped is undetectable from the artifact, which is the
+failure this whole section exists to close. Zero readers today is a statement
+about today's consumers, not about the contract published for future ones —
+and the 35-vs-7 gap is a measure of the historical practice, which is the thing
+under review. Reopen this against a named consumer harmed by a bump, not against
+the bump count.
+
+**Implemented (`LINK-zzydqrkd`).** The three contrary sentences are deleted
+(here, `docs/scoring.md`, `packages/core/src/schema/options.ts`), the two
+historical misses are named in `CHANGELOG.md` rather than baselined, and the
+mechanical pin ships in `packages/core/test/docs-validation.test.ts`.
 
 ## 7. Scoring
 

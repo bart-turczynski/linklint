@@ -107,9 +107,13 @@ export interface InspectOptions {
    * appears in `checksRun`, so a result never hides that a caller escape hatch was
    * applied. When the field is absent, output is byte-for-byte unchanged.
    *
-   * This is additive and backward-compatible — no `SCHEMA_VERSION` bump: the
-   * `Reason.suppressed` marker is absent by default, so default-off callers see
-   * exactly the pre-existing schema `1.1` output.
+   * Additive and backward-compatible on the default path: the
+   * `Reason.suppressed` marker is absent unless this option is present, so
+   * default-off callers see exactly the pre-existing schema `1.1` output. That
+   * is not a schema-stamp exemption — an optional field is still a serialized
+   * field, and docs/architecture.md §6.4 puts serialized fields inside
+   * SCHEMA_VERSION's ownership. This one entered the contract at `1.1` without
+   * the bump it owed; CHANGELOG.md records the miss and does not retro-bump it.
    *
    * @example suppressReasons: [{ code: "risky_tld" }, { code: "idn_host", host: "münchen.de" }]
    */

@@ -111,8 +111,11 @@ verdict to `score: 0` / `severity: "info"`.
 
 Suppression never hides itself: whenever the option is present (even `[]`) the
 `suppression` token appears in `checksRun`. With the option absent, output is
-byte-for-byte unchanged — the `suppressed` marker never appears, so no
-`SCHEMA_VERSION` bump is needed (the field is additive and absent by default).
+byte-for-byte unchanged — the `suppressed` marker never appears. That
+byte-identity is not a bump exemption: an optional field is still a serialized
+field, which `docs/architecture.md` §6.4 puts inside `SCHEMA_VERSION`'s
+ownership. `suppressed` entered the contract at `1.1` without the bump it owed;
+`CHANGELOG.md` records the miss and does not retro-bump it.
 Enricher-layer reasons (`inspectAsync`) are suppressible by the same mechanism.
 For structured enrichment, host scope is evaluated against each finding's
 outcome subject rather than the original input, so an exemption for the original
