@@ -69,6 +69,34 @@ export interface CheckOptions {
 const MAX_PORT = 65535;
 
 /**
+ * The trim the CLI applies to a caller-supplied list value before reading it.
+ *
+ * The core already applies the identical trim at `normalizedList`, the single
+ * choke point every scalar list-valued option routes through (LINK-uxkrtcnw,
+ * LINK-qajalduf), so a value the CLI passes along AS A STRING inherits it by
+ * construction and needs nothing here.
+ *
+ * `--deny-port` is the one value the CLI CONSUMES before the core can see it.
+ * `denyPorts` is `number[]` at the library boundary, so something has to
+ * convert, and whatever the converter rejects never reaches the choke point at
+ * all. The conversion cannot move into the core either: `normalizeOptions` is
+ * contractually total ("Never throws — inspection must be total"), so a core
+ * that took port STRINGS could only drop a malformed one silently — which is
+ * the dead-deny-list fail-open `parsePort` exists to prevent. So this is not
+ * discipline chosen over inheritance; it is the one value inheritance cannot
+ * reach (LINK-patktxpv).
+ *
+ * Stated once and shared by both CLI-side readers — the separator screen and
+ * the port parser — because `assertNotJoined` defines its screen as exactly
+ * "the padding trimming cannot reach". If the two readers ever disagreed about
+ * what padding is, that sentence would quietly stop being true and the screen
+ * would gain or lose characters with it.
+ */
+function trimFlagValue(value: string): string {
+  return value.trim();
+}
+
+/**
  * Parse one `--deny-port` value into a port number, or throw {@link UsageError}.
  *
  * Deliberately stricter than `Number()`: the core's `normalizePort` keeps any
@@ -76,17 +104,34 @@ const MAX_PORT = 65535;
  * deny-list entry that no parsed URL can ever equal — a policy the caller
  * believes is in force and that silently is not. Failing loudly at the boundary
  * is the only place that distinction is still visible.
+ *
+ * Padding is stripped first, so `--deny-port " 8080 "` is the port `8080` just
+ * as `--deny-tld " com"` is the TLD `com`. Before that the digits check ran on
+ * the raw argv string and refused the padded value outright — loud, so nobody
+ * believed a policy was in force that was not, but inconsistent with the other
+ * seven repeatable value flags and with what both the help text and the README
+ * promise (LINK-patktxpv).
+ *
+ * This cannot weaken the separator screen. `trimFlagValue` strips exactly what
+ * `\s` matches, so every separator this could reach is padding by definition,
+ * and `assertNotJoined` has already refused anything in the middle by the time
+ * a value gets here.
+ *
+ * The error still echoes the RAW value rather than the trimmed one: it is what
+ * the caller typed, and it is how `assertNotJoined` renders the value in the
+ * sibling error on this same flag, so the two messages agree.
  */
-function parsePort(value: string): number {
+function parsePort(rawValue: string): number {
+  const value = trimFlagValue(rawValue);
   if (!/^\d{1,5}$/.test(value)) {
     throw new UsageError(
-      `invalid --deny-port value: ${value} (expected an integer 0-${MAX_PORT})`,
+      `invalid --deny-port value: ${rawValue} (expected an integer 0-${MAX_PORT})`,
     );
   }
   const port = Number(value);
   if (port > MAX_PORT) {
     throw new UsageError(
-      `invalid --deny-port value: ${value} (expected an integer 0-${MAX_PORT})`,
+      `invalid --deny-port value: ${rawValue} (expected an integer 0-${MAX_PORT})`,
     );
   }
   return port;
@@ -178,10 +223,12 @@ const SEPARATOR_NAMES = new Map<string, string>([
  *
  * Trimmed before it is screened, so the padded single value LINK-uxkrtcnw
  * deliberately made harmless stays harmless: `--deny-tld " com"` is one TLD
- * with padding the core strips, not two values joined by a space.
+ * with padding the core strips, not two values joined by a space. It shares
+ * {@link trimFlagValue} with `parsePort` so the two cannot disagree about where
+ * padding ends and the screened middle begins.
  */
 function assertNotJoined(flag: string, value: string): void {
-  const trimmed = value.trim();
+  const trimmed = trimFlagValue(value);
   const found = SEPARATOR.exec(trimmed)?.[0];
   if (found === undefined) return;
   const name = SEPARATOR_NAMES.get(found) ?? "a whitespace character";
