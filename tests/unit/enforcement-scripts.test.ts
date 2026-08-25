@@ -65,14 +65,11 @@ const REQUIRED_EXTERNALS = ["cat", "grep", "basename"] as const;
 /** ASCII unit separator: the argv delimiter our shims write to their log. */
 const UNIT_SEP = String.fromCharCode(0x1f);
 
-/**
- * Every distinct bash on this machine, `/bin/bash` first. On macOS that is the
- * 3.2 system bash; on CI it is a single bash 5.
- */
-const BASHES: readonly string[] = (() => {
+/** Candidate interpreters that exist, de-duplicated by realpath, order kept. */
+function distinctShells(candidates: readonly (string | undefined)[]): string[] {
   const found: string[] = [];
   const seen = new Set<string>();
-  for (const candidate of ["/bin/bash", which("bash"), "/usr/local/bin/bash", "/opt/homebrew/bin/bash"]) {
+  for (const candidate of candidates) {
     if (candidate === undefined) continue;
     let real: string;
     try {
@@ -85,7 +82,35 @@ const BASHES: readonly string[] = (() => {
     found.push(candidate);
   }
   return found;
-})();
+}
+
+/**
+ * Every distinct bash on this machine, `/bin/bash` first. On macOS that is the
+ * 3.2 system bash; on CI it is a single bash 5.
+ */
+const BASHES: readonly string[] = distinctShells([
+  "/bin/bash",
+  which("bash"),
+  "/usr/local/bin/bash",
+  "/opt/homebrew/bin/bash",
+]);
+
+/**
+ * The NON-bash interpreters the installer can route the guard into. Its `*)`
+ * branch sends every shell that is not bash or zsh to `~/.profile`, which ksh
+ * and any `/bin/sh` read — so the emitted text has to be POSIX sh, not bash.
+ * macOS ships `/bin/ksh` (ksh93u+) and `/bin/dash`; a Linux CI box usually has
+ * dash as `/bin/sh` only.
+ */
+const POSIX_SHELLS: readonly string[] = distinctShells([
+  "/bin/ksh",
+  which("ksh"),
+  which("ksh93"),
+  which("mksh"),
+  "/bin/dash",
+  which("dash"),
+  "/bin/sh",
+]);
 
 function bashMajor(bash: string): number {
   const r = spawnSync(bash, ["-c", "echo $BASH_VERSINFO"], { encoding: "utf8" });
@@ -760,5 +785,173 @@ describe.each(BASHES)("install-aliases.sh under %s", (bash) => {
     it.each(["high", "medium", "critical"])("still bakes the ordinary value %s through to argv", (failOn) => {
       expect(argvUnderGuard(failOn)).toEqual(["check", "https://example.com/ok", "--fail-on", failOn]);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LINK-dwapcooy — WHICH arguments the guard inspects, and WHICH shells can run
+// the text it emits. Both directions were untested before this block.
+// ---------------------------------------------------------------------------
+
+/** The interpreter used to RUN the installer; the guard it emits is sh, not bash. */
+const INSTALLER_BASH = BASHES[0] ?? "/bin/bash";
+
+/**
+ * Install the guard into a temp rc, then source it under `shell` and run `cmd`.
+ * Nothing here touches a real rc file — `runScript` pins HOME into the sandbox.
+ */
+function underGuard(sb: Sandbox, cmd: string, shell: string = INSTALLER_BASH) {
+  expect(runScript(INSTALLER_BASH, INSTALLER, [], sb, { SHELL: "/bin/zsh" }).status).toBe(0);
+  const rc = join(sb.root, "home", ".zshrc");
+  return spawnSync(shell, ["-c", `. ${JSON.stringify(rc)}; ${cmd}`], {
+    encoding: "utf8",
+    cwd: sb.root,
+    env: { PATH: sb.bin, HOME: join(sb.root, "home") },
+  });
+}
+
+/** A real-CLI sandbox with stub `curl`/`wget`, so "did it fetch?" is observable. */
+function fetchSandbox(name: string): Sandbox {
+  return makeSandbox(name, { linklint: "real", fetchStubs: true });
+}
+
+/** Greek omicron in place of the Latin `o` — scores critical on its own. */
+const HOMOGLYPH_HOST = "https://gοogle.com";
+/** A host the real CLI grades at/above `high`. */
+const DECEPTIVE_TARGET = "https://paypa1-secure-login.example.net.verify-account.tk/";
+
+describe("the emitted guard's argument selection (LINK-dwapcooy)", () => {
+  /**
+   * THE DEFECT, PINNED AS IT SHIPS. The `case` carries a `*://*` catch-all —
+   * which also makes its four leading `http://*|https://*|ftp://*|file://*`
+   * alternatives dead — so it matches `://` ANYWHERE in a token rather than
+   * tokens that ARE fetch targets. `linklint check` exits 1 on the resulting
+   * unparseable strings and the guard is fail-closed, so ordinary API-call
+   * idioms die before curl is reached.
+   *
+   * These three run against the REAL CLI, so the verdicts are the ones a user
+   * gets. They are expected to FLIP to "fetches" when the guard learns to tell
+   * a target from an option value.
+   */
+  it.each([
+    ["a header value", `curl -H 'Origin: https://app.example.com' -d '{}' https://api.example.com/v1`],
+    ["a urlencoded form field", `curl --data-urlencode 'url=https://target.example' https://api.example.com`],
+    ["a form body", `curl -d 'callback=https://app.example/cb' https://api.example.com`],
+    ["a referer", `curl -e ${JSON.stringify(HOMOGLYPH_HOST)} 'https://example.com/api'`],
+  ])("PINNED DEFECT — %s aborts the fetch even though it is not a fetch target", (_label, cmd) => {
+    const sb = fetchSandbox("optval-block");
+    const r = underGuard(sb, cmd);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("linklint blocked curl");
+    expect(sb.fetchCalls()).toHaveLength(0);
+  });
+
+  /**
+   * The sharpest one, stated as its own assertion because it is not merely
+   * over-inspection: the verdict is taken from a REFERER and applied to a
+   * DESTINATION. Nothing is ever fetched from a referer.
+   */
+  it("PINNED DEFECT — a deceptive referer vetoes a benign destination", () => {
+    const sb = fetchSandbox("optval-referer");
+    const r = underGuard(sb, `curl -e ${JSON.stringify(HOMOGLYPH_HOST)} 'https://example.com/api'`);
+    expect(r.status).toBe(1);
+    expect(sb.fetchCalls()).toHaveLength(0);
+    // The destination was never even reached by the loop.
+    expect(sb.linklintCalls().some((c) => c.includes("https://example.com/api"))).toBe(false);
+  });
+
+  /**
+   * MISATTRIBUTION, pinned separately from the match. The block message names
+   * the argument and nothing else, so `Origin: https://app.example.com` reads
+   * as "app.example.com is deceptive" when the actual finding is "this string
+   * does not parse as a URL".
+   */
+  it("PINNED DEFECT — the block message names no cause, so it reads as an accusation", () => {
+    const sb = fetchSandbox("optval-message");
+    const r = underGuard(sb, `curl -H 'Origin: https://app.example.com' https://api.example.com/v1`);
+    expect(r.stderr).toContain("linklint blocked curl: Origin: https://app.example.com");
+    expect(r.stderr).not.toMatch(/parse/i);
+  });
+
+  /**
+   * THE OTHER HALF OF THE PIN — what has to keep working. Narrowing the match
+   * is only correct if a real fetch target is still inspected and still
+   * blocked, whatever position or option carries it.
+   */
+  describe("targets stay inspected", () => {
+    it.each([
+      ["a bare deceptive URL", `curl ${JSON.stringify(DECEPTIVE_TARGET)}`],
+      ["a deceptive URL behind an output flag", `curl -o out.txt ${JSON.stringify(DECEPTIVE_TARGET)}`],
+      ["a deceptive URL behind --url", `curl --url ${JSON.stringify(DECEPTIVE_TARGET)}`],
+      ["an invalid scheme", `curl file:///etc/passwd`],
+      ["a deceptive URL passed to wget", `wget ${JSON.stringify(DECEPTIVE_TARGET)}`],
+    ])("blocks %s", (_label, cmd) => {
+      const sb = fetchSandbox("target-block");
+      const r = underGuard(sb, cmd);
+      expect(r.status).toBe(1);
+      expect(sb.fetchCalls()).toHaveLength(0);
+    });
+
+    it.each([
+      ["a benign URL", `curl https://example.com/ok`],
+      ["a benign URL behind an output flag", `curl -o out.txt https://example.com/ok`],
+      ["a benign URL with bundled short flags", `curl -sSL https://example.com/ok`],
+    ])("lets %s through", (_label, cmd) => {
+      const sb = fetchSandbox("target-allow");
+      const r = underGuard(sb, cmd);
+      expect(r.status).toBe(0);
+      expect(sb.fetchCalls()).toHaveLength(1);
+    });
+  });
+});
+
+describe.skipIf(POSIX_SHELLS.length === 0)("the emitted guard under a non-bash rc shell (LINK-dwapcooy)", () => {
+  /**
+   * The installer routes fish, ksh, tcsh — every shell that is not bash or zsh
+   * — into `~/.profile`, and its own header comment leans on that routing when
+   * it argues the baked `--fail-on` literal is safe "in POSIX sh too". The text
+   * it emits declares `local`, which is a bash/zsh/ash extension and is absent
+   * from ksh93.
+   *
+   * PINNED AS IT SHIPS: under ksh the guard does not merely warn. `local _tool`
+   * fails, `$_tool` is left unset, and the trailing `command "$_tool" "$@"`
+   * tries to execute the empty string — so a BENIGN fetch dies too. dash and
+   * `/bin/sh` carry `local` as an extension and are unaffected, which is why a
+   * dash-only check would have called this fine.
+   */
+  it.each(POSIX_SHELLS)("%s: reports whether the guard's `local` survives", (shell) => {
+    const sb = fetchSandbox("posix-benign");
+    const r = underGuard(sb, "curl https://example.com/ok", shell);
+    // ksh93 reports `local: not found` on stderr yet still exits 0 from the
+    // rest of the function, so the exit status alone cannot answer this.
+    const probe = spawnSync(shell, ["-c", "f() { local x=1; }; f"], { encoding: "utf8" });
+    const hasLocal = probe.status === 0 && probe.stderr.trim() === "";
+    if (hasLocal) {
+      expect(r.status).toBe(0);
+      expect(sb.fetchCalls()).toHaveLength(1);
+    } else {
+      // PINNED DEFECT: `local` is not POSIX, so the whole guard collapses here.
+      expect(r.stderr).toContain("local: not found");
+      expect(r.status).not.toBe(0);
+      expect(sb.fetchCalls()).toHaveLength(0);
+    }
+  });
+
+  it.each(POSIX_SHELLS)("%s: still refuses a deceptive target", (shell) => {
+    const sb = fetchSandbox("posix-deny");
+    const r = underGuard(sb, `curl ${JSON.stringify(DECEPTIVE_TARGET)}`, shell);
+    expect(r.status).toBe(1);
+    expect(sb.fetchCalls()).toHaveLength(0);
+  });
+
+  /**
+   * The source-level half, so a machine with no ksh cannot go green on a
+   * regression the way a bash-5-only CI run could mask the array bug above.
+   */
+  it("PINNED DEFECT — the emitted guard declares `local`, which POSIX does not define", () => {
+    const sb = makeSandbox("posix-source", { linklint: "absent" });
+    const r = runScript(INSTALLER_BASH, INSTALLER, ["--print"], sb);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/^\s*local\s/m);
   });
 });
