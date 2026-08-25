@@ -118,3 +118,68 @@ describe("api_endpoint_impersonation — weight", () => {
     ).toBeCloseTo(0.5, 5);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PIN — current behavior, recorded before the rescope under LINK-eurtxkit.
+//
+// These four rows are the whole case about the detector, stated as assertions
+// rather than prose. They pin what the code does TODAY so that the deletion has
+// to move something visible: three of the four change, and the one that does
+// not (the homoglyph row) is the structural finding that survives on its own.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("api_endpoint_impersonation — PIN: the rescope evidence (LINK-eurtxkit)", () => {
+  it("PIN api.openai-login.com — 0.50 under agentMode ONLY, from the watchlist lookup alone", () => {
+    const plain = inspect("https://api.openai-login.com");
+    expect(plain.score).toBe(0);
+    expect(plain.reasons).toHaveLength(0);
+
+    const agent = inspect("https://api.openai-login.com", { agentMode: true });
+    expect(agent.score).toBeCloseTo(0.5, 5);
+    expect(agent.severity).toBe("medium");
+    expect(agent.reasons.map((r) => r.code)).toEqual(["api_endpoint_impersonation"]);
+  });
+
+  it("PIN api.acme-login.com — the CONTROL: identical shape, unlisted token, 0.00 in BOTH modes", () => {
+    // Same structure as the row above in every respect a URL parser can see: an
+    // `api` label, a hyphenated `<word>-login` second label, a `.com` eTLD. The
+    // only difference is that `openai` is on a commercial watchlist and `acme`
+    // is not. That difference is the entire finding.
+    const plain = inspect("https://api.acme-login.com");
+    expect(plain.score).toBe(0);
+    expect(plain.reasons).toHaveLength(0);
+
+    const agent = inspect("https://api.acme-login.com", { agentMode: true });
+    expect(agent.score).toBe(0);
+    expect(agent.reasons).toHaveLength(0);
+  });
+
+  it("PIN api.0penai.com/v1/chat/completions — 0.80 brand_homoglyph in PLAIN mode, no agent gate needed", () => {
+    // The structural case. A digit demonstrably folds to a letter, so the
+    // finding stands on `skel !== raw` and the watchlist only names the target.
+    const plain = inspect("https://api.0penai.com/v1/chat/completions");
+    expect(plain.score).toBeCloseTo(0.8, 5);
+    expect(plain.severity).toBe("high");
+    expect(plain.reasons.map((r) => r.code)).toContain("brand_homoglyph");
+  });
+
+  it("PIN api.openai.com.evil.io/v1/chat/completions — DOUBLE-SCORING on one piece of evidence", () => {
+    // Plain mode states the structural fact once: a real registrable domain is
+    // parked in the subdomain of another. Under agentMode the api detector reads
+    // the SAME `openai` label and stacks a second 0.50 on it, taking a medium to
+    // a high without any new evidence having been observed.
+    const plain = inspect("https://api.openai.com.evil.io/v1/chat/completions");
+    expect(plain.score).toBeCloseTo(0.5, 5);
+    expect(plain.severity).toBe("medium");
+    expect(plain.reasons.map((r) => r.code)).toEqual(["embedded_domain_in_subdomain"]);
+
+    const agent = inspect("https://api.openai.com.evil.io/v1/chat/completions", {
+      agentMode: true,
+    });
+    expect(agent.score).toBeCloseTo(0.75, 5);
+    expect(agent.severity).toBe("high");
+    expect([...agent.reasons.map((r) => r.code)].sort()).toEqual([
+      "api_endpoint_impersonation",
+      "embedded_domain_in_subdomain",
+    ]);
+  });
+});
