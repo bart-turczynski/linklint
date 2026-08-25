@@ -192,6 +192,18 @@ export class NodeConnectionPorts implements ConnectorPort, HttpPort {
         if (settled) return;
         if (request.protocol === "https:") {
           const tlsSocket = socket as TLSSocket;
+          // Second of the two identity checks. Today it can only ever agree with
+          // the `checkServerIdentity` connect option below, because Node destroys
+          // the socket before `secureConnect` whenever verification fails under
+          // `rejectUnauthorized: true` — so `authorized` is always true here and
+          // the certificate has not changed. It is kept rather than deleted
+          // because its redundancy rests on a property of NODE, not of this file:
+          // Node skips its own identity check on a resumed session
+          // (`!this.isSessionReused()` in `internal/tls/wrap.js` `onConnectSecure`),
+          // and this re-check has no such gate. `openSocket` never passes
+          // `session`, so resumption is unreachable — but a future keep-alive or
+          // session-cache change here would silently move the only surviving
+          // check onto that gated path (LINK-bgcfgujq).
           const identityError = tlsSocket.authorized
             ? checkServerIdentity(identity, tlsSocket.getPeerCertificate())
             : new Error("TLS peer is not authorized");
@@ -215,8 +227,36 @@ export class NodeConnectionPorts implements ConnectorPort, HttpPort {
           port: request.port,
           rejectUnauthorized: true,
           ALPNProtocols: ["http/1.1"],
+          // NOT redundant with Node's default, despite looking like it
+          // (LINK-bgcfgujq, measured on Node 24.18 and 26.3 — the algorithm in
+          // `tls.checkServerIdentity` is byte-identical on both).
+          //
+          // Node's default verifies `options.servername || options.host`, and
+          // `options.host` is `request.address` — the PINNED answer. Whenever
+          // `servername` is absent, which is exactly the IP-literal branch
+          // below, Node would therefore check the certificate against the
+          // address the socket reached instead of the identity the caller asked
+          // for, letting the pin confirm itself. That is the TLS-layer form of
+          // the failure LINK-abozdqtp names for the peer-address check.
+          //
+          // Passing `identity` explicitly pins the comparison to the requested
+          // name on both branches and makes it independent of the `host` /
+          // `servername` wiring. Those two happen to agree today only because
+          // `safe-transport.ts` sets `serverName` to the hostname and `pin.ts`
+          // passes IP literals through verbatim — an invariant held in two other
+          // files, neither of which is obliged to keep holding it.
+          //
+          // Deleting this line alone leaves the suite green, because the
+          // `secureConnect` re-check above covers the same ground; deleting BOTH
+          // turns `node-transport-tls-live.test.ts`'s "rejects a leaf that
+          // attests the pinned address but not the requested identity" red. The
+          // two checks are redundant with EACH OTHER, not with Node.
           checkServerIdentity: (_hostname, certificate) =>
             checkServerIdentity(identity, certificate),
+          // Omitted for an IP identity, and not merely to honour RFC 6066: Node
+          // 26 THROWS `ERR_INVALID_ARG_VALUE` from `tls.connect` for an IP
+          // `servername`, where Node 24 only warns (DEP0123). Both gated majors
+          // are in the matrix, so this guard is load-bearing on one of them.
           ...(isIP(identity) === 0 ? { servername: identity } : {}),
           ...(request.signal === undefined ? {} : { signal: request.signal }),
         });
