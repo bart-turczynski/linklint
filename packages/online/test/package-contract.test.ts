@@ -13,6 +13,16 @@ const here = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(here, "..");
 const repoRoot = join(packageRoot, "..", "..");
 
+/** Every shipped `src/mirrors` module, concatenated, for source-fact assertions. */
+function mirrorSources(only?: (name: string) => boolean): string {
+  const mirrorsDir = join(packageRoot, "src", "mirrors");
+  return readdirSync(mirrorsDir)
+    .filter((name) => name.endsWith(".ts"))
+    .filter((name) => only?.(name) ?? true)
+    .map((name) => readFileSync(join(mirrorsDir, name), "utf8"))
+    .join("\n");
+}
+
 describe("@linklint/online package boundary", () => {
   const manifest = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8")) as {
     dependencies: Record<string, string>;
@@ -169,6 +179,33 @@ describe("@linklint/online package boundary", () => {
     // No credential slot exists to reveal into.
     expect(code).not.toContain("credential");
     expect(code).not.toMatch(/["']authorization["']/i);
+  });
+
+  /**
+   * LINK-mpkglaqb, the gap stated as an assertion.
+   *
+   * `updateUrlhausSnapshot` and `updatePhishTankSnapshot` are shipped and
+   * tested, but both take an injected `*HttpClient` and an injected
+   * `*SnapshotStore` and the package supplies NEITHER, so no caller can
+   * actually refresh a mirror with anything `@linklint/online` provides. Every
+   * other capability — transport, DNS, TLS, and now RDAP — ships a concrete
+   * `createNode*` factory behind its port.
+   *
+   * Pinned rather than left as prose so the day the adapters land, this
+   * assertion has to be rewritten deliberately instead of the gap quietly
+   * persisting behind a green suite.
+   */
+  it("ships no Node HTTP client and no filesystem store for either mirror feed", () => {
+    expect(mirrors).not.toHaveProperty("createNodeUrlhausHttpClient");
+    expect(mirrors).not.toHaveProperty("createNodePhishTankHttpClient");
+    expect(mirrors).not.toHaveProperty("createNodeUrlhausSnapshotStore");
+    expect(mirrors).not.toHaveProperty("createNodePhishTankSnapshotStore");
+
+    const source = mirrorSources();
+    expect(source).not.toMatch(
+      /from\s+["']node:(?:dns|net|tls|http|https|fs|fs\/promises|path|os)["']/,
+    );
+    expect(source).not.toMatch(/\bfetch\s*\(/);
   });
 
   it("routes redirect expansion through the injected L0 session without concrete clients", () => {
