@@ -6,17 +6,83 @@ import { boundedDecode, DEFAULT_MAX_DECODE_DEPTH } from "../parse/decode.js";
 /**
  * `open_redirect_param`. SCORING, weight 0.4.
  *
- * Flags a query parameter whose NAME is a known redirect parameter and whose
+ * Flags a redirect parameter whose NAME is a known redirect parameter and whose
  * decoded VALUE is itself a URL pointing to a DIFFERENT AUTHORITY than the input
  * host — the lexical fingerprint of an open-redirect lure:
  * `https://example.com/login?next=https://evil.com/phish` reads as `example.com`
  * but, when the redirect fires, lands the user on `evil.com`.
  *
- * Pure-lexical, zero network (consistent with all v1 detectors). Two payload
+ * Pure-lexical, zero network (consistent with all v1 detectors). Three payload
  * shapes are recognized in the decoded value:
  *   - **absolute URL** — scheme + host (`https://evil.com/...`);
  *   - **protocol-relative** — `//evil.com/...`, a classic open-redirect payload
- *     that omits the scheme so naive string checks miss it.
+ *     that omits the scheme so naive string checks miss it;
+ *   - **hostless dangerous scheme** — `javascript:alert(1)`, `data:text/html,…`
+ *     (see {@link DANGEROUS_PAYLOAD_SCHEMES}).
+ *
+ * ## The hostless dangerous-scheme payload (`LINK-txgqerim`)
+ *
+ * The first two shapes both route through {@link targetHost}, which needs an
+ * authority. A `javascript:` payload has none, so the highest-severity payload
+ * the registry knows about was the one shape this detector could not see:
+ * `javascript:alert(1)` reads `0.90`/`critical` as an INPUT and read `0.00` the
+ * moment it was wrapped in `?next=`. `docs/architecture.md` §5 puts both codes in
+ * the same **Dangerous payloads** family, and a redirect parameter carrying
+ * `javascript:` is the paradigm case of it.
+ *
+ * The claim is still claim-(a) structural, and it is the FIRST of §1.1's three
+ * forms rather than the divergence one: a parameter whose NAME declares where the
+ * navigation goes next carries a value that is not a location at all but
+ * executable content. Nothing about that needs to know what the site does.
+ *
+ * **Reported as `open_redirect_param` at its own weight `0.4`, NOT as
+ * `dangerous_scheme` at `0.9`.** That is a constraint, not a preference:
+ * `detectors/checks.ts` declares `emits: ["open_redirect_param"]` for this check
+ * and `test/checks-registry.test.ts` asserts that no reason code is emitted by two
+ * descriptors, so the payload case cannot be routed through the `dangerous_scheme`
+ * check; and a NEW code would force a `SCHEMA_VERSION` bump. The honest cost is
+ * recorded rather than hidden: a wrapped `javascript:` payload is reported one
+ * band lower than the same bytes standing alone. Reporting it at `0.4` is strictly
+ * better than the `0.00` it read before, and re-grading it is a weights decision
+ * for whoever owns `scoring/weights.ts`.
+ *
+ * {@link DANGEROUS_PAYLOAD_SCHEMES} duplicates FR-D-11's set for the same reason —
+ * `dangerous-scheme.ts` keeps its copy module-private. The duplication is guarded:
+ * `test/open-redirect-param-dangerous-payload.test.ts` reads the literal out of
+ * `dangerous-scheme.ts` and drives both sides of the biconditional from it, so the
+ * two copies cannot drift silently.
+ *
+ * Only the HOSTLESS spelling was missing. `?next=file://evil.com/x` and
+ * `?next=javascript://evil.com/%0aalert(1)` already fired, because both parse to
+ * an authority that diverges from the input's — that path is untouched and is
+ * still tried first.
+ *
+ * ## Two input surfaces: query AND fragment (`LINK-txgqerim`)
+ *
+ * The premise below — "the string presents one authority and the payload names
+ * another" — is a property of the payload, not of the delimiter in front of it,
+ * and nothing in §1.1, `docs/guarantees.md` or `docs/reason-codes.md` ever drew
+ * a boundary at `?`. The detector originally read `ctx.query` alone, so
+ * `…/login#next=https://evil.com/phish` scored `0.00` while its `?` twin scored
+ * `0.40`. That gap is exactly the DOM-based open redirect: `location.hash` read
+ * into `window.location` by client-side code. The fragment is never sent to the
+ * server, which is the whole reason the variant exists — and it is already
+ * carried through `parse/context.ts` and already read by `encoding-obfuscation`,
+ * `low-byte-truncation` and `percent-encoding-malformed`.
+ *
+ * SAME reason code, SAME weight, WIDER input surface. A distinct code would
+ * force a `SCHEMA_VERSION` bump for no semantic gain: the claim is identical and
+ * a consumer that wants to know which surface carried it can read the detail.
+ *
+ * {@link fragmentQueryLike} is what makes the fragment comparable. A fragment is
+ * not required to be a query string, and hash routers write both spellings:
+ * `#next=…` (bare pairs) and `#/route?next=…` (a route with its own query). The
+ * text after the FIRST `?` is taken when there is one, else the whole fragment;
+ * the two surfaces are then scanned by the same {@link openRedirectParamPayloads}
+ * with no second grammar to keep in step. Each surface is scanned independently,
+ * so the RFC 6749 exemption below is decided from the pairs on the SAME surface
+ * — a `client_id` in the query cannot silence a `redirect_uri` in the fragment,
+ * and the query path is byte-for-byte what it was.
  *
  * ## The divergence gate is over AUTHORITY, not over registrable domain
  *
@@ -111,6 +177,29 @@ const OAUTH_REDIRECT_PARAM = "redirect_uri";
 const OAUTH_CLIENT_ID_PARAM = "client_id";
 
 /**
+ * FR-D-11's executable/embedding schemes, duplicated from `dangerous-scheme.ts`
+ * because that module keeps its copy private and `checks.ts` will not let this
+ * check emit the `dangerous_scheme` code. Kept in step by
+ * `test/open-redirect-param-dangerous-payload.test.ts`, which reads the literal
+ * out of `dangerous-scheme.ts`.
+ */
+const DANGEROUS_PAYLOAD_SCHEMES = new Set(["javascript", "data", "blob", "file", "vbscript"]);
+
+/**
+ * The dangerous scheme a HOSTLESS payload declares, lower-cased, or null.
+ *
+ * Only reached after {@link targetHost} has declined, so a spelling that DOES
+ * carry an authority (`javascript://evil.com/%0aalert(1)`, `file://evil.com/x`)
+ * has already been handled by the divergence path and never arrives here.
+ */
+function dangerousPayloadScheme(value: string): string | null {
+  const m = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(value.trim());
+  if (m === null) return null;
+  const scheme = (m[1] as string).toLowerCase();
+  return DANGEROUS_PAYLOAD_SCHEMES.has(scheme) ? scheme : null;
+}
+
+/**
  * Extract the target host from a decoded redirect value, if it looks like a URL
  * pointing at a host. Returns null for relative paths and non-URL values.
  */
@@ -184,6 +273,26 @@ function authorityOf(host: string): Authority | null {
   return { site: h, registrableDomain: null };
 }
 
+/**
+ * The query-like slice of a fragment, or null when there is nothing to scan.
+ *
+ * A fragment is opaque by RFC 3986 — it has no defined internal grammar — but the
+ * two spellings client-side routers actually produce are both readable as
+ * `application/x-www-form-urlencoded` pairs once the route prefix is removed:
+ *
+ *   - `#next=https://evil.com/phish`        → `next=https://evil.com/phish`
+ *   - `#/checkout?next=https://evil.com/x`  → `next=https://evil.com/x`
+ *
+ * Splitting on the FIRST `?` is what separates them: everything after it when a
+ * `?` is present, the whole fragment otherwise. A fragment with no `=` in it
+ * yields no pairs downstream and is therefore inert, so no extra guard is needed.
+ */
+function fragmentQueryLike(fragment: string | null): string | null {
+  if (fragment === null || fragment === "") return null;
+  const q = fragment.indexOf("?");
+  return q === -1 ? fragment : fragment.slice(q + 1);
+}
+
 /** One decoded `key=value` pair from the raw query, key lower-cased. */
 interface QueryPair {
   readonly key: string;
@@ -217,10 +326,20 @@ function queryPairs(query: string, maxDecodeDepth: number): QueryPair[] {
 export interface OpenRedirectPayload {
   /** Lowercased matched redirect-parameter name (`next`, `url`, …). */
   readonly param: string;
-  /** Canonical authority identity of the decoded target (see {@link authorityOf}). */
+  /**
+   * Canonical authority identity of the decoded target (see {@link authorityOf}),
+   * or `'<scheme>:'` when {@link dangerousScheme} is set and there is no authority.
+   */
   readonly targetSite: string;
   /** Registrable domain of the target, or null when it is not a public-DNS name. */
   readonly registrableDomain: string | null;
+  /**
+   * Lower-cased scheme when the payload is a HOSTLESS dangerous-scheme URL
+   * (`javascript:`, `data:`, …), else null. Such a payload names no destination at
+   * all, so the divergence gate does not apply to it and neither does the RFC 6749
+   * exemption, which is defined only over public-DNS targets.
+   */
+  readonly dangerousScheme: string | null;
 }
 
 /**
@@ -273,7 +392,19 @@ export function openRedirectParamPayloads(
     }
 
     const host = targetHost(value);
-    if (host === null) continue;
+    if (host === null) {
+      // No authority to diverge from — but a hostless `javascript:`/`data:` value
+      // is not a destination at all, which is the first of §1.1's three forms.
+      const scheme = dangerousPayloadScheme(value);
+      if (scheme === null) continue;
+      payloads.push({
+        param: key,
+        targetSite: `${scheme}:`,
+        registrableDomain: null,
+        dangerousScheme: scheme,
+      });
+      continue;
+    }
 
     const authority = authorityOf(host);
     if (authority === null) continue;
@@ -295,6 +426,7 @@ export function openRedirectParamPayloads(
       param: key,
       targetSite: authority.site,
       registrableDomain: authority.registrableDomain,
+      dangerousScheme: null,
     });
   }
 
@@ -340,23 +472,43 @@ export const openRedirectParam: Detector = {
     const inputAuthority = authorityOf(ctx.host);
     if (inputAuthority === null) return [];
 
-    const [payload] = openRedirectParamPayloads(
-      ctx.query,
-      inputAuthority.site,
-      ctx.runtime.maxDecodeDepth,
-    );
-    if (payload === undefined) return [];
+    // Query first, then fragment: the query is the commoner spelling, and the
+    // first payload found is the one reported (the code is emitted at most once).
+    const surfaces: ReadonlyArray<readonly [string, string | null]> = [
+      ["redirect parameter", ctx.query],
+      ["fragment redirect parameter", fragmentQueryLike(ctx.fragment)],
+    ];
 
-    const linkHost = ctx.registrableDomain ?? inputAuthority.site;
-    const detail =
-      payload.registrableDomain !== null
-        ? `redirect parameter '${payload.param}' points off-site: its value resolves to ` +
+    for (const [label, text] of surfaces) {
+      const [payload] = openRedirectParamPayloads(
+        text,
+        inputAuthority.site,
+        ctx.runtime.maxDecodeDepth,
+      );
+      if (payload === undefined) continue;
+
+      const linkHost = ctx.registrableDomain ?? inputAuthority.site;
+      let detail: string;
+      if (payload.dangerousScheme !== null) {
+        detail =
+          `${label} '${payload.param}' carries an executable payload rather than a ` +
+          `destination: its value is a hostless '${payload.dangerousScheme}:' URL, a scheme ` +
+          `that can execute or embed content, on a link that reads as '${linkHost}'`;
+      } else if (payload.registrableDomain !== null) {
+        detail =
+          `${label} '${payload.param}' points off-site: its value resolves to ` +
           `'${payload.registrableDomain}', a different registrable domain than the link host ` +
-          `'${linkHost}'`
-        : `redirect parameter '${payload.param}' points off-site: its value resolves to the ` +
+          `'${linkHost}'`;
+      } else {
+        detail =
+          `${label} '${payload.param}' points off-site: its value resolves to the ` +
           `host '${payload.targetSite}', which has no registrable domain and is a different ` +
           `authority than the link host '${linkHost}'`;
+      }
 
-    return [{ code: "open_redirect_param", detail }];
+      return [{ code: "open_redirect_param", detail }];
+    }
+
+    return [];
   },
 };

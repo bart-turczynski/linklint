@@ -444,8 +444,8 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 
 ### `open_redirect_param` — Epic I (I2) · weight 0.4
 
-- **Meaning:** a query parameter whose **name** is a known redirect parameter
-  (`next`, `url`, `redirect`, `redirect_uri`, `redirect_url`, `dest`,
+- **Meaning:** a **query or fragment** parameter whose **name** is a known redirect
+  parameter (`next`, `url`, `redirect`, `redirect_uri`, `redirect_url`, `dest`,
   `destination`, `return`, `returnUrl`, `continue`, `u`, `goto`, `target`) carries
   a **value that is itself a URL pointing to a different authority** than the link
   host.
@@ -453,6 +453,24 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   reads as `example.com`, but when the redirect fires the user lands on
   `evil.com`. The cross-host payload is the lexical fingerprint of an
   open-redirect lure.
+- **Both surfaces, one code (`LINK-txgqerim`):** the premise is a property of the
+  payload, not of the delimiter in front of it, so the **fragment** is scanned on
+  the same terms as the query. `…/login#next=https://evil.com/phish` used to score
+  `0.00` while its `?` twin scored `0.40`; that gap was precisely the **DOM-based
+  open redirect**, where client-side code reads `location.hash` into
+  `window.location` — a conforming browser withholds the fragment from the
+  request it sends, which is the whole reason that variant exists. Same reason
+  code, same weight, wider input surface:
+  a distinct code would force a `SCHEMA_VERSION` bump for no semantic gain, and
+  the `detail` string names the surface (`fragment redirect parameter 'next' …`)
+  for a consumer that needs to tell them apart. Both hash-router spellings are
+  read — bare pairs (`#next=…`) and a route with its own query
+  (`#/checkout?next=…`, taken after the first `?`). The two surfaces are scanned
+  **independently**, so the OAuth exemption below is decided from parameters on
+  the *same* surface: a `client_id` in the query does not silence a `redirect_uri`
+  in the fragment. Measured cost: **zero verdict change** across the 1 443 corpus
+  verdicts (every labeled, agent, vector, embarrassment and known-accepted row,
+  under its own options and with `agentMode` forced both ways).
 - **Roadmap relocation (Phase 2 → Layer 1):** the PRD parks open-redirect under
   **Phase 2 (resolution)** because *confirming* an open redirect requires
   following it over the network. But the cross-host PAYLOAD inside the parameter
@@ -461,17 +479,46 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   resolution-time confirmation of whether the redirect actually fires; this
   detector owns the offline payload detection.
 - **Detection & precision (SC-2):** the value is bounded-decoded (seeing through
-  single/double percent-encoding) and interpreted as a URL in two shapes:
+  single/double percent-encoding) and interpreted as a URL in three shapes:
   - **absolute URL** — scheme + host (`https://evil.com/...`);
   - **protocol-relative** — `//evil.com/...`, a classic payload that omits the
-    scheme.
+    scheme;
+  - **hostless dangerous scheme** — `javascript:alert(1)`, `data:text/html,…`
+    (see the next bullet).
 
-  Fires **only** when the decoded value resolves to an authority that **differs**
-  from the link host's. A relative/same-host path (`?next=/dashboard`), a
-  same-authority target (`?next=https://app.example.com/home`), a non-redirect
-  param carrying a URL (`?ref=https://evil.com`), and a non-URL value (`?url=2`)
-  all stay clean. Parsing is fully defensive — a junk value yields no finding and
-  the detector never throws.
+  The first two fire **only** when the decoded value resolves to an authority that
+  **differs** from the link host's. A relative/same-host path (`?next=/dashboard`),
+  a same-authority target (`?next=https://app.example.com/home`), a non-redirect
+  param carrying a URL (`?ref=https://evil.com`), a non-dangerous scheme
+  (`?next=mailto:someone@example.org`), and a non-URL value (`?url=2`) all stay
+  clean. Parsing is fully defensive — a junk value yields no finding and the
+  detector never throws.
+- **Hostless dangerous-scheme payloads (`LINK-txgqerim`):** the two authority
+  shapes both need a host, so `javascript:alert(1)` — which has none — used to be
+  invisible inside a redirect parameter: it reads `0.90`/`critical` as an *input*
+  and read `0.00` the moment it was wrapped in `?next=`. `docs/architecture.md` §5
+  puts `dangerous_scheme` and `open_redirect_param` in the same **Dangerous
+  payloads** family, and a redirect parameter carrying `javascript:` is the
+  paradigm case of it. The claim is still structural, and it is §1.1's **first**
+  form rather than the divergence one: a parameter whose *name* declares where the
+  navigation goes next carries a value that is not a location at all but
+  executable content. The five FR-D-11 schemes are recognized (`javascript`,
+  `data`, `blob`, `file`, `vbscript`), on both surfaces, through the same
+  bounded decode, so `?next=javascript%3Aalert(1)` and `#next=JaVaScRiPt:alert(1)`
+  are covered. Only the *hostless* spelling was missing —
+  `?next=file://evil.com/x` and `?next=javascript://evil.com/%0aalert(1)` already
+  fired through the authority path, which is tried first and is unchanged.
+
+  **It is reported as `open_redirect_param` at weight `0.4`, not at
+  `dangerous_scheme`'s `0.9`, and that understatement is deliberate and
+  constrained.** `detectors/checks.ts` gives each reason code to exactly one check
+  descriptor and `test/checks-registry.test.ts` asserts it, so the payload case
+  cannot be routed through the `dangerous_scheme` check; a new code would force a
+  `SCHEMA_VERSION` bump. A wrapped `javascript:` payload therefore lands one band
+  below the same bytes standing alone (`medium` vs `critical`), which is still
+  strictly better than the `info` it read before. Re-grading it is a weights
+  question for `scoring/weights.ts`, not a detector question. Measured cost: zero
+  verdict change across the 1 443 corpus verdicts.
 - **Authority, not registrable domain (`LINK-cvcjgewz`):** the comparison is over
   the **authority identity** of the two hosts — the registrable domain when the
   host has one, otherwise the **canonical address** of an IP literal, otherwise
@@ -514,7 +561,10 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 - **Example:** `https://example.com/login?next=https://evil.com/phish`;
   `https://example.com/?redirect=//evil.com`;
   `https://example.com/login?url=http://169.254.169.254/latest/meta-data/`;
-  `https://example.com/login?redirect_uri=http://169.254.169.254/&client_id=x`.
+  `https://example.com/login?redirect_uri=http://169.254.169.254/&client_id=x`;
+  `https://example.com/login#next=https://evil.com/phish`;
+  `https://example.com/#/checkout?next=https://evil.com/x`;
+  `https://example.com/login?next=javascript:alert(1)`.
 - **Scoring:** scoring, weight 0.4.
 
 ### `open_redirect_observed` — Epic L (L3) · resolution layer, weight 0
@@ -1903,8 +1953,8 @@ exactly `["lexical"]`.
   Since `LINK-brsntven` deleted `risky_tld`, this is the ONLY TLD-membership
   channel linklint has: it ships no curated high-abuse TLD list of its own, and
   a caller who wants `.tk` to matter says so here. It remains a *policy verdict*
-  deception signal over a curated abuse-TLD set; `tld_denied` is whatever the
-  caller chose, advisory only.
+  rather than a deception finding; `tld_denied` is whatever the caller chose,
+  advisory only.
 - **Matching:** TLD values are compared case-insensitively and bare (a leading
   dot is tolerated and stripped). IP / hostless inputs have no public suffix and
   never match.
