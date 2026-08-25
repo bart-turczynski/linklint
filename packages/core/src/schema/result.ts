@@ -73,6 +73,15 @@ export interface DataVersions {
    * registry itself.
    */
   ipRanges: string;
+  /**
+   * Curated reserved special-use name table (`data/special-use-names.ts`) behind
+   * `special_use_name`. Added in schema `1.11` (`LINK-mgnbgicq`). It carries its
+   * own stamp because the reservation registry is LIVING — `.alt` was reserved
+   * in 2023 (RFC 9476) and `.internal` in 2024 (ICANN Board resolution, not an
+   * RFC) — so a verdict is only reproducible against the snapshot that produced
+   * it.
+   */
+  specialUseNames: string;
   brands: string;
   weights: string;
 }

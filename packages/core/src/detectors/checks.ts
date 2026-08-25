@@ -36,17 +36,18 @@ import { promptInjection } from "./prompt-injection.js";
 import { lowByteTruncation } from "./low-byte-truncation.js";
 import { fqdnRootLabel } from "./fqdn-root-label.js";
 import { hostLengthUnresolvable } from "./host-length-unresolvable.js";
+import { specialUseName } from "./special-use-name.js";
 import { credentialHarvesting } from "./credential-harvesting.js";
 import { dataExfiltration } from "./data-exfiltration.js";
 import { ssrfCloudMetadata } from "./ssrf-cloud-metadata.js";
 
 /**
- * THE single descriptor source for all 38 checks. `STRUCTURAL_SCANS`
+ * THE single descriptor source for all 37 checks. `STRUCTURAL_SCANS`
  * (structural.ts) and `DETECTORS` (registry.ts) are both DERIVED from this
  * array — add a check here once and both runtime arrays pick it up.
  *
  * Order matches today's runtime order exactly: the 4 structural scans first
- * (STRUCTURAL_SCANS order), then the 34 parsed detectors (DETECTORS order) —
+ * (STRUCTURAL_SCANS order), then the 33 parsed detectors (DETECTORS order) —
  * the last four of which are `agentGated` and run only when
  * `InspectOptions.agentMode` is true.
  * Each descriptor reuses the existing detector object / scan thunk's `run`;
@@ -305,6 +306,14 @@ export const CHECKS: CheckDescriptor[] = [
     emits: ["host_length_unresolvable"],
     skipReportable: true,
     run: hostLengthUnresolvable.run,
+  },
+  {
+    id: specialUseName.id,
+    layer: specialUseName.layer,
+    phase: "parsed",
+    emits: ["special_use_name"],
+    skipReportable: true,
+    run: specialUseName.run,
   },
   {
     id: fqdnRootLabel.id,

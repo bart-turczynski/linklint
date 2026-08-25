@@ -28,6 +28,7 @@ import { percentEncodingMalformed } from "./percent-encoding-malformed.js";
 import { lowByteTruncation } from "./low-byte-truncation.js";
 import { fqdnRootLabel } from "./fqdn-root-label.js";
 import { hostLengthUnresolvable } from "./host-length-unresolvable.js";
+import { specialUseName } from "./special-use-name.js";
 import { excessiveSubdomainDepth } from "./excessive-subdomain-depth.js";
 import { promptInjection } from "./prompt-injection.js";
 import { credentialHarvesting } from "./credential-harvesting.js";
@@ -77,6 +78,7 @@ export {
   percentEncodingMalformed,
   lowByteTruncation,
   hostLengthUnresolvable,
+  specialUseName,
   fqdnRootLabel,
   excessiveSubdomainDepth,
   promptInjection,

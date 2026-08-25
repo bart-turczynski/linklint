@@ -2028,3 +2028,177 @@ const AMBIGUOUS_AUTHORITY_FALSE_SHAPES_CORPUS: CorpusRow[] = [
 CORPUS.push(...AMBIGUOUS_AUTHORITY_FALSE_SHAPES_CORPUS);
 applyAcceptanceMetadata(AMBIGUOUS_AUTHORITY_FALSE_SHAPES_CORPUS);
 // LINK-ouljoseh — BLOCK END.
+
+// LINK-nreghohx — BLOCK START. `special_use_name`: the RFC 6761 reserved set,
+// reported at weight 0 under architecture §1.1's fourth rule.
+//
+// Self-contained and appended at the tail: the block pushes its own rows and
+// applies its own acceptance metadata, so it neither depends on nor disturbs a
+// neighbouring block.
+//
+// No row here is `deceptive` BECAUSE of the reserved name, and that is the point
+// rather than an oversight. None of these names satisfies any of §1.1's three
+// forms — `normalize(input) === input`, every reader agrees, and the string is
+// honest about itself — so nothing scores on the name. What changed is the
+// REPORTING obligation: a 0.00 with no reasons asserted "there is nothing to say
+// about this URL" for a name a standards body has guaranteed will never resolve.
+// The three `deceptive` rows below score on something ELSE entirely (userinfo,
+// the cloud-metadata table) and are here to prove the informational code neither
+// causes nor suppresses those verdicts.
+//
+// The `benign` rows are the FALSE-POSITIVE guards, and there are three kinds:
+//   - the example DOMAINS. RFC 6761 §6.5 reserves example.com/.net/.org in the
+//     same section as `.example`, but they sit under a DELEGATED TLD and they
+//     resolve. Roughly a quarter of this file's rows use one as a stand-in.
+//   - ordinary domains that merely END in the letters (`notinvalid.com`).
+//   - metadata.google.internal, which must NOT double-report.
+const SPECIAL_USE_NAME_CORPUS: CorpusRow[] = [
+  // ── info: the reserved set explains itself, at weight 0 ──────────────────
+  {
+    input: "https://foo.invalid/",
+    label: "info",
+    expectReasons: ["special_use_name"],
+    notes: "LINK-nreghohx — the fourth rule's worked shape: well-formed, universally agreed, honest about itself, and guaranteed by RFC 6761 §6.4 never to work. NO-REFERENT category — it names nothing on any network anywhere",
+  },
+  {
+    input: "https://svc.internal/",
+    label: "info",
+    expectReasons: ["special_use_name"],
+    notes: "LINK-nreghohx — the sharpened case. 192.168.1.1 scores 0.20 for addressing a private network while this name, reserved for exactly that purpose, said nothing at all. Still 0.00; no longer silent. The LINK-hvawpgos independence claim was about the SCORE and it holds unchanged",
+  },
+  {
+    input: "https://api.svc.internal/v1/health",
+    label: "info",
+    expectReasons: ["special_use_name"],
+    notes: "LINK-nreghohx — a realistic service-mesh URL. This is the population the code has to be quiet-but-informative on, and weight 0 is what makes that possible",
+  },
+  {
+    input: "https://printer.local/",
+    label: "info",
+    expectReasons: ["special_use_name"],
+    notes: "LINK-nreghohx — LOCALLY-SCOPED. RFC 6762 mDNS answers this on the link the query was asked on, which is why the predicate says `never publicly resolvable` and NOT `cannot resolve`",
+  },
+  {
+    input: "https://app.localhost/",
+    label: "info",
+    expectReasons: ["special_use_name"],
+    notes: "LINK-nreghohx — MACHINE-RELATIVE. RFC 6761 §6.3 MANDATES loopback, making this the LEAST context-dependent name in the set and the counterexample that killed the context-dependence framing",
+  },
+  {
+    input: "https://router.home.arpa/",
+    label: "info",
+    expectReasons: ["special_use_name"],
+    notes: "LINK-nreghohx — RFC 8375, a TWO-LABEL reservation. Matching is whole-label suffix, longest first, so this reports home.arpa and not a fall-through",
+  },
+  {
+    input: "https://foo.test/",
+    label: "info",
+    expectReasons: ["special_use_name"],
+    notes: "LINK-nreghohx — RFC 6761 §6.2, reserved for testing",
+  },
+  {
+    input: "https://foo.alt/",
+    label: "info",
+    expectReasons: ["special_use_name"],
+    notes: "LINK-nreghohx — RFC 9476, reserved in 2023 for non-DNS name systems. NO-REFERENT, and half of why this table needs a version stamp",
+  },
+  {
+    input: "https://foo.example/",
+    label: "info",
+    expectReasons: ["special_use_name"],
+    notes: "LINK-nreghohx — the .example TLD itself IS covered. The line is the delegation, not the word: this TLD was never delegated, example.com's parent was",
+  },
+  {
+    input: "https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/",
+    label: "info",
+    expectReasons: ["special_use_name"],
+    notes: "LINK-nreghohx — SEPARATE-NAMESPACE (RFC 7686): resolution happens, through the Tor overlay rather than the DNS. A real v3 address. .onion LABEL SYNTAX is a separate, still-open and SCORING-eligible question (`ab.onion` announces an identity it cannot be — §1.1 form 3) and is deliberately not decided by this weight-0 row",
+  },
+  {
+    input: "https://foo.invalid./",
+    label: "info",
+    expectReasons: ["special_use_name", "fqdn_root_label"],
+    notes: "LINK-nreghohx — one trailing root dot is dropped before matching, exactly as the cloud-metadata matcher does; and the FQDN fact is a DIFFERENT fact, so both are reported rather than one swallowing the other",
+  },
+  {
+    // The suppression is table membership, not "some other code fired".
+    input: "http://paypal.com@foo.internal/login",
+    label: "deceptive",
+    minSeverity: "medium",
+    expectReasons: ["userinfo_present", "special_use_name"],
+    notes: "LINK-nreghohx — a scoring finding and the informational one coexist. Only the cloud-metadata table suppresses; nothing else does",
+  },
+
+  // ── benign: the example DOMAINS, excluded by construction ────────────────
+  {
+    input: "https://example.com/",
+    label: "benign",
+    forbidReasons: ["special_use_name"],
+    notes: "LINK-nreghohx FP guard — RFC 6761 §6.5 reserves it, but as a SECOND-LEVEL name under a DELEGATED TLD: publicSuffix is `com` and IANA operates the site. Roughly a quarter of this file's rows use one of these three as a neutral stand-in",
+  },
+  {
+    input: "https://example.net/",
+    label: "benign",
+    forbidReasons: ["special_use_name"],
+    notes: "LINK-nreghohx FP guard — same reservation, same delegated-parent reasoning",
+  },
+  {
+    input: "https://example.org/",
+    label: "benign",
+    forbidReasons: ["special_use_name"],
+    notes: "LINK-nreghohx FP guard — same reservation, same delegated-parent reasoning",
+  },
+  {
+    input: "https://www.example.com/path",
+    label: "benign",
+    forbidReasons: ["special_use_name"],
+    notes: "LINK-nreghohx FP guard — the shape most of this corpus and the CLI batch fixture actually use",
+  },
+
+  // ── benign: ordinary domains that merely END in the letters ──────────────
+  {
+    input: "https://notinvalid.com/",
+    label: "benign",
+    forbidReasons: ["special_use_name"],
+    notes: "LINK-nreghohx FP guard — matching is WHOLE-LABEL suffix; a substring test would call this reserved",
+  },
+  {
+    input: "https://myinternal.com/",
+    label: "benign",
+    forbidReasons: ["special_use_name"],
+    notes: "LINK-nreghohx FP guard — the same guard on the label the cloud-metadata slice cares about",
+  },
+  {
+    input: "https://1.0.168.192.in-addr.arpa/",
+    label: "benign",
+    forbidReasons: ["special_use_name"],
+    notes: "LINK-nreghohx FP guard — `arpa` is a DELEGATED infrastructure TLD and is not a row; only the whole name home.arpa is. A one-label-too-short table would sweep every reverse-DNS name in",
+  },
+
+  // ── benign/deceptive: the cloud-metadata collision must not double-report ─
+  {
+    input: "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["special_use_name"],
+    notes: "LINK-nreghohx — the ONE host in the class already carrying a verdict. Suppressed for two reasons: the fourth rule's trigger is a 0.00 with NO reasons, so nothing is owed; and the predicate would be FALSE here, since this host's whole hazard is that it DOES resolve, to a credential-vending endpoint",
+  },
+  {
+    input: "http://metadata.google.internal./",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["special_use_name"],
+    notes: "LINK-nreghohx — the trailing-dot spelling. Both matchers drop one root dot, so the suppression cannot be walked around the way the Smokescreen allow-list was",
+  },
+  {
+    input: "https://internal.evil.com/",
+    label: "benign",
+    forbidReasons: ["special_use_name"],
+    notes: "LINK-nreghohx FP guard — a reserved WORD as an ordinary label under a delegated TLD. The reservation is over the suffix, so a check that matched any label would flag half the corporate web",
+  },
+];
+CORPUS.push(...SPECIAL_USE_NAME_CORPUS);
+applyAcceptanceMetadata(SPECIAL_USE_NAME_CORPUS);
+// LINK-nreghohx — BLOCK END.

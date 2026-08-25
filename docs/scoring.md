@@ -203,7 +203,7 @@ another signal.
 
 ### Zero-weight codes
 
-The remaining **20** codes never move the score. They are listed separately
+The remaining **21** codes never move the score. They are listed separately
 because "weight `0.00`" means three different things, and mixing them into the
 table above is what let this section drift: a reader scanning for weights has no
 reason to read past the last non-zero row.
@@ -228,6 +228,7 @@ reason to read past the last non-zero row.
 | `port_denied`              | policy     | policy verdict |
 | `prompt_injection_url`     | lexical    | annotation     |
 | `scheme_denied`            | policy     | policy verdict |
+| `special_use_name`         | lexical    | annotation     |
 | `tld_denied`               | policy     | policy verdict |
 | `tld_not_allowlisted`      | policy     | policy verdict |
 

@@ -4,6 +4,77 @@ All notable changes to this project will be documented here.
 
 ## Unreleased
 
+### Added — result contract (`SCHEMA_VERSION` `1.10` → `1.11`)
+
+- **New weight-0 informational reason code `special_use_name`**
+  (`LINK-mgnbgicq`, architecture §1.1). A host under a reserved special-use
+  name — `.invalid`, `.internal`, `.localhost`, `.onion`, `.local`, `.test`,
+  `.example`, `.alt`, `home.arpa` — now says so instead of returning `0.00`
+  with an empty reason list. `https://svc.internal/` reads `0.00`/`info` with
+  this reason where it previously read `0.00`/`info` with no reasons at all.
+- **Nothing scores, and `WEIGHTS_VERSION` does NOT move — it stays `1.19`.**
+  None of these names satisfies any of §1.1's three forms:
+  `normalize(input) === input`, every conforming reader agrees on the string,
+  and the string makes no false claim about itself. This is §1.1's *fourth*
+  rule — report what you can determine, never silently pass — whose worked case
+  is `host_length_unresolvable`, and `foo.invalid` has exactly that shape:
+  well-formed, universally agreed, honest about itself, and guaranteed by
+  RFC 6761 §6.4 never to work. A weight of 0 adds no scoring surface, so the
+  weights stamp has nothing to record.
+- **The predicate is the uniform RFC-fixed fact, stated in these words:**
+  *reserved, never delegated in the global DNS root, never publicly resolvable*.
+  The two shorter phrasings are each false of part of the set and are recorded
+  as rejected in `data/special-use-names.ts`: *"cannot resolve"* is false for
+  `.internal` and `.local`, where resolving is the whole point in the deployment
+  that uses them, and *"context-dependent"* is false for `.invalid` and `.alt`,
+  which name nothing anywhere. Category detail — no referent, locally-scoped
+  referent, machine-relative (`.localhost`, which RFC 6761 §6.3 *mandates* to
+  loopback), separate namespace (`.onion`) — is printed beneath the predicate,
+  never in place of it.
+- **`DataVersions.specialUseNames` added** (`2026-08-25-rfc6761`). An additive
+  field on the serialized result, which owes a `SCHEMA_VERSION` bump under §6.4
+  regardless of backward compatibility. It carries its own stamp because the
+  reservation registry is **living**: `.alt` arrived in 2023 (RFC 9476),
+  `.internal` in 2024 (an ICANN Board resolution, not an RFC).
+- **The example DOMAINS are deliberately excluded.** RFC 6761 §6.5 reserves
+  `.example` *and* `example.com`/`.net`/`.org` in one section, but the second
+  group are second-level reservations under a **delegated** TLD and they
+  resolve — `example.com`'s public suffix is `com`. Roughly a quarter of the
+  labeled corpus uses one of them as a neutral stand-in, so including them would
+  annotate that whole population with a claim about the stand-in and would make
+  the code's own predicate false on every row.
+- **No double-report on `metadata.google.internal`.** It sits under `.internal`
+  and already carries `ip_cloud_metadata` (`0.75`, stacking to `1.00` with
+  `ssrf_cloud_metadata` under `agentMode`), so the informational code suppresses
+  itself there — the fourth rule's trigger is a `0.00` with *no* reasons, and the
+  predicate would be false where it landed, since that host's entire hazard is
+  that it *does* resolve. The suppression reads the same matcher the scoring
+  codes read and does not generalise to "some other code fired".
+  `LINK-hvawpgos`'s recorded independence claim — "`svc.internal` stays at
+  `0.00` under both outcomes" — is a claim about the **score**, and it holds
+  unchanged.
+- **`.onion` label syntax is NOT decided by this.** A v3 address is a
+  56-character base32 pubkey plus checksum, so `ab.onion` announces a Tor
+  identity it cannot be — §1.1 form 3, which is *scoring*-eligible. Settling it
+  inside a weight-0 code would decide a scoring question by smuggling.
+- **`LINK-qqwfpxvu` is not decided sideways.** The axis rejected there was
+  *authority-fixed content licenses SCORING*. Nothing here scores: weight 0
+  defeats the deception objection and RFC-fixed content defeats the durability
+  objection, both are required, and neither suffices alone.
+- **The §6.4 pin bit again, and it was proved before the bump.** Registering the
+  code with `SCHEMA_VERSION` left at `1.10` turned
+  `test/docs-validation.test.ts` red with
+  `{ added: ["special_use_name"], removed: [] }`. That is the fourth confirmation
+  — an addition (`fqdn_root_label`, historical), a single removal
+  (`api_endpoint_impersonation`), a double removal (`risky_tld` + `bait_tokens`)
+  and now this one.
+- **§1.1's last open boundary is closed.** The "One boundary this section does
+  NOT yet settle" heading is gone, replaced by the settlement; the settles-list
+  is intact and gains the reserved special-use names. The framing that left it
+  open — *context-dependent names* — is recorded as the **rejected** axis, since
+  it is false of `.invalid`/`.alt` in one direction and of `.localhost` in the
+  other.
+
 ### Removed — BREAKING (package API + result contract)
 
 - **Delete `risky_tld` and `bait_tokens`, the whole "Contextual signals"

@@ -1455,6 +1455,76 @@ specified above.
   sees no change from this code existing.
 - **Example:** `https://` + 64 × `a` + `.com`.
 
+### `special_use_name` — LINK-mgnbgicq · weight 0 (informational)
+
+- **Meaning:** the host sits under a reserved special-use name — `.invalid`,
+  `.internal`, `.localhost`, `.onion`, `.local`, `.test`, `.example`, `.alt`, or
+  `home.arpa`. What every one of them asserts, in these words and no shorter
+  ones, is: **reserved, never delegated in the global DNS root, never publicly
+  resolvable.** Matching is whole-label suffix, longest first, case-folded, with
+  one trailing root dot dropped. IP literals are exempt: they are not domain
+  names.
+- **Why the predicate is stated exactly that way:** the two shorter phrasings are
+  each false of part of the set, and shipping either would ship a false claim.
+  *"Cannot resolve"* is false for `.internal` and `.local` — resolving is the
+  whole point of those names inside the deployment that uses them.
+  *"Context-dependent"* is false for `.invalid` and `.alt`, which name nothing on
+  any network anywhere. Category-specific detail goes **beneath** the uniform
+  predicate, never in place of it: no referent ever (`.invalid`, `.alt`), a
+  locally-scoped referent (`.internal`, `.local`, `home.arpa`, `.test`,
+  `.example`), a separate namespace (`.onion`), and — the case that kills the
+  context-dependence framing — `.localhost`, which RFC 6761 §6.3 **mandates** to
+  resolve to loopback and which is therefore the *least* context-dependent name
+  in the set.
+- **Why it is weight 0 and not a scoring finding:** none of these names satisfies
+  any of architecture §1.1's three forms. `normalize(input) === input`, every
+  conforming reader agrees on the string, and the string makes no false claim
+  about itself — `foo.invalid` is honest to the point of being named for its own
+  honesty. Nothing here is deception, and the code cannot raise a severity band.
+- **Why it is reported at all:** §1.1's fourth rule. A `0.00` with no reasons
+  asserts "there is nothing to say about this URL", and that is false for a name
+  a standards body has guaranteed will never work. `foo.invalid` has the same
+  shape as `host_length_unresolvable`'s worked case — well-formed, universally
+  agreed, honest, and guaranteed to fail — so the silence was the inconsistency
+  the fourth rule exists to close. Sharpened: `192.168.1.1` scores `0.20`, while
+  `svc.internal` scores `0.00` on a name reserved for exactly that purpose.
+- **Scope — suffixes only, the example DOMAINS excluded:** RFC 6761 §6.5 reserves
+  `.example` *and* `example.com`/`.net`/`.org` in one section, but those are two
+  different facts. `.example` is a TLD that was never delegated. `example.com` is
+  a second-level reservation under `com`, which **is** delegated, and it
+  resolves. The measurable form of the line is the public suffix — `example`
+  versus `com` — and the exclusion is load-bearing rather than fastidious:
+  roughly a quarter of the labeled corpus uses one of those hosts as a neutral
+  stand-in, so including them would annotate that whole population with a claim
+  about the stand-in and would make this code's own predicate false on every
+  one.
+- **Boundary — no double-report:** where a **scoring** code already names the
+  host, this one suppresses itself. `metadata.google.internal` sits under
+  `.internal` and already carries `ip_cloud_metadata` (`0.75`, stacking to `1.00`
+  with `ssrf_cloud_metadata` under `agentMode`). Two reasons, both required: the
+  fourth rule's trigger is a `0.00` with **no** reasons, so a host already
+  carrying a finding is owed nothing; and the predicate would be false where it
+  landed, since that host's entire hazard is that it *does* resolve, reliably, to
+  a credential-vending endpoint. The suppression reads the same matcher the
+  scoring codes read, and it does not generalise — a host suppresses on table
+  membership, not on "some other code fired".
+- **Out of scope — `.onion` label syntax:** a v3 onion address is a 56-character
+  base32 pubkey plus checksum, so `ab.onion` announces a Tor identity it cannot
+  be. That is §1.1 form 3, which is **scoring**-eligible, and settling it inside a
+  weight-0 code would decide a scoring question by smuggling. This code says only
+  that `.onion` is reserved and not in the DNS.
+- **This does not decide `LINK-qqwfpxvu` sideways:** the axis rejected there was
+  *authority-fixed content licenses SCORING*. Nothing here scores. Weight 0
+  defeats the deception objection and RFC-fixed content defeats the durability
+  objection; both are required and neither suffices alone.
+- **Versioning:** the reservation registry is **living** — `.alt` arrived in 2023
+  (RFC 9476), `.internal` in 2024 (an ICANN Board resolution, not an RFC) — so
+  the table carries `dataVersions.specialUseNames`. Registering the code bumped
+  `SCHEMA_VERSION` to `1.11` (a closed-domain addition) along with the new
+  `DataVersions` key (an additive contract change); `WEIGHTS_VERSION` did **not**
+  move, because a weight of 0 adds no scoring surface.
+- **Example:** `https://svc.internal/` → `0.00`/`info` with this reason.
+
 ### `fqdn_root_label` — V7 · weight 0 (informational)
 
 - **Meaning:** the authority carries an explicit DNS root label — the trailing dot
