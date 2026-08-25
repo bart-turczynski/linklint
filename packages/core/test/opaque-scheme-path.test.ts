@@ -23,39 +23,59 @@ const codes = (input: string, agent = false): string[] =>
   inspect(input, agent ? { agentMode: true } : undefined).reasons.map((r) => r.code);
 
 // ---------------------------------------------------------------------------
-// PRE-FIX CHARACTERIZATION (LINK-avefryhe) — DELETED BY THE FIX COMMIT.
+// THE FIX (LINK-avefryhe) — an opaque body is not a path, so the detector does
+// not run on one. This block replaces the pre-fix characterization that recorded
+// the false positive: `mailto:a@b.com` split on `.` gave `['a@b','com']`, and
+// `com` is in the dangerous set as the DOS COM executable, so every `mailto:` to
+// a `.com` address scored 0.5/medium.
 //
-// `mailto:a@b.com` has an opaque body of `a@b.com`; the last "segment" is the
-// whole body, splitting it on `.` yields `['a@b','com']`, and `com` is in the
-// dangerous set as the DOS COM executable. Every `mailto:` to a `.com` address
-// therefore scores 0.5/medium. This block records that defect exactly as it
-// stands so the fix commit has something to invert.
+// This is a §1.1 scope fix, not tuning. `mailto:a@b.com` makes no false claim
+// about itself, no two readers disagree about it, and normalize(input) === input
+// — none of the three settled forms of claim (a) is satisfied, so it must not be
+// a SCORING finding at all.
 // ---------------------------------------------------------------------------
-describe("LINK-avefryhe PRE-FIX — suspicious_extension reads an email TLD as a file extension", () => {
-  const mailtoFalsePositives = [
+describe("LINK-avefryhe — an email address's TLD is not a file extension", () => {
+  const contactLinks = [
     "mailto:a@b.com",
     "mailto:someone@example.com",
     "mailto:support@github.com",
     "mailto:security@microsoft.com",
+    "mailto:sales@stripe.com",
+    "mailto:info@acme.com",
+    "mailto:a@b.com?subject=Hello",
   ];
 
-  for (const input of mailtoFalsePositives) {
-    it(`${JSON.stringify(input)} currently fires suspicious_extension at 0.5/medium`, () => {
+  for (const input of contactLinks) {
+    it(`${JSON.stringify(input)} scores 0/info with no suspicious_extension`, () => {
       const r = inspect(input);
       expect(r.status).toBe("ok");
-      expect(codes(input)).toContain("suspicious_extension");
-      expect(r.score).toBe(0.5);
-      expect(r.severity).toBe("medium");
+      expect(r.reasons.map((x) => x.code)).not.toContain("suspicious_extension");
+      expect(r.score).toBe(0);
+      expect(r.severity).toBe("info");
     });
   }
 
-  it("a non-.com address escapes only because its TLD is not an executable name", () => {
+  it("a non-.com address is unchanged — it never fired in the first place", () => {
     expect(codes("mailto:bob@corp.io")).not.toContain("suspicious_extension");
   });
 
-  it("the same defect reaches tel: and about: bodies", () => {
-    expect(codes("tel:5550100.com")).toContain("suspicious_extension");
-    expect(codes("about:setup.exe")).toContain("suspicious_extension");
+  it("tel: and about: bodies are gated too", () => {
+    expect(codes("tel:5550100.com")).not.toContain("suspicious_extension");
+    expect(codes("about:setup.exe")).not.toContain("suspicious_extension");
+    expect(inspect("tel:5550100.com").score).toBe(0);
+    expect(inspect("about:setup.exe").score).toBe(0);
+  });
+
+  it("the already-dangerous opaque schemes lose only the spurious second reason", () => {
+    // `dangerous_scheme` at 0.9 is the finding on these, and it is untouched;
+    // the extension read off their body never was one.
+    for (const input of ["javascript:x.exe", "data:text/plain,a.bat", "vbscript:a.scr"]) {
+      const r = inspect(input);
+      expect(r.reasons.map((x) => x.code)).toEqual(["dangerous_scheme"]);
+      expect(r.score).toBe(0.9);
+    }
+    // `blob:` bodies are an origin plus an opaque UUID, never a download name.
+    expect(codes("blob:https://e.com/x.msi")).toEqual(["dangerous_scheme"]);
   });
 });
 

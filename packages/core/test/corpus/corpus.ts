@@ -1158,6 +1158,28 @@ export const CORPUS: CorpusRow[] = [
 
   // ── Imported IDN / PSL / host test vectors (E6) ─────────────────────────
   ...VECTORS,
+
+  // ── LINK-avefryhe: opaque-scheme bodies are not paths ────────────────────
+  // An opaque scheme (`mailto:`, `tel:`, `about:`, …) has no authority and no
+  // hierarchical path; `parseRawParts()` projects its whole body onto `path`
+  // because that is the only field it has. `suspicious_extension` read a
+  // filename and an extension off that body, so `mailto:a@b.com` split to
+  // `['a@b','com']` and matched `com` (the DOS COM executable) at 0.5/medium —
+  // an architecture §1.1 violation, since a contact link makes no false claim
+  // about itself, provokes no reader disagreement, and has no normalization
+  // delta. The fix gates the detector on non-opaque (hierarchical) schemes; the
+  // dangerous set is untouched, which the `setup.com` row below pins.
+  { input: "mailto:a@b.com", label: "benign", forbidReasons: ["suspicious_extension"], notes: "LINK-avefryhe — `.com` here is an email TLD, not a DOS COM executable" },
+  { input: "mailto:someone@example.com", label: "benign", forbidReasons: ["suspicious_extension"], notes: "LINK-avefryhe — the most ordinary contact link on the web scored 0.5/medium" },
+  { input: "mailto:security@microsoft.com", label: "benign", forbidReasons: ["suspicious_extension"], notes: "LINK-avefryhe — every `mailto:` to a `.com` address fired; `.com` is the most common TLD in existence" },
+  { input: "mailto:a@b.com?subject=Hello", label: "benign", forbidReasons: ["suspicious_extension"], notes: "LINK-avefryhe — the opaque body carries its own query; still not a path" },
+  { input: "mailto:bob@corp.io", label: "benign", forbidReasons: ["suspicious_extension"], notes: "LINK-avefryhe — the control: a non-`.com` address that only ever escaped by luck of its TLD" },
+  { input: "tel:5550100.com", label: "benign", forbidReasons: ["suspicious_extension"], notes: "LINK-avefryhe — the same defect reached `tel:` bodies" },
+  { input: "about:setup.exe", label: "benign", forbidReasons: ["suspicious_extension"], notes: "LINK-avefryhe — an `about:` body is opaque; there is no file to download" },
+  { input: "mailto:аbc@b.io", label: "info", expectReasons: ["confusable_in_path"], forbidReasons: ["suspicious_extension"], notes: "LINK-avefryhe sweep — the weight-0 annotation on an opaque body is correct and stays (§1.1 fourth rule: report, never silently pass)" },
+  { input: "mailto:a%zz@b.io", label: "deceptive", minSeverity: "low", expectReasons: ["percent_encoding_malformed"], forbidReasons: ["suspicious_extension"], notes: "LINK-avefryhe sweep — a malformed escape is §1.1 form 3 in any component; scheme-agnostic and correct here" },
+  { input: "ftp://files.example.com/setup.exe", label: "deceptive", expectReasons: ["suspicious_extension"], notes: "LINK-avefryhe — the gate is NOT http/https-only: an FTP executable download is exactly this detector's shape" },
+  { input: "http://cdn.example.com/setup.com", label: "deceptive", expectReasons: ["suspicious_extension"], notes: "LINK-avefryhe — `com` stays in the dangerous set; the fix is a scheme gate, not a set edit" },
 ];
 
 /** agentMode:true applied to every row in the V4 agent-family block. */
