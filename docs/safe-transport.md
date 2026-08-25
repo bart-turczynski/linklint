@@ -139,6 +139,59 @@ it: the connector is never handed an address outside the set that the hop's own
 resolution returned, and every member of that set is classified before any
 member is selected (`LINK-rbghrpru`).
 
+## Destination ports are unrestricted, deliberately
+
+Destination ports carry no policy of their own, on the fetch path and on the
+TLS-observation path alike. Any WHATWG-valid explicit port, 0–65535, is
+accepted; an elided port takes the scheme default, 443 for `https:` and 80 for
+`http:`. There is no `allowedPorts` field on `TransportPolicy` or on
+`TlsInspectionPolicy`, no `prohibited-port` cause in either vocabulary, and
+`TRANSPORT_SCHEMA_VERSION` stays at `1.0`. Nothing in an existing caller
+composition is affected.
+
+That is a decision (`LINK-rfjeztxh`), not an oversight, and it was taken against
+a specific proposal: a default 80/443 allowlist applied before DNS and at every
+redirect hop. Three findings decided it, and they are recorded here because a
+bare "ports are unrestricted" invites the same proposal again.
+
+**The address layer already refuses the whole internal surface at every port.**
+`pinDestination` takes a hostname and a resolver, and `classifyTransportAddress`
+takes one address string; no port value reaches either. So loopback, RFC 1918,
+link-local, CGNAT, cloud-metadata, IPv4-mapped and 6to4 forms are refused
+identically on `:80` and on `:8080` — measured on real wiring, with live
+loopback listeners left uncontacted. A port allowlist would remove no address
+the classifier admits, other than a **public** one, and this boundary asserts no
+safety about a public destination at any port.
+
+**A default of 80/443 would blind a URL-inspection tool on `:8080` and
+`:8443`,** which is where hostile hosting concentrates. The attacker picks the
+port, so the attacker would be deciding whether linklint may observe the
+redirect chain at all. The restriction inverts the goal it was proposed to
+serve.
+
+**The port is already inside the caller's consent.** Authorization names the
+exact request URL, and a port is part of that URL: an authorization for
+`http://8.8.8.8/` does not cover a fetch of `http://8.8.8.8:8080/`, which is
+refused with `authorization-required` before any resolution.
+`resolution/redirect-chain.ts` calls `options.authorize()` with each hop's URL,
+port included. A transport-level port refusal would therefore overrule a
+decision the caller had explicitly made, and
+[`docs/architecture.md`](architecture.md) §8 leaves enforcement to the consumer.
+
+### Applying a port policy as a caller
+
+Two seams already carry one, and neither needs a change here.
+
+- **`options.authorize()`** — the per-hop consent callback
+  `resolution/redirect-chain.ts` invokes — receives every hop URL with its port
+  before the hop is attempted. Declining a port there stops that hop. This is
+  the deciding seam, because it governs whether a request is made at all.
+- **Core's port axis**, the `denyPorts` and `denyNonStandardPorts` options,
+  reports an explicit port through the `port_denied` reason. It is opt-in,
+  default-allow, and **advisory**: `port_denied` is `scoring: false` at weight
+  0, so core describes the port and leaves the decision to the caller. Only an
+  explicit port is evaluated; an elided one is not.
+
 ## Mandatory cumulative budgets
 
 Every session has finite limits; zero, negative, non-finite, and timer-overflow
