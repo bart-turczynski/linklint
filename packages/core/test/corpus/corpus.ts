@@ -2236,3 +2236,151 @@ const SPECIAL_USE_NAME_CORPUS: CorpusRow[] = [
 CORPUS.push(...SPECIAL_USE_NAME_CORPUS);
 applyAcceptanceMetadata(SPECIAL_USE_NAME_CORPUS);
 // LINK-nreghohx — BLOCK END.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LINK-tsvngawn — the FRAGMENT surface of `open_redirect_param`. BLOCK START.
+//
+// `MR !40` widened the detector from `ctx.query` to `ctx.query` PLUS the
+// query-like slice of `ctx.fragment`, and added the hostless dangerous-scheme
+// payload shape. That change measured a corpus false-positive delta of ZERO —
+// and the delta was zero on the COVERAGE side too, because THIS CORPUS CARRIED
+// NO FRAGMENT PAYLOAD AT ALL. A zero from a blind instrument is not evidence,
+// so these rows exist to give the surface an instrument in both directions.
+//
+// What the deceptive rows do NOT license: this is a benign corpus, so it
+// measures FALSE POSITIVES only. Adding a row that fires supports no claim
+// about detection rate on the population — it pins one verdict, no more.
+//
+// The benign rows are the point of the block. All four are ordinary
+// single-page-app hash routes, chosen to walk the detector's fragment path from
+// "no pairs at all" to "a redirect-NAMED parameter carrying a same-authority
+// absolute URL", which is the last stop before firing.
+//
+// ONE ORDINARY HASH-ROUTER SHAPE IS DELIBERATELY ABSENT FROM THIS BLOCK:
+// `https://example.com/#/route?url=https://cdn.example.org/x` reads 0.40/medium
+// today. It is a benign SPA route by ordinary web practice and a true positive
+// by the detector's stated premise, and the class has never been sized — see
+// `LINK-wtdpntox`. It cannot be a `benign` row here, because a `benign` row
+// asserts score 0 and that assertion is false today; and it is not a
+// `KNOWN_AND_ACCEPTED` string either, since that register holds accepted
+// ZERO-SCORE misses, the opposite direction. It is pinned instead in
+// `known-false-positives.ts`, which asserts the verdict we want with `it.fails`
+// so it goes RED the day the exposure is closed.
+// ─────────────────────────────────────────────────────────────────────────────
+const FRAGMENT_REDIRECT_CORPUS: CorpusRow[] = [
+  // ── Deceptive (SC-1): the payload shapes the query surface already caught ──
+  {
+    input: "https://example.com/login#next=https://evil.com/phish",
+    label: "deceptive",
+    minSeverity: "medium",
+    expectReasons: ["open_redirect_param"],
+    notes: "LINK-tsvngawn: the canonical DOM-based open redirect — `location.hash` read into `window.location` by client-side code. Byte-for-byte the `?next=` row's twin, and it read 0.00 until MR !40; the fragment is never sent to the server, which is the whole reason the variant exists",
+  },
+  {
+    input: "https://example.com/login#next=javascript:alert(1)",
+    label: "deceptive",
+    minSeverity: "medium",
+    expectReasons: ["open_redirect_param"],
+    notes: "LINK-tsvngawn: the HOSTLESS variant — no authority to diverge from, so this is §1.1 form 1 (a parameter that names where navigation goes next carries executable content instead). Reported as open_redirect_param at 0.4, one band below the 0.90 the same bytes read standing alone; that cost is recorded in the detector docstring, not hidden",
+  },
+  {
+    input: "https://example.com/authorize?client_id=x#redirect_uri=https://evil.com/cb",
+    label: "deceptive",
+    minSeverity: "medium",
+    expectReasons: ["open_redirect_param"],
+    notes: "LINK-tsvngawn: the surfaces are scanned INDEPENDENTLY, so the RFC 6749 exemption is decided from the pairs on the SAME surface — a `client_id` in the query cannot silence a `redirect_uri` in the fragment. Without this row that claim is prose only",
+  },
+
+  // ── Benign (SC-2): ordinary hash routes, walking the fragment path ────────
+  {
+    input: "https://example.com/#/dashboard",
+    label: "benign",
+    forbidReasons: ["open_redirect_param"],
+    notes: "LINK-tsvngawn FP guard: the commonest hash route of all. No `?` and no `=`, so `fragmentQueryLike` hands over the whole fragment and it yields no pairs — inert by construction rather than by a guard clause",
+  },
+  {
+    input: "https://example.com/#/route?tab=billing",
+    label: "benign",
+    forbidReasons: ["open_redirect_param"],
+    notes: "LINK-tsvngawn FP guard: a hash route with its OWN query. The split on the first `?` makes these pairs readable, and this row pins that reading a hash route's parameters is not the same as finding a payload in them",
+  },
+  {
+    input: "https://example.com/#/checkout?next=/dashboard",
+    label: "benign",
+    forbidReasons: ["open_redirect_param"],
+    notes: "LINK-tsvngawn FP guard: a redirect-NAMED parameter on the new surface whose value is a relative path. The name matching is not the finding — `targetHost` declines and there is no dangerous scheme, so nothing is reported",
+  },
+  {
+    input: "https://example.com/#/checkout?next=https://app.example.com/home",
+    label: "benign",
+    forbidReasons: ["open_redirect_param"],
+    notes: "LINK-tsvngawn FP guard: the sharpest of the four — redirect-named parameter, absolute URL value, and it still must not fire because the target is the SAME authority. This is the divergence gate applied to the fragment surface, which nothing pinned before",
+  },
+];
+CORPUS.push(...FRAGMENT_REDIRECT_CORPUS);
+applyAcceptanceMetadata(FRAGMENT_REDIRECT_CORPUS);
+// LINK-tsvngawn — BLOCK END.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LINK-uotkpxwp — the Android intent URI's `browser_fallback_url`. BLOCK START.
+//
+// Same defect as the block above and disclosed the same way: `MR !47` read the
+// intent fallback extra, measured a corpus delta of zero, and then checked WHY
+// — THE CORPUS CARRIED NO `intent://` ROW AT ALL. It returned zero for the
+// REJECTED wider variant too, which is the part that matters: the corpus could
+// not tell the shipped narrowing from the variant that was thrown away.
+//
+// The narrowing under test: on this surface ONLY the hostless dangerous-scheme
+// shape is a finding. A fallback naming a DIFFERENT SITE is what the mechanism
+// is for — it is where the browser goes when the app is not installed, and the
+// documented Android pattern points it at the app's Play Store listing, a
+// different authority by construction. The string declares its type and the
+// declaration holds (§1.1), so there is no claim-(a) finding to make.
+//
+// The two divergent-fallback benign rows are therefore LOAD-BEARING. They are
+// the standing evidence for that narrowing, and their job is to make a future
+// widening of this surface fail loudly instead of silently.
+//
+// A benign corpus measures FALSE POSITIVES only; the deceptive rows here pin
+// verdicts and license no claim about detection rate.
+// ─────────────────────────────────────────────────────────────────────────────
+const INTENT_FALLBACK_CORPUS: CorpusRow[] = [
+  // ── Benign (SC-2): the app-handoff pattern working as documented ──────────
+  {
+    input: "intent://scan/#Intent;scheme=zxing;end",
+    label: "benign",
+    forbidReasons: ["open_redirect_param"],
+    notes: "LINK-uotkpxwp FP guard: the textbook ZXing barcode-scanner intent, and the simplest well-formed `Intent;…;end` fragment there is. No fallback extra at all, so the surface is entered and yields nothing",
+  },
+  {
+    input: "intent://example.com/deep#Intent;scheme=https;package=com.example.app;S.browser_fallback_url=https://play.google.com/store/apps/details?id=com.example.app;end",
+    label: "benign",
+    forbidReasons: ["open_redirect_param"],
+    notes: "LINK-uotkpxwp FP guard, LOAD-BEARING: the documented Android app-handoff link. The rejected uniform variant of MR !47 fired 0.40 on exactly this string and the shipped narrowing does not — that measurement is the whole argument for the narrowing, and this row is what keeps it checkable. A future widening reddens here",
+  },
+  {
+    input: "intent://example.com/deep#Intent;scheme=https;S.browser_fallback_url=https://www.example.org/get-the-app;end",
+    label: "benign",
+    forbidReasons: ["open_redirect_param"],
+    notes: "LINK-uotkpxwp FP guard: the same narrowing with the Play Store specifics removed, so the row cannot be read as an exemption for one host. The claim is about the MECHANISM — a divergent fallback is what a fallback is — and no allowlist of 'real' fallback hosts is involved (§1.1 forbids one)",
+  },
+
+  // ── Deceptive (SC-1): a declared fallback URL that is not a location ──────
+  {
+    input: "intent://legit-bank.co.uk/x#Intent;scheme=https;S.browser_fallback_url=javascript%3Aalert(1);end",
+    label: "deceptive",
+    minSeverity: "medium",
+    expectReasons: ["open_redirect_param"],
+    notes: "LINK-uotkpxwp: the shape the ticket filed. Read 0.00/info with zero reasons while the identical `javascript:` bytes read 0.90/critical standing alone. §1.1 form 1 — the extra declares a fallback URL and the value is executable content, not a destination",
+  },
+  {
+    input: "intent://example.com/deep#Intent;scheme=https;browser_fallback_url=javascript%3Aalert(1);end",
+    label: "deceptive",
+    minSeverity: "medium",
+    expectReasons: ["open_redirect_param"],
+    notes: "LINK-uotkpxwp: the BARE extra name, without the `S.` string-typed prefix Android writes in practice. Both spellings reach a reader, so both are matched; this row is what stops the set shrinking to one",
+  },
+];
+CORPUS.push(...INTENT_FALLBACK_CORPUS);
+applyAcceptanceMetadata(INTENT_FALLBACK_CORPUS);
+// LINK-uotkpxwp — BLOCK END.
