@@ -88,7 +88,7 @@ detector.
 
 **A3's antecedent named the wrong stamp, and was false until this correction.**
 It read "same input + same pinned **data versions** → same verdict".
-`5813e01` added the `fqdn_root_label` detector and its reason code — changing
+`5813e01 (LINK-ephrdynz)` added the `fqdn_root_label` detector and its reason code — changing
 `reasons[]` for every fully-qualified host input — with
 `packages/core/src/schema/base.ts` and `packages/core/src/scoring/weights.ts`
 both untouched, `WEIGHTS_VERSION` at 1.17 before and after, and no

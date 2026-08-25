@@ -330,9 +330,9 @@ describe("intake tokens are bounded, delimiter-safe and deterministic", () => {
   });
 
   it("does not depend on the caller's key insertion order", () => {
-    // The published determinism guarantee is "same input + same pinned data
-    // versions → same verdict". Two objects that differ only in insertion order
-    // are the same input.
+    // The published determinism guarantee is "same input + same package
+    // version → same verdict" (A3, narrowed under LINK-ephrdynz). Two objects
+    // that differ only in insertion order are the same input.
     const forward = inspect(URL_UNDER_TEST, asCallerOptions({ bbb: 1, aaa: 2 }));
     const reverse = inspect(URL_UNDER_TEST, asCallerOptions({ aaa: 2, bbb: 1 }));
 
