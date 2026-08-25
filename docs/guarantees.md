@@ -46,7 +46,7 @@ tracks.
 
 | File | Claim lines |
 | --- | --- |
-| `docs/architecture.md` | 44 |
+| `docs/architecture.md` | 46 |
 | `docs/bundle-size-budget.md` | 0 |
 | `docs/enforcement.md` | 0 |
 | `docs/enrichment-outcomes.md` | 12 |
@@ -84,6 +84,7 @@ detector.
 | A5 | `inspectAsync()` with no enrichers is deep-equal to `inspect()` | `docs/architecture.md` §7, `docs/enrichment-outcomes.md` | `packages/core/test/inspect-async.test.ts` |
 | A6 | `confidence` is `1.0` for every deterministic lexical result and never feeds score aggregation | `docs/architecture.md` §7 | `packages/core/test/public-api-contract.test.ts` |
 | A7 | Reason ordering is locale-independent (no `localeCompare`, no `Intl.Collator`) | `docs/locale-case-mapping.md` §1 | `packages/core/test/locale-independence.test.ts` |
+| A8 | A new reason code never enters the `REASON_CODES` registry without a `SCHEMA_VERSION` bump | `docs/architecture.md` §6.4, `packages/core/src/schema/base.ts` | `packages/core/test/docs-validation.test.ts` |
 
 **A3 is qualified, deliberately.** `pslSnapshot.stale` is the one time-relative
 field on a result: it reflects wall-clock time at inspection, so two calls a
@@ -104,6 +105,19 @@ reads a claim linklint has never made. Pinned by
 `packages/core/test/psl-provenance.test.ts` (both provenance kinds at the
 window boundary, on an injected clock) and
 `packages/cli/test/render.test.ts` (the CLI warns on `true` only).
+
+**A8 is the mechanical half of the bump matrix (`LINK-zzydqrkd`).** The matrix
+in `docs/architecture.md` §6.4 gives `SCHEMA_VERSION` the serialized result's
+closed value domains, additive changes included, and `ReasonCode` — publicly
+exported, `keyof typeof REASON_CODES` — is the central one. The weak guard for
+it is a prose grep, which cannot separate a defect from the three correct
+no-bump notes already in that document (§6.1.1, §6.1.2, §6.3). So the claim is
+pinned instead of grepped: the registry key set is checked into
+`docs-validation.test.ts` beside the version it registered under, and it
+reddens both ways — a code added without a bump, and a bump that leaves the pin
+stale. It would have caught `5813e01`, which added `fqdn_root_label` with
+`schema/base.ts` untouched while every doc-sync assertion stayed green.
+`CHANGELOG.md` names that miss and one other rather than baselining them.
 
 ## B. Package guarantees
 
@@ -316,8 +330,11 @@ an oversight. These lines match the pattern and are deliberately unpinned:
   would have done, so there is no behavior to pin; the section's actual
   disposition is the decline.
 - **Cross-references to a rule stated elsewhere** — "§5's result-invariant list",
-  "satisfies §1.1's name-never-create rule". These point at a claim rather than
-  making one; the claim is pinned where it is stated (D7 and E1 respectively).
+  "satisfies §1.1's name-never-create rule", and §6.4's "§6's invariant list"
+  naming the block whose `Reason.suppressed` bullet it corrects. These point at
+  a claim rather than making one; the claim is pinned where it is stated — D7,
+  E1, and, for §6's block, D9/D10 plus the §6 assertions in
+  `packages/core/test/docs-validation.test.ts`.
 - **Requirements imposed on a caller's implementation** — "a reader must never
   observe a partial dataset" (`packages/online/README.md`) states the atomicity
   the snapshot updaters *rely on* from a `replace` the caller supplies. It binds

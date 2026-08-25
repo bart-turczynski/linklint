@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -8,6 +8,7 @@ import { DETECTORS } from "../src/detectors/registry.js";
 import { STRUCTURAL_SCANS } from "../src/detectors/structural.js";
 import { inspect } from "../src/index.js";
 import { analyzeIpv4, analyzeIpv6 } from "../src/parse/ip.js";
+import { SCHEMA_VERSION } from "../src/schema/base.js";
 import { REASON_CODES, type ReasonCode } from "../src/schema/reason-codes.js";
 import { WEIGHTS_VERSION } from "../src/scoring/weights.js";
 
@@ -584,5 +585,241 @@ describe("an adopted decision record cites its implementing ticket", () => {
         `adopted record has no **Implemented (\`LINK-…\`)** or **Pending (\`LINK-…\`)** trailer`,
       ).toBe("");
     }
+  });
+});
+
+describe("the ReasonCode registry is pinned to the SCHEMA_VERSION it registered under", () => {
+  // LINK-zzydqrkd. The adopted bump matrix (docs/architecture.md §6.4) places
+  // CLOSED value domains inside `SCHEMA_VERSION`'s ownership, and `ReasonCode`
+  // — publicly exported, `keyof typeof REASON_CODES` — is the central one. The
+  // matrix's own worked case says so: a new reason code bumps the schema.
+  //
+  // A prose grep for "no `SCHEMA_VERSION` bump" is the WEAK guard for that rule:
+  // three such statements in architecture.md (§6.1.1, §6.1.2, §6.3) are correct
+  // under the matrix, so the grep cannot tell a legitimate no-bump note from a
+  // defect. This is the guard that bites. The
+  // registry key set is checked in beside the version it was registered under,
+  // so a code cannot be added, renamed, or removed without either moving
+  // SCHEMA_VERSION or turning this red.
+  //
+  // Not hypothetical: commit `5813e01` added `fqdn_root_label` to the registry
+  // with `src/schema/base.ts` and `src/scoring/weights.ts` both untouched, and
+  // nothing in the repository could contradict it. This is the assertion that
+  // would have caught it.
+  //
+  // Maintenance is one edit: on a real bump, re-stamp BOTH constants below in
+  // the same commit. That is deliberate — a pin that may outlive its version is
+  // a pin that silently stops checking, which is the failure mode the whole
+  // guarantee register exists to prevent.
+  const PINNED_SCHEMA_VERSION = "1.7";
+
+  /** Every `REASON_CODES` key as of `PINNED_SCHEMA_VERSION`, sorted. */
+  const PINNED_REASON_CODES: readonly string[] = [
+  "ambiguous_authority",
+  "ambiguous_numeric_host",
+  "api_endpoint_impersonation",
+  "ascii_homoglyph",
+  "bait_tokens",
+  "bidi_override",
+  "brand_homoglyph",
+  "brand_idna_collapse",
+  "brand_locale_collapse",
+  "confusable_char",
+  "confusable_in_path",
+  "content_type_mismatch",
+  "control_char",
+  "credential_harvesting",
+  "dangerous_scheme",
+  "data_exfiltration",
+  "embedded_domain_in_subdomain",
+  "encoding_obfuscation",
+  "excessive_subdomain_depth",
+  "file_extension_tld",
+  "fqdn_root_label",
+  "homograph_latin_skeleton",
+  "homograph_skeleton_collision",
+  "host_denied",
+  "host_length_unresolvable",
+  "host_not_allowlisted",
+  "idn_host",
+  "idna_mapping_ambiguity",
+  "invisible_char",
+  "ip_cloud_metadata",
+  "ip_link_local",
+  "ip_loopback",
+  "ip_obfuscation",
+  "ip_private",
+  "ip_reserved",
+  "locale_case_ambiguity",
+  "low_byte_truncation",
+  "malware_url_listed",
+  "mixed_script",
+  "normalization_delta",
+  "open_redirect_observed",
+  "open_redirect_param",
+  "parse_error",
+  "percent_encoding_malformed",
+  "port_denied",
+  "prompt_injection_url",
+  "punycode_malformed",
+  "risky_tld",
+  "scheme_denied",
+  "separator_lookalike",
+  "ssrf_cloud_metadata",
+  "suspicious_extension",
+  "tld_denied",
+  "tld_not_allowlisted",
+  "userinfo_present",
+  "verified_phish_listed",
+  "young_domain_brand_risk",
+  ];
+
+  const registryCodes = Object.keys(REASON_CODES).sort();
+
+  it("the pin is not vacuous — a non-empty, sorted, duplicate-free key set", () => {
+    // Without this, emptying the array would "fix" a failure by disabling the
+    // guard, and an unsorted pin would fail for a reason that is not drift.
+    expect(PINNED_REASON_CODES.length).toBeGreaterThan(0);
+    expect([...PINNED_REASON_CODES]).toEqual([...PINNED_REASON_CODES].sort());
+    expect(new Set(PINNED_REASON_CODES).size).toBe(PINNED_REASON_CODES.length);
+  });
+
+  it("the pin is stamped with the CURRENT SCHEMA_VERSION", () => {
+    expect(
+      SCHEMA_VERSION,
+      "SCHEMA_VERSION moved without re-stamping the reason-code pin below it. " +
+        "Update PINNED_SCHEMA_VERSION and PINNED_REASON_CODES together, in the " +
+        "commit that bumps the schema (docs/architecture.md §6.4).",
+    ).toBe(PINNED_SCHEMA_VERSION);
+  });
+
+  it("the registry key set is exactly the set pinned to this SCHEMA_VERSION", () => {
+    const added = registryCodes.filter((code) => !PINNED_REASON_CODES.includes(code));
+    const removed = PINNED_REASON_CODES.filter((code) => !registryCodes.includes(code));
+
+    expect(
+      { added, removed },
+      "`ReasonCode` is a CLOSED, publicly exported value domain, so this change " +
+        "owes a SCHEMA_VERSION bump (docs/architecture.md §6.4). Bump " +
+        "SCHEMA_VERSION in src/schema/base.ts, then re-stamp both constants here.",
+    ).toEqual({ added: [], removed: [] });
+  });
+});
+
+describe("the SCHEMA_VERSION bump matrix is stated once and its contradictions are gone", () => {
+  // LINK-zzydqrkd. Four sites answered "when does SCHEMA_VERSION bump?" and they
+  // did not agree: `schema/base.ts` said every contract change including additive
+  // ones, while `schema/options.ts`, §6's invariant list and `docs/scoring.md`
+  // each excused the additive `Reason.suppressed` field. base.ts won. These
+  // assertions are what stops the losing sentence from being written back — the
+  // usual way a settled question quietly reopens.
+  const optionsSrc = readFileSync(
+    join(REPO_ROOT, "packages", "core", "src", "schema", "options.ts"),
+    "utf8",
+  );
+  const baseSrc = readFileSync(
+    join(REPO_ROOT, "packages", "core", "src", "schema", "base.ts"),
+    "utf8",
+  );
+  const changelog = readFileSync(join(REPO_ROOT, "CHANGELOG.md"), "utf8");
+
+  const matrixStart = architectureDoc.indexOf("### 6.4 Version stamps");
+  const matrix = architectureDoc.slice(
+    matrixStart,
+    architectureDoc.indexOf("\n## 7. ", matrixStart === -1 ? 0 : matrixStart),
+  );
+
+  it("§6.4 exists and is not an empty slice", () => {
+    // Guards against a vacuous sweep: every assertion below reads `matrix`.
+    expect(matrixStart).toBeGreaterThan(-1);
+    expect(matrix.length).toBeGreaterThan(500);
+  });
+
+  it("the surviving rule is the one in base.ts, stated there unchanged", () => {
+    expect(baseSrc).toContain("Bumped on every contract change — additive minor");
+  });
+
+  it("§6.4 states the matrix: what each stamp owns", () => {
+    for (const stamp of [
+      "`SCHEMA_VERSION` (`schema/base.ts`)",
+      "`ENRICHMENT_SCHEMA_VERSION` (`schema/enrich.ts`)",
+      "`WEIGHTS_VERSION` (`scoring/weights.ts`)",
+      "`DataVersions` (`data/versions.ts`)",
+      "package version + `CHANGELOG.md`",
+    ]) {
+      expect(matrix).toContain(stamp);
+    }
+    expect(matrix).toContain("including an additive one");
+  });
+
+  it("§6.4 carries the tie-break: closedness is the registry's call, not the type's", () => {
+    // Without this sentence the matrix is ambiguous on its own central case:
+    // `Reason.code` is `string` on the wire and `ReasonCode` in the registry.
+    expect(matrix).toContain(
+      "Closedness is decided by the documented registry, not by the TypeScript",
+    );
+    expect(matrix).toContain("`keyof typeof REASON_CODES`");
+  });
+
+  it("§6.4 answers the three worked cases", () => {
+    expect(matrix).toContain("a new `checksSkipped` token");
+    expect(matrix).toContain("a new reason code");
+    expect(matrix).toContain("a new enrichment cause");
+  });
+
+  it("§6.4 records the dissent that lost, so it is not re-proposed", () => {
+    expect(matrix).toContain("The dissent, recorded");
+    expect(matrix.toUpperCase()).toContain("BREAKING-ONLY");
+    // The checkable facts the dissent rested on must travel with it, or the
+    // paragraph reads as a dismissal rather than a decision.
+    expect(matrix).toContain("`packages/cli/src` and `packages/mcp/src`");
+  });
+
+  it("the dissent's central fact is still true of the tree", () => {
+    // "nothing consumes schemaVersion" is a claim about the repository, and a
+    // recorded dissent resting on a stale fact is worse than no record at all.
+    for (const pkg of ["cli", "mcp"]) {
+      const files: string[] = [];
+      const walk = (path: string) => {
+        for (const entry of readdirSync(path, { withFileTypes: true })) {
+          const child = join(path, entry.name);
+          if (entry.isDirectory()) walk(child);
+          else if (entry.name.endsWith(".ts")) files.push(child);
+        }
+      };
+      walk(join(REPO_ROOT, "packages", pkg, "src"));
+      expect(files.length).toBeGreaterThan(0);
+      const consumers = files.filter((f) => readFileSync(f, "utf8").includes("schemaVersion"));
+      expect(consumers).toEqual([]);
+    }
+  });
+
+  it("the three contrary claims stay deleted", () => {
+    // The exact shipped wording of each, matched with whitespace flattened. All
+    // three sites are hard-wrapped and two of the sentences wrapped MID-CLAIM,
+    // so a raw substring check silently matched nothing — verified by putting
+    // each sentence back: the flattened form reddens, the raw one did not.
+    const flat = (text: string) => text.replace(/\s+/g, " ");
+    expect(flat(architectureDoc)).not.toContain("needs no `SCHEMA_VERSION` bump");
+    expect(flat(scoringDoc)).not.toContain("no `SCHEMA_VERSION` bump is needed");
+    expect(flat(optionsSrc)).not.toContain(
+      "additive and backward-compatible — no `SCHEMA_VERSION` bump",
+    );
+    // And each site now carries the matrix's actual answer instead of silence.
+    for (const text of [architectureDoc, scoringDoc, optionsSrc]) {
+      expect(text).toContain("§6.4");
+    }
+  });
+
+  it("the CHANGELOG names both historical misses instead of baselining them", () => {
+    // Recording 1.7 as "the reconciled baseline" without naming the two commits
+    // that missed a bump would launder a defect into a clean starting point.
+    expect(changelog).toContain("5813e01");
+    expect(changelog).toContain("fqdn_root_label");
+    expect(changelog).toContain("a077eeb");
+    expect(changelog).toContain("`Reason.suppressed`");
+    expect(changelog).toContain("reconciled baseline");
+    // The one and only reason neither is retro-bumped.
+    expect(changelog).toContain("0.1.0-dev.0");
   });
 });
