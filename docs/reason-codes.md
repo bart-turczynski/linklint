@@ -470,8 +470,8 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 - **Meaning:** a query parameter whose **name** is a known redirect parameter
   (`next`, `url`, `redirect`, `redirect_uri`, `redirect_url`, `dest`,
   `destination`, `return`, `returnUrl`, `continue`, `u`, `goto`, `target`) carries
-  a **value that is itself a URL pointing to a different registrable domain** than
-  the link host.
+  a **value that is itself a URL pointing to a different authority** than the link
+  host.
 - **Why it's a signal:** `https://example.com/login?next=https://evil.com/phish`
   reads as `example.com`, but when the redirect fires the user lands on
   `evil.com`. The cross-host payload is the lexical fingerprint of an
@@ -489,15 +489,55 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   - **protocol-relative** — `//evil.com/...`, a classic payload that omits the
     scheme.
 
-  Fires **only** when the decoded value resolves to a host whose registrable
-  domain is non-null and **differs** (case-insensitively) from the link host's.
-  A relative/same-host path (`?next=/dashboard`), a same-registrable-domain target
-  (`?next=https://app.example.com/home`), a non-redirect param carrying a URL
-  (`?ref=https://evil.com`), and a non-URL value (`?url=2`) all stay clean.
-  Parsing is fully defensive — a junk value yields no finding and the detector
-  never throws.
+  Fires **only** when the decoded value resolves to an authority that **differs**
+  from the link host's. A relative/same-host path (`?next=/dashboard`), a
+  same-authority target (`?next=https://app.example.com/home`), a non-redirect
+  param carrying a URL (`?ref=https://evil.com`), and a non-URL value (`?url=2`)
+  all stay clean. Parsing is fully defensive — a junk value yields no finding and
+  the detector never throws.
+- **Authority, not registrable domain (`LINK-cvcjgewz`):** the comparison is over
+  the **authority identity** of the two hosts — the registrable domain when the
+  host has one, otherwise the **canonical address** of an IP literal, otherwise
+  the bare host (`localhost`, `intranet`). This matters because the earlier gate
+  required a *non-null registrable domain* on the target, and an IP literal has
+  none: every IP-literal payload was exempt. `http://169.254.169.254/` scores
+  `1.00`/`critical` as an input under agent mode and scored `0.00` the moment it
+  was wrapped in `?url=` — an SSRF-to-metadata pivot, through a detector that is
+  not agent-gated. Authority identity is total, so divergence is decidable for
+  every host, including on the **input** side: an IP-literal link host used to
+  short-circuit the whole scan. Canonicalization is part of it — `2130706433`,
+  `0x7f.0.0.1` and `127.0.0.1` are one authority, so an obfuscated *same-host*
+  value does not fire, while an obfuscated *different-host* value does.
+- **Standards-shaped OAuth authorize requests are exempt:** a
+  cross-registrable-domain handoff is not an anomaly in an OAuth 2.0
+  authorization request — it is the protocol. RFC 6749 §4.1.1 defines
+  `redirect_uri` only inside that request and requires `client_id` in every
+  instance of it, so the pair is the standards-shaped signature of a delegated
+  authorization handoff, readable from the string alone. Per architecture §1.1
+  the string then declares its own type and the declaration *holds*: nothing is
+  hidden and no two readers disagree, so there is no structural finding to make.
+  The exemption is narrow by construction — keyed to the exact RFC spelling, so
+  `redirect_url`, `next` and the rest are untouched and a `client_id` bolted onto
+  one of them suppresses nothing; **per-parameter**, so a second off-site payload
+  beside an authorize request still fires; and limited to **public-DNS targets**,
+  so an authorize request pointing at an IP literal — including an RFC 8252 §7.3
+  loopback redirect, indistinguishable from an SSRF pivot on the string alone —
+  stays in scope. Two alternatives were rejected: a curated **IdP allowlist**,
+  which is a semantic watchlist deciding which hosts are "really" identity
+  providers and is forbidden by §1.1's name-never-create rule; and additionally
+  requiring **`response_type`**, which is RFC-conformant but absent from 5 of the
+  15 real authorize shapes measured for this change, leaving a third of the
+  false-positive mass in place.
+- **Stated non-goal — consent phishing:** an authorize URL with an
+  attacker-registered `client_id` and a syntactically ordinary but
+  attacker-controlled `redirect_uri` is byte-shaped identically to a legitimate
+  one. Separating them requires knowing which client is malicious and which
+  redirect URI the provider registered — a semantic claim, not derivable from the
+  string. That shape is **out of scope**, not missed.
 - **Example:** `https://example.com/login?next=https://evil.com/phish`;
-  `https://example.com/?redirect=//evil.com`.
+  `https://example.com/?redirect=//evil.com`;
+  `https://example.com/login?url=http://169.254.169.254/latest/meta-data/`;
+  `https://example.com/login?redirect_uri=http://169.254.169.254/&client_id=x`.
 - **Scoring:** scoring, weight 0.4.
 
 ### `open_redirect_observed` — Epic L (L3) · resolution layer, weight 0
