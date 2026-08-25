@@ -22,8 +22,8 @@
  * different amounts of protection:
  *
  *   - ESCALATED (197) — `brand_homoglyph` + `ascii_homoglyph`, uniformly
- *     0.60/high. The real structural surface.
- *   - HOMOGLYPH_ONLY (55) — `brand_homoglyph` alone, uniformly 0.50/medium.
+ *     0.84/critical. The real structural surface.
+ *   - HOMOGLYPH_ONLY (55) — `brand_homoglyph` alone, uniformly 0.80/high.
  *     These fail `ascii_homoglyph`'s stricter gates (leading digit, or digits
  *     outnumbering letters) but still fold to a brand under `brand_homoglyph`'s
  *     separate laxer gates. `0penai.com` is here. That gate asymmetry is the
@@ -47,7 +47,7 @@
  * brand earns its place by fold-reachability, not by name recognition. A brand
  * whose label contains no `o`, `l`, or `s` has NO pre-images and contributes
  * nothing to the structural tier — `huggingface` is the clearest example, and
- * `openai` contributes only the 0.50/medium `0penai.com`. Such additions must be
+ * `openai` contributes only the 0.80/high `0penai.com`. Such additions must be
  * justified on other grounds (or declined), never on brand fame alone. The
  * ZERO_FOLD_SURFACE_BRANDS list below names all 43 of them.
  */
@@ -128,8 +128,9 @@ const surface = classify();
 const domainsOf = (c: readonly Candidate[]): string[] => c.map((x) => x.domain).sort();
 
 /**
- * The 0.60/high structural surface. Adding a brand adds lines here; removing one
- * removes them. Either way it is reviewed, which is the whole point.
+ * The 0.84/critical structural surface. Adding a brand adds lines here;
+ * removing one removes them. Either way it is reviewed, which is the whole
+ * point.
  */
 const ESCALATED_SURFACE: readonly string[] = [
   "a1ibaba.com",
@@ -333,8 +334,8 @@ const ESCALATED_SURFACE: readonly string[] = [
   "zel1epay.com",];
 
 /**
- * Folds to a brand but misses `ascii_homoglyph`'s gates, so it lands 0.50/medium
- * instead of 0.60/high. Real coverage, weaker band — see `LINK-cphogucn` Q3.
+ * Folds to a brand but misses `ascii_homoglyph`'s gates, so it lands 0.80/high
+ * instead of 0.84/critical. Real coverage, weaker band — see `LINK-cphogucn` Q3.
  */
 const HOMOGLYPH_ONLY_SURFACE: readonly string[] = [
   "0kta.com",
@@ -401,8 +402,8 @@ const HOMOGLYPH_ONLY_SURFACE: readonly string[] = [
 const INERT_CANDIDATES: readonly string[] = [];
 
 /**
- * Watchlist labels with NO fold pre-image that reaches the 0.60 band. They buy
- * no structural coverage; every one of them needs a non-fold justification.
+ * Watchlist labels with NO fold pre-image that reaches the escalated band. They
+ * buy no structural coverage; every one of them needs a non-fold justification.
  */
 const ZERO_FOLD_SURFACE_BRANDS: readonly string[] = [
   "airbnb",
@@ -450,11 +451,11 @@ const ZERO_FOLD_SURFACE_BRANDS: readonly string[] = [
   "zoom",];
 
 describe("brand fold surface — pinned review gate", () => {
-  it("pins the exact escalated (0.60/high) surface membership", () => {
+  it("pins the exact escalated (0.84/critical) surface membership", () => {
     expect(domainsOf(surface.escalated)).toEqual([...ESCALATED_SURFACE].sort());
   });
 
-  it("pins the exact homoglyph-only (0.50/medium) surface membership", () => {
+  it("pins the exact homoglyph-only (0.80/high) surface membership", () => {
     expect(domainsOf(surface.homoglyphOnly)).toEqual([...HOMOGLYPH_ONLY_SURFACE].sort());
   });
 
@@ -501,7 +502,7 @@ describe("brand fold surface — pinned review gate", () => {
   it("records that the two AI brands added in PR #124 buy no escalated surface", () => {
     // Kept explicit because it is the evidence behind the inclusion charter:
     // 'huggingface' has no foldable letter at all, and 'openai' only reaches the
-    // laxer 0.50 band via a leading digit.
+    // laxer homoglyph-only band via a leading digit.
     expect(ZERO_FOLD_SURFACE_BRANDS).toContain("huggingface");
     expect(ZERO_FOLD_SURFACE_BRANDS).toContain("openai");
     expect(HOMOGLYPH_ONLY_SURFACE).toContain("0penai.com");

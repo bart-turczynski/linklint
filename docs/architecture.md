@@ -768,10 +768,14 @@ measurements, in order of weight:
 1. **The firing surface is finite, enumerable, and small.** Because the gate
    requires `fold(label) !== label` *and* an exact hit in `BRAND_LABEL_SET`, the
    complete set of labels that can ever fire is the set of valid pre-images of a
-   brand label under the fold. Enumerated: **65 of 106** brand labels are
-   fold-reachable, yielding **exactly 192 labels**. This is the decisive
-   structural difference from every previously-rejected brand widening — it is
-   not a heuristic with an open-ended surface but a list that can be read.
+   brand label under the fold. Enumerated at adoption: **65 of 106** brand
+   labels fold-reachable, giving a surface of **192 labels**. The watchlist has
+   grown since; today it is **68 of 111** brand labels, yielding **exactly 197
+   labels**, pinned member by member in `test/brand-fold-surface.test.ts`, which
+   re-derives both the membership and this paragraph's numbers from the shipped
+   detectors. This is the decisive structural difference from every
+   previously-rejected brand widening — it is not a heuristic with an open-ended
+   surface but a list that can be read.
 2. **Zero false positives on 36,200 unseen real tenant labels.** A GitHub login
    *is* the tenant label for `<login>.github.io`, so the login list is an
    unfiltered corpus of real multi-tenant labels. 7.3% contain a digit; **427
@@ -784,10 +788,11 @@ measurements, in order of weight:
    attack signature itself. Length equality under the fold also means no
    `shop1`-style label can ever reach a shorter brand label.
 3. **Live probe of the entire surface: no legitimate tenants.** All 192 labels
-   probed against `github.io`, `vercel.app`, `myshopify.com` (576 probes) — 25
-   live. Classified by fetched title: impersonation (`app1e` → "Apple iPhone",
-   `bank0famerica` → "Bank of America", `faceb0ok` → "Facebook", `paypa1` →
-   "Paypal", `robl0x` → "Roblox Cookie Capture"), platform-suspended (`402`), or
+   of the surface as it then stood probed against `github.io`, `vercel.app`,
+   `myshopify.com` (576 probes) — 25 live. Classified by fetched title:
+   impersonation (`app1e` → "Apple iPhone", `bank0famerica` → "Bank of America",
+   `faceb0ok` → "Facebook", `paypa1` → "Paypal", `robl0x` → "Roblox Cookie
+   Capture"), platform-suspended (`402`), or
    **legally taken down** (`bl0ckchain.vercel.app` → `451`). **Not one is a
    legitimate business operating under an unrelated name.** The ordinary-word
    brands that drove finding #2 — `apple`, `amazon`, `booking`, `telegram`,
@@ -826,7 +831,7 @@ and provide **no protection against it**. Implementation must add rows that
 actually bind: benign digit-bearing tenant labels that fold to gibberish
 (`pete1.github.io`, `haru01.github.io` — both `0.20`/`low` today and must stay
 there) alongside the positive `paypa1.vercel.app` case, plus a test asserting the
-192-label surface is unchanged so a brand-watchlist addition cannot silently
+enumerated surface is unchanged so a brand-watchlist addition cannot silently
 widen it.
 
 **Implemented (`LINK-lippdgpn`).** Filed as `LINK-tbqeqqvv` and delivered by
@@ -843,7 +848,7 @@ entry demanded (`pete1.github.io`, `haru01.github.io`) are in
 `test/brand-fold-surface.test.ts`. One behavioural difference from the mechanism
 as sketched above: the escalation is **not** gated on the label first passing
 `ascii_homoglyph`, so leading-digit folds (`0racle-support.com`) also fire — at
-`0.50`/`medium` rather than `0.60`/`high`, exactly as `0racle.com` already did
+`0.80`/`high` rather than `0.84`/`critical`, exactly as `0racle.com` already did
 on the registrable-domain tier.
 
 **(b) A general digits-in-label signal — DECLINED, including as an optional knob.**
@@ -979,8 +984,8 @@ registrations, and that third asset — none of which an offline linter has.
    click. Popularity is the wrong axis; charter test 1 is harm.
 2. **It detonates the fold surface.** `brand_homoglyph` pre-images go from
    **608 → 69,392** (domain tier) and **252 → 30,906** (label tier), ~120×.
-   §6.1.1 cleared the standing document-and-stop rule *because* its surface was
-   192 strings and therefore exhaustively probable. At 30,906 that argument does
+   §6.1.1 cleared the standing document-and-stop rule *because* its surface is
+   197 strings and therefore exhaustively probable. At 30,906 that argument does
    not exist.
 3. **Tier 2 becomes the `LINK-blgvypxk` regression again.** `BRAND_LABEL_SET`
    would absorb 7,761 labels, **448 of them ordinary dictionary words, 320 of
@@ -989,7 +994,7 @@ registrations, and that third asset — none of which an offline linter has.
    `people` — plus 901 labels ≤ 4 characters including literal `com`, `it`,
    `co`, `as`. Since tier 2 joins every `-`-separated token of every host label
    against that set, `c0de-review.example`, `mai1-relay.corp.net` and
-   `serv1ce-auth.acme.io` would all score `0.60`/`high`. That is the
+   `serv1ce-auth.acme.io` would all score `0.80`/`high`. That is the
    unbrowsable-internet failure at roughly 4× the density that caused it.
 4. **Recorded in the list's favour, for fairness.** The list is internally
    clean: **0** intra-list skeleton collisions, and only **2** intra-list fold
