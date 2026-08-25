@@ -61,6 +61,20 @@ describe("@linklint/online package boundary", () => {
     expect(transport.normalizeTlsCertificate).toBeTypeOf("function");
     expect(transport.readCertificatePolicyOids).toBeTypeOf("function");
     expect(transport.DEFAULT_TLS_INSPECTION_POLICY).toBeTypeOf("object");
+    // The outcome/cause vocabularies are enumerable at runtime and stamped, so a
+    // consumer can check a deserialized value and pin the version it read the
+    // domain under. Pinned in detail by test/transport-outcome-registry.test.ts.
+    expect(transport.TRANSPORT_SCHEMA_VERSION).toBe("1.0");
+    expect(Array.isArray(transport.TRANSPORT_CAUSE_CODES)).toBe(true);
+    expect(Array.isArray(transport.TLS_OBSERVATION_CAUSE_CODES)).toBe(true);
+    expect(Array.isArray(transport.TRANSPORT_OUTCOME_STATUSES)).toBe(true);
+    expect(Array.isArray(transport.TLS_OBSERVATION_OUTCOME_STATUSES)).toBe(true);
+    expect(Array.isArray(transport.TLS_CERTIFICATE_DEFECTS)).toBe(true);
+    expect(Array.isArray(transport.CERTIFICATE_ASSURANCE_LEVELS)).toBe(true);
+    expect(transport.isTransportCauseCode).toBeTypeOf("function");
+    expect(transport.isTlsObservationCauseCode).toBeTypeOf("function");
+    expect(transport.isTransportOutcomeStatus).toBeTypeOf("function");
+    expect(transport.isTlsObservationOutcomeStatus).toBeTypeOf("function");
     const transportExport = manifest.exports["./transport"] as Record<string, string>;
     expect(Object.keys(transportExport)).toEqual(["types", "default"]);
     expect(resolution.decodeEmbeddedWrapper).toBeTypeOf("function");

@@ -195,6 +195,98 @@ These are transport outcomes, not phishing verdicts. L1 maps them into the
 versioned enrichment contract, re-inspects every discovered hop through the
 offline pipeline, and preserves incomplete or blocked coverage honestly.
 
+### The published outcome vocabulary
+
+`TRANSPORT_SCHEMA_VERSION` is `1.0`. It stamps the six value domains enumerated
+in this section: the two outcome statuses, the two cause vocabularies, and the
+two certificate vocabularies carried inside an `observed` TLS outcome. These
+lists are what makes those domains CLOSED under
+[`docs/architecture.md`](architecture.md) §6.4 — closedness is decided by the
+documented registry, not by the TypeScript annotation — so a consumer switching
+on one of them may read the list as the complete set for the stamped version,
+and a value added, removed, or redefined moves the stamp. Each list is exported
+at runtime from `@linklint/online/transport`
+(`TRANSPORT_CAUSE_CODES`, `TLS_OBSERVATION_CAUSE_CODES`,
+`TRANSPORT_OUTCOME_STATUSES`, `TLS_OBSERVATION_OUTCOME_STATUSES`,
+`TLS_CERTIFICATE_DEFECTS`, `CERTIFICATE_ASSURANCE_LEVELS`) alongside the
+`isTransportCauseCode` / `isTlsObservationCauseCode` /
+`isTransportOutcomeStatus` / `isTlsObservationOutcomeStatus` guards, so the same
+set can be enumerated or checked against a deserialized value without reparsing
+a type declaration. `packages/online/test/transport-outcome-registry.test.ts`
+holds the enumerations, this document, and the stamp to each other.
+
+`ENRICHMENT_SCHEMA_VERSION` covers none of it. That stamp owns core's structured
+enrichment report and the framework cause vocabulary inside it; the codes below
+reach a report as source-specific adapter causes, which core's contract leaves to
+the adapter. `SCHEMA_VERSION` is further away still — it owns the serialized
+`InspectResult`, and a transport outcome is not part of one.
+
+| Export | Values |
+| --- | --- |
+| `TRANSPORT_OUTCOME_STATUSES` | `blocked`, `incomplete`, `success` |
+| `TLS_OBSERVATION_OUTCOME_STATUSES` | `blocked`, `incomplete`, `observed` |
+| `TLS_CERTIFICATE_DEFECTS` | `expired`, `hostname-mismatch`, `not-yet-valid`, `self-signed`, `untrusted` |
+| `CERTIFICATE_ASSURANCE_LEVELS` | `dv`, `ev`, `iv`, `ov`, `unknown` |
+
+`TRANSPORT_CAUSE_CODES` — every `TransportCause.code` a fetch outcome can carry.
+The seven pre-flight refusals arrive as `blocked`; the rest as `incomplete`.
+
+| Code | Status | Raised when |
+| --- | --- | --- |
+| `authorization-required` | `blocked` | The authorization does not name this exact request URL |
+| `invalid-url` | `blocked` | The request URL does not parse as an absolute URL |
+| `unsupported-scheme` | `blocked` | The scheme is something other than `http:` or `https:` |
+| `unsupported-method` | `blocked` | The method is something other than `GET` or `HEAD` |
+| `url-credentials` | `blocked` | The request URL carries userinfo |
+| `referer-not-same-origin` | `blocked` | `sameOriginReferer` is absent, malformed, over-long, credentialed, or cross-origin |
+| `prohibited-address` | `blocked` | A resolved or literal address classified outside the allowed set |
+| `hop-limit` | `incomplete` | The session's `maxHops` budget is already spent |
+| `timeout` | `incomplete` | The `maxTotalTimeMs` deadline expired, decoding included |
+| `caller-aborted` | `incomplete` | The caller's `AbortSignal` fired |
+| `response-too-large` | `incomplete` | Encoded body bytes exceeded `maxResponseBytes` |
+| `response-too-slow` | `incomplete` | A throughput window closed below `minThroughputBytes` |
+| `decompressed-response-too-large` | `incomplete` | Decoded body bytes exceeded `maxDecompressedBytes` |
+| `response-headers-too-large` | `incomplete` | The header block exceeded `maxResponseHeaderBytes` or `maxResponseHeaderFields` |
+| `unsupported-content-encoding` | `incomplete` | The response declared a `Content-Encoding` this transport does not decode |
+| `decompression-error` | `incomplete` | A declared encoding failed to decode |
+| `dns-not-found` | `incomplete` | Resolution reported no record for the hostname |
+| `dns-timeout` | `incomplete` | Resolution timed out |
+| `dns-malformed` | `incomplete` | Resolution returned an answer this transport cannot read |
+| `dns-error` | `incomplete` | Any other resolution fault |
+| `connect-refused` | `incomplete` | The pinned peer refused the connection |
+| `connect-timeout` | `incomplete` | The connection attempt timed out |
+| `connect-error` | `incomplete` | Any other connection fault |
+| `connection-address-mismatch` | `incomplete` | The socket's observed peer address or port differed from the pin, or was unreadable |
+| `tls-handshake` | `incomplete` | The TLS handshake failed |
+| `tls-certificate` | `incomplete` | The peer certificate was rejected during a validating handshake |
+| `http-malformed` | `incomplete` | A header value could not be put on the wire, or the response framing was unreadable |
+| `http-reset` | `incomplete` | The peer reset the connection mid-exchange |
+| `http-timeout` | `incomplete` | The HTTP exchange timed out below the session deadline |
+| `http-error` | `incomplete` | Any other HTTP-layer fault |
+
+`TLS_OBSERVATION_CAUSE_CODES` — every `TlsObservationCause.code`. Only
+`prohibited-address` arrives as `blocked`; the rest as `incomplete`. The
+`dns-*`, `connect-*`, `connection-address-mismatch`, `tls-handshake`,
+`invalid-url`, `unsupported-scheme`, `url-credentials`, `timeout`, and
+`caller-aborted` members carry the same meanings as the table above. Three are
+specific to certificate analysis:
+
+| Code | Raised when |
+| --- | --- |
+| `certificate-malformed` | A presented certificate could not be parsed from its DER |
+| `certificate-too-large` | A presented certificate exceeded `maxCertificateBytes` |
+| `chain-too-deep` | The presented chain exceeded `maxChainDepth` |
+
+Fifteen members of the fetch table have no counterpart here, because the observe
+path sends no HTTP request and reads no body: `authorization-required`,
+`hop-limit`, `unsupported-method`, `referer-not-same-origin`,
+`response-too-large`, `response-too-slow`, `decompressed-response-too-large`,
+`response-headers-too-large`, `unsupported-content-encoding`,
+`decompression-error`, `http-malformed`, `http-reset`, `http-timeout`,
+`http-error`, and `tls-certificate` — the last because the observe socket runs
+with certificate validation disabled, so a certificate fault is recorded as
+evidence rather than raised as a cause.
+
 ## Observational TLS inspection
 
 `createSafeTlsInspector` / `createNodeSafeTlsInspector` add a strictly

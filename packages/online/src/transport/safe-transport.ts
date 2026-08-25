@@ -6,6 +6,7 @@ import {
   UnsupportedContentEncodingError,
 } from "./decompression.js";
 import { destinationHeaders, sameOriginRefererValue } from "./headers.js";
+import { isTransportCauseCode } from "./outcome-registry.js";
 import { pinDestination } from "./pin.js";
 import {
   resolveTransportPolicy,
@@ -505,11 +506,19 @@ function operationCause(error: OperationError): TransportCauseCode {
 function errorCode(error: unknown): TransportCauseCode | null {
   if (typeof error !== "object" || error === null || !("code" in error)) return null;
   const code = error.code;
-  return typeof code === "string" && STABLE_OPERATION_CODES.has(code as TransportCauseCode)
-    ? (code as TransportCauseCode)
-    : null;
+  // Registry first, so the cast the narrowing used to require is gone: an
+  // adapter code that is not a member of the published domain cannot reach an
+  // outcome even if the private subset below is edited carelessly.
+  if (!isTransportCauseCode(code)) return null;
+  return STABLE_OPERATION_CODES.has(code) ? code : null;
 }
 
+/**
+ * The subset of {@link TRANSPORT_CAUSE_CODES} an adapter may assert directly
+ * through `error.code`. Deliberately proper — the remaining codes are decided by
+ * this module, not reported by a port — so it is not an enumeration of the
+ * domain. `test/transport-outcome-registry.test.ts` pins it as a subset.
+ */
 const STABLE_OPERATION_CODES = new Set<TransportCauseCode>([
   "dns-not-found",
   "dns-timeout",
