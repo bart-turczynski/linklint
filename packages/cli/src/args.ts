@@ -93,44 +93,99 @@ function parsePort(value: string): number {
 }
 
 /**
- * How many repetitions the comma advice spells out before eliding the rest.
+ * How many repetitions the separator advice spells out before eliding the rest.
  * The example is built from the caller's own value, and a config string joined
  * from thirty TLDs should not produce a thirty-clause error message.
  */
 const SUGGESTION_LIMIT = 3;
 
 /**
- * Reject one comma-joined value on a repeatable list flag, or return.
+ * The characters refused inside a single policy value, matched one at a time so
+ * the error can name the one the caller actually typed.
+ *
+ * `,` `;` `|` and whitespace — and nothing else. The set is a judgment about two
+ * separate questions, and a character has to answer BOTH the same way to be in
+ * here (LINK-stuiljry):
+ *
+ * 1. Can it occur in a value that matches an axis TODAY? If yes, refusing it
+ *    breaks live input, and no amount of good intent recovers that. This is what
+ *    keeps `+ - . :` out: `svn+ssh` and `view-source` are real schemes in the
+ *    RFC 3986 grammar, `.` and `-` are in every host and in punycode TLDs like
+ *    `xn--p1ai`, and a leading or trailing `:` on a scheme is stripped on
+ *    purpose by the core's `normalizeScheme`, so `--deny-scheme ftp:` matches.
+ *    None of `, ; |` or whitespace can: each of them inside a host makes the URL
+ *    unparseable, and the scheme and port grammars admit none of them.
+ * 2. Is it a character a person plausibly types BETWEEN two list items? This is
+ *    what keeps `/ & = ? #` out. They are as void as a semicolon in a value
+ *    today, but nobody joins a TLD list with `&`, so an error phrased "not a
+ *    value separator" would be answering a question the caller did not ask.
+ *    A value shaped like a pasted URL is a per-axis validity problem; this
+ *    screen is not the place to litigate it.
+ *
+ * Whitespace earns its place twice over: `--deny-tld "$(cat tlds.txt)"` is a
+ * newline-joined value, and a copy-paste out of a rendered document supplies a
+ * no-break space. Both are already covered, because the whitespace this rejects
+ * is defined as exactly what `String.prototype.trim` strips — `\s` and `trim`
+ * are the same set in the language — so the screen is precisely "the padding
+ * that trimming cannot reach because it is in the middle".
+ *
+ * The `;` case is the comma's case verbatim. It cannot appear on any axis today
+ * but it is an RFC 3986 sub-delim that a future path-shaped axis would want, so
+ * refusing keeps that door open exactly as LINK-ynozvajn argued. `|` is not in
+ * the RFC 3986 grammar at all and is a forbidden host code point besides.
+ */
+const SEPARATOR = /[,;|\s]/;
+
+/** The same set, in runs, for building the suggested repeated form. */
+const SEPARATOR_RUN = /[,;|\s]+/;
+
+/** How to name each refused character in the error the caller reads. */
+const SEPARATOR_NAMES = new Map<string, string>([
+  [",", "a comma"],
+  [";", "a semicolon"],
+  ["|", "a vertical bar"],
+  [" ", "a space"],
+  ["\t", "a tab"],
+  ["\n", "a newline"],
+  ["\r", "a carriage return"],
+]);
+
+/**
+ * Reject one joined value on a repeatable list flag, or return.
  *
  * `--deny-tld "com, ru"` is the natural thing to type at a flag that advertises
  * itself as a list, and it is the one shape the CLI cannot honor: `parseArgs`
  * hands it over as ONE value, the literal string `com, ru`. That string is not
  * a TLD, so the deny-list matches nothing while reporting nothing — no error,
  * no warning, exit 0, and a caller who believes a two-TLD policy is in force
- * (LINK-ynozvajn). The trim at the core's `normalizedList` choke point closed
- * the neighbouring padded case `--deny-tld " com"` and cannot close this one,
- * because there is nothing to trim.
+ * (LINK-ynozvajn, widened past the comma by LINK-stuiljry). The trim at the
+ * core's `normalizedList` choke point closed the neighbouring padded case
+ * `--deny-tld " com"` and cannot close this one, because what is in the middle
+ * is not padding.
  *
  * Refusing rather than splitting, for three reasons:
  *
  * - It is the same disposition `parsePort` already takes on this same surface:
  *   a value that can never match is a usage error at the boundary where a human
  *   typed it, not a dead deny-list entry the caller never hears about.
- * - Splitting would spend the comma repo-wide and permanently. No value on any
- *   axis TODAY can hold one — a comma in a host makes the URL unparseable, and
- *   the scheme and port grammars exclude it — but `,` is an RFC 3986 sub-delim
- *   that appears freely in paths and query strings, so a future path- or
- *   param-shaped axis would need it. A flag that refuses a comma can be taught
- *   to split one later; a flag that splits cannot be taught to stop.
+ * - Splitting would spend the character repo-wide and permanently, and the two
+ *   directions are not symmetrical: a flag that refuses a separator can be
+ *   taught to split one later, while a flag that splits cannot be taught to
+ *   stop. Refusal is the reversible half of the decision, which is the whole
+ *   argument for refusing anything genuinely ambiguous.
  * - The core cannot do it. `normalizeOptions` is contractually total ("Never
  *   throws — inspection must be total"), which is exactly why this lives here.
+ *
+ * Trimmed before it is screened, so the padded single value LINK-uxkrtcnw
+ * deliberately made harmless stays harmless: `--deny-tld " com"` is one TLD
+ * with padding the core strips, not two values joined by a space.
  */
-function assertNotCommaJoined(flag: string, value: string): void {
-  if (!value.includes(",")) return;
-  const parts = value
-    .split(",")
-    .map((part) => part.trim())
-    .filter((part) => part !== "");
+function assertNotJoined(flag: string, value: string): void {
+  const trimmed = value.trim();
+  const found = SEPARATOR.exec(trimmed)?.[0];
+  if (found === undefined) return;
+  const name = SEPARATOR_NAMES.get(found) ?? "a whitespace character";
+  const parts = trimmed.split(SEPARATOR_RUN).filter((part) => part !== "");
   const shown = parts.slice(0, SUGGESTION_LIMIT).map((part) => `${flag} ${part}`);
   const suggestion =
     parts.length > SUGGESTION_LIMIT ? `${shown.join(" ")} ...` : shown.join(" ");
@@ -139,7 +194,7 @@ function assertNotCommaJoined(flag: string, value: string): void {
       ? `repeat ${flag} once per value`
       : `repeat the flag once per value: ${suggestion}`;
   throw new UsageError(
-    `invalid ${flag} value: ${value} (a comma is not a value separator — ${advice})`,
+    `invalid ${flag} value: ${value} (${name} is not a value separator — ${advice})`,
   );
 }
 
@@ -213,9 +268,9 @@ export function parseCli(argv: readonly string[]): ParsedCli {
   }
 
   // Every repeatable value flag, enumerated rather than derived: a ninth one
-  // added to `options` above has to be added here to inherit the comma refusal,
-  // and the omission is visible in the diff. `--deny-port` is screened here too,
-  // ahead of `parsePort`, so a comma-joined port list is told about the
+  // added to `options` above has to be added here to inherit the separator
+  // refusal, and the omission is visible in the diff. `--deny-port` is screened
+  // here too, ahead of `parsePort`, so a joined port list is told about the
   // repeatable form rather than about the valid port range.
   const listValues: ReadonlyArray<readonly [string, readonly string[] | undefined]> = [
     ["--idn-allow", values["idn-allow"]],
@@ -228,7 +283,7 @@ export function parseCli(argv: readonly string[]): ParsedCli {
     ["--deny-port", values["deny-port"]],
   ];
   for (const [flag, flagValues] of listValues) {
-    for (const value of flagValues ?? []) assertNotCommaJoined(flag, value);
+    for (const value of flagValues ?? []) assertNotJoined(flag, value);
   }
 
   const options: CheckOptions = {

@@ -1,37 +1,39 @@
 import { describe, expect, it } from "vitest";
 import type { InspectResult } from "linklint";
-import { parseCli, run } from "@linklint/cli";
+import { parseCli, run, UsageError } from "@linklint/cli";
 
 /**
  * LINK-stuiljry — the residual of LINK-ynozvajn: a policy value joined by
  * anything OTHER than a comma.
  *
  * LINK-ynozvajn scoped itself to the comma and said so. Every other joining
- * character a caller might reach for is still handed to `parseArgs` as ONE
- * value, matches nothing on any axis, and is reported nowhere:
+ * character a caller might reach for was still handed to `parseArgs` as ONE
+ * value, matched nothing on any axis, and was reported nowhere:
  *
  *     linklint check --deny-tld "com ru" https://a.example.com/   ->  exit 0
  *
- * THIS FILE PINS THAT AS IT STANDS TODAY — silently void — so that the change
- * which closes it has something to invert. Read the assertions below as a
- * description of a fail-open, not as a specification of desired behavior.
+ * The first commit on this branch pinned exactly that, so this one had a
+ * behavior to invert rather than a description to write. Both failure shapes
+ * were the comma's:
  *
- * The two failure shapes are the same ones the comma had:
- *
- *   - on a DENY axis the list is void: the reason the repeated form produces
- *     does not appear, and nothing says so;
- *   - on an ALLOW axis it is worse than void: the joined string matches
- *     nothing, so a value the caller explicitly listed comes back reported as
+ *   - on a DENY axis the list was void: the reason the repeated form produces
+ *     did not appear, and nothing said so;
+ *   - on an ALLOW axis it was worse than void: the joined string matched
+ *     nothing, so a value the caller explicitly listed came back reported as
  *     NOT allow-listed — and `--idn-allow` behaves as an allow axis here, its
  *     exemption silently failing to apply.
  *
- * `--deny-port` is the one axis already loud for every separator, because
- * `parsePort` admits only digits. It is pinned separately: loud, but answering
- * a question about separators with advice about the port range.
+ * `--deny-port` was the one axis already loud for every separator, because
+ * `parsePort` admits only digits — loud, but answering a question about
+ * separators with advice about the port range. It is screened first now, so it
+ * answers the question that was asked.
  *
- * The control blocks at the bottom are the load-bearing half. They fix the
- * characters that DO legitimately appear in a matching value today, so that a
- * later separator refusal cannot quietly eat one of them.
+ * THE SET IS `,` `;` `|` AND WHITESPACE, and the reasoning for each character
+ * is in `assertNotJoined` in `packages/cli/src/args.ts`. The control blocks at
+ * the bottom are the load-bearing half: they fix the characters that DO
+ * legitimately appear in a matching value today (`+ - . :`) and the padded
+ * single value LINK-uxkrtcnw made harmless, so the refusal cannot quietly eat
+ * either one.
  */
 
 function collectors(): {
@@ -133,13 +135,13 @@ const AXES: Axis[] = [
  * vertical bar inside a host makes the URL unparseable outright, and the scheme
  * and port grammars admit none of them.
  */
-const SEPARATORS: ReadonlyArray<{ name: string; char: string }> = [
-  { name: "space", char: " " },
-  { name: "tab", char: "\t" },
-  { name: "newline", char: "\n" },
-  { name: "no-break space", char: " " },
-  { name: "semicolon", char: ";" },
-  { name: "vertical bar", char: "|" },
+const SEPARATORS: ReadonlyArray<{ name: string; char: string; named: string }> = [
+  { name: "space", char: " ", named: "space" },
+  { name: "tab", char: "\t", named: "tab" },
+  { name: "newline", char: "\n", named: "newline" },
+  { name: "no-break space", char: "\u00a0", named: "whitespace character" },
+  { name: "semicolon", char: ";", named: "semicolon" },
+  { name: "vertical bar", char: "|", named: "vertical bar" },
 ];
 
 /** Every (axis, separator) pair, flattened so each is its own named case. */
@@ -147,68 +149,106 @@ const JOINED = AXES.flatMap((axis) =>
   SEPARATORS.map((sep) => ({
     ...axis,
     sep: sep.name,
+    named: sep.named,
     joined: axis.values.join(sep.char),
   })),
 );
 
-describe("LINK-stuiljry — a non-comma-joined value is accepted and then silently void", () => {
-  it.each(JOINED)("$flag joined by $sep raises no usage error", ({ flag, joined, url }) => {
-    expect(() => parseCli(["check", flag, joined, url])).not.toThrow();
+describe("LINK-stuiljry — a joined value is refused, not silently voided", () => {
+  it.each(JOINED)("$flag joined by $sep throws UsageError", ({ flag, joined, url }) => {
+    expect(() => parseCli(["check", flag, joined, url])).toThrow(UsageError);
   });
 
-  it.each(JOINED)("$flag joined by $sep arrives as one literal value", ({ flag, joined, url }) => {
-    const cli = parseCli(["check", flag, joined, url]);
+  it.each(JOINED)(
+    "$flag joined by $sep names the character and the repeatable form",
+    ({ flag, joined, values, url, named }) => {
+      expect(() => parseCli(["check", flag, joined, url])).toThrow(
+        `invalid ${flag} value: ${joined} (a ${named} is not a value separator — repeat the flag once per value: ${flag} ${values[0]} ${flag} ${values[1]})`,
+      );
+    },
+  );
+
+  it.each(JOINED)("$flag joined by $sep exits 2 and inspects nothing", ({ flag, joined, url }) => {
+    const c = collectors();
+    expect(run(["check", "--json", flag, joined, url], c.out, c.err)).toBe(2);
+    expect(c.outLines).toEqual([]);
+    expect(c.errLines.join("\n")).toContain("is not a value separator");
+  });
+
+  it.each(AXES)(
+    "$flag repeated is untouched and still decides $code",
+    ({ flag, values, url, code, fires }) => {
+      const { codes } = check(flag, values[0], flag, values[1], url);
+      expect(codes.includes(code)).toBe(fires);
+    },
+  );
+
+  it("the whole point, end to end: a two-TLD deny-list joined by a space is refused", () => {
+    const c = collectors();
+    expect(run(["check", "--json", "--deny-tld", "com ru", DOTCOM], c.out, c.err)).toBe(2);
+    expect(c.errLines.join("\n")).toContain(
+      "invalid --deny-tld value: com ru (a space is not a value separator",
+    );
+  });
+
+  it("one separator anywhere in the value is enough, not just between two items", () => {
+    expect(() => parseCli(["check", "--deny-tld", "com;", DOTCOM])).toThrow(UsageError);
+    expect(() => parseCli(["check", "--deny-tld", "|com", DOTCOM])).toThrow(UsageError);
+    expect(() => parseCli(["check", "--deny-host", "a.example|b.example", DOTCOM])).toThrow(
+      UsageError,
+    );
+  });
+
+  it("the character named is the first one found, when a value holds several", () => {
+    expect(() => parseCli(["check", "--deny-tld", "com; ru", DOTCOM])).toThrow(
+      "a semicolon is not a value separator — repeat the flag once per value: --deny-tld com --deny-tld ru",
+    );
+    expect(() => parseCli(["check", "--deny-tld", "com ;ru", DOTCOM])).toThrow(
+      "a space is not a value separator — repeat the flag once per value: --deny-tld com --deny-tld ru",
+    );
+  });
+
+  it("an exotic whitespace character is refused without being misnamed", () => {
+    expect(() => parseCli(["check", "--deny-tld", "com\u00a0ru", DOTCOM])).toThrow(
+      "a whitespace character is not a value separator",
+    );
+  });
+
+  it("a value that is nothing but separators still gets advice, without an empty example", () => {
+    expect(() => parseCli(["check", "--deny-tld", ";|;", DOTCOM])).toThrow(
+      "invalid --deny-tld value: ;|; (a semicolon is not a value separator — repeat --deny-tld once per value)",
+    );
+  });
+
+  it("a long joined list elides the suggestion rather than restating all of it", () => {
+    expect(() => parseCli(["check", "--deny-tld", "a b c d e", DOTCOM])).toThrow(
+      "repeat the flag once per value: --deny-tld a --deny-tld b --deny-tld c ...",
+    );
+  });
+
+  it("only the list flags are screened — a separator elsewhere is not this error", () => {
+    // LINK-ynozvajn pinned this for the comma and it holds for the wider set:
+    // `--fail-on` takes one value from a closed set and reports its own problem,
+    // and a URL positional legitimately holds any of these characters.
+    expect(() => parseCli(["check", "--fail-on", "high low", DOTCOM])).toThrow(/invalid --fail-on/);
+    const cli = parseCli(["check", "https://example.com/a;b?x=1|2"]);
     if (cli.kind !== "check") throw new Error("unreachable");
-    const lists = [
-      cli.options.idnAllowlist,
-      cli.options.denyTlds,
-      cli.options.allowTlds,
-      cli.options.denyHosts,
-      cli.options.allowHosts,
-      cli.options.allowSchemes,
-      cli.options.denySchemes,
-    ];
-    expect(lists.flat()).toEqual([joined]);
-  });
-
-  it.each(JOINED.filter((c) => c.fires))(
-    "$flag joined by $sep loses $code that the repeated form reports",
-    ({ flag, joined, values, url, code }) => {
-      expect(check(flag, values[0], flag, values[1], url).codes).toContain(code);
-      expect(check(flag, joined, url).codes).not.toContain(code);
-    },
-  );
-
-  it.each(JOINED.filter((c) => !c.fires))(
-    "$flag joined by $sep still reports $code that the repeated form clears",
-    ({ flag, joined, values, url, code }) => {
-      expect(check(flag, values[0], flag, values[1], url).codes).not.toContain(code);
-      expect(check(flag, joined, url).codes).toContain(code);
-    },
-  );
-
-  it.each(JOINED)("$flag joined by $sep says nothing on stderr", ({ flag, joined, url }) => {
-    const { exit, errLines } = check(flag, joined, url);
-    expect(errLines).toEqual([]);
-    expect(exit).not.toBe(2);
-  });
-
-  it("the whole point, end to end: a two-TLD deny-list joined by a space is not in force", () => {
-    const { exit, codes } = check("--deny-tld", "com ru", DOTCOM);
-    expect(codes).not.toContain("tld_denied");
-    expect(exit).toBe(0);
+    expect(cli.urls).toEqual(["https://example.com/a;b?x=1|2"]);
   });
 });
 
-describe("LINK-stuiljry — --deny-port is loud already, with the wrong advice", () => {
-  it.each(SEPARATORS)(
-    "--deny-port joined by $name is refused as a port-range problem",
-    ({ char }) => {
-      expect(() =>
-        parseCli(["check", "--deny-port", `80${char}8080`, "https://example.com:8080/"]),
-      ).toThrow(/invalid --deny-port value: .* \(expected an integer 0-65535\)/s);
-    },
-  );
+describe("LINK-stuiljry — --deny-port is told about separators, not about its range", () => {
+  it.each(SEPARATORS)("--deny-port joined by $name reports the separator", ({ char, named }) => {
+    expect(() =>
+      parseCli(["check", "--deny-port", `80${char}8080`, "https://example.com:8080/"]),
+    ).toThrow(`(a ${named} is not a value separator`);
+  });
+
+  it("--deny-port still reports its range problem when there is no separator", () => {
+    expect(() => parseCli(["check", "--deny-port", "99999", DOTCOM])).toThrow(
+      /invalid --deny-port value: 99999 \(expected an integer 0-65535\)/,
+    );
+  });
 });
 
 /**
