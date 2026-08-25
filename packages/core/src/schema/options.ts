@@ -257,3 +257,207 @@ export interface InspectOptions {
    */
   denyNonStandardPorts?: boolean;
 }
+
+/**
+ * Every {@link InspectOptions} key, as a RUNTIME value.
+ *
+ * An interface has no runtime representation, so the intake below cannot ask
+ * TypeScript what it knows — the list has to exist as data. Typing it
+ * `Record<keyof InspectOptions, true>` makes the compiler enforce BOTH
+ * directions on the literal: a key added to the interface and forgotten here is
+ * a missing-property error, and a key here that the interface does not declare
+ * is an excess-property error. The list therefore cannot drift from the
+ * interface the way a hand-maintained array would.
+ *
+ * Mirrors how `policy/options.ts` derives POLICY_OPTION_KEYS from the axis
+ * registry: the recognized-key set is never a free-standing literal that some
+ * later edit can leave behind.
+ */
+const SYNC_OPTION_KEYS: Record<keyof InspectOptions, true> = {
+  maxDecodeDepth: true,
+  agentMode: true,
+  idnPolicy: true,
+  idnAllowlist: true,
+  suppressReasons: true,
+  denyTlds: true,
+  allowTlds: true,
+  denyHosts: true,
+  allowHosts: true,
+  allowSchemes: true,
+  denySchemes: true,
+  denyPorts: true,
+  denyNonStandardPorts: true,
+};
+
+/**
+ * The keys `InspectAsyncOptions` adds on top of {@link InspectOptions}.
+ *
+ * `inspectAsync` passes its whole superset options object straight through to
+ * `inspect()`, so the synchronous intake must recognize these four or every
+ * enriched call would report its own plumbing as dropped configuration. They
+ * are listed here rather than imported from `inspect-async.ts` because a
+ * runtime import in that direction would close an import cycle
+ * (`inspect-async` → `inspect` → `schema/options`).
+ *
+ * Coverage against the real interface is asserted in
+ * `test/option-intake.test.ts`, which parses both interface declarations and
+ * fails if either grows a key this set does not carry.
+ */
+const ASYNC_ONLY_OPTION_KEYS = ["enrichers", "signal", "cache", "governor"] as const;
+
+/** Every option key either entry point recognizes and actually applies. */
+export const RECOGNIZED_OPTION_KEYS: ReadonlySet<string> = new Set<string>([
+  ...Object.keys(SYNC_OPTION_KEYS),
+  ...ASYNC_ONLY_OPTION_KEYS,
+]);
+
+/**
+ * The `checksSkipped` token for an options ARGUMENT that was not a usable
+ * object at all — `null`, a primitive, a function, or an object whose own keys
+ * could not be enumerated. Nothing the caller configured could be read, so no
+ * individual key can be named.
+ *
+ * Deliberately the bare-token counterpart of the per-key `options:<key>` form,
+ * exactly as bare `policy` (the dispatcher itself failed, no axis verdict
+ * exists) is the counterpart of `policy:<axis id>` — see docs/architecture.md
+ * §5. As there, the two never appear together.
+ */
+export const UNUSABLE_OPTIONS_TOKEN = "options";
+
+/** Namespace for the per-key form, matching `lexical:<id>` / `policy:<axis id>`. */
+const OPTION_KEY_TOKEN_PREFIX = "options";
+
+/**
+ * Longest key echoed into a token. A key is caller-controlled text that ends up
+ * in a serialized result, so it is bounded rather than trusted; the marker keeps
+ * a truncated token visibly truncated.
+ */
+const MAX_ECHOED_KEY_LENGTH = 64;
+
+/**
+ * Characters kept verbatim in an echoed key. `checksSkipped` is a list of
+ * `<namespace>:<id>` tokens that consumers split, join, and render (the cucumber
+ * suite joins it on commas), so a key carrying a comma, a colon, a newline or a
+ * control character is folded to `_` rather than allowed to forge a delimiter.
+ * The substitution is lossy on purpose: the token names the mistake, it is not
+ * a round-trip of it.
+ */
+const UNSAFE_KEY_CHARS = /[^A-Za-z0-9_$.-]/g;
+
+/** The result of reading a caller's options argument. */
+export interface OptionIntake {
+  /**
+   * The options to apply — the caller's own object, unchanged, or `{}` when the
+   * argument was not a usable object. Never null, so every downstream reader
+   * can dereference it.
+   */
+  readonly options: InspectOptions;
+  /**
+   * `checksSkipped` tokens naming configuration the caller supplied and did NOT
+   * get. Empty for every well-formed call, so the default path is byte-for-byte
+   * unchanged.
+   */
+  readonly skipped: readonly string[];
+}
+
+/** Shared empty options, so the unusable-argument path allocates nothing. */
+const NO_OPTIONS: InspectOptions = Object.freeze({});
+
+/**
+ * Read a caller's options argument at the runtime boundary (LINK-sjsxfqoo).
+ *
+ * `inspect()` applies the keys it recognizes. Before this, it dropped every
+ * other key in silence, so a mistyped `allowHost` produced a result
+ * indistinguishable from one where no policy was ever requested — silent loss,
+ * failing OPEN, in the one channel whose purpose is restriction. This makes the
+ * loss REPORTED: each dropped key becomes an `options:<key>` entry in
+ * `checksSkipped`, so a caller can tell the two cases apart from the result
+ * alone, without a control run to diff against.
+ *
+ * Reporting rather than rejecting is forced by the never-throws guarantee (A1 /
+ * LINK-zsbeqtcr): the rejection of an unknown key is an OUTCOME, never an
+ * exception. It reuses `checksSkipped` — the channel that already exists to say
+ * "this part of the verdict did not happen" — rather than minting a parallel
+ * signal, and it reuses that channel's established `<namespace>:<id>` token
+ * grammar rather than a new shape.
+ *
+ * The namespace is `options:`, not `policy:`. An unrecognized key is not
+ * attributable to an axis (`maxDecodeDeph` is not a policy typo), and
+ * `policy:<axis id>` is already pinned to the four axis ids by
+ * docs/architecture.md §5 and `features/policy.feature`; overloading it with
+ * arbitrary caller strings would break consumers that parse it.
+ *
+ * What counts as dropped:
+ *
+ *  - a key that is not recognized AND whose value is not `undefined`. An
+ *    unrecognized key set to `undefined` configured nothing, so nothing was
+ *    lost — this keeps the common `{ ...base, someKey: undefined }` spread
+ *    silent, matching how `policyConfigured` already treats `undefined`.
+ *  - a key whose value could not be read at all (a throwing getter). It was
+ *    supplied and it was not applied, which is the same statement.
+ *
+ * Total by construction: key enumeration and every value read are guarded, so a
+ * hostile options object is reported, never propagated. Output is deterministic
+ * — keys are sorted, so two callers whose objects differ only in insertion
+ * order get identical results, preserving the published determinism guarantee.
+ */
+export function intakeOptions(options: unknown): OptionIntake {
+  // A function, a primitive, or null carries no readable configuration. Report
+  // the argument itself and continue with defaults; before this, `null` — what
+  // `JSON.parse('{"options":null}')` hands a plain-JS caller — dereferenced and
+  // threw straight out of `inspect()`.
+  if (typeof options !== "object" || options === null) {
+    return { options: NO_OPTIONS, skipped: [UNUSABLE_OPTIONS_TOKEN] };
+  }
+
+  const source = options as Record<string, unknown>;
+  let keys: string[];
+  try {
+    keys = Object.keys(source);
+  } catch {
+    // A Proxy may trap `ownKeys` and throw. Nothing can be named, so this is
+    // the same statement as an unusable argument.
+    return { options: NO_OPTIONS, skipped: [UNUSABLE_OPTIONS_TOKEN] };
+  }
+
+  const dropped: string[] = [];
+  for (const key of keys) {
+    if (RECOGNIZED_OPTION_KEYS.has(key)) continue;
+    try {
+      if (source[key] === undefined) continue;
+    } catch {
+      // An unreadable value is still configuration we did not apply. Fall
+      // through and report it.
+    }
+    dropped.push(key);
+  }
+
+  if (dropped.length === 0) return { options: options as InspectOptions, skipped: [] };
+
+  dropped.sort();
+  // Distinct keys can collide after sanitizing/truncation; a token repeated in
+  // `checksSkipped` says nothing extra, so collapse them.
+  const skipped = [...new Set(dropped.map(optionKeyToken))];
+  return { options: options as InspectOptions, skipped };
+}
+
+/** Render one dropped key as a bounded, delimiter-safe `checksSkipped` token. */
+function optionKeyToken(key: string): string {
+  const safe = key.replace(UNSAFE_KEY_CHARS, "_");
+  const bounded =
+    safe.length > MAX_ECHOED_KEY_LENGTH
+      ? `${safe.slice(0, MAX_ECHOED_KEY_LENGTH)}_`
+      : safe;
+  return `${OPTION_KEY_TOKEN_PREFIX}:${bounded}`;
+}
+
+/**
+ * The options argument as a usable object of type `T`, or `{}` when it is not
+ * an object. The narrowing half of {@link intakeOptions}, for a caller that has
+ * already routed the reporting half through `inspect()` — `inspectAsync` reads
+ * its own four keys off the same argument and must not dereference `null`
+ * either.
+ */
+export function usableOptions<T extends object>(options: unknown): T {
+  return typeof options === "object" && options !== null ? (options as T) : ({} as T);
+}

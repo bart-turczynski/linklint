@@ -13,6 +13,7 @@ import { policyConfigured, runPolicy } from "./policy/policy.js";
 import { suppressConfigured } from "./scoring/suppress.js";
 import { normalizeOptions } from "./parse/runtime.js";
 import { authorityRegion } from "./parse/authority-region.js";
+import { intakeOptions } from "./schema/options.js";
 
 /**
  * Best-effort echo of a non-string input for the `input` field, which the result
@@ -36,7 +37,29 @@ function coerceInput(value: unknown): string {
  * The never-throws guarantee is **unconditional**, not string-only: a non-string
  * returns `status: "invalid"` rather than a `TypeError` (LINK-zsbeqtcr).
  */
-export function inspect(input: string, options: InspectOptions = {}): InspectResult {
+export function inspect(input: string, rawOptions: InspectOptions = {}): InspectResult {
+  // Option intake (LINK-sjsxfqoo). The same argument that TypeScript types is
+  // untyped by the time it gets here: JSON config, MCP tool input, a plain-JS
+  // caller, options widened through a variable. Keys we do not recognize used to
+  // be dropped in silence, so `{ allowHost: [...] }` — the singular typo —
+  // returned a result byte-identical to one where no policy was ever requested.
+  // That failure is OPEN, in the channel whose whole purpose is restriction.
+  //
+  // The loss is now REPORTED, not rejected: `intakeOptions` names each dropped
+  // key as `options:<key>` in checksSkipped (and an unusable argument as bare
+  // `options`), reusing the channel and the `<namespace>:<id>` token grammar the
+  // policy and detector loops already use. Rejecting by THROWING is not
+  // available — inspect()'s never-throws guarantee is unconditional (A1 /
+  // LINK-zsbeqtcr) — and would in any case put the try/catch obligation on the
+  // callers least likely to have one.
+  //
+  // These tokens are seeded ahead of everything else because intake precedes
+  // every check, and they must reach BOTH result paths: an input that fails to
+  // parse must still report the option the caller lost.
+  const intake = intakeOptions(rawOptions);
+  const optionSkipped = intake.skipped;
+  const options = intake.options;
+
   // Contract guard (FR-IN-4). TypeScript types `input` as string, but a plain-JS
   // caller — or `JSON.parse` output — can hand us null/undefined/a number, and
   // the whole premise is that inspect() is safe on *fully* untrusted input.
@@ -50,6 +73,7 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRes
       coerceInput(input),
       [],
       `input is not a string (got ${input === null ? "null" : typeof input})`,
+      optionSkipped,
     );
   }
   // Structural scans over the raw input. They run independently of
@@ -85,14 +109,16 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRes
     // the entire lexical layer (structural scans included) was not fully applied,
     // so per-scan `lexical:<id>` skips are deliberately not threaded here — doing
     // so would change the cucumber-pinned invalid CSV value. (LINK-hastsuzd)
-    return buildInvalidResult(input, structural);
+    return buildInvalidResult(input, structural, undefined, optionSkipped);
   }
   // Unparseable input: still explain itself if the authority was ambiguous.
-  if (ctx === null) return buildInvalidResult(input, structural);
+  if (ctx === null) return buildInvalidResult(input, structural, undefined, optionSkipped);
 
   const findings: CollectedFinding[] = [...structural];
-  // Seed with any structural-scan skips so they reach checksSkipped on the OK path.
-  const skippedDetectors: string[] = [...structuralSkipped];
+  // Seed with the intake skips, then any structural-scan skips, so both reach
+  // checksSkipped on the OK path in the order they actually happened: reading
+  // the options precedes every check.
+  const skippedDetectors: string[] = [...optionSkipped, ...structuralSkipped];
 
   // Agent channel (FR-AGENT-*): agent-gated detectors are an explicit opt-in
   // (InspectOptions.agentMode). When off they are silently not evaluated — NOT
