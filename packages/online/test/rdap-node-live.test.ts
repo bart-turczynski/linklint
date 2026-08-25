@@ -67,7 +67,9 @@ function client(options: Omit<NodeRdapHttpClientOptions, "classifyAddress"> = {}
   return createNodeRdapHttpClient({ ...options, classifyAddress: allowLoopback });
 }
 
-async function failureOf(promise: Promise<unknown>): Promise<{ name?: unknown; code?: unknown }> {
+async function failureOf(
+  promise: Promise<unknown>,
+): Promise<{ name?: unknown; code?: unknown; detail?: unknown }> {
   const error = await promise.then(
     () => null,
     (thrown: unknown) => thrown,
@@ -311,6 +313,79 @@ describe("node RDAP HTTP client (live loopback)", () => {
     const failure = await failureOf(client().request({ url: "file:///etc/passwd" }));
 
     expect(failure.code).toBe("unsupported-scheme");
+  });
+
+  /**
+   * LINK-fnvzqwiq. `http.request` validates the whole header block
+   * SYNCHRONOUSLY, inside the `ClientRequest` constructor, so a validator Node
+   * refuses throws before the request object exists — there is no `error`
+   * listener yet, and the throw cannot reach the one this client attaches. It
+   * is caught by the surrounding `new Promise(...)` executor instead and
+   * surfaces as a rejection carrying a raw Node `TypeError` (`ERR_INVALID_CHAR`)
+   * whose message this boundary never inspected, in place of the
+   * `RdapHttpFailure` every caller switches on.
+   *
+   * Reach, stated accurately: the conditional validators are the only
+   * caller-influenced header VALUES, and `rdap-bootstrap-updater.ts` reads them
+   * back from the injected snapshot store. So this needs a stored `ETag` or
+   * `Last-Modified` carrying a byte outside Latin-1. Nothing on the read path
+   * constrains what a previous writer put in a caller-supplied store, so it is
+   * reachable — but it is NOT reachable from an inspected URL, and a validator
+   * this client itself captured never can be: Node decodes response header
+   * bytes as latin1, so every value it hands back is inside the accepted set.
+   */
+  it("types a stored validator Node rejects synchronously rather than leaking a raw TypeError", async () => {
+    let reached = false;
+    const port = await startServer(() => {
+      reached = true;
+      return { status: 200, body: "{}" };
+    });
+
+    const failure = await failureOf(
+      client().request({
+        url: `http://127.0.0.1:${port}/domain/example.com`,
+        // A poisoned snapshot: `Ā` (U+0100) is one codepoint past Latin-1, so
+        // Node refuses it while a CR/LF/NUL splitting guard would not.
+        conditional: { ifNoneMatch: '"vĀ"' },
+      }),
+    );
+
+    expect(failure.name).toBe("RdapHttpFailure");
+    expect(failure.code).toBe("http-malformed");
+    expect(failure.detail).toBe("invalid request header");
+    // "at the boundary rather than at the socket": the refusal happens inside
+    // the `ClientRequest` constructor, before the agent is asked for a socket.
+    expect(reached).toBe(false);
+    // The value is the one thing a failure may never echo. Node's own message
+    // quotes the field name only, but nothing from it survives here anyway.
+    expect(String(failure.detail ?? "")).not.toContain("vĀ");
+  });
+
+  /**
+   * The control for the case above, and the reason no second copy of Node's
+   * accepted charset is kept here: `ü` is inside Latin-1, so Node accepts it,
+   * and a hand-written validator narrower than Node's would refuse a validator
+   * a provider is entitled to issue. Both validators must still reach the wire
+   * verbatim.
+   */
+  it("sends conditional validators verbatim, including Latin-1 bytes Node accepts", async () => {
+    let seen: Record<string, string | string[] | undefined> = {};
+    const port = await startServer((_path, headers) => {
+      seen = headers;
+      return { status: 304 };
+    });
+
+    const response = await client().request({
+      url: `http://127.0.0.1:${port}/domain/example.com`,
+      conditional: {
+        ifNoneMatch: '"vü1"',
+        ifModifiedSince: "Mon, 20 Jul 2026 00:00:00 GMT",
+      },
+    });
+
+    expect(response.status).toBe(304);
+    expect(seen["if-none-match"]).toBe('"vü1"');
+    expect(seen["if-modified-since"]).toBe("Mon, 20 Jul 2026 00:00:00 GMT");
   });
 
   it("stops an oversized body at the configured budget", async () => {
