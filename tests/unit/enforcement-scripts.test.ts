@@ -446,7 +446,8 @@ describe.each(BASHES)("install-aliases.sh under %s", (bash) => {
       expect(r.stdout).toContain("_linklint_guard()");
       expect(r.stdout).toContain("curl() { _linklint_guard curl");
       expect(r.stdout).toContain("wget() { _linklint_guard wget");
-      expect(r.stdout).toContain("--fail-on high");
+      // Single-quoted in the emitted text — see the LINK-kidprtkk block below.
+      expect(r.stdout).toContain("--fail-on 'high'");
       // Printing must not install anything.
       expect(() => readFileSync(rcFor(sb, ".zshrc"), "utf8")).toThrow();
       expect(() => readFileSync(rcFor(sb, ".profile"), "utf8")).toThrow();
@@ -456,8 +457,8 @@ describe.each(BASHES)("install-aliases.sh under %s", (bash) => {
       const sb = makeSandbox("inst-print-failon", { linklint: "absent" });
       const r = runScript(bash, INSTALLER, ["--print"], sb, { LINKLINT_FAIL_ON: "medium" });
       expect(r.status).toBe(0);
-      expect(r.stdout).toContain("--fail-on medium");
-      expect(r.stdout).not.toContain("--fail-on high");
+      expect(r.stdout).toContain("--fail-on 'medium'");
+      expect(r.stdout).not.toContain("--fail-on 'high'");
     });
   });
 
@@ -639,6 +640,125 @@ describe.each(BASHES)("install-aliases.sh under %s", (bash) => {
       expect(r.status).toBe(0);
       expect(sb.fetchCalls()).toHaveLength(1);
       expect(sb.linklintCalls().filter((c) => c.includes("check"))).toHaveLength(0);
+    });
+  });
+
+  /**
+   * LINK-kidprtkk — `${FAIL_ON}` must reach the rc file QUOTED.
+   *
+   * TWO EXPANSION LAYERS, ONLY ONE OF THEM UNSAFE. The installer expands
+   * `${FAIL_ON}` inside a `<<EOF` heredoc, and a heredoc body neither
+   * word-splits nor globs — that layer was never the bug. The bug is the TEXT
+   * the heredoc produces: it lands in a long-lived rc file that the user's own
+   * shell parses later, and that shell does split, glob and substitute. So the
+   * fix is a quoted *literal in the emitted text*, not a quoted expansion in
+   * the installer; quoting the installer-side expansion would emit a useless
+   * `${FAIL_ON}` into the rc instead.
+   *
+   * The value is install-time environment, not attacker-controlled input, and a
+   * malformed one fails CLOSED — which is why this was filed low. It is still
+   * worth pinning: the rc outlives the install by years, and the failure modes
+   * below range from "surprising" to "arbitrary rc code".
+   *
+   * NOT COVERED, deliberately: whether the guard should inspect scheme-less
+   * arguments at all is a separate open decision (LINK-dkfsxrpc). Nothing here
+   * touches the `case` matching logic.
+   */
+  describe("a hostile LINKLINT_FAIL_ON cannot restructure the generated rc", () => {
+    /** The generated guard text, via `--print` (installs nothing). */
+    function printGuard(failOn: string): string {
+      const sb = makeSandbox("failon-print", { linklint: "absent" });
+      const r = runScript(bash, INSTALLER, ["--print"], sb, { LINKLINT_FAIL_ON: failOn });
+      expect(r.status).toBe(0);
+      return r.stdout;
+    }
+
+    /**
+     * Install the guard with `failOn` baked in, then source it from a cwd
+     * stocked with decoy files and run curl — so a glob in the baked value has
+     * something to expand against. Returns the argv `linklint` actually saw.
+     */
+    function argvUnderGuard(failOn: string): string[] {
+      const sb = makeSandbox("failon-argv", { linklint: "fake", linklintExit: 0, fetchStubs: true });
+      expect(runScript(bash, INSTALLER, [], sb, { SHELL: "/bin/zsh", LINKLINT_FAIL_ON: failOn }).status).toBe(0);
+      const rc = join(sb.root, "home", ".zshrc");
+      const work = join(sb.root, "work");
+      mkdirSync(work, { recursive: true });
+      for (const decoy of ["decoy-a", "decoy-b"]) writeFileSync(join(work, decoy), "");
+      const r = spawnSync(bash, ["-c", `. ${JSON.stringify(rc)}; curl https://example.com/ok`], {
+        encoding: "utf8",
+        cwd: work,
+        env: { PATH: sb.bin, HOME: join(sb.root, "home") },
+      });
+      expect(r.status).toBe(0);
+      const inspected = sb.linklintCalls().filter((c) => c.includes("check"));
+      expect(inspected).toHaveLength(1);
+      const [call] = inspected;
+      if (call === undefined) throw new Error("unreachable: length asserted above");
+      // Drop argv[0] (the shim's own path); what matters is the argument structure.
+      return call.slice(1);
+    }
+
+    /**
+     * A value carrying whitespace used to emit `--fail-on high --allow-invalid`
+     * — a bare second argument, silently loosening the guard it was meant to
+     * configure.
+     */
+    it("keeps a whitespace-bearing value as ONE argument instead of injecting a second flag", () => {
+      const out = printGuard("high --allow-invalid");
+      expect(out).toContain("--fail-on 'high --allow-invalid'");
+      expect(out).not.toContain("--fail-on high --allow-invalid");
+      expect(argvUnderGuard("high --allow-invalid")).toEqual(["check", "https://example.com/ok", "--fail-on", "high --allow-invalid"]);
+    });
+
+    /**
+     * The sharpest one, because it is decided at RUNTIME, not install time: a
+     * bare `--fail-on *` in the rc globs against whatever directory the user
+     * happens to be standing in, so the same rc line means something different
+     * in every directory.
+     */
+    it("does not let a glob in the value expand against the user's cwd at runtime", () => {
+      expect(printGuard("*")).toContain("--fail-on '*'");
+      const argv = argvUnderGuard("*");
+      expect(argv).toEqual(["check", "https://example.com/ok", "--fail-on", "*"]);
+      expect(argv).not.toContain("decoy-a");
+      expect(argv).not.toContain("decoy-b");
+    });
+
+    /**
+     * `${LINKLINT_FAIL_ON:-high}` already turns a wholly empty value into
+     * `high`, so the "nothing at all" case that actually reaches the rc is a
+     * value made only of whitespace. Unquoted it vanished during word
+     * splitting, leaving `--fail-on` with no argument at all.
+     */
+    it("keeps a whitespace-only value from leaving --fail-on with no argument", () => {
+      expect(printGuard(" ")).toContain("--fail-on ' '");
+      expect(argvUnderGuard(" ")).toEqual(["check", "https://example.com/ok", "--fail-on", " "]);
+    });
+
+    /** Single quotes, not double: the baked value must stay inert in the rc. */
+    it("bakes a substitution-shaped value in literally rather than running it when the rc is sourced", () => {
+      expect(printGuard("$(id -un)")).toContain("--fail-on '$(id -un)'");
+      expect(argvUnderGuard("$(id -un)")).toEqual(["check", "https://example.com/ok", "--fail-on", "$(id -un)"]);
+    });
+
+    /**
+     * The worst outcome available here, and the reason quoting alone is not
+     * enough: the value is also interpolated into the `#` comment above the
+     * function. A newline ENDS that comment, so the remainder of the value
+     * became a live rc line — `rm -rf …` executed by every new shell.
+     */
+    it("cannot break out of the comment line it is also interpolated into", () => {
+      const out = printGuard("high\nrm -rf /tmp/linklint-pwned");
+      const preamble = out.split("\n").slice(0, out.split("\n").findIndex((l) => l.includes("_linklint_guard()")));
+      expect(preamble.length).toBeGreaterThan(0);
+      for (const line of preamble) expect(line.startsWith("#")).toBe(true);
+      expect(out).not.toMatch(/^rm -rf/m);
+    });
+
+    /** The ordinary values must survive all of the above unchanged. */
+    it.each(["high", "medium", "critical"])("still bakes the ordinary value %s through to argv", (failOn) => {
+      expect(argvUnderGuard(failOn)).toEqual(["check", "https://example.com/ok", "--fail-on", failOn]);
     });
   });
 });
