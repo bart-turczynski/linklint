@@ -34,6 +34,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
+// `vi.mock` below is hoisted above this import, so `node.js` links against the
+// capturing wrapper rather than the real factory.
+import { createNodeSafeTransport, NodeConnectionPorts } from "../src/transport/node.js";
 import type { CreateSafeTransportOptions } from "../src/transport/safe-transport.js";
 
 const captured = vi.hoisted(() => ({
@@ -53,7 +56,23 @@ vi.mock("../src/transport/safe-transport.js", async (importOriginal) => {
   };
 });
 
-const { createNodeSafeTransport, NodeConnectionPorts } = await import("../src/transport/node.js");
+/**
+ * Reading through a function is deliberate: `captured.options = undefined` in a
+ * test body narrows the property to `undefined` for the rest of that body, and
+ * the call that fills it in is invisible to control-flow analysis.
+ */
+function optionsPassedToCreateSafeTransport(): CreateSafeTransportOptions {
+  const options = captured.options;
+  if (options === undefined) {
+    throw new Error("createNodeSafeTransport() did not build through createSafeTransport()");
+  }
+  return options;
+}
+
+function resetCapture(): void {
+  captured.options = undefined;
+  captured.calls = 0;
+}
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(packageRoot, "..", "..");
@@ -103,46 +122,43 @@ describe("flattenMarkdown (anti-vacuity)", () => {
 
 describe("the built-in composition binds the pinned socket by object identity", () => {
   it("passes ONE NodeConnectionPorts instance as both connector and http", () => {
-    captured.options = undefined;
-    captured.calls = 0;
+    resetCapture();
 
     createNodeSafeTransport();
 
     expect(captured.calls, "createNodeSafeTransport must build through createSafeTransport").toBe(1);
-    const options = captured.options;
-    expect(options).toBeDefined();
+    const options = optionsPassedToCreateSafeTransport();
     expect(
-      options?.connector,
+      options.connector,
       "the connector that opened the pinned socket and the HTTP port that writes " +
         "the request onto it must be the SAME object — the transport hands the " +
         "port only a connectionId string and can never re-check the binding itself",
-    ).toBe(options?.http);
+    ).toBe(options.http);
   });
 
   it("that one object is the socket-owning adapter, not an unrelated pair that happens to match", () => {
-    captured.options = undefined;
+    resetCapture();
     createNodeSafeTransport();
 
-    const network = captured.options?.connector;
+    const network = optionsPassedToCreateSafeTransport().connector;
     expect(network).toBeInstanceOf(NodeConnectionPorts);
     // Both halves of the capability live on the same instance: this is what
     // makes `connector === http` meaningful rather than incidental.
-    expect(typeof (network as NodeConnectionPorts).connect).toBe("function");
-    expect(typeof (network as NodeConnectionPorts).request).toBe("function");
-    expect(typeof (network as NodeConnectionPorts).close).toBe("function");
+    const adapter = network as InstanceType<typeof NodeConnectionPorts>;
+    expect(typeof adapter.connect).toBe("function");
+    expect(typeof adapter.request).toBe("function");
+    expect(typeof adapter.close).toBe("function");
   });
 
   it("gives each transport its own instance, so one session's socket map is not another's", () => {
-    captured.options = undefined;
+    resetCapture();
     createNodeSafeTransport();
-    const first = captured.options?.connector;
+    const first = optionsPassedToCreateSafeTransport().connector;
 
-    captured.options = undefined;
+    resetCapture();
     createNodeSafeTransport();
-    const second = captured.options?.connector;
+    const second = optionsPassedToCreateSafeTransport().connector;
 
-    expect(first).toBeDefined();
-    expect(second).toBeDefined();
     expect(first).not.toBe(second);
   });
 });
