@@ -9,10 +9,10 @@
  *
  * Two things make an omission loud now:
  *
- * 1. `assertRegistryCoversShippedDescriptors()` reflects over the `./reputation`
- *    and `./mirrors` public barrels and fails, naming the id, if any exported
- *    descriptor is missing from this table. A source is not shippable without
- *    being registered.
+ * 1. {@link shippedDescriptorIds} reflects over the `./reputation` and
+ *    `./mirrors` public barrels, and the fan-in gate fails NAMING THE ID if any
+ *    exported descriptor is missing from this table. A source is not shippable
+ *    without being registered.
  * 2. Each entry carries a real `construct(terms)` thunk, so the cross-source
  *    gates exercise the source's ACTUAL factory. Registering a source whose
  *    factory never runs the terms gate fails immediately.
