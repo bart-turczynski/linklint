@@ -83,6 +83,61 @@ The worked case is the one immediately above: an over-long hostname stays
 nobody disagrees, no score moves — and the caller is no longer told that linklint
 had no opinion.
 
+**The path layer, settled: standards enumeration is the line** (`LINK-uorcqwnm`).
+Every worked case above is host-side — host length here, `xn--` in form 3, the
+brand cases below — so the path had the principle stated at it and no
+application of it anywhere. That is an absence a proposer cannot read: someone
+arriving with a path trick finds a rule they must re-derive, and re-derives it
+differently each time. The question that decides a path proposal is this one:
+
+> Is the divergence enumerated by the URL standards themselves, or introduced by
+> application code **below** the URL layer?
+
+Divergence the standards enumerate is a property of the string, settleable
+offline by anyone holding the spec. Divergence introduced beneath the URL layer
+— by a servlet container, a reverse proxy, a CDN's cache key — is a property of
+one deployment. That is the world, not the string, and claim (a) does not reach
+it.
+
+*In scope — encoded double-dot segments.* The WHATWG URL Standard enumerates a
+**double-dot path segment** by name: `..`, `.%2e`, `%2e.`, `%2e%2e`, ASCII
+case-insensitive. Every conforming parser therefore pops the parent for all
+four, and Node does — `https://example.com/a/b/.%2e/admin` resolves to
+`/a/admin`. A segment that reads as literal text and resolves as a traversal is
+form 1, `normalize(input) !== input`; against a reader that implements only the
+unencoded spelling it is form 2. No assumption about any server is needed,
+because the standard supplies the spellings. Today `encoding_obfuscation`
+matches `%2e%2e` only; the mixed spellings are the in-scope half and are tracked
+as `LINK-dpahotkg`, which is a detector change and not this boundary.
+
+*Out of scope — `..;/` and bare path parameters.* Node leaves
+`https://example.com/a/..;/admin` at `/a/..;/admin`, and every conforming reader
+agrees the segment is `..;` — a name, not a traversal. RFC 3986 §3.3 permits `;`
+inside a segment as a sub-delimiter with **no** generic meaning; path parameters
+were dropped when RFC 3986 replaced RFC 2396. The traversal appears only once a
+servlet container strips the parameter first, which is application code below
+the URL layer, and the same holds for a bare `;` segment. A **stated non-goal
+and not a gap**.
+
+*Out of scope — an extension after a dynamic segment (web cache deception).*
+`https://example.com/api/user/123/x.css` is well-formed, every reader agrees on
+it, and it makes no false claim about itself. It becomes an attack only in front
+of a cache configured to key on a suffix and to store what it is handed — one
+deployment's rule-set. That is the **well-formed but unusable** exclusion above,
+applied to the path: nothing is hidden and nobody disagrees. Also a **stated
+non-goal and not a gap**.
+
+*Why the line is not "consumer-agnostic".* The tempting phrasing — flag only
+what holds for every consumer — is recorded here as **rejected**, because it is
+the one a re-derivation lands on and it is falsified by shipped code. `/` is a
+reserved gen-delim under RFC 3986 §2.2, and a percent-encoded octet of a
+reserved character is not equivalent to the character it encodes, so `%2F` in a
+path is data by spec; `encoding_obfuscation`'s encoded-separator signal really
+does lean on some servers decoding it anyway. A consumer-agnostic line condemns
+that shipped rule. The standards-enumeration line keeps it and still excludes
+`..;`: §2.2 *names* the reserved-versus-encoded distinction the string is
+playing on, while no standard assigns `;` in a segment any meaning at all.
+
 **One boundary this section does NOT yet settle** — do not read an answer into
 the silence:
 
@@ -91,6 +146,11 @@ the silence:
   simply names different machines on different networks. That is "not the same
   thing everywhere", which is a different property from "not itself", and
   whether it is in scope is open (`LINK-mgnbgicq`).
+
+That list is the whole of what is open. What this section settles, and what
+should therefore not be re-filed: well-formed-but-unusable strings and the path
+layer, both above; the watchlist's name-never-create rule, combosquatting, and
+the reading of a clean result, all below.
 
 **The rule.** The brand watchlist (`data/brands.ts`) may only be consulted to
 **NAME** a structural anomaly that was already detected independently. It may
