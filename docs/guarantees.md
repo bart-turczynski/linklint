@@ -46,7 +46,7 @@ tracks.
 
 | File | Claim lines |
 | --- | --- |
-| `docs/architecture.md` | 51 |
+| `docs/architecture.md` | 57 |
 | `docs/bundle-size-budget.md` | 0 |
 | `docs/enforcement.md` | 0 |
 | `docs/enrichment-outcomes.md` | 12 |
@@ -58,7 +58,7 @@ tracks.
 | `docs/online-runtime-boundary.md` | 10 |
 | `docs/online-source-contract.md` | 14 |
 | `docs/raw-url-tokenization-spike.md` | 1 |
-| `docs/reason-codes.md` | 83 |
+| `docs/reason-codes.md` | 88 |
 | `docs/redirect-chain-resolution.md` | 8 |
 | `docs/safe-transport.md` | 11 |
 | `docs/scoring.md` | 6 |
@@ -212,6 +212,7 @@ property the type system makes unrepresentable needs no runtime test.
 | D4 | Unconfigured L2/L3 layers stay skipped — a score never implies unfinished work was clean | `docs/architecture.md` §7, `docs/online-runtime-boundary.md` | `packages/core/test/inspect-async.test.ts` |
 | D5 | A no-match is evidence about one source at one time, never a safety claim | `docs/layer3-reputation-model.md`, `docs/online-source-contract.md` | `packages/online/test/urlhaus-lookup.test.ts`, `packages/online/test/phishtank-lookup.test.ts` |
 | D6 | Report what you can determine, never silently pass: a host that cannot resolve returns a weight-0 reason saying so, not an empty reason list | `docs/architecture.md` §1.1 | `packages/core/test/host-length-unresolvable.test.ts` |
+| D11 | A host under a reserved special-use name is never silently passed: it returns a weight-0 reason stating that the name is reserved, never delegated in the global DNS root and never publicly resolvable — and never a score | `docs/architecture.md` §1.1, `docs/reason-codes.md` (`special_use_name`) | `packages/core/test/special-use-name.test.ts` |
 | D9 | `status: "invalid"` never fixes the reason list or `checksRun`: findings that predate the parse failure are reported with `checksRun: ["lexical"]`, and the weight-0 `parse_error` with `checksRun: []` is only the fallback for when nothing else explains the failure | `docs/architecture.md` §6 | `packages/core/test/docs-validation.test.ts` |
 | D10 | A weight on an invalid result is evidence, never arithmetic — `aggregate()` runs on the `ok` path only, so no `score` or `severity` may be re-derived from it | `docs/architecture.md` §6, `docs/scoring.md` | `packages/core/test/docs-validation.test.ts`, `packages/core/test/invalid-gate-contract.test.ts` |
 | D8 | The parser's `stripInvisible` never strips U+2028/U+2029, so a line separator in the *host* stays fail-closed `invalid` rather than being stripped into a host that parses; the detector's set is wider than the parser's on purpose | `docs/reason-codes.md` (`invisible_char`) | `packages/core/test/line-separator.test.ts` |
