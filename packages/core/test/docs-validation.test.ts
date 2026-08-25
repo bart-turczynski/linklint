@@ -8,6 +8,7 @@ import { DETECTORS } from "../src/detectors/registry.js";
 import { STRUCTURAL_SCANS } from "../src/detectors/structural.js";
 import { inspect } from "../src/index.js";
 import { analyzeIpv4, analyzeIpv6 } from "../src/parse/ip.js";
+import { SCHEMA_VERSION } from "../src/schema/base.js";
 import { REASON_CODES, type ReasonCode } from "../src/schema/reason-codes.js";
 import { WEIGHTS_VERSION } from "../src/scoring/weights.js";
 
@@ -584,5 +585,123 @@ describe("an adopted decision record cites its implementing ticket", () => {
         `adopted record has no **Implemented (\`LINK-…\`)** or **Pending (\`LINK-…\`)** trailer`,
       ).toBe("");
     }
+  });
+});
+
+describe("the ReasonCode registry is pinned to the SCHEMA_VERSION it registered under", () => {
+  // LINK-zzydqrkd. The adopted bump matrix (docs/architecture.md §6.4) places
+  // CLOSED value domains inside `SCHEMA_VERSION`'s ownership, and `ReasonCode`
+  // — publicly exported, `keyof typeof REASON_CODES` — is the central one. The
+  // matrix's own worked case says so: a new reason code bumps the schema.
+  //
+  // A prose grep for "no `SCHEMA_VERSION` bump" is the WEAK guard for that rule:
+  // three such statements in architecture.md are correct under the matrix
+  // (§6.1.2, §6.3, and the `pslSnapshot` correction), so the grep cannot tell a
+  // legitimate no-bump note from a defect. This is the guard that bites. The
+  // registry key set is checked in beside the version it was registered under,
+  // so a code cannot be added, renamed, or removed without either moving
+  // SCHEMA_VERSION or turning this red.
+  //
+  // Not hypothetical: commit `5813e01` added `fqdn_root_label` to the registry
+  // with `src/schema/base.ts` and `src/scoring/weights.ts` both untouched, and
+  // nothing in the repository could contradict it. This is the assertion that
+  // would have caught it.
+  //
+  // Maintenance is one edit: on a real bump, re-stamp BOTH constants below in
+  // the same commit. That is deliberate — a pin that may outlive its version is
+  // a pin that silently stops checking, which is the failure mode the whole
+  // guarantee register exists to prevent.
+  const PINNED_SCHEMA_VERSION = "1.7";
+
+  /** Every `REASON_CODES` key as of `PINNED_SCHEMA_VERSION`, sorted. */
+  const PINNED_REASON_CODES: readonly string[] = [
+  "ambiguous_authority",
+  "ambiguous_numeric_host",
+  "api_endpoint_impersonation",
+  "ascii_homoglyph",
+  "bait_tokens",
+  "bidi_override",
+  "brand_homoglyph",
+  "brand_idna_collapse",
+  "brand_locale_collapse",
+  "confusable_char",
+  "confusable_in_path",
+  "content_type_mismatch",
+  "control_char",
+  "credential_harvesting",
+  "dangerous_scheme",
+  "data_exfiltration",
+  "embedded_domain_in_subdomain",
+  "encoding_obfuscation",
+  "excessive_subdomain_depth",
+  "file_extension_tld",
+  "fqdn_root_label",
+  "homograph_latin_skeleton",
+  "homograph_skeleton_collision",
+  "host_denied",
+  "host_length_unresolvable",
+  "host_not_allowlisted",
+  "idn_host",
+  "idna_mapping_ambiguity",
+  "invisible_char",
+  "ip_cloud_metadata",
+  "ip_link_local",
+  "ip_loopback",
+  "ip_obfuscation",
+  "ip_private",
+  "ip_reserved",
+  "locale_case_ambiguity",
+  "low_byte_truncation",
+  "malware_url_listed",
+  "mixed_script",
+  "normalization_delta",
+  "open_redirect_observed",
+  "open_redirect_param",
+  "parse_error",
+  "percent_encoding_malformed",
+  "port_denied",
+  "prompt_injection_url",
+  "punycode_malformed",
+  "risky_tld",
+  "scheme_denied",
+  "separator_lookalike",
+  "ssrf_cloud_metadata",
+  "suspicious_extension",
+  "tld_denied",
+  "tld_not_allowlisted",
+  "userinfo_present",
+  "verified_phish_listed",
+  "young_domain_brand_risk",
+  ];
+
+  const registryCodes = Object.keys(REASON_CODES).sort();
+
+  it("the pin is not vacuous — a non-empty, sorted, duplicate-free key set", () => {
+    // Without this, emptying the array would "fix" a failure by disabling the
+    // guard, and an unsorted pin would fail for a reason that is not drift.
+    expect(PINNED_REASON_CODES.length).toBeGreaterThan(0);
+    expect([...PINNED_REASON_CODES]).toEqual([...PINNED_REASON_CODES].sort());
+    expect(new Set(PINNED_REASON_CODES).size).toBe(PINNED_REASON_CODES.length);
+  });
+
+  it("the pin is stamped with the CURRENT SCHEMA_VERSION", () => {
+    expect(
+      SCHEMA_VERSION,
+      "SCHEMA_VERSION moved without re-stamping the reason-code pin below it. " +
+        "Update PINNED_SCHEMA_VERSION and PINNED_REASON_CODES together, in the " +
+        "commit that bumps the schema (docs/architecture.md §6.4).",
+    ).toBe(PINNED_SCHEMA_VERSION);
+  });
+
+  it("the registry key set is exactly the set pinned to this SCHEMA_VERSION", () => {
+    const added = registryCodes.filter((code) => !PINNED_REASON_CODES.includes(code));
+    const removed = PINNED_REASON_CODES.filter((code) => !registryCodes.includes(code));
+
+    expect(
+      { added, removed },
+      "`ReasonCode` is a CLOSED, publicly exported value domain, so this change " +
+        "owes a SCHEMA_VERSION bump (docs/architecture.md §6.4). Bump " +
+        "SCHEMA_VERSION in src/schema/base.ts, then re-stamp both constants here.",
+    ).toEqual({ added: [], removed: [] });
   });
 });
