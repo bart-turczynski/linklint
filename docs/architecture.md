@@ -1135,11 +1135,22 @@ version stamp, against NFR-DATA-1. The module becomes
 serialized result (§6.4).
 
 **Measured cost.** Every row of the labeled corpus, the embarrassment corpus
-and the accepted-out-of-scope list was inspected in BOTH modes before and after
-— 694 verdicts — and diffed. Precision and recall are `1.000` / `1.000` on each
-side. `risky_tld` appeared on 3 distinct inputs, `bait_tokens` on 3.
+and the accepted-out-of-scope list was inspected THREE ways before and after —
+under the row's own declared options, with `agentMode` forced OFF, and with it
+forced ON — and every verdict diffed. That is 1 040 verdicts on the before side
+and 1 055 after, and the forced variants are the point: an agent-family row
+carries `{ agentMode: true }` of its own, so a diff that only honours row
+options leaves those inputs unobserved with the gate off. **41 verdicts change: 6
+with the gate forced off, 35 with it on or declared.** Precision and recall are
+`1.000` / `1.000` on each side. `risky_tld` appeared on 3 distinct inputs,
+`bait_tokens` on 3.
 
-*Six rows move band on the deletion,* identically in both modes:
+The 6-versus-35 split is itself the result worth reading. With the gate off, the
+ONLY thing that moved is the deletion of the two membership-only detectors, and
+it moved exactly the six rows below. Everything else in this change is confined
+to a mode the caller has to ask for.
+
+*Six rows move band on the deletion,* identically in every mode:
 
 | Input | Before | After |
 |---|---|---|
@@ -1189,11 +1200,17 @@ alternative was to raise it above the edge so those two rows keep failing a
 default run. It is refused on three grounds.
 
 *It is not a targeted repair.* Eleven distinct inputs across the corpora carry
-the code. Eight of them sit at exactly `0.500`/`medium` with no companion at
-all, so any raise above `0.50` pushes all eight across `--fail-on high` — eight
-new failures to restore two. The change costs four times what it buys, in the
+the code, and after this change **nine** of them read exactly `0.500`/`medium`
+with no companion at all. `0.500` is the medium/high boundary, so ANY raise
+above it moves all nine into `high` at once — the weight is a single number and
+cannot be applied to two rows. Two of the nine are the rows this change dropped;
+the other seven were `medium` before this change too, and would newly fail a default
+`--fail-on high` run. That is **seven new failures to restore two**, in the
 direction (precision) that §1.1's cited literature says is the instrument's only
-justification.
+justification. The seven are ordinary embedded-domain shapes —
+`paypal.com.spoof.info`, `paypal.co.uk.evil.com`, `www.eu.paypal.com.evil.info`
+and the rest — which the corpus already labels `deceptive` at `medium`, and
+which no evidence in this change touches.
 
 *There is no new evidence about embedded domains.* Nothing about the detector
 moved in this change; what moved is that a companion signal was deleted. Raising

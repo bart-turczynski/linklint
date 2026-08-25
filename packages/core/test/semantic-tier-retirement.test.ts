@@ -59,13 +59,38 @@ describe("the two membership-only detectors are gone", () => {
 });
 
 describe("the band the deleted companion was buying (amendment 3, §6.1.5)", () => {
-  // This assertion did NOT redden, and that is the decision: the measured
-  // alternative was to raise `embedded_domain_in_subdomain` above the medium/high
-  // edge, which moves all eleven rows carrying the code — eight of them from
-  // exactly 0.500/medium across the shipped `--fail-on high` default — to
-  // restore three. The weight stays where the rest of its tier sits.
+  // This assertion did NOT redden, and that is the decision (§6.1.5). The
+  // measured alternative was to raise `embedded_domain_in_subdomain` above the
+  // medium/high edge. Eleven inputs across the corpora carry the code and nine
+  // now read exactly 0.500/medium with no companion, so any raise moves all
+  // nine into `high` at once: seven new failures against the shipped
+  // `--fail-on high` default, to restore two. The weight stays where the rest
+  // of its tier sits.
   it("embedded_domain_in_subdomain stays at 0.50, the medium/high edge", () => {
     expect(REASON_CODES.embedded_domain_in_subdomain.weight).toBeCloseTo(0.5, 5);
+  });
+
+  it("the nine rows a raise would move are pinned at medium, so a re-raise sees them", () => {
+    // Named, not counted from a fixture: the cost of the refused alternative is
+    // the seven rows that have ALWAYS been medium, and a future proposal has to
+    // argue with them rather than discover them.
+    const alwaysMedium = [
+      "http://metadata.google.internal.evil.com/",
+      "https://paypal.co.uk.evil.com/",
+      "https://paypal.com.login.evil.com/",
+      "https://paypal.com.security-check.ru",
+      "https://paypal.com.spoof.info/",
+      "https://secure-paypal.com.cdn.evil.com/",
+      "https://www.eu.paypal.com.evil.info/",
+    ];
+    for (const url of alwaysMedium) {
+      const r = verdict(url);
+      expect(r.codes, url).toEqual(["embedded_domain_in_subdomain"]);
+      expect(r.score, url).toBeCloseTo(0.5, 5);
+      expect(r.severity, url).toBe("medium");
+    }
+    // Plus the two this change dropped, asserted individually above.
+    expect(alwaysMedium.length + 2).toBe(9);
   });
 
   it("login.paypal.com.account.evil.com drops 0.575/high → 0.500/medium", () => {

@@ -60,8 +60,9 @@ All notable changes to this project will be documented here.
   `0.575`/`high` → `0.500`/`medium`), because the detector sits EXACTLY on the
   medium/high edge and its only companion was a `0.15` contextual signal.
   Raising the weight was measured and refused: eleven distinct corpus inputs
-  carry the code and eight of them sit at exactly `0.500` with no companion, so
-  any raise pushes eight rows across the default threshold to restore two. See
+  carry the code and nine of them now read exactly `0.500` with no companion, so
+  any raise above the boundary moves all nine into `high` — seven new failures
+  against a default `--fail-on high` run, to restore two. See
   §6.1.5 for the full argument; both rows are pinned at their new bands so a
   future re-raise has to argue with them.
 - **CLI: new `--deny-tld <tld>` and `--allow-tld <tld>`, both repeatable.**
@@ -78,9 +79,12 @@ All notable changes to this project will be documented here.
   CONVERTED from `forbidReasons` rows to plain benign rows rather than dropped —
   same disposition §6.1.4 gave the V4e guards — and the two deceptive rows that
   existed only to exercise the deleted detectors were removed, so recall stays
-  `1.000`. Precision and recall are `1.000` / `1.000` before and after; every
-  corpus verdict was diffed in both modes and the only differences are the six
-  rows named in §6.1.5.
+  `1.000`. Precision and recall are `1.000` / `1.000` before and after. Every
+  row was inspected THREE ways — its own declared options, `agentMode` forced
+  off, forced on — and all 1 040 → 1 055 verdicts diffed: **41 change, 6 of them
+  with the gate forced off.** Those 6 are the deletion and nothing else; the
+  other 35 are the agent dispositions, confined to a mode the caller asks for.
+  All are named in §6.1.5.
 - **Docs.** `docs/architecture.md` §5 loses the whole "Contextual signals"
   family (seven families → six, 38 checks → 36, 34 parsed → 32); §1.1's
   disposition table is restated from *owed* to shipped, with its weight-quoting
