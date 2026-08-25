@@ -39,6 +39,11 @@ where that judgment lives (`docs/architecture.md` §1.1, §6.1.5). Every
 `<value>` flag is repeatable, and each is the CLI form of the identically-named
 `inspect()` option.
 
+Repeat the flag once per value — the same goes for `--idn-allow` above. A comma
+inside a single value is a usage error rather than a separator: `--deny-tld
+"com, ru"` is one value, the literal string `com, ru`, which matches no TLD, so
+the CLI refuses it and points at `--deny-tld com --deny-tld ru`.
+
 | Flag                          | Option                  | Effect                                                                                   |
 | ----------------------------- | ----------------------- | ---------------------------------------------------------------------------------------- |
 | `--deny-tld <tld>`            | `denyTlds`              | report `tld_denied` for this TLD                                                           |
