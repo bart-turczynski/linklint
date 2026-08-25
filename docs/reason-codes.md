@@ -982,9 +982,57 @@ instead of minting one. Absent either, this stays closed.
   reachable only from inside a VM, so it is ordinary public space to every range
   rule — it scored `info` 0.00 with **zero** reasons before the row existed,
   where endpoints nested in link-local or CGNAT were at least visible as a
-  weaker bucket. A hostname is deliberately never a row (Tencent documents
-  `metadata.tencentyun.com`, GCP `metadata.google.internal`): resolving one is a
-  network call, and `inspect()` is zero-network by contract.
+  weaker bucket.
+- **Named endpoints:** the code also fires on the small set of HOSTNAMES a vendor
+  publishes for an endpoint in the table above (`LINK-hvawpgos`). Same code, same
+  0.75 weight, same agentMode escalation:
+
+  | Hostname | Provider | Endpoint it names |
+  | --- | --- | --- |
+  | `metadata.google.internal` | GCP — the form Google's docs **recommend** over the address | `169.254.169.254` |
+  | `metadata.goog` | GCP (second documented name for the same server) | `169.254.169.254` |
+  | `metadata.tencentyun.com` | Tencent Cloud — the only form its metadata guide documents | `169.254.0.23` |
+  | `api.metadata.cloud.ibm.com` | IBM Cloud VPC — **required** over HTTPS, where the address is not accepted | `169.254.169.254` |
+  | `metadata.exoscale.com` | Exoscale | `169.254.169.254` |
+
+  This reverses an earlier decision that hostnames were out of reach because
+  "resolving one is a network call". Recognizing `metadata.google.internal`
+  resolves nothing: it is a literal comparison against a fixed name the vendor
+  publishes in the same document as the address, and the table asserted no more
+  about `169.254.169.254` than it does about the name. The effect of the old
+  reading was that `169.254.169.254` scored `high` while the spelling GCP's own
+  documentation *recommends* scored `0.00` with no reasons at all.
+
+  **Matched as a whole host**, after case folding and after dropping one trailing
+  root dot — never as a suffix, prefix, or substring. The trailing dot is load
+  bearing: `metadata.google.internal.` resolves identically and is the
+  documented allow-list bypass `fqdn_root_label` exists to explain. The
+  narrowness is the detector: `metadata.mycorp.com`, `foo.metadata.example.com`,
+  `my-instance-data.example.org` and `svc.internal` stay at `0.00`, and
+  `metadata.google.internal.evil.com` is `embedded_domain_in_subdomain`, not a
+  metadata endpoint.
+
+  Each row cites the vendor page it was verified against, and a name that
+  appears only in third-party SSRF cheat-sheets is not shipped.
+  `instance-data`, `instance-data.ec2.internal`, `metadata.azure.internal` and
+  `metadata.oraclecloud.com` were all dropped on that test — none appears in its
+  vendor's own documentation. Bare `metadata` and
+  `metadata.platformequinix.com` were sourceable and still declined: the first
+  is a single label, so matching it would put a `high` verdict on any
+  organization running a host by that name, and the second's only citation is
+  scheduled for removal. `data/cloud-metadata.ts` records each decline and what
+  would reverse it.
+
+  **On the watchlist rule** (architecture §1.1: a list may NAME a structural
+  anomaly, not CREATE a finding). A row here does not assert that a word is
+  worth impersonating — a contingent fact about the world, which is what makes
+  `data/brands.ts` claim (b). It asserts that a published vendor specification
+  DEFINES this name to address that vendor's credential endpoint: the same class
+  of fact as "127.0.0.1 is loopback", fixed by a naming authority and settleable
+  offline. `data/ip-ranges.ts` is not a watchlist and neither is this. The
+  symmetry is conceded rather than dodged — if a name creates the finding then so
+  do the four octets of `169.254.169.254`, which has been the shipped position
+  since the table existed.
 - **Matching:** on the **parsed** address, never on the literal text. Every table
   row and every host are decoded by the same IPv4/IPv6 parser and compared as
   bits, so `fd00:0ec2::254`, `FD00:EC2::254`, and `fd00:ec2:0:0:0:0:0:254` all
@@ -1016,6 +1064,15 @@ instead of minting one. Absent either, this stays closed.
   `InspectOptions.agentMode` is on. It describes the endpoint with the same
   shared phrase `ip_cloud_metadata` uses, so the two details agree on what the
   address is.
+- **By name as well as by address:** the endpoint is reached through a
+  vendor-published hostname at least as often as through its address —
+  `metadata.google.internal` is the spelling in Google's own examples — and both
+  spellings escalate identically here (`LINK-hvawpgos`). The two detectors run
+  the same lookup, so the agent-mode verdict cannot disagree with the classifier
+  about what an endpoint is. The name path performs no resolution: it is a
+  whole-host equality test against `data/cloud-metadata.ts`, and the emitted
+  detail says "the vendor-documented name for `169.254.169.254`" rather than
+  "resolves to", because `inspect()` looked nothing up.
 - **Why it blocks:** in an agent / tool-use context, fetching the metadata
   endpoint is an in-flight SSRF credential-theft attempt with no defensible
   purpose, so it **blocks** (weight 1.0 → saturates the score to `critical`). It
@@ -1025,7 +1082,8 @@ instead of minting one. Absent either, this stays closed.
   scanners, cloud-ops tooling that legitimately names the endpoint — never see it
   and keep the high, `--fail-on`-overridable `ip_cloud_metadata` verdict.
 - **Example:** `inspect("http://169.254.169.254/", { agentMode: true })` →
-  `critical`.
+  `critical`. Same for
+  `inspect("http://metadata.google.internal/computeMetadata/v1/", { agentMode: true })`.
 
 ### `ip_loopback` — V1a · weight 0.2
 

@@ -47,11 +47,75 @@
  * NOT select the reason code: every row here scores as `ip_cloud_metadata`
  * regardless of kind, so the taxonomy fix costs schema consumers nothing.
  *
- * HOSTNAMES ARE NOT ROWS. Several vendors document a name instead of, or as well
- * as, an address (`metadata.tencentyun.com`, `metadata.google.internal`).
- * Resolving one is a network call and `inspect()` is zero-network by contract,
- * so only numeric endpoints are listed and each row is cited to a vendor page
- * that actually writes the number down.
+ * HOSTNAMES: A SECOND TABLE, NOT A SECOND POLICY (LINK-hvawpgos). This file used
+ * to record the decision that hostnames are deliberately not listed at all, on
+ * the ground that "resolving one is a network call and `inspect()` is
+ * zero-network by contract". That reason is OVERTURNED. It answers a question
+ * nobody asked: recognizing `metadata.google.internal` needs no resolution. It
+ * is a literal comparison against a fixed name the vendor publishes in the same
+ * document as the address — the same comparison the rows below already get, one
+ * string instead of thirty-two bits. A resolver would only be needed to prove
+ * the name still points where the vendor says it does, and this table never
+ * claimed that about the numbers either: `169.254.169.254` scores without any
+ * check that something answers there. The old note's premise was sound and its
+ * conclusion did not follow from it.
+ *
+ * What the old note protected is kept, narrowed to what it actually protects: a
+ * hostname is still not a row of {@link CLOUD_METADATA_ENDPOINTS}. That table is
+ * indexed through the IPv4/IPv6 parser, so a hostname row would parse as
+ * neither, match nothing, and fail SILENTLY — the failure mode the
+ * every-row-is-an-IP-literal test exists to prevent. Names therefore live in
+ * {@link CLOUD_METADATA_HOSTNAMES}, with their own matching rule, and the
+ * address table's invariant is untouched.
+ *
+ * WHICH SIDE OF THE NAME-NEVER-CREATE LINE THIS SITS ON (architecture §1.1). The
+ * rule is that a watchlist may NAME a structural anomaly detected independently
+ * and may never CREATE a finding. A hostname table looks at first glance like
+ * the forbidden shape: no structural precondition fires first, and the firing
+ * condition is table membership.
+ *
+ * The rule is written about `data/brands.ts` and claim (b), and what makes that
+ * file dangerous is what its rows ASSERT — that a word is a brand worth
+ * impersonating. That is a contingent fact about the world, unbounded,
+ * incomplete by construction, and undecidable from the string. A row here
+ * asserts something of a different kind: that a published vendor specification
+ * DEFINES this name to address that vendor's credential-vending endpoint. It is
+ * the same class of fact as "127.0.0.1 is loopback" or "169.254.0.0/16 is
+ * link-local" — fixed by a naming authority, settleable offline, settleable for
+ * all time. `data/ip-ranges.ts` is not a watchlist and neither is this: the
+ * finding is created by the structural fact that the URL addresses a
+ * provider-defined link-local credential endpoint, and the table supplies only
+ * the spelling.
+ *
+ * The honest form of that argument has to concede its symmetry. If a hostname
+ * row creates a finding then so does the `169.254.169.254` row, because nothing
+ * about those four octets is structural either. That is the point: the address
+ * table has been the shipped and accepted position since LINK-yyqnmipb, and
+ * adding a name does not move this file across a line it was already on the far
+ * side of.
+ *
+ * THE DISCIPLINE THAT KEEPS IT THERE — check this on every future row. A name
+ * qualifies only if the vendor publishes it as a way to reach an endpoint this
+ * file ALREADY carries as an address, cited to the page that publishes it; the
+ * `address` field records which row, and a test asserts the tie. The moment a
+ * row is added because a name merely LOOKS internal — `metadata.$corp.com`,
+ * anything under `*.internal` — this has become a blocklist and the rule is
+ * broken. `svc.internal`, `foo.metadata.example.com`, `metadata.mycorp.com` and
+ * `my-instance-data.example.org` are pinned benign to hold that line.
+ *
+ * INDEPENDENT OF LINK-mgnbgicq. That issue asks whether CONTEXT-DEPENDENT names
+ * — `svc.internal`, `home.arpa`, the RFC 6761 set — are in scope for claim (a),
+ * on the property that the same string names different machines on different
+ * networks. Nothing here rides on that property, or on RFC 6761 at all. These
+ * names are the opposite case: the provider fixes what the name addresses, so
+ * the reason to flag `metadata.google.internal` is not that it means different
+ * things in different places, but that it means ONE published thing and that
+ * thing vends credentials. The test of independence is that mgnbgicq cannot move
+ * this behaviour either way. Rule the RFC 6761 class OUT of scope and these rows
+ * still fire, because they were never fired on for being context-dependent; rule
+ * it IN and they gain nothing. `svc.internal` — mgnbgicq's own worked example —
+ * stays at 0.00 under both outcomes, which is what the independence looks like
+ * from the corpus.
  */
 
 /**
@@ -59,7 +123,7 @@
  * `dataVersions.cloudMetadata`. Bump deliberately whenever a row is added,
  * removed, or re-attributed.
  */
-export const CLOUD_METADATA_VERSION = "2026-08-07-endpoint-kind";
+export const CLOUD_METADATA_VERSION = "2026-08-25-hostnames";
 
 /**
  * What a row IS, which selects the noun used to describe it in the emitted
@@ -201,10 +265,189 @@ export const CLOUD_METADATA_ENDPOINTS: readonly CloudMetadataEndpoint[] = [
     // never names an address, so it would be a bad citation for a numeric row.
     // The Cloudbase-Init page cited here is where Tencent writes the address
     // down (`metadata_base_url=http://169.254.0.23/`). The hostname itself is
-    // deliberately not a row: resolving it is a network call, and `inspect()` is
-    // zero-network by contract.
+    // not a row of THIS table — it is not an IP literal and would match nothing
+    // here — but it is no longer unrepresented: see CLOUD_METADATA_HOSTNAMES.
     address: "169.254.0.23",
     provider: "Tencent Cloud",
     source: "https://www.tencentcloud.com/document/product/213/32364",
   },
 ];
+
+/**
+ * One vendor-published NAME for an endpoint that {@link CLOUD_METADATA_ENDPOINTS}
+ * already carries as an address.
+ */
+export interface CloudMetadataHostname {
+  /**
+   * The full host, lowercase and without a trailing root dot. Matched as a WHOLE
+   * host, never as a suffix — see {@link matchCloudMetadataHostname}.
+   */
+  hostname: string;
+  /**
+   * The endpoint this name addresses, as the vendor publishes it. Required, and
+   * required to be a row of {@link CLOUD_METADATA_ENDPOINTS}: that tie is what
+   * makes "the table supplies only the spelling" a checkable statement rather
+   * than a slogan, and it is asserted by the table-integrity test.
+   */
+  address: string;
+  /** Provider attribution, rendered verbatim into the emitted detail. */
+  provider: string;
+  /** As {@link CloudMetadataEndpoint.kind}; omitted means `instance-metadata`. */
+  kind?: CloudEndpointKind;
+  /** Vendor documentation this NAME was verified against (auditability). */
+  source: string;
+}
+
+/**
+ * The hostnames linklint recognizes as `ip_cloud_metadata` (LINK-hvawpgos).
+ *
+ * SOURCING IS THE ACCEPTANCE CRITERION, not a courtesy. Every row below was
+ * checked against the vendor's own current documentation and carries the page it
+ * was read from, exactly as the address rows do. Names that circulate widely in
+ * SSRF cheat-sheets but that no vendor page writes down are NOT here: an
+ * over-broad row is a `high` verdict on somebody's legitimate internal
+ * hostname, and there is no such thing as a harmless one.
+ *
+ * The rows deliberately stop at the endpoint's own names. They do not extend to
+ * the private namespaces those names live in — `*.internal`, `*.ec2.internal`,
+ * `*.compute.internal` are ordinary vendor-issued instance names and stay
+ * silent.
+ */
+export const CLOUD_METADATA_HOSTNAMES: readonly CloudMetadataHostname[] = [
+  {
+    // GCP's RECOMMENDED spelling — not an alias anyone can be talked out of
+    // using. Google's own endpoint list gives
+    // "http://metadata.google.internal/computeMetadata/v1" first and marks it
+    // recommended, with "http://169.254.169.254/computeMetadata/v1" beside it as
+    // the same server. Every GCP SSRF write-up and every GCP code sample uses
+    // the name; only linklint was reading the address.
+    hostname: "metadata.google.internal",
+    address: "169.254.169.254",
+    provider: "GCP",
+    source: "https://docs.cloud.google.com/compute/docs/metadata/querying-metadata",
+    // #endpoints — "http://metadata.google.internal/computeMetadata/v1"
+  },
+  {
+    // The second name on the same Google page —
+    // "http://metadata.goog/computeMetadata/v1" — listed as an HTTP endpoint of
+    // the same metadata server. Worth its own row because it is not a subdomain
+    // of anything already listed and shares no suffix with it: a check written
+    // against `*.google.internal` misses it entirely.
+    hostname: "metadata.goog",
+    address: "169.254.169.254",
+    provider: "GCP",
+    source: "https://docs.cloud.google.com/compute/docs/metadata/querying-metadata",
+    // #endpoints — "http://metadata.goog/computeMetadata/v1"
+  },
+  {
+    // Tencent Cloud CVM. Tencent's instance-metadata guide documents the NAME
+    // and nothing else — "http://metadata.tencentyun.com/latest/meta-data/" —
+    // which is the mirror image of the sourcing problem on the address row
+    // above, and the reason that row had to be cited to the Cloudbase-Init page
+    // instead.
+    //
+    // The `address` tie is Tencent's two pages read together, not a sentence
+    // either page contains: the metadata guide names the host, the
+    // Cloudbase-Init page sets `metadata_base_url=http://169.254.0.23/` for the
+    // same service. Recorded plainly because the tie is an inference — it picks
+    // the numeric endpoint quoted in the detail, and nothing else.
+    hostname: "metadata.tencentyun.com",
+    address: "169.254.0.23",
+    provider: "Tencent Cloud",
+    source: "https://www.tencentcloud.com/document/product/213/4934",
+  },
+  {
+    // IBM Cloud VPC. The strongest name-to-address tie in this table: IBM's
+    // metadata API reference states that the endpoint URL "may contain either
+    // the service's IP address http://169.254.169.254 or the service's hostname
+    // http://api.metadata.cloud.ibm.com", and that over HTTPS it MUST be the
+    // hostname — so an address-only check is blind to IBM's own secure mode.
+    // IBM's published docs source uses both independently as well: the
+    // access-instance-metadata page curls the hostname, the security
+    // best-practices page calls 169.254.169.254 "the metadata link-local
+    // address".
+    hostname: "api.metadata.cloud.ibm.com",
+    address: "169.254.169.254",
+    provider: "IBM Cloud VPC",
+    source: "https://cloud.ibm.com/apidocs/vpc-metadata",
+  },
+  {
+    // Exoscale. The vendor page introduces the service as published "on the Link
+    // Local Address 169.254.169.254 which is private between the hypervisor and
+    // the running instance" and then gives the access examples as
+    // `curl http://metadata.exoscale.com/latest/meta-data`. One page, one
+    // service, both spellings — the `address` tie is that adjacency, not a
+    // sentence stating an A record.
+    hostname: "metadata.exoscale.com",
+    address: "169.254.169.254",
+    provider: "Exoscale",
+    source:
+      "https://community.exoscale.com/product/compute/instances/how-to/cloud-init-user-data/",
+  },
+];
+
+/**
+ * NAMES CONSIDERED AND DECLINED (LINK-hvawpgos). Recorded so the same four
+ * candidates are not re-proposed from the same cheat-sheets they came from, and
+ * so the sourcing bar is visible rather than asserted.
+ *
+ * Each was checked against the vendor's own current documentation and each
+ * failed. `instance-data` / `instance-data.ec2.internal` do not appear as a host
+ * anywhere in the current EC2 User Guide — the one occurrence of the string is
+ * a local output filename — and AWS documents only `169.254.169.254` and
+ * `fd00:ec2::254`. `metadata.azure.internal` appears nowhere on Microsoft's IMDS
+ * page or in its upstream doc source; `metadata.azure.com` DOES appear there,
+ * but as a TLS certificate SAN for validating attested data, which is not an
+ * address you reach IMDS at and must not be laundered into this table as a
+ * substitute. `metadata.oraclecloud.com` appears nowhere in Oracle's metadata
+ * documentation, which states plainly that "the service is an HTTP endpoint
+ * listening on 169.254.169.254"; the `oraclecloud.com` hits in search are
+ * Oracle's documentation CDN.
+ *
+ * Two more were sourceable and still declined:
+ *
+ * - Bare `metadata`. It survives only in App Engine flexible runtime code
+ *   samples (`http://metadata/computeMetadata/v1/…`) and is absent from the
+ *   Compute Engine Root URLs table that lists the other four GCP forms. It is
+ *   also the highest false-positive risk any row could carry: whole-host
+ *   equality on a SINGLE LABEL puts a `high` verdict — and an agent-mode block —
+ *   on any organization that happens to run a host called `metadata`. A legacy
+ *   sample on a legacy runtime does not buy that. Reopen if Google lists it in
+ *   the Compute Engine endpoint table.
+ * - `metadata.platformequinix.com`. Genuinely documented, but Equinix Metal was
+ *   sunset on 2026-06-30 and the citing page is scheduled for removal on
+ *   2026-09-30. A row whose only source expires before the next data refresh
+ *   fails the requirement that entries be checkable against CURRENT vendor
+ *   documentation.
+ */
+
+/**
+ * Index for {@link matchCloudMetadataHostname}, built once at module load.
+ * Per-call cost is one lowercase, one possible slice, and one Map lookup.
+ */
+const HOSTNAME_INDEX = new Map<string, CloudMetadataHostname>(
+  CLOUD_METADATA_HOSTNAMES.map((row) => [row.hostname, row]),
+);
+
+/**
+ * The vendor-documented metadata hostname `host` names, or undefined.
+ *
+ * WHOLE-HOST EQUALITY, after case folding and after dropping ONE trailing root
+ * dot. Nothing looser. A suffix test would fire on `metadata.google.internal`
+ * *.evil.com and a substring test on `my-instance-data.example.org`; both are
+ * how a specification index quietly becomes a blocklist.
+ *
+ * The trailing dot is not a nicety. `metadata.google.internal.` resolves
+ * identically and is the documented Smokescreen allow-list bypass (see
+ * `detectors/fqdn-root-label.ts`), so a matcher that missed it would ship the
+ * bypass along with the check. Two or more trailing dots never reach here —
+ * they create an empty label and fail parsing as `invalid`.
+ *
+ * Zero-network: this is a string comparison against a fixed table. No lookup is
+ * performed and none is implied.
+ */
+export function matchCloudMetadataHostname(host: string): CloudMetadataHostname | undefined {
+  if (host === "") return undefined;
+  const bare = host.endsWith(".") ? host.slice(0, -1) : host;
+  return HOSTNAME_INDEX.get(bare.toLowerCase());
+}

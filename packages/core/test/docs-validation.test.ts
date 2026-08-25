@@ -86,14 +86,18 @@ describe("docs/reason-codes.md stays in sync with the REASON_CODES registry", ()
     }
   });
 
-  // 5. NO HOSTNAME ROWS — reason-codes.md states that "a hostname is
-  //    deliberately never a row (Tencent documents `metadata.tencentyun.com`,
-  //    GCP `metadata.google.internal`): resolving one is a network call, and
-  //    inspect() is zero-network by contract". That is a guarantee about the
-  //    table, so it belongs on the table, not only in prose (LINK-ltyjctpf).
-  //    A hostname row would parse as neither IPv4 nor IPv6, silently match
-  //    nothing, and invite a resolver call to make it work.
-  it("every endpoint is an IP literal — a hostname row would need a resolver", () => {
+  // 5. NO HOSTNAME ROWS IN THE ADDRESS TABLE — this assertion outlived the
+  //    reason it was written for and is kept on a narrower one (LINK-hvawpgos).
+  //    It used to enforce a claim that hostnames are unrecognizable offline
+  //    because "resolving one is a network call"; that claim was overturned and
+  //    the names now live in CLOUD_METADATA_HOSTNAMES, matched by string
+  //    equality with no resolver in sight. What survives is mechanical:
+  //    CLOUD_METADATA_ENDPOINTS is indexed through the IPv4/IPv6 parser, so a
+  //    hostname put in THIS table parses as neither, matches nothing, and fails
+  //    silently — the failure shape LINK-ltyjctpf exists to make loud. The
+  //    hostname table has its own integrity checks in
+  //    test/cloud-metadata-hostname.test.ts.
+  it("every endpoint is an IP literal — a hostname row here would match nothing", () => {
     expect(CLOUD_METADATA_ENDPOINTS.length).toBeGreaterThan(0);
     for (const endpoint of CLOUD_METADATA_ENDPOINTS) {
       const parsed = analyzeIpv4(endpoint.address) ?? analyzeIpv6(endpoint.address);
