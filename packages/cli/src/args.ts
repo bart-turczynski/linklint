@@ -41,6 +41,55 @@ export interface CheckOptions {
   denyTlds: string[];
   /** TLDs the caller permits (`--allow-tld`, repeatable). Emits `tld_not_allowlisted` for anything else. */
   allowTlds: string[];
+  /**
+   * Registrable domains the caller refuses (`--deny-host`, repeatable). Emits
+   * the weight-0 `host_denied` policy reason. Matching is at registrable-domain
+   * granularity, so listing `bit.ly` also covers `x.bit.ly`.
+   */
+  denyHosts: string[];
+  /** Registrable domains the caller permits (`--allow-host`, repeatable). Emits `host_not_allowlisted` for anything else. */
+  allowHosts: string[];
+  /** Schemes the caller permits (`--allow-scheme`, repeatable). Emits `scheme_denied` for anything else. */
+  allowSchemes: string[];
+  /** Schemes the caller refuses (`--deny-scheme`, repeatable). Emits `scheme_denied`. */
+  denySchemes: string[];
+  /**
+   * Explicit ports the caller refuses (`--deny-port`, repeatable). Emits the
+   * weight-0 `port_denied` policy reason. Validated at parse time: the library
+   * takes a `number[]` and would silently keep any number handed to it, so a
+   * value that is not an integer in `0`–`65535` is a usage error here rather
+   * than a deny-list entry that can never match.
+   */
+  denyPorts: number[];
+  /** True when `--deny-non-standard-ports` is set: any explicit non-default port emits `port_denied`. */
+  denyNonStandardPorts: boolean;
+}
+
+/** Highest valid TCP port; the URL grammar admits `0`–`65535` inclusive. */
+const MAX_PORT = 65535;
+
+/**
+ * Parse one `--deny-port` value into a port number, or throw {@link UsageError}.
+ *
+ * Deliberately stricter than `Number()`: the core's `normalizePort` keeps any
+ * `number` it is given, so a coerced `NaN`, `8080.5` or `-1` would become a
+ * deny-list entry that no parsed URL can ever equal — a policy the caller
+ * believes is in force and that silently is not. Failing loudly at the boundary
+ * is the only place that distinction is still visible.
+ */
+function parsePort(value: string): number {
+  if (!/^\d{1,5}$/.test(value)) {
+    throw new UsageError(
+      `invalid --deny-port value: ${value} (expected an integer 0-${MAX_PORT})`,
+    );
+  }
+  const port = Number(value);
+  if (port > MAX_PORT) {
+    throw new UsageError(
+      `invalid --deny-port value: ${value} (expected an integer 0-${MAX_PORT})`,
+    );
+  }
+  return port;
 }
 
 /** A fully-parsed CLI invocation. */
@@ -78,6 +127,12 @@ export function parseCli(argv: readonly string[]): ParsedCli {
         "idn-allow": { type: "string", multiple: true },
         "deny-tld": { type: "string", multiple: true },
         "allow-tld": { type: "string", multiple: true },
+        "deny-host": { type: "string", multiple: true },
+        "allow-host": { type: "string", multiple: true },
+        "allow-scheme": { type: "string", multiple: true },
+        "deny-scheme": { type: "string", multiple: true },
+        "deny-port": { type: "string", multiple: true },
+        "deny-non-standard-ports": { type: "boolean", default: false },
         help: { type: "boolean", default: false },
         version: { type: "boolean", default: false },
       },
@@ -118,6 +173,12 @@ export function parseCli(argv: readonly string[]): ParsedCli {
     idnAllowlist: values["idn-allow"] ?? [],
     denyTlds: values["deny-tld"] ?? [],
     allowTlds: values["allow-tld"] ?? [],
+    denyHosts: values["deny-host"] ?? [],
+    allowHosts: values["allow-host"] ?? [],
+    allowSchemes: values["allow-scheme"] ?? [],
+    denySchemes: values["deny-scheme"] ?? [],
+    denyPorts: (values["deny-port"] ?? []).map(parsePort),
+    denyNonStandardPorts: values["deny-non-standard-ports"],
   };
 
   if (command === "batch") {

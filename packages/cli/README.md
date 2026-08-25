@@ -25,12 +25,43 @@ Files and stdin skip blank lines and lines starting with `#`.
 | `--agent`             | enable agent-gated detectors (prompt-injection, credential-harvesting, data-exfiltration, cloud-metadata SSRF escalation) |
 | `--allow-idn`         | permit internationalized (Unicode/punycode) domains (default: block at `high`)              |
 | `--idn-allow <domain>`| exempt one registrable domain from the IDN block (repeatable)                               |
-| `--deny-tld <tld>`     | report a weight-0 `tld_denied` for this TLD (repeatable)                                    |
-| `--allow-tld <tld>`    | report a weight-0 `tld_not_allowlisted` for any other TLD (repeatable)                      |
 | `--quiet`             | one line per URL                                                                            |
 | `--no-color`          | disable ANSI color                                                                          |
 | `--offline`           | reserved no-op in v1 (accepted and ignored)                                                 |
 | `--help`, `--version` | print usage / version and exit 0                                                            |
+
+### Policy flags
+
+The policy channel is **caller-supplied judgment**, reported at weight `0`: each
+flag adds a policy reason to the verdict and never moves the deception score.
+linklint ships no built-in high-abuse TLD, host or port list — these flags are
+where that judgment lives (`docs/architecture.md` §1.1, §6.1.5). Every
+`<value>` flag is repeatable, and each is the CLI form of the identically-named
+`inspect()` option.
+
+| Flag                          | Option                  | Effect                                                                                   |
+| ----------------------------- | ----------------------- | ---------------------------------------------------------------------------------------- |
+| `--deny-tld <tld>`            | `denyTlds`              | report `tld_denied` for this TLD                                                           |
+| `--allow-tld <tld>`           | `allowTlds`             | report `tld_not_allowlisted` for any other TLD                                             |
+| `--deny-host <host>`          | `denyHosts`             | report `host_denied` for this registrable domain (covers its subdomains)                   |
+| `--allow-host <host>`         | `allowHosts`            | report `host_not_allowlisted` for any other registrable domain                             |
+| `--deny-scheme <scheme>`      | `denySchemes`           | report `scheme_denied` for this scheme (e.g. `javascript`, `data`)                         |
+| `--allow-scheme <scheme>`     | `allowSchemes`          | report `scheme_denied` for any other scheme (e.g. an https-only policy)                    |
+| `--deny-port <port>`          | `denyPorts`             | report `port_denied` for this explicit port; the value must be an integer `0`–`65535`      |
+| `--deny-non-standard-ports`   | `denyNonStandardPorts`  | report `port_denied` for any explicit port that is not the scheme's default                |
+
+```bash
+# annotate a known shortener without changing what the score says about it
+linklint check --deny-host bit.ly https://bit.ly/3xAmPl3
+
+# corporate lockdown: only these domains, only https, only standard ports
+linklint check --allow-host mycompany.com --allow-scheme https \
+  --deny-non-standard-ports https://vendor.io:8443/
+```
+
+Port and scheme axes only look at what the URL states explicitly: a URL with no
+port never emits `port_denied`, and a schemeless input never emits
+`scheme_denied`.
 
 ## Exit codes
 

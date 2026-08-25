@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { inspect, type InspectResult } from "linklint";
-import { parseCli, run, UsageError } from "@linklint/cli";
+import { inspect, type InspectOptions, type InspectResult } from "linklint";
+import { parseCli, run, UsageError, USAGE } from "@linklint/cli";
 
 /**
  * LINK-okvdbkbk — the CLI's coverage of the policy channel, axis by axis.
@@ -13,15 +13,21 @@ import { parseCli, run, UsageError } from "@linklint/cli";
  * `docs/architecture.md` §6.1.5 records why the CLI has to carry them: the
  * answer "the caller owns this slot" was "only half true in practice, because
  * `packages/cli/src/args.ts` shipped ZERO policy flags — a `linklint check`
- * user lost the signal with no lever at all". Two flags were added there. This
- * file pins the state of ALL eight, so the gap between the library and the
- * tool's main surface is a fact the suite asserts rather than one a reader has
- * to rediscover.
+ * user lost the signal with no lever at all". Two flags were added there and
+ * the other six axes, which carry the identical argument, were left behind. So
+ * a disposition like LINK-akirjwoq's — a bundled shortener catalog is refused
+ * because `denyHosts: ["bit.ly"]` is the caller's own lever — was true of the
+ * library and false of the tool's main surface.
+ *
+ * These tests pin the whole channel reachable from `linklint check`, and pin
+ * the property that makes it safe: every one of them is weight 0, so the
+ * deception score is identical with and without the flag.
  */
 
-function collectors(): { out: (s: string) => void; err: (s: string) => void; outLines: string[] } {
+function collectors(): { out: (s: string) => void; err: (s: string) => void; outLines: string[]; errLines: string[] } {
   const outLines: string[] = [];
-  return { out: (s) => outLines.push(s), err: () => {}, outLines };
+  const errLines: string[] = [];
+  return { out: (s) => outLines.push(s), err: (s) => errLines.push(s), outLines, errLines };
 }
 
 const json = (lines: string[]): InspectResult => {
@@ -43,64 +49,189 @@ const TK = "https://mycompany.tk/";
 const EVIL = "https://sub.evil.com/";
 const FTP = "ftp://files.example.com/";
 const PORTED = "https://example.com:8080/";
+const PLAIN = "https://example.com/";
 
-/** The eight policy axes, and the CLI flag each one is (or is not) reachable by. */
-const WIRED = ["--deny-tld", "--allow-tld"] as const;
-const UNWIRED = [
-  "--deny-host",
-  "--allow-host",
-  "--allow-scheme",
-  "--deny-scheme",
-  "--deny-port",
-  "--deny-non-standard-ports",
-] as const;
+/** One value-taking policy axis: its flag, a firing case, and its library form. */
+interface AxisCase {
+  /** The CLI flag under test. */
+  flag: string;
+  /** A value for it that makes the axis fire on `url`. */
+  value: string;
+  url: string;
+  /** The weight-0 policy reason code the axis emits. */
+  code: string;
+  /** The `inspect()` options the flag must be exactly equivalent to. */
+  options: InspectOptions;
+}
 
-describe("the TLD axis is reachable from `linklint check`", () => {
-  it.each(WIRED)("%s is a recognized flag", (flag) => {
-    expect(() => parseCli(["check", flag, "tk", "https://x.example"])).not.toThrow();
+/**
+ * Every value-taking policy axis, with a case that makes it fire. The table is
+ * the point of the file: a ninth axis added to `InspectOptions` without a flag
+ * has to be added here to be believed, and the shape of a row forces the
+ * library/CLI equivalence to be stated. `denyNonStandardPorts` is the one axis
+ * that takes no value, so it is asserted alongside rather than in the table.
+ */
+const AXES: AxisCase[] = [
+  { flag: "--deny-tld", value: "tk", url: TK, code: "tld_denied", options: { denyTlds: ["tk"] } },
+  {
+    flag: "--allow-tld",
+    value: "com",
+    url: TK,
+    code: "tld_not_allowlisted",
+    options: { allowTlds: ["com"] },
+  },
+  {
+    flag: "--deny-host",
+    value: "evil.com",
+    url: EVIL,
+    code: "host_denied",
+    options: { denyHosts: ["evil.com"] },
+  },
+  {
+    flag: "--allow-host",
+    value: "mycompany.com",
+    url: EVIL,
+    code: "host_not_allowlisted",
+    options: { allowHosts: ["mycompany.com"] },
+  },
+  {
+    flag: "--deny-scheme",
+    value: "ftp",
+    url: FTP,
+    code: "scheme_denied",
+    options: { denySchemes: ["ftp"] },
+  },
+  {
+    flag: "--allow-scheme",
+    value: "https",
+    url: FTP,
+    code: "scheme_denied",
+    options: { allowSchemes: ["https"] },
+  },
+  {
+    flag: "--deny-port",
+    value: "8080",
+    url: PORTED,
+    code: "port_denied",
+    options: { denyPorts: [8080] },
+  },
+];
+
+describe("every policy axis is reachable from `linklint check`", () => {
+  it.each(AXES)("$flag emits $code", ({ flag, value, url, code }) => {
+    expect(codes(check(flag, value, url))).toContain(code);
   });
 
-  it("--deny-tld emits tld_denied at weight 0 and leaves the score alone", () => {
-    const el = check("--deny-tld", "tk", TK);
-    const denied = el.reasons.find((r) => r.code === "tld_denied");
-    expect(denied?.weight).toBe(0);
-    expect(el.score).toBe(0);
+  it("--deny-non-standard-ports emits port_denied without enumerating the port", () => {
+    expect(codes(check("--deny-non-standard-ports", PORTED))).toContain("port_denied");
   });
 
-  it("--allow-tld emits tld_not_allowlisted at weight 0", () => {
-    const el = check("--allow-tld", "com", TK);
-    expect(el.reasons.find((r) => r.code === "tld_not_allowlisted")?.weight).toBe(0);
-    expect(el.score).toBe(0);
+  it.each(AXES)("$flag is byte-identical to the equivalent library call", ({ flag, value, url, options }) => {
+    expect(check(flag, value, url)).toEqual(inspect(url, options));
+  });
+
+  it("--deny-non-standard-ports is byte-identical to the equivalent library call", () => {
+    expect(check("--deny-non-standard-ports", PORTED)).toEqual(
+      inspect(PORTED, { denyNonStandardPorts: true }),
+    );
+  });
+
+  it.each(AXES)("$flag appears in --help", ({ flag }) => {
+    expect(USAGE).toContain(flag);
+  });
+
+  it("--deny-non-standard-ports appears in --help", () => {
+    expect(USAGE).toContain("--deny-non-standard-ports");
   });
 });
 
-describe("the other six axes are NOT reachable from `linklint check`", () => {
-  // The library has every one of these; the tool has none of them. This is the
-  // half of LINK-brsntven's remedy that was left behind.
-  it.each(UNWIRED)("%s is an unrecognized flag", (flag) => {
-    expect(() => parseCli(["check", flag, "evil.com", "https://x.example"])).toThrow(UsageError);
+describe("a policy verdict is not a deception finding", () => {
+  // The whole reason these are safe to expose on the tool's main surface: the
+  // caller's judgment annotates, it never scores. If any of these ever moved a
+  // score, the flag would be a scoring knob wearing a policy label.
+  it.each(AXES)("$flag leaves score and severity untouched, at weight 0", ({ flag, value, url, code }) => {
+    const bare = check(url);
+    const withFlag = check(flag, value, url);
+    expect(withFlag.reasons.find((r) => r.code === code)?.weight).toBe(0);
+    expect(withFlag.score).toBe(bare.score);
+    expect(withFlag.severity).toBe(bare.severity);
+  });
+});
+
+describe("the axes fire independently and are repeatable", () => {
+  it("repeated --deny-host entries are all honored", () => {
+    expect(codes(check("--deny-host", "other.com", "--deny-host", "evil.com", EVIL))).toContain(
+      "host_denied",
+    );
+    expect(
+      codes(check("--deny-host", "other.com", "--deny-host", "third.com", EVIL)),
+    ).not.toContain("host_denied");
   });
 
-  it.each(UNWIRED)("%s is absent from --help", (flag) => {
+  it("--deny-host matches at registrable-domain granularity, covering subdomains", () => {
+    expect(codes(check("--deny-host", "evil.com", EVIL))).toContain("host_denied");
+  });
+
+  it("several axes combine in one invocation", () => {
+    const found = codes(
+      check(
+        "--deny-tld",
+        "com",
+        "--deny-host",
+        "example.com",
+        "--allow-scheme",
+        "http",
+        "--deny-port",
+        "8080",
+        PORTED,
+      ),
+    );
+    expect(found).toContain("tld_denied");
+    expect(found).toContain("host_denied");
+    expect(found).toContain("scheme_denied");
+    expect(found).toContain("port_denied");
+  });
+});
+
+describe("the port axes only look at an explicit port", () => {
+  it("a URL with no port never emits port_denied", () => {
+    expect(codes(check("--deny-port", "443", PLAIN))).not.toContain("port_denied");
+    expect(codes(check("--deny-non-standard-ports", PLAIN))).not.toContain("port_denied");
+  });
+
+  it("a standard port is standard", () => {
+    expect(
+      codes(check("--deny-non-standard-ports", "https://example.com:443/")),
+    ).not.toContain("port_denied");
+  });
+});
+
+describe("a bad --deny-port is a usage error, not a silently dead policy", () => {
+  // The core's `normalizePort` keeps any `number` it is handed, so a coerced
+  // NaN/float/negative would become a deny-list entry no parsed URL can equal:
+  // a policy the caller believes is in force and silently is not.
+  it.each(["", "http", "8080abc", "80.5", "-1", "65536", "0x1f90", "1e3", " 80", "+80"])(
+    "--deny-port %j throws UsageError",
+    (value) => {
+      expect(() => parseCli(["check", "--deny-port", value, PLAIN])).toThrow(UsageError);
+    },
+  );
+
+  it("names the offending value and the accepted range", () => {
+    expect(() => parseCli(["check", "--deny-port", "99999", PLAIN])).toThrow(/99999.*0-65535/s);
+  });
+
+  it("exits 2 and prints usage rather than inspecting anything", () => {
     const c = collectors();
-    run(["--help"], c.out, c.err);
-    expect(c.outLines.join("\n")).not.toContain(flag);
+    expect(run(["check", "--deny-port", "nope", PLAIN], c.out, c.err)).toBe(2);
+    expect(c.outLines).toEqual([]);
+    expect(c.errLines.join("\n")).toContain("invalid --deny-port value");
   });
 
-  it("the host axis exists in the library and is unreachable from the CLI", () => {
-    expect(codes(inspect(EVIL, { denyHosts: ["evil.com"] }))).toContain("host_denied");
-    expect(codes(check(EVIL))).not.toContain("host_denied");
-  });
-
-  it("the scheme axis exists in the library and is unreachable from the CLI", () => {
-    expect(codes(inspect(FTP, { denySchemes: ["ftp"] }))).toContain("scheme_denied");
-    expect(codes(check(FTP))).not.toContain("scheme_denied");
-  });
-
-  it("the port axis exists in the library and is unreachable from the CLI", () => {
-    expect(codes(inspect(PORTED, { denyPorts: [8080] }))).toContain("port_denied");
-    expect(codes(inspect(PORTED, { denyNonStandardPorts: true }))).toContain("port_denied");
-    expect(codes(check(PORTED))).not.toContain("port_denied");
+  it("accepts the edges of the valid range", () => {
+    const cli = parseCli(["check", "--deny-port", "0", "--deny-port", "65535", PLAIN]);
+    if (cli.kind !== "check") throw new Error("unreachable");
+    expect(cli.options.denyPorts).toEqual([0, 65535]);
   });
 });
 
@@ -108,5 +239,11 @@ describe("no policy flag means no policy channel at all", () => {
   it("a bare check is byte-identical to a default inspect", () => {
     expect(check(TK)).toEqual(inspect(TK));
     expect(check(TK).checksRun).not.toContain("policy");
+  });
+
+  it("an unset axis contributes nothing, even alongside a set one", () => {
+    // Presence of a key — even an empty list — is what makes the core report a
+    // policy channel, so the CLI must omit keys the caller never set.
+    expect(check("--deny-tld", "tk", TK)).toEqual(inspect(TK, { denyTlds: ["tk"] }));
   });
 });
