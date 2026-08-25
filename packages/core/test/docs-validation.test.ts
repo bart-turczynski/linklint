@@ -378,6 +378,110 @@ describe("the scope-of-claim boundary is stated in one canonical place", () => {
     expect(section).toContain("stated non-goal and not a gap");
   });
 
+  // LINK-uorcqwnm. Every worked case in §1.1 was host-side — host length,
+  // combosquatting, brands, `xn--` — so the path had the principle stated at it
+  // and no application of it anywhere in docs/, README.md or SECURITY.md, while
+  // §1.1's own list of what it does NOT settle named only RFC 6761. A proposer
+  // holding `..;/` could therefore not discover that the class was already
+  // decided; that is the silent absence this repo keeps rediscovering. The
+  // RESCOPE settled it, and an unpinned settlement is a deletable one.
+  describe("§1.1 settles the path layer on standards enumeration", () => {
+    const start = architectureDoc.indexOf("### 1.1 Scope of claim");
+    const section = architectureDoc.slice(start, architectureDoc.indexOf("\n## 2.", start));
+    const blockStart = section.indexOf("**The path layer, settled");
+    const openList = section.indexOf("**One boundary this section does NOT yet settle**");
+    const block = section.slice(blockStart, openList);
+
+    // EVERY match below runs against whitespace-flattened text. The boundary
+    // question and the out-of-scope sentences hard-wrap mid-claim, and a raw
+    // substring match against wrapped prose matches NOTHING while still passing
+    // as a `not.toContain` — or, worse, passes vacuously on an empty slice. The
+    // boundary question is a markdown blockquote, so strip the `> ` prefixes
+    // first: they survive whitespace-flattening and land mid-sentence on a
+    // reflow, exactly as the CWE-20 assertion above already accounts for.
+    const flat = block.replace(/^\s*>\s?/gm, "").replace(/\s+/g, " ");
+
+    it("the block exists and the slice is not empty (anti-vacuity)", () => {
+      expect(blockStart).toBeGreaterThan(-1);
+      expect(openList).toBeGreaterThan(blockStart);
+      expect(flat.length).toBeGreaterThan(1000);
+      expect(flat).toContain("LINK-uorcqwnm");
+    });
+
+    it("states the boundary as standards enumeration, not consumer agnosticism", () => {
+      // The one sentence a future path proposal has to answer.
+      expect(flat).toContain(
+        "Is the divergence enumerated by the URL standards themselves, or introduced by " +
+          "application code **below** the URL layer?",
+      );
+
+      // The rejected phrasing must be recorded AS rejected, with the shipped
+      // counterexample that kills it — otherwise it gets re-proposed, and it is
+      // the phrasing that reads most natural. `%2F` in a path is flagged today
+      // even though RFC 3986 §2.2 makes it non-equivalent to `/`, so a
+      // consumer-agnostic line condemns shipped code.
+      expect(flat).toContain("consumer-agnostic");
+      expect(flat).toContain("gen-delim");
+      expect(flat).toContain("RFC 3986 §2.2");
+      expect(flat).toContain("encoding_obfuscation");
+    });
+
+    it("puts encoded double-dot segments IN, by the standard's own enumeration", () => {
+      expect(flat).toContain("double-dot path segment");
+      // The four spellings the WHATWG URL Standard names. All four pop the
+      // parent in Node; that is the whole in-scope argument.
+      for (const spelling of ["`..`", "`.%2e`", "`%2e.`", "`%2e%2e`"]) {
+        expect(flat).toContain(spelling);
+      }
+      expect(flat).toContain("ASCII case-insensitive");
+      // Cited as forms of claim (a), so no server assumption is smuggled in.
+      expect(flat).toContain("normalize(input) !== input");
+      // The in-scope half is a DETECTOR change, tracked separately. This
+      // boundary does not implement it and must not read as if it had.
+      expect(flat).toContain("LINK-dpahotkg");
+    });
+
+    it("puts `..;/` and bare path parameters OUT, as a stated non-goal", () => {
+      expect(flat).toContain("`..;`");
+      expect(flat).toContain("path parameters");
+      // No standard assigns `;` a generic meaning — the traversal is created by
+      // a servlet container below the URL layer, not by the string.
+      expect(flat).toContain("RFC 3986 §3.3");
+      expect(flat).toContain("RFC 2396");
+      expect(flat).toContain("servlet container");
+    });
+
+    it("puts web cache deception OUT, under the well-formed-but-unusable rule", () => {
+      expect(flat).toContain("web cache deception");
+      expect(flat).toContain("/api/user/123/x.css");
+      // It must land on the EXISTING exclusion rather than inventing a new one.
+      expect(flat).toContain("well-formed but unusable");
+    });
+
+    it("lands both exclusions as boundaries, not as gaps awaiting a fix", () => {
+      // Same phrase the combosquatting boundary uses, asserted inside THIS
+      // block — the section-wide assertion above would be satisfied by the
+      // combosquatting paragraph alone.
+      expect(flat.match(/stated non-goal and not a gap/g)?.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("the open-boundary list no longer reads as if the path were unaddressed", () => {
+      // §1.1 listed only what it does NOT settle. A reader scanning for "is the
+      // path decided?" found a principle and an open list, and concluded it was
+      // open. The list must now say what IS settled and name the path layer.
+      // Bounded at the next paragraph, or "the path layer" could be satisfied
+      // by any later mention in the section.
+      const openFlat = section
+        .slice(openList, section.indexOf("**The rule.**", openList))
+        .replace(/\s+/g, " ");
+      expect(openFlat.length).toBeGreaterThan(200);
+      expect(openFlat).toContain("RFC 6761");
+      expect(openFlat).toContain("That list is the whole of what is open");
+      expect(openFlat).toContain("the path layer");
+      expect(openFlat).toContain("should therefore not be re-filed");
+    });
+  });
+
   // LINK-riupozbo. Two arguments linklint had earned but never stated. Both are
   // load-bearing under challenge and both are deletable without breaking a test
   // unless pinned: the cloaking argument is the only reason offline-first is a
