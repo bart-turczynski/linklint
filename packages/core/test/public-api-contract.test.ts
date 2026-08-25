@@ -210,11 +210,25 @@ describe("inspect() is synchronous and deterministic (published guarantee)", () 
     const CORRECTED = "same input + same package version → same verdict";
     const FALSIFIED = "same pinned data versions";
 
-    for (const [name, doc] of [
-      ["README.md", publicReadme],
-      ["docs/guarantees.md", guaranteeRegister],
+    // The register NARRATES the old wording — it quotes the claims it tracks,
+    // which is the same reason it is exempt from its own claim budget. So the
+    // refusal below is scoped to A3's ROW, not to the whole document: the row
+    // is the claim, the prose around it is the history of the claim.
+    const registerRow = flattenProse(guaranteeRegister)
+      .split("|")
+      .map((cell) => cell.trim())
+      .find((cell) => cell.startsWith("Deterministic —"));
+
+    expect(
+      registerRow,
+      "docs/guarantees.md has no A3 row starting `Deterministic —`. If the row " +
+        "was reworded, this assertion is matching nothing and has stopped checking.",
+    ).toBeDefined();
+
+    for (const [name, prose] of [
+      ["README.md", flattenProse(publicReadme)],
+      ["docs/guarantees.md (A3 row)", registerRow as string],
     ] as const) {
-      const prose = flattenProse(doc);
       expect(prose, `${name} must state the antecedent as the package version`).toContain(
         CORRECTED,
       );

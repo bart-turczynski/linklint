@@ -418,7 +418,9 @@ No network, no API keys — the CLI runs entirely on the local machine.
 
 - **No network** — nothing about the URL is ever transmitted.
 - **No telemetry, no runtime file I/O** — pure, in-process computation.
-- **Deterministic** — same input + same pinned data versions → same verdict.
+- **Deterministic** — same input + same package version → same verdict, with no
+  state carried between calls. The package version is the pin that matters:
+  `dataVersions` on the result stamps the data snapshots, not detector logic.
 - **Safe on untrusted input** — `inspect()` never throws; malformed input is reported,
   not crashed on. Unconditionally: even a non-string argument returns `invalid`.
 
