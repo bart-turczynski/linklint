@@ -20,7 +20,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
  * could contradict it. The register enumerates every such claim; this test is
  * what stops the enumeration going stale the moment it is written.
  *
- * Three assertions, in increasing order of how much they cost to satisfy:
+ * Four assertions, in increasing order of how much they cost to satisfy:
  *
  *   1. CLAIM BUDGET — the per-file count of guarantee-word lines matches the
  *      register's budget table. Writing a new "never" fails the build until the
@@ -30,6 +30,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
  *   2. PIN INTEGRITY — every test path the register names exists.
  *   3. EXEMPLAR COVERAGE — every negative exemplar in the §G audit appears in
  *      at least one test file.
+ *   4. SWEEP SHAPE (LINK-umlssdan) — the set (1) scans is what the register
+ *      says it is: `docs/` at any depth, and `packages/` one level because the
+ *      workspace glob is one level. Without this the budget's completeness is
+ *      a fact about the current tree rather than about the walk.
  *
  * Deliberately NOT asserted: that a named test still tests what the register
  * says it does. No regex can check that, and pretending otherwise would put a
@@ -52,23 +56,38 @@ const SELF = "docs/guarantees.md";
 
 /**
  * The `docs/` half of the sweep, taken as a function of its root so the walk
- * itself can be pinned against a fixture tree. `docs/` is flat in this
- * repository today, so any claim about subdirectories asserted through the
- * live tree would be vacuous — it would pass whatever the walk does.
+ * itself can be pinned against a fixture tree. `docs/` has no subdirectories in
+ * this repository today, so any claim about them asserted through the live tree
+ * would be vacuous — it would pass whatever the walk does.
  *
- * FLAT, deliberately pinned as flat (LINK-umlssdan): this reads one directory
- * level. A `.md` under `docs/<subdir>/` is NOT returned, and therefore cannot
- * be budgeted either. See the sweep-shape block at the bottom of this file.
+ * RECURSIVE (LINK-umlssdan). It was flat until then, and `docs/` happened to be
+ * flat too, so the ratchet's coverage was total by accident: one
+ * `mkdir docs/whatever` and new prose would have stopped being swept with the
+ * suite staying green — and a budget row naming the new file would have failed
+ * the keys assertion rather than fixing it. Every `.md` at any depth is
+ * returned, so a subdirectory file is swept AND budgetable. See the sweep-shape
+ * block at the bottom of this file.
  */
 function sweptDocs(root: string): string[] {
-  return readdirSync(root)
-    .filter((name) => name.endsWith(".md"))
-    .map((name) => `docs/${name}`)
-    .sort();
+  const walk = (dir: string, prefix: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+      entry.isDirectory()
+        ? walk(join(dir, entry.name), `${prefix}${entry.name}/`)
+        : entry.name.endsWith(".md")
+          ? [`${prefix}${entry.name}`]
+          : [],
+    );
+  return walk(root, "docs/").sort();
 }
 
 function claimFiles(): string[] {
   const docs = sweptDocs(join(REPO_ROOT, "docs")).filter((path) => path !== SELF);
+  // One level deep, and correct by construction rather than by accident:
+  // `pnpm-workspace.yaml` declares `packages/*`, so a workspace package is
+  // always exactly one directory under `packages/`. That glob is asserted
+  // below, so a change to it reddens here instead of silently narrowing the
+  // sweep. Markdown inside a package other than its `README.md` is outside the
+  // register's scope by design — the budget covers the published READMEs.
   const packages = readdirSync(join(REPO_ROOT, "packages"))
     .map((name) => `packages/${name}/README.md`)
     .filter((path) => existsSync(join(REPO_ROOT, path)))
@@ -169,21 +188,22 @@ describe("guarantee register — §G exemplar coverage", () => {
 });
 
 /**
- * LINK-umlssdan — the SHAPE of the sweep, pinned against a fixture tree.
- *
- * The claim budget above is the guard the rest of the repository leans on, and
- * its coverage of `docs/` is currently total only because `docs/` happens to be
- * flat. That is a property of the tree, not of the walk, and nothing observable
- * through the live tree can tell the two apart. The fixture supplies the
- * subdirectory the repository does not have, so both halves of the current
- * behaviour are recorded rather than assumed:
- *
- *   (a) a `.md` in a subdirectory is INVISIBLE to the sweep — it contributes no
- *       claim lines and the suite stays green while it does so;
- *   (b) it cannot be rescued by hand either — naming it in the budget table
- *       makes the budget keys differ from the scanned set, which is what
- *       "budgets exactly the files that are scanned" reddens on.
+ * The `packages:` list from `pnpm-workspace.yaml`, read without a YAML
+ * dependency: the lines under the key until the next top-level key.
  */
+function workspacePackageGlobs(): string[] {
+  const yaml = readFileSync(join(REPO_ROOT, "pnpm-workspace.yaml"), "utf8");
+  const start = yaml.search(/^packages:\s*$/m);
+  if (start < 0) return [];
+  const globs: string[] = [];
+  for (const line of yaml.slice(start).split("\n").slice(1)) {
+    const match = /^\s+-\s*"?([^"\s]+)"?\s*$/.exec(line);
+    if (match) globs.push(match[1] as string);
+    else if (line.trim() !== "") break;
+  }
+  return globs;
+}
+
 /**
  * "budgets exactly the files that are scanned", evaluated against an arbitrary
  * root — the same sorted set equality the live assertion applies to `docs/`,
@@ -196,6 +216,26 @@ function budgetAccepts(keys: string[], root: string): boolean {
   return a.length === b.length && a.every((key, i) => key === b[i]);
 }
 
+/**
+ * LINK-umlssdan — the SHAPE of the sweep, pinned against a fixture tree.
+ *
+ * The claim budget above is the guard the rest of the repository leans on, and
+ * until LINK-umlssdan its coverage of `docs/` was total only because `docs/`
+ * has no subdirectories. That is a property of the tree, not of the walk, and
+ * nothing observable through the live tree can tell the two apart — an
+ * assertion made against `docs/` as it stands passes whatever the walk does.
+ * The fixture supplies the subdirectory the repository does not have, so both
+ * halves are pinned rather than assumed:
+ *
+ *   (a) a `.md` in a subdirectory IS swept — it used to be invisible, and a
+ *       `never` line in it left the suite green (measured: 90/90 passing);
+ *   (b) and it must therefore be BUDGETED — a budget row for it used to FAIL
+ *       "budgets exactly the files that are scanned", so the obvious workaround
+ *       was refused too. Now the budget that omits it is the one that fails.
+ *
+ * The package walk's depth is pinned separately, against the workspace glob it
+ * mirrors, so that one level is a construction and not a second accident.
+ */
 describe("guarantee register — sweep shape (LINK-umlssdan)", () => {
   const NESTED = "docs/worklog/nested.md";
   let fixture = "";
@@ -205,6 +245,9 @@ describe("guarantee register — sweep shape (LINK-umlssdan)", () => {
     writeFileSync(join(fixture, "top.md"), "A top-level claim: this never fires.\n");
     mkdirSync(join(fixture, "worklog"));
     writeFileSync(join(fixture, "worklog", "nested.md"), "A nested claim: this never fires.\n");
+    mkdirSync(join(fixture, "deep", "er"), { recursive: true });
+    writeFileSync(join(fixture, "deep", "er", "deeper.md"), "Deeper: this never fires.\n");
+    writeFileSync(join(fixture, "worklog", "notes.txt"), "Not markdown; never swept.\n");
   });
 
   afterAll(() => {
@@ -213,19 +256,31 @@ describe("guarantee register — sweep shape (LINK-umlssdan)", () => {
 
   it("the fixture really has the nested file (guards a vacuous pin)", () => {
     expect(existsSync(join(fixture, "worklog", "nested.md"))).toBe(true);
+    expect(existsSync(join(fixture, "deep", "er", "deeper.md"))).toBe(true);
     expect(sweptDocs(fixture)).toContain("docs/top.md");
   });
 
-  it("FLAT: a .md in a docs/ subdirectory is invisible to the sweep", () => {
-    expect(sweptDocs(fixture)).toEqual(["docs/top.md"]);
-    expect(sweptDocs(fixture)).not.toContain(NESTED);
+  it("a .md in a docs/ subdirectory is swept, at any depth", () => {
+    expect(sweptDocs(fixture)).toEqual(["docs/deep/er/deeper.md", "docs/top.md", NESTED]);
   });
 
-  it("FLAT: and cannot be budgeted — the only budget that matches omits it", () => {
+  it("and must be budgeted — a budget that omits it is the one that fails", () => {
     // `budgetAccepts` is the comparison the live assertion makes: the budget's
-    // key set against the scanned set, sorted, deep-equal. A budget row for the
-    // nested file is not a fix for (a) — it is a second failure.
-    expect(budgetAccepts(["docs/top.md"], fixture)).toBe(true);
-    expect(budgetAccepts(["docs/top.md", NESTED], fixture)).toBe(false);
+    // key set against the scanned set, sorted, deep-equal. Both directions, so
+    // a walk that regressed to flat reddens here rather than going quiet.
+    expect(budgetAccepts(["docs/top.md"], fixture)).toBe(false);
+    expect(budgetAccepts(["docs/top.md", NESTED, "docs/deep/er/deeper.md"], fixture)).toBe(true);
+  });
+
+  it("the packages walk is one level deep because the workspace glob is", () => {
+    // The README sweep reads `packages/` a single level. That is right for the
+    // layout `pnpm-workspace.yaml` declares, and wrong the moment the glob
+    // gains depth or a second root — so assert the glob rather than the layout.
+    expect(
+      workspacePackageGlobs(),
+      "pnpm-workspace.yaml no longer declares exactly `packages/*`. claimFiles() " +
+        "reads packages/ one level deep on the strength of that glob; widen the " +
+        "walk to match before changing it.",
+    ).toEqual(["packages/*"]);
   });
 });
