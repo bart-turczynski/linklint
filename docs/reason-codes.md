@@ -2127,6 +2127,22 @@ exactly `["lexical"]`.
   verbatim `input` echo. No port-specific reason code is minted; see
   `packages/core/test/port-range.test.ts` for the pinned outcomes and the
   differential against `new URL()`.
+- **Scheme-bearing failure (LINK-iuzphbnp):** when the input carried a scheme
+  token, the `detail` names it, says whether linklint recognizes the scheme, and
+  quotes the authority region that was rejected — `scheme 'view-source:' is a
+  scheme linklint recognizes, and the authority region 'https:' is not a host —
+  the body after 'view-source:' was not inspected`. This is architecture §1.1's
+  fourth rule applied at the point of failure: a `parse_error` names what failed
+  rather than standing in for the whole verdict. The three worked cases are
+  `mhtml:…!x-usc:…` (scheme not recognized), `ms-appinstaller:?source=…` (no
+  authority follows the scheme) and `view-source:https://…` (the nested scheme
+  becomes the authority region — linklint does not unwrap it the way Chrome
+  does, so the input fails closed). A long region is truncated at 40 characters;
+  the verbatim `input` echo carries the whole string. Input with no scheme token
+  keeps the generic message above, because there is nothing to name. No reason
+  code is minted and no weight moves: these inputs stay `status: "invalid"`,
+  `score: null`, with one weight-0 `parse_error` — the fail-closed shape they
+  already had. Pinned in `packages/core/test/parse-error-detail.test.ts`.
 - **Result shape:** `status: "invalid"`, `parsed/score/severity: null`. An
   invalid result is **not benign** — a fail-closed consumer must reject it
   (FR-IN-4, SC-2a). An invalid result may instead carry an `ambiguous_authority`

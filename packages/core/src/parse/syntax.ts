@@ -13,7 +13,25 @@ export const SCHEME_RE = /^([a-zA-Z][a-zA-Z0-9+.\-]*):/;
 /**
  * Schemes that linklint recognizes even without a following `//` authority, so
  * that a missing-scheme bare host (`paypal.com:8080`) is not mistaken for one.
- * Includes the dangerous opaque schemes FR-D-11 cares about.
+ * Includes the dangerous opaque schemes FR-D-11 cares about — `javascript`,
+ * `data`, `vbscript`, `blob` and `file`, matching `DANGEROUS_SCHEMES` in
+ * `detectors/dangerous-scheme.ts`.
+ *
+ * That "includes" is a superset claim and holds, but on its own it explains
+ * only five of the entries, which has already been misread as an assertion that
+ * every member is opaque or dangerous (LINK-iuzphbnp). It is not. Membership
+ * has exactly one effect: `looksLikeHostPort` below. A `scheme:` prefix whose
+ * tail is digits, or whose token contains a dot, is otherwise read as a bare
+ * `host:port`, so `view-source:8080` and `chrome:8080` are scheme-and-body only
+ * because these names are listed here — drop `view-source` and that input
+ * becomes host `view-source` on port 8080, a different verdict.
+ *
+ * `view-source` therefore is NOT a dead entry, and it is also not a promise
+ * that linklint unwraps the nested scheme Chrome reads there. It does not:
+ * `view-source:https://example.com/` leaves `https:` as the authority region,
+ * which is not a host, so the input is `invalid` and fails closed. What it now
+ * gets is a `parse_error` that says so (see `failure.ts`). Unwrapping would
+ * move verdicts and is a separate question from naming the failure.
  */
 export const KNOWN_SCHEMES = new Set([
   "http",
