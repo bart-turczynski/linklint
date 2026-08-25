@@ -439,8 +439,30 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   (`cmd`, `com`, `vbs`, `jar`, `dmg`, `pkg`, `dll`, `msix`, `ps1`, `deb`). A
   `.zip` archive is **not** in the set — an archive download is ordinary and would
   over-flag.
+- **Scheme gate — hierarchical schemes only (`LINK-avefryhe`):** the detector runs
+  only when the input has a **hierarchical path**, i.e. any scheme that is not one
+  of the parser's opaque schemes (`mailto`, `tel`, `about`, `javascript`, `data`,
+  `vbscript`, `blob`), plus scheme-less input, which is host-based by
+  construction (`example.com/setup.exe`). The
+  rule reuses the opaque-scheme set `packages/core/src/parse/syntax.ts` already
+  owns rather than adding a second list, and it is deliberately **not**
+  "http/https only" — an FTP or `file:` executable download is precisely this
+  detector's shape and keeps firing.
+  An opaque scheme has no authority and no path: its whole body is one opaque
+  string that the parser projects onto the `path` field because that is the only
+  field available. Reading a filename and an extension off it is a category
+  error — for `mailto:a@b.com` the last "segment" is `a@b.com`, which splits to
+  `a@b` + `com`, and `com` is in the dangerous set as the DOS COM executable, so
+  every `mailto:` to a `.com` address scored 0.5/medium. That was an architecture
+  §1.1 scope violation rather than a tuning miss: a contact link makes no false
+  claim about itself, provokes no reader disagreement, and has no normalization
+  delta, so none of the three settled forms of claim (a) holds and it must not be
+  a scoring finding at all. Nothing is lost at the gate — `javascript:`, `data:`,
+  `vbscript:` and `blob:` already carry `dangerous_scheme` at 0.9, and the
+  dangerous set itself is untouched.
 - **Example:** `https://files.example.com/setup.exe`;
-  `https://cdn.evil.io/invoice.pdf.exe`.
+  `https://cdn.evil.io/invoice.pdf.exe`; `ftp://files.example.com/setup.exe`;
+  `http://cdn.example.com/setup.com`.
 - **Scoring:** scoring, weight 0.5.
 
 ### `open_redirect_param` — Epic I (I2) · weight 0.4
