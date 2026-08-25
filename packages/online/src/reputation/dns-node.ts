@@ -33,10 +33,48 @@ import type {
 
 const DEFAULT_RESOLVER_NAME = "node:dns";
 
+/**
+ * Attempts c-ares makes for one query before it reports ETIMEOUT.
+ *
+ * Set explicitly, at the value c-ares and `node:dns` already default to, because
+ * this is the multiplier in {@link NodeDnsResolverOptions.timeoutMs}'s worst
+ * case. Leaving it unset left that multiplier owned by whichever c-ares the host
+ * runtime happens to bundle, which is not something a documented figure can rest
+ * on. Four attempts is what a UDP resolver wants — a single dropped datagram
+ * must not become a `timeout` answer — so the value is unchanged; only its
+ * ownership is.
+ */
+const QUERY_TRIES = 4;
+
 export interface NodeDnsResolverOptions {
   /** Observation clock; defaults to `Date`. */
   readonly now?: () => Date;
-  /** Per-query timeout in ms, applied through `Resolver({ timeout })`. */
+  /**
+   * PER-ATTEMPT c-ares timeout in ms. **Not** a bound on how long `query` runs.
+   *
+   * c-ares spends this value on ONE attempt, floors it at its own 250 ms
+   * MIN_TIMEOUT_MS, doubles it on each pass over the server list, and makes
+   * {@link QUERY_TRIES} attempts before answering `timeout`. The cost of one
+   * query against a silent server is therefore on the order of
+   *
+   * ```text
+   * (2 ** QUERY_TRIES - 1) * max(250, timeoutMs)  =  15 * max(250, timeoutMs)
+   * ```
+   *
+   * — about 3.75 s at `timeoutMs: 200`, and about 3 s at ANY value at or below
+   * the floor, including 1. Measured against a loopback server that answers
+   * nothing, on c-ares 1.34.6: 2.2–3.5 s at `timeoutMs` 1, 50 and 250, 6–7 s at
+   * 500, 12–15 s at 1000, i.e. 12–15× the base, with one attempt period of slack
+   * either way from c-ares' own tick alignment. A value under the floor buys
+   * nothing at all: 1 ms, 10 ms and 50 ms each held a single attempt open for
+   * ~250 ms.
+   *
+   * The exact figure belongs to c-ares and moves between its releases, so read
+   * this as an order of magnitude rather than a deadline. The hard bound is
+   * `DnsQuery.signal`: an abort maps to `resolver.cancel()` and returns
+   * `aborted` promptly, and it is what the enrichment runner's own deadline
+   * drives when this port is composed through `inspectAsync`.
+   */
   readonly timeoutMs?: number;
   /** Resolver identity recorded on the observation. */
   readonly resolverName?: string;
@@ -52,7 +90,13 @@ export interface NodeDnsResolverOptions {
   readonly servers?: readonly string[];
 }
 
-/** Build a bounded `node:dns/promises`-backed {@link DnsResolverPort}. */
+/**
+ * Build a `node:dns/promises`-backed {@link DnsResolverPort}.
+ *
+ * Bounded by `DnsQuery.signal`, which is the only hard bound here;
+ * {@link NodeDnsResolverOptions.timeoutMs} sizes c-ares' attempts and does not
+ * cap the call.
+ */
 export function createNodeDnsResolver(options: NodeDnsResolverOptions = {}): DnsResolverPort {
   const now = options.now ?? (() => new Date());
   const resolverName = options.resolverName ?? DEFAULT_RESOLVER_NAME;
@@ -75,10 +119,12 @@ export function createNodeDnsResolver(options: NodeDnsResolverOptions = {}): Dns
         return negative("invalid-name", request, observation);
       }
 
+      // `tries` is passed on both paths so the attempt count is this port's,
+      // stated, rather than inherited from the runtime (LINK-vlwzmjki).
       const resolver =
         options.timeoutMs !== undefined && options.timeoutMs > 0
-          ? new Resolver({ timeout: options.timeoutMs })
-          : new Resolver();
+          ? new Resolver({ timeout: options.timeoutMs, tries: QUERY_TRIES })
+          : new Resolver({ tries: QUERY_TRIES });
       if (options.servers !== undefined && options.servers.length > 0) {
         resolver.setServers([...options.servers]);
       }

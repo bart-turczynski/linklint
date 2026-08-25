@@ -5,6 +5,8 @@
  * treats it as a PER-ATTEMPT value, floors it, doubles it on each retry round,
  * and retries `tries` times. Nothing in this repository could contradict the
  * JSDoc, because the constructed `Resolver` options were observed by no test.
+ * The JSDoc now states a worst case of `15 * max(250, timeoutMs)`; these are the
+ * assertions that redden if either factor in it stops being true.
  *
  * Two pins, deliberately of different kinds:
  *
@@ -106,20 +108,20 @@ describe("createNodeDnsResolver resolver construction", () => {
     expect(constructions).toHaveLength(0);
   });
 
-  it("records the timeout the caller asked for, and nothing else", async () => {
-    // PINNED: `tries` is not among the options, so c-ares' own default decides
-    // how many times that timeout is spent.
-    expect(await constructedFor({ timeoutMs: 200 })).toEqual([{ timeout: 200 }]);
+  it("records the caller's timeout and this port's own attempt count", async () => {
+    // The JSDoc's worst case is a multiple of `tries`, so `tries` has to be ours:
+    // unset, the multiplier belonged to whichever c-ares the runtime bundled.
+    expect(await constructedFor({ timeoutMs: 200 })).toEqual([{ timeout: 200, tries: 4 }]);
   });
 
-  it("builds a bare resolver when no timeout is configured", async () => {
-    expect(await constructedFor({})).toEqual([]);
+  it("still states the attempt count when no timeout is configured", async () => {
+    expect(await constructedFor({})).toEqual([{ tries: 4 }]);
   });
 
   it("treats a non-positive timeout as no timeout at all", async () => {
-    expect(await constructedFor({ timeoutMs: 0 })).toEqual([]);
+    expect(await constructedFor({ timeoutMs: 0 })).toEqual([{ tries: 4 }]);
     constructions.length = 0;
-    expect(await constructedFor({ timeoutMs: -5 })).toEqual([]);
+    expect(await constructedFor({ timeoutMs: -5 })).toEqual([{ tries: 4 }]);
   });
 });
 
@@ -143,7 +145,8 @@ describe("what a silent server costs (c-ares premise)", () => {
       // number the caller passed by more than two orders of magnitude.
       expect(elapsedMs).toBeGreaterThanOrEqual(240);
 
-      // The retry count the documented worst case is a multiple of.
+      // The attempt count the documented worst case is a multiple of, observed
+      // on the wire rather than taken from the option we set.
       expect(received()).toBe(4);
     },
   );
