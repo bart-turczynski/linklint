@@ -11,9 +11,19 @@ import { boundedDecode } from "../parse/decode.js";
  * Query parameter NAMES that signal data being smuggled out, lowercase. Compared
  * case-insensitively against the EXACT decoded parameter name (set membership,
  * never a substring scan) to stay conservative.
+ *
+ * `data` was dropped from this set (LINK-uyoocslu). It is an ordinary English
+ * word and one of the most common parameter names on the web — Microsoft's link
+ * rewriter puts `&data=05%7C01` into every URL it touches, and this repository's
+ * own online fixtures carry the shape — so it flagged
+ * `https://blog.example.com/download?data=report2024` at 0.30/medium under agent
+ * mode on the name alone. The other five are coined or repurposed terms that do
+ * not appear as ordinary parameter names, which is the property that makes a
+ * marker set a marker set rather than a vocabulary. An actual dump under a
+ * `data=` name is still reached by the overlong-opaque-token branch below, which
+ * keys on the VALUE and so does not depend on what the parameter is called.
  */
 const EXFIL_MARKER_PARAMS: ReadonlySet<string> = new Set([
-  "data",
   "exfil",
   "beacon",
   "dump",
