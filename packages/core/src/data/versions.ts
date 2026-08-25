@@ -20,7 +20,8 @@ export const DATA_VERSIONS: DataVersions = {
   unicodeScripts: "ecma-unicode-property-escapes",
   // UTS-46 / IDNA normalization library.
   idna: "tr46@6.0.0",
-  riskyTlds: "2026-06-19",
+  // Curated file-extension TLDs (.zip/.mov) behind `file_extension_tld`.
+  fileExtensionTlds: "2026-06-19",
   // Curated cloud instance-metadata endpoints (vendor-documented, not IANA).
   cloudMetadata: CLOUD_METADATA_VERSION,
   // Literal-IP range buckets, generated from the IANA special-purpose registries.

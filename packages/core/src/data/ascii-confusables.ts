@@ -19,7 +19,7 @@
  * No `dataVersions` pin: this is a static, intrinsic property of the ASCII
  * glyph repertoire (which digits look like which letters), not external/curated
  * data like the brand watchlist or risky-TLD list that evolves over time. Plain
- * tree-shakeable module exports under src/data/, matching risky-tlds.ts /
+ * tree-shakeable module exports under src/data/, matching file-extension-tlds.ts /
  * brands.ts conventions.
  */
 

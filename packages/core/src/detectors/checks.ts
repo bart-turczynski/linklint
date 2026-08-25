@@ -18,7 +18,6 @@ import { ipObfuscation } from "./ip-obfuscation.js";
 import { ipClassification } from "./ip-classification.js";
 import { ambiguousNumericHost } from "./ambiguous-numeric-host.js";
 import { embeddedDomain } from "./embedded-domain.js";
-import { riskyTld } from "./risky-tld.js";
 import { fileExtensionTld } from "./file-extension-tld.js";
 import { encodingObfuscation } from "./encoding-obfuscation.js";
 import { dangerousScheme } from "./dangerous-scheme.js";
@@ -28,7 +27,6 @@ import { skeletonCollision } from "./skeleton-collision.js";
 import { latinSkeletonHomograph } from "./latin-skeleton-homograph.js";
 import { localeCaseCollapse } from "./locale-case-collapse.js";
 import { idnHost } from "./idn-host.js";
-import { baitTokens } from "./bait-tokens.js";
 import { openRedirectParam } from "./open-redirect-param.js";
 import { suspiciousExtension } from "./suspicious-extension.js";
 import { punycodeMalformed } from "./punycode-malformed.js";
@@ -189,14 +187,6 @@ export const CHECKS: CheckDescriptor[] = [
     run: embeddedDomain.run,
   },
   {
-    id: riskyTld.id,
-    layer: riskyTld.layer,
-    phase: "parsed",
-    emits: ["risky_tld"],
-    skipReportable: true,
-    run: riskyTld.run,
-  },
-  {
     id: fileExtensionTld.id,
     layer: fileExtensionTld.layer,
     phase: "parsed",
@@ -267,14 +257,6 @@ export const CHECKS: CheckDescriptor[] = [
     emits: ["idn_host"],
     skipReportable: true,
     run: idnHost.run,
-  },
-  {
-    id: baitTokens.id,
-    layer: baitTokens.layer,
-    phase: "parsed",
-    emits: ["bait_tokens"],
-    skipReportable: true,
-    run: baitTokens.run,
   },
   {
     id: openRedirectParam.id,

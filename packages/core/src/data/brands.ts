@@ -12,7 +12,7 @@
  * Entries are normalized: lowercase domain (registrable, no scheme/path/www).
  *
  * Version-pinned via dataVersions.brands. Plain module exports under src/data/,
- * consumed via static import — same tree-shakeable pattern as risky-tlds.ts /
+ * consumed via static import — same tree-shakeable pattern as file-extension-tlds.ts /
  * confusables.ts.
  *
  * ── Inclusion charter (LINK-stnruoge) ──────────────────────────────────────

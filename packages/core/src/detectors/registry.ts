@@ -12,7 +12,6 @@ import { ipObfuscation } from "./ip-obfuscation.js";
 import { ipClassification } from "./ip-classification.js";
 import { ambiguousNumericHost } from "./ambiguous-numeric-host.js";
 import { embeddedDomain } from "./embedded-domain.js";
-import { riskyTld } from "./risky-tld.js";
 import { fileExtensionTld } from "./file-extension-tld.js";
 import { encodingObfuscation } from "./encoding-obfuscation.js";
 import { dangerousScheme } from "./dangerous-scheme.js";
@@ -22,7 +21,6 @@ import { skeletonCollision } from "./skeleton-collision.js";
 import { latinSkeletonHomograph } from "./latin-skeleton-homograph.js";
 import { localeCaseCollapse } from "./locale-case-collapse.js";
 import { idnHost } from "./idn-host.js";
-import { baitTokens } from "./bait-tokens.js";
 import { openRedirectParam } from "./open-redirect-param.js";
 import { suspiciousExtension } from "./suspicious-extension.js";
 import { punycodeMalformed } from "./punycode-malformed.js";
@@ -64,7 +62,6 @@ export {
   ipClassification,
   ambiguousNumericHost,
   embeddedDomain,
-  riskyTld,
   fileExtensionTld,
   encodingObfuscation,
   dangerousScheme,
@@ -74,7 +71,6 @@ export {
   latinSkeletonHomograph,
   localeCaseCollapse,
   idnHost,
-  baitTokens,
   openRedirectParam,
   suspiciousExtension,
   punycodeMalformed,

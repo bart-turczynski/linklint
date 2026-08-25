@@ -183,7 +183,7 @@ there is one source of truth rather than two.
 **Which packages are watched is derived, not listed.** Any `DATA_VERSIONS` value
 shaped `<name>@<version>` is checked, so a stamp added later for a new npm-backed
 source comes under the check by being stamped. Dated and curated stamps
-(`riskyTlds`, `brands`, `ipRanges`, …) carry no `@` and are skipped — they have
+(`fileExtensionTlds`, `brands`, `ipRanges`, …) carry no `@` and are skipped — they have
 no registry to ask. `tests/unit/check-upstream.test.ts` pins the derived set
 against the shipped record.
 
