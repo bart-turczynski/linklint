@@ -382,39 +382,16 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   `inspect(url, { idnPolicy: "allow" })` → `info`.
 - **Scoring:** scoring, weight 0.7 (lands `high`).
 
-### `bait_tokens` — Epic G (G4) · weight 0.15
-
-- **Meaning:** the host and path **stack multiple distinct phishing-bait
-  keywords** — `secure`, `verify`, `account`, `update`, `signin`, `login`,
-  `wallet`, `confirm`, `password`, `billing`, `suspended`, `unlock`,
-  `authenticate`, `recover` and similar — e.g.
-  `secure-account-verify-login.com`, `update-billing.example.tk/confirm/password`.
-- **Why it's a signal:** phishing lures pile up reassuring/urgent credential
-  words to look official. On its own this is **weak** — a deliberately
-  **low-weight** corroborating signal that complements the G2/G3 brand-
-  impersonation checks; it is never decisive alone.
-- **Detection & precision (SC-2):**
-  - Host labels are tokenized (split on `-` and the `.` label boundary) and the
-    path/query is tokenized on common separators (`/ - _ .` …); the count of
-    **distinct** bait keywords in each region is taken.
-  - **A single bait token never fires.** Legitimate login/account pages carry
-    one or two of these words routinely (`accounts.google.com/signin`, a bank's
-    `/account/login`), so the bar is a **high density**, with host-side bait
-    weighted more heavily than path-side (legit sites stack bait words in the
-    PATH — `/account/security/signin` — but rarely in the HOST):
-    - **≥ 2 distinct bait tokens in the HOST labels**, OR
-    - **≥ 3 distinct bait tokens across host + path/query combined**.
-  - IP hosts and host-less inputs are skipped. The detail reports the count and
-    which bait tokens were found and where, so the score is explainable.
-- **Lexicon:** a small static, hand-curated bait-keyword set inline in the
-  detector — an intrinsic micro-lexicon (same judgment as the ASCII-confusables
-  table), **not** version-pinned via `dataVersions`.
-- **See also:** `brand_homoglyph` (G2) — the brand-impersonation check this
-  density signal corroborates.
-- **Example:** `https://secure-account-verify-login.com`;
-  `https://update-billing.example.tk/confirm/password`.
-- **Scoring:** scoring, weight 0.15 (intentionally low — a weak corroborating
-  signal; provisional — G5 re-tunes).
+> **`bait_tokens` (G4) was deleted** in schema `1.10` / weights `1.19`
+> (`LINK-brsntven`). It counted distinct members of a 17-word English lexicon
+> (`secure`, `verify`, `account`, `login`, …) across the host and path and
+> emitted `0.15` above a density threshold. `normalize(input) === input`, every
+> conforming parser agrees where `secure-account-verify-login.com` goes, and the
+> string describes itself accurately — none of the three forms of claim (a). The
+> only thing wrong with it is that a reader who knows what phishing looks like
+> finds it suggestive, which is the same argument §1.1 already makes about
+> `paypal-login.com`. See `docs/architecture.md` §1.1 for the rule and §6.1.5 for
+> the record.
 
 ### `suspicious_extension` — Epic I (I1) · weight 0.5
 
@@ -1294,22 +1271,28 @@ specified above.
 - **Example:** `https://a.b.c.d.paypal.com.evil.tk/` (5 subdomain labels).
 - **Scoring:** scoring, weight 0.15 (low-weight combination signal).
 
-### `risky_tld` — FR-D-9 · weight 0.15
-
-- **Meaning:** the registrable domain uses a high-abuse / free-registration TLD
-  (e.g. `.tk`, `.ml`, `.xyz`).
-- **Why it's a signal:** a low-weight contextual signal — these registries
-  correlate with abuse. Low weight so it never flags on its own.
-- **Relationship to `file_extension_tld`:** the extension-confusable TLDs
-  `.zip` / `.mov` are **owned by `file_extension_tld`** (J6) and were removed from
-  the `risky_tld` set, so the two never double-count.
-- **Example:** `https://promo.tk/` (free-registration abuse TLD).
+> **`risky_tld` (FR-D-9) was deleted** in schema `1.10` / weights `1.19`
+> (`LINK-brsntven`). Its whole firing condition was a public-suffix presence
+> check followed by `RISKY_TLDS.has(tld)` — membership of a curated list of
+> sixteen high-abuse registries, which is a fact about the world and about this
+> year, not a property of the string. §1.1's name-never-create rule forbids a
+> curated table from creating a finding, and inverting or shrinking the table
+> does not change what it is.
+>
+> There is no residue to re-ground at weight 0, which is the test §6.1.4
+> supplies: strip the world-claim and what remains is "the public suffix is
+> `tk`", already carried in `parsed`. The weight-0 slot for this judgment
+> already belongs to the CALLER — `denyTlds` emits `tld_denied`, and the CLI
+> exposes it as `--deny-tld` / `--allow-tld` since the same change. See
+> `docs/architecture.md` §6.1.5 for the record.
 
 ### `file_extension_tld` — Epic J (J6) · weight 0.4
 
 - **Meaning:** the registrable domain uses a **file-extension TLD** (`.zip`,
   `.mov`) and is structured to masquerade as a downloadable file rather than a
-  website. A sharper, higher-weight successor to `risky_tld` for these TLDs.
+  website. Since `LINK-brsntven` it is the **only** TLD-shaped scoring code: it
+  survives where `risky_tld` did not because it fires on a false claim the
+  string makes about its own type (§1.1 form 3), never on TLD membership alone.
 - **Why it's a signal:** `invoice.zip` reads as an archive and `setup.mov` as a
   video, yet both are live domains — a lure that pairs naturally with the J1/J2
   authority tricks and `userinfo_present`.
@@ -1618,7 +1601,7 @@ specified above.
   `http://127.0.0.1%09foo.google.com` (TAB host terminator).
 - **Scoring:** scoring, weight 0.6.
 
-### `prompt_injection_url` — V4a · weight 0.5 · **agent-gated**
+### `prompt_injection_url` — V4a · weight 0 · **agent-gated, informational**
 
 - **Meaning:** the URL carries an LLM-agent **prompt-injection payload** — text
   positioned to hijack a model's instructions when the link is fetched and fed
@@ -1657,12 +1640,14 @@ specified above.
   the same destination and receive the same bytes; they diverge in what they do
   with the text afterwards, which is not form 2 — form 2 forks on the
   destination. §1.1's agent-mode block routes this to the fourth rule (*report
-  what you can determine, never silently pass*) at **weight 0**; the shipped
-  `0.5` is a disposition owed there, not a settled weight.
+  what you can determine, never silently pass*) at **weight 0**. That
+  disposition SHIPPED in schema `1.10` / weights `1.19` (`LINK-brsntven`): the
+  code still reports, with its full detail, and no longer moves the score.
 - **Example:** `https://example.com/agent?role=system&prompt=ignore%20all%20rules`,
   `https://example.com/?q=ignore%20previous%20instructions`,
   `https://example.com/ignore-previous-instructions` (all only under `agentMode`).
-- **Scoring:** scoring, weight 0.5.
+- **Scoring:** informational, weight 0. The caller declared the context; the
+  caller decides what the report is worth.
 
 > **`api_endpoint_impersonation` (V4b) was deleted** in schema `1.9` / weights
 > `1.18` (`LINK-eurtxkit`). It fired on an api-brands watchlist lookup
@@ -1671,30 +1656,29 @@ specified above.
 > a contingent commercial fact rather than a structural property of the URL.
 > See `docs/architecture.md` §1.1 for the rule and §6.1.4 for the record.
 
-### `credential_harvesting` — V4c · weight 0.35 · **agent-gated**
+### `credential_harvesting` — V4c · weight 0 · **agent-gated, informational**
 
-- **Meaning:** the URL has an **OAuth / token-flow shape** on a host that is
-  **not** a known OAuth / identity provider — the lexical fingerprint of a
-  credential-phishing or token-exfiltration endpoint. Two signal classes: an
+- **Meaning:** the URL carries an **OAuth / token-flow shape** — an
+  authorization-code or token-flow endpoint. Reported for **every** host,
+  `github.com` included. Two signal classes: an
   **OAuth path marker** (`/oauth/authorize`, `/oauth/token`, `/oauth2/authorize`,
   `/login/oauth/authorize`, `/connect/authorize`, …), or a **token-flow query
   marker** (`redirect_uri=`, `access_token=`, `client_secret=`,
   `response_type=token`, or `code=` combined with `client_id=` — the
   authorization-code callback pair).
-- **Why it's a signal:** an agent that follows such a link can be walked through
-  an OAuth handshake on an impostor host, leaking the code / token / secret to an
-  attacker. It is a **separate** code from brand / API impersonation and **stacks**
-  with them: the scoring is a probabilistic OR, so an OAuth shape on a brand
-  look-alike host compounds both reasons on its own — the detector never
-  special-cases stacking.
-- **Critical precision constraint — non-allowlisted hosts only:** these markers
-  are **perfectly legitimate** on real providers
-  (`accounts.google.com/oauth/authorize`, `github.com/login/oauth/authorize`).
-  The detector therefore fires **only** when the OAuth/token shape is present
-  **AND** the registrable domain (eTLD+1) is **NOT** on a small, conservative
-  OAuth-provider allowlist (`google.com`, `github.com`, `microsoft.com` /
-  `microsoftonline.com`, `okta.com`, `auth0.com`, `facebook.com`, `apple.com`, …).
-  The real provider, on any of its subdomains, never fires.
+- **What it is for:** an agent that follows such a link may be walked through an
+  OAuth handshake, and the shape is the fact worth surfacing to a caller that
+  said it is an agent. It says nothing about whether the host is legitimate, and
+  it does not move the score.
+- **The inverse allowlist is GONE (`LINK-brsntven`).** Until schema `1.10` the
+  detector suppressed itself on `OAUTH_PROVIDER_DOMAINS` — twenty-one curated
+  identity providers — and scored the remainder at `0.35`. That is a set of
+  registrable domains whose **complement** created the finding, which §1.1's
+  name-never-create rule forbids in either polarity; it is the structure §6.1.4
+  deleted `api_endpoint_impersonation` for, run backwards. Incompleteness cut
+  the wrong way too: a self-hosted Keycloak, a Gitea instance and a corporate
+  `login.acme.com` all carry the shape and were all off the list, and whether
+  `auth0.com` is an identity provider next year is a fact about the world.
 - **Agent-gated (opt-in):** emits **only** when `inspect()` is called with
   `{ agentMode: true }` (CLI: `--agent`). With agent mode off it is not
   evaluated and never appears in `checksSkipped`. The default verdict is
@@ -1703,28 +1687,24 @@ specified above.
   marker phrases (so `/myoauth/authorizenow` does not trip it); query matching is
   on **exact parameter names** (set membership, never a substring scan of
   values).
-- **Scope — architecture §1.1 (`LINK-uyoocslu`):** the OAuth shape is a string
-  property, but the *firing condition* is that shape **and** the registrable
-  domain's absence from the provider list above — an **inverse watchlist**,
-  whose complement creates the finding. §1.1's name-never-create rule forbids
-  that in either polarity; it is the structure that deleted
-  `api_endpoint_impersonation` (`LINK-eurtxkit`), and the list's inherent
-  incompleteness points the wrong way here, since every self-hosted Keycloak or
-  corporate `login.acme.com` carries the shape and is off it. §1.1's agent-mode
-  block records the disposition: **re-ground** — drop the list and report the
-  flow shape at weight 0 for every host, `github.com` included.
+- **Scope — architecture §1.1 (`LINK-uyoocslu`):** what survives the cut is the
+  string fact underneath — this URL carries an authorization-code or token-flow
+  shape. That is true of `github.com` as well, and saying so at weight 0 costs
+  nothing. The disposition §1.1 recorded (**re-ground**: drop the list, report
+  the flow shape at weight 0 for every host) SHIPPED in schema `1.10` /
+  weights `1.19` (`LINK-brsntven`).
 - **Example:** `https://account-verify.example.com/oauth/authorize?redirect_uri=…`,
-  `https://login.evil.tk/oauth/token?client_secret=…` (both only under
-  `agentMode`). The real `https://github.com/login/oauth/authorize` does **not**
-  fire.
-- **Scoring:** scoring, weight 0.35.
+  `https://login.evil.tk/oauth/token?client_secret=…`, and the real
+  `https://github.com/login/oauth/authorize` — all three report identically,
+  and all three only under `agentMode`.
+- **Scoring:** informational, weight 0.
 
-### `data_exfiltration` — V4d · weight 0.3 · **agent-gated**
+### `data_exfiltration` — V4d · weight 0 · **agent-gated, informational**
 
 - **Meaning:** the URL query carries a **data-exfiltration shape** — the lexical
   fingerprint of context, secrets, or conversation contents being smuggled out to
   an attacker endpoint via the query string. Two signal classes: an **exfil-marker
-  parameter name** (`data=`, `exfil=`, `beacon=`, `dump=`, `leak=`, `payload=`)
+  parameter name** (`exfil=`, `beacon=`, `dump=`, `leak=`, `payload=`)
   carrying a non-empty value, or **any parameter whose value is an abnormally long,
   opaque base64/hex-style token** (the shape of a stolen-data dump, e.g.
   `?token=<2KB base64>`).
@@ -1754,7 +1734,8 @@ specified above.
   string is unhidden, undisputed and honest about itself, and the
   overlong-token branch flags a value that is well-formed, agreed-upon and
   accurately described. §1.1's agent-mode block routes it to the fourth rule at
-  **weight 0**; the shipped `0.3` is a disposition owed there. The ordinary
+  **weight 0**, and that disposition SHIPPED in schema `1.10` / weights `1.19`
+  (`LINK-brsntven`). The ordinary
   English word `data` was **dropped** from the marker set under the same ticket
   after `https://blog.example.com/download?data=report2024` read `0.30`/`medium`
   on the parameter name alone; that fix is narrow and independent of the ruling.
@@ -1762,7 +1743,7 @@ specified above.
   `https://log.example.net/?token=<200+ char base64 blob>` (both only under
   `agentMode`). A benign long natural-language `?q=how+do+i+reset+my+password…`
   search string does **not** fire.
-- **Scoring:** scoring, weight 0.3.
+- **Scoring:** informational, weight 0.
 
 ## Policy codes (caller-configured, layer "policy", weight 0)
 
@@ -1780,7 +1761,9 @@ exactly `["lexical"]`.
   not listed passes).
 - **Why it's surfaced:** a caller-owned policy decision, not a deception
   heuristic — e.g. an organization that refuses links under `.ru` / `.cn`.
-  Distinct from the built-in `risky_tld`, which is a low-weight *scoring*
+  Since `LINK-brsntven` deleted `risky_tld`, this is the ONLY TLD-membership
+  channel linklint has: it ships no curated high-abuse TLD list of its own, and
+  a caller who wants `.tk` to matter says so here. It remains a *policy verdict*
   deception signal over a curated abuse-TLD set; `tld_denied` is whatever the
   caller chose, advisory only.
 - **Matching:** TLD values are compared case-insensitively and bare (a leading
@@ -1798,7 +1781,9 @@ exactly `["lexical"]`.
   that only permits links under `.com` / `.de`. Independent of the `denyTlds`
   axis: when both are configured, a denied TLD emits `tld_denied` and the same
   input also emits `tld_not_allowlisted` if its TLD is not in `allowTlds`.
-  Distinct from the built-in `risky_tld` deception heuristic.
+  Since `LINK-brsntven` deleted `risky_tld`, this is the ONLY TLD-membership
+  channel linklint has; the caller supplies the judgment, and it stays a policy
+  verdict rather than a deception finding.
 - **Matching:** TLD values are compared case-insensitively and bare (a leading
   dot is tolerated and stripped). IP / hostless inputs have no public suffix and
   never match.

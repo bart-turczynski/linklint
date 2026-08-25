@@ -52,7 +52,13 @@ export interface DataVersions {
   unicodeConfusables: string;
   unicodeScripts: string;
   idna: string;
-  riskyTlds: string;
+  /**
+   * Curated file-extension-TLD snapshot (`data/file-extension-tlds.ts`) behind
+   * `file_extension_tld`. Named `riskyTlds` until schema `1.10`, when the
+   * curated high-abuse TLD list it also covered was deleted (`LINK-brsntven`);
+   * the stamp stayed because it is the only pin over the surviving table.
+   */
+  fileExtensionTlds: string;
   /**
    * Curated cloud metadata / provider-internal endpoint table. Vendor-documented, NOT
    * IANA-derived (IANA registers ranges, not which address inside them a cloud

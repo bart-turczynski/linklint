@@ -29,7 +29,7 @@ export interface HostFacts {
  *
  * An IP host (IPv4 canonical/obfuscated, or an IPv6 literal) is never a
  * registrable domain — its PSL fields are nulled so domain-based detectors
- * (embedded_domain, risky_tld) skip it. IPs also have no Unicode/IDN form.
+ * (embedded_domain, file_extension_tld) skip it. IPs also have no Unicode/IDN form.
  */
 export function deriveHostFacts(rawHost: string): HostFacts {
   // The parser preserves `rawHost` verbatim (it only strips invisibles when

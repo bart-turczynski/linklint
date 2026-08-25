@@ -95,8 +95,13 @@ describe("data_exfiltration — conservative: benign shapes do NOT fire (agentMo
 });
 
 describe("data_exfiltration — weight", () => {
-  it("is weight 0.3", () => {
+  // LINK-brsntven applied §1.1's ruling. The overlong-token branch flags a
+  // string that is well-formed, agreed-upon and honest about itself, so it
+  // reports rather than scores.
+  it("is weight 0 — it reports, it does not score", () => {
     const r = inspect("https://collect.example.com/p?exfil=secretdata", { agentMode: true });
-    expect(r.reasons.find((x) => x.code === "data_exfiltration")!.weight).toBeCloseTo(0.3, 5);
+    expect(r.reasons.find((x) => x.code === "data_exfiltration")!.weight).toBe(0);
+    expect(r.score).toBe(0);
+    expect(r.severity).toBe("info");
   });
 });

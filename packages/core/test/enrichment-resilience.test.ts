@@ -418,7 +418,7 @@ describe("K8 — governor boundaries are total and per-source isolated", () => {
       id: "good",
       layer: "reputation",
       async enrich() {
-        return [{ code: "risky_tld", detail: "fixture reputation finding" }];
+        return [{ code: "excessive_subdomain_depth", detail: "fixture reputation finding" }];
       },
     };
 
@@ -486,7 +486,7 @@ describe("K8 — governor boundaries are total and per-source isolated", () => {
       id: "fast",
       layer: "reputation",
       async enrich() {
-        return [{ code: "risky_tld", detail: "fixture reputation finding" }];
+        return [{ code: "excessive_subdomain_depth", detail: "fixture reputation finding" }];
       },
     };
 

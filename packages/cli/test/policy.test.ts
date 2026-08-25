@@ -11,7 +11,14 @@ import {
 // Real fixtures from the core engine.
 const benign: InspectResult = inspect("https://www.example.com/path"); // info / 0
 const medium: InspectResult = inspect("https://paypal.com@evil.example.com/login"); // medium
-const high: InspectResult = inspect("https://www.gооgle.com@bad.tk/login"); // high
+// LINK-brsntven note: the previous `high` fixture was
+// `https://www.gооgle.com@bad.tk/login`, which reached 0.575/high only because
+// `risky_tld` added 0.15 on top of `userinfo_present` — the Cyrillic homoglyphs
+// sit in the USERINFO, not the host, so nothing else fired. With `risky_tld`
+// deleted it reads 0.500/medium and stopped exercising the `high` band. The
+// replacement is a deep-subdomain phish that reaches `high` from two structural
+// findings and no membership lookup.
+const high: InspectResult = inspect("https://a.b.c.d.paypal.com.evil-login.tk/"); // high
 const invalid: InspectResult = inspect("ht!tp://%%%not a url"); // invalid
 
 describe("severity helpers", () => {

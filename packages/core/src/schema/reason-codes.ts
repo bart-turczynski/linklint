@@ -143,12 +143,6 @@ export const REASON_CODES = {
     weight: 0.5,
     summary: "A domain-looking label sequence sits left of the real registrable domain.",
   },
-  risky_tld: {
-    layer: "lexical",
-    scoring: true,
-    weight: 0.15,
-    summary: "Registrable domain uses a high-abuse TLD (low-weight contextual signal).",
-  },
   file_extension_tld: {
     layer: "lexical",
     scoring: true,
@@ -265,13 +259,6 @@ export const REASON_CODES = {
     summary:
       "Non-Latin registrable domain whose UTS#39 confusable skeleton is pure ASCII-Latin — a whole-label homograph masquerading as an ASCII domain (сһаѕе.com→chase.com), no brand list needed.",
   },
-  bait_tokens: {
-    layer: "lexical",
-    scoring: true,
-    weight: 0.15,
-    summary:
-      "Host/path stacks multiple distinct phishing-bait keywords (secure, verify, account, login…) — a low-weight density signal that corroborates the brand-impersonation checks.",
-  },
   open_redirect_param: {
     layer: "lexical",
     scoring: true,
@@ -295,24 +282,24 @@ export const REASON_CODES = {
   },
   prompt_injection_url: {
     layer: "lexical",
-    scoring: true,
-    weight: 0.5,
+    scoring: false,
+    weight: 0,
     summary:
-      "URL carries an LLM-agent prompt-injection payload: a prompt-control query parameter (role=/system=/prompt=) or an instruction-override path segment (/ignore-previous-instructions). Agent-gated (emits only under agentMode).",
+      "URL carries an LLM-agent prompt-injection payload: a prompt-control query parameter (role=/system=/prompt=) or an instruction-override path segment (/ignore-previous-instructions). Agent-gated (emits only under agentMode). Informational (weight 0): a reader-consumption property, reported under architecture §1.1's fourth rule, never scored.",
   },
   credential_harvesting: {
     layer: "lexical",
-    scoring: true,
-    weight: 0.35,
+    scoring: false,
+    weight: 0,
     summary:
-      "URL has an OAuth/token-flow shape (a /oauth/authorize-style path or a redirect_uri=/access_token=/client_secret=/code=+client_id= query) on a host that is NOT a known OAuth/identity provider — a credential-phishing / token-exfiltration URL shape. Agent-gated (emits only under agentMode).",
+      "URL has an OAuth/token-flow shape: a /oauth/authorize-style path or a redirect_uri=/access_token=/client_secret=/code=+client_id= query. Reported for EVERY host, github.com included. Agent-gated (emits only under agentMode). Informational (weight 0): the flow shape is a string fact, the impostor half was an inverse provider allowlist and is gone (§1.1, LINK-uyoocslu).",
   },
   data_exfiltration: {
     layer: "lexical",
-    scoring: true,
-    weight: 0.3,
+    scoring: false,
+    weight: 0,
     summary:
-      "URL query carries a data-exfiltration shape: an exfil-marker parameter (data=/exfil=/beacon=/dump=/leak=/payload=) with a value, or any parameter carrying an abnormally long opaque base64/hex-style token — context/secrets smuggled out in the URL. Agent-gated (emits only under agentMode).",
+      "URL query carries a data-exfiltration shape: an exfil-marker parameter (exfil=/beacon=/dump=/leak=/payload=) with a value, or any parameter carrying an abnormally long opaque base64/hex-style token — context/secrets smuggled out in the URL. Agent-gated (emits only under agentMode). Informational (weight 0): a reader-consumption property, reported under architecture §1.1's fourth rule, never scored.",
   },
 
   // ── Resolution (Layer 2 observed corroboration, weight 0) ────────────────
@@ -367,14 +354,14 @@ export const REASON_CODES = {
     scoring: false,
     weight: 0,
     summary:
-      "Caller-configured: the host's TLD is on the caller's deny-list. Advisory only (weight 0) — distinct from the built-in risky_tld deception heuristic.",
+      "Caller-configured: the host's TLD is on the caller's deny-list. Advisory only (weight 0) — a policy verdict the caller asked for, not a deception finding. Since LINK-brsntven this is the ONLY TLD-membership channel: linklint ships no curated high-abuse TLD list of its own.",
   },
   tld_not_allowlisted: {
     layer: "policy",
     scoring: false,
     weight: 0,
     summary:
-      "Caller-configured: the host's TLD is not on the caller's allow-list. Advisory only (weight 0) — distinct from the built-in risky_tld deception heuristic.",
+      "Caller-configured: the host's TLD is not on the caller's allow-list. Advisory only (weight 0) — a policy verdict the caller asked for, not a deception finding. Since LINK-brsntven this is the ONLY TLD-membership channel: linklint ships no curated high-abuse TLD list of its own.",
   },
   host_denied: {
     layer: "policy",

@@ -3,7 +3,7 @@
 > Version-pinned (`dataVersions.weights`). Source of truth:
 > `packages/core/src/schema/reason-codes.ts` (weights) and
 > `packages/core/src/scoring/` (aggregation + bands). Current weights version:
-> **1.18**.
+> **1.19**.
 
 ## Aggregation — probabilistic OR (FR-SCORE-1a)
 
@@ -152,7 +152,7 @@ signal. Reserved for patterns with no legitimate use.
 
 ### Scoring codes
 
-The **40** codes that carry a non-zero weight and therefore move the score. `Layer`
+The **35** codes that carry a non-zero weight and therefore move the score. `Layer`
 is the code's registry layer; `(agent)` marks a code emitted only by an
 agent-gated check, which stays silent unless the caller opts in via `agentMode`.
 
@@ -176,7 +176,6 @@ agent-gated check, which stays silent unless the caller opts in via `agentMode`.
 | `brand_locale_collapse`        | 0.50   | lexical    |
 | `embedded_domain_in_subdomain` | 0.50   | lexical    |
 | `homograph_skeleton_collision` | 0.50   | lexical    |
-| `prompt_injection_url`         | 0.50   | lexical (agent) |
 | `separator_lookalike`          | 0.50   | lexical    |
 | `suspicious_extension`         | 0.50   | lexical    |
 | `userinfo_present`             | 0.50   | lexical    |
@@ -184,10 +183,8 @@ agent-gated check, which stays silent unless the caller opts in via `agentMode`.
 | `file_extension_tld`           | 0.40   | lexical    |
 | `ip_obfuscation`               | 0.40   | lexical    |
 | `open_redirect_param`          | 0.40   | lexical    |
-| `credential_harvesting`        | 0.35   | lexical (agent) |
 | `encoding_obfuscation`         | 0.35   | lexical    |
 | `ambiguous_numeric_host`       | 0.30   | lexical    |
-| `data_exfiltration`            | 0.30   | lexical (agent) |
 | `ascii_homoglyph`              | 0.20   | lexical    |
 | `ip_link_local`                | 0.20   | lexical    |
 | `ip_loopback`                  | 0.20   | lexical    |
@@ -195,9 +192,7 @@ agent-gated check, which stays silent unless the caller opts in via `agentMode`.
 | `ip_reserved`                  | 0.20   | lexical    |
 | `percent_encoding_malformed`   | 0.20   | lexical    |
 | `punycode_malformed`           | 0.20   | lexical    |
-| `bait_tokens`                  | 0.15   | lexical    |
 | `excessive_subdomain_depth`    | 0.15   | lexical    |
-| `risky_tld`                    | 0.15   | lexical    |
 
 Most scoring detectors land at `severity ≥ medium` on their own, satisfying SC-1
 for the canonical attack set. The `0.20` and `0.15` tiers are intentionally `low`
@@ -208,7 +203,7 @@ another signal.
 
 ### Zero-weight codes
 
-The remaining **17** codes never move the score. They are listed separately
+The remaining **20** codes never move the score. They are listed separately
 because "weight `0.00`" means three different things, and mixing them into the
 table above is what let this section drift: a reader scanning for weights has no
 reason to read past the last non-zero row.
@@ -218,6 +213,8 @@ reason to read past the last non-zero row.
 | `confusable_char`          | lexical    | annotation     |
 | `confusable_in_path`       | lexical    | annotation     |
 | `content_type_mismatch`    | resolution | annotation     |
+| `credential_harvesting`    | lexical    | annotation     |
+| `data_exfiltration`        | lexical    | annotation     |
 | `fqdn_root_label`          | lexical    | annotation     |
 | `host_denied`              | policy     | policy verdict |
 | `host_length_unresolvable` | lexical    | annotation     |
@@ -229,6 +226,7 @@ reason to read past the last non-zero row.
 | `open_redirect_observed`   | resolution | annotation     |
 | `parse_error`              | lexical    | meta           |
 | `port_denied`              | policy     | policy verdict |
+| `prompt_injection_url`     | lexical    | annotation     |
 | `scheme_denied`            | policy     | policy verdict |
 | `tld_denied`               | policy     | policy verdict |
 | `tld_not_allowlisted`      | policy     | policy verdict |
@@ -236,7 +234,13 @@ reason to read past the last non-zero row.
 - **annotation** — a true, reportable fact about the input that is not a
   deception finding. It explains without scoring. This is the reporting boundary
   stated in `architecture.md` §1.1: scoring is reserved for claim (a); reporting
-  is not.
+  is not. Three agent-gated codes joined this row in weights `1.19`
+  (`LINK-brsntven`): `prompt_injection_url`, `credential_harvesting` and
+  `data_exfiltration` each name a property of what one consumer does with the
+  bytes after every reader has agreed where they came from, which §1.1 routes to
+  the fourth rule rather than to the score. `ssrf_cloud_metadata` is the one
+  agent-gated code that still scores, because the fact it escalates is already
+  settled with the gate off.
 - **meta** — `parse_error` describes linklint's own handling of the input, not
   the input's properties.
 - **policy verdict** — emitted by the policy layer from *caller configuration*

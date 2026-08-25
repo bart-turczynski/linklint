@@ -15,7 +15,14 @@ function collectors(): { out: (s: string) => void; err: (s: string) => void; out
 }
 
 const BENIGN = "https://www.example.com/path";
-const HIGH = "https://www.gооgle.com@bad.tk/login";
+// LINK-brsntven note: the previous `high` fixture was
+// `https://www.gооgle.com@bad.tk/login`, which reached 0.575/high only because
+// `risky_tld` added 0.15 on top of `userinfo_present` — the Cyrillic homoglyphs
+// sit in the USERINFO, not the host, so nothing else fired. With `risky_tld`
+// deleted it reads 0.500/medium and stopped exercising the `high` band. The
+// replacement is a deep-subdomain phish that reaches `high` from two structural
+// findings and no membership lookup.
+const HIGH = "https://a.b.c.d.paypal.com.evil-login.tk/";
 const INVALID = "ht!tp://%%%not a url";
 
 describe("run — exit-code matrix (explicit URL args, never reads stdin)", () => {

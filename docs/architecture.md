@@ -202,19 +202,27 @@ required:
    guess about the consumer is claim (b) pointed at the caller instead of at the
    site.
 
-*The per-code ruling* (`LINK-uyoocslu`). Three of the four ship above weight 0
-today, so the Disposition column is what is owed, not a description of the
-shipped table. A weight is a scoring surface with its own version stamp (§6.4)
-and moves under its own decision.
+*The per-code ruling* (`LINK-uyoocslu`), **shipped** in schema `1.10` /
+weights `1.19` (`LINK-brsntven`). The Weight column below is the shipped weight,
+read from the registry by the drift guard in
+`packages/core/test/docs-validation.test.ts`, so this table now describes the
+code rather than owing it something. A weight is a scoring surface with its own
+version stamp (§6.4) and moved under its own decision, in its own change.
 
 | Code | Weight | Ruling | Disposition |
 |---|---|---|---|
-| `ssrf_cloud_metadata` | 1.00 | **Grounded** — meets all three conditions above | keep as shipped |
-| `prompt_injection_url` | 0.50 | none of the three forms — a post-resolution reader property | report at **weight 0** |
-| `data_exfiltration` | 0.30 | none of the three forms; the overlong-token branch flags a string that is well-formed, agreed-upon and honest about itself | report at **weight 0** |
-| `credential_harvesting` | 0.35 | fires on an OAuth shape **and** the host's absence from a list of real identity providers — an inverse watchlist | **re-ground**: drop the list, report the flow shape at **weight 0** for every host |
+| `ssrf_cloud_metadata` | 1.00 | **Grounded** — meets all three conditions above | kept as shipped |
+| `prompt_injection_url` | 0.00 | none of the three forms — a post-resolution reader property | reports at **weight 0** |
+| `data_exfiltration` | 0.00 | none of the three forms; the overlong-token branch flags a string that is well-formed, agreed-upon and honest about itself | reports at **weight 0** |
+| `credential_harvesting` | 0.00 | fired on an OAuth shape **and** the host's absence from a list of real identity providers — an inverse watchlist | **re-grounded**: the list is deleted, and the flow shape reports at **weight 0** for every host |
 
-`credential_harvesting` is the one the deletion record already decided.
+The consequence is worth stating plainly, because it is the charter in one
+sentence: **agent mode can no longer raise a score above what plain mode gives,
+except through `ssrf_cloud_metadata`.** A declared context re-weights a settled
+fact; it does not license a finding claim (a) does not support.
+
+`credential_harvesting` is the one the deletion record already decided, and
+§6.1.5 is where the drop of `OAUTH_PROVIDER_DOMAINS` is written down.
 `api_endpoint_impersonation` was deleted in schema `1.9` (`LINK-eurtxkit`)
 because its firing condition was `API_BRAND_DOMAINS.get(token)` — a contingent
 commercial fact — corroborated only by ordinary syntax. Inverting the list does
@@ -417,7 +425,7 @@ precisely the case an allowlist gets wrong.
 ```
 linklint/
   packages/
-    core/           # linklint npm package — inspect(), 38 checks, scoring, policy, schema
+    core/           # linklint npm package — inspect(), 36 checks, scoring, policy, schema
     mcp/            # @linklint/mcp — local-only MCP server (check_url / check_domain)
     cli/            # @linklint/cli — offline CLI (linklint check / batch)
     online/         # @linklint/online — Node/server safe transport + deterministic fixtures
@@ -462,7 +470,7 @@ Runtime dependencies: `tldts` (Public Suffix List) and `tr46` (IDNA/UTS-46).
 
 4. **Normalization** — IDNA/UTS-46 normalization via `tr46`. Record deltas as informational findings (`normalization_delta`).
 
-5. **Detector execution** — run 38 independent lexical checks: 4 structural scans ahead of parsing, then 34 parsed-context detectors. The 4 agent-gated parsed detectors run only under `agentMode`. A detector failure adds `lexical:<id>` to `checksSkipped` rather than aborting the inspection. Any skipped scoring detector means the score is a lower bound, not a complete verdict.
+5. **Detector execution** — run 36 independent lexical checks: 4 structural scans ahead of parsing, then 32 parsed-context detectors. The 4 agent-gated parsed detectors run only under `agentMode`. A detector failure adds `lexical:<id>` to `checksSkipped` rather than aborting the inspection. Any skipped scoring detector means the score is a lower bound, not a complete verdict.
 
 6. **Policy layer** (optional) — apply caller-configured allow/deny rules. Policy reasons carry `weight: 0` and never change `score` or `severity`.
 
@@ -472,7 +480,7 @@ Runtime dependencies: `tldts` (Public Suffix List) and `tr46` (IDNA/UTS-46).
 
 ## 5. Detectors
 
-`packages/core/src/detectors/` contains 38 lexical checks: 4 structural scans and 34 parsed-context detectors. Parsed detectors implement:
+`packages/core/src/detectors/` contains 36 lexical checks: 4 structural scans and 32 parsed-context detectors. Parsed detectors implement:
 
 ```ts
 interface Detector {
@@ -484,7 +492,7 @@ interface Detector {
 
 Detectors emit findings only — they never read weights. The core attaches weights from the version-pinned table (`packages/core/src/scoring/weights.ts`) keyed by reason code.
 
-The 38 checks group into seven families (listed by **check id**; a single check
+The 36 checks group into six families (listed by **check id**; a single check
 may emit several reason codes):
 
 | Family | Detectors |
@@ -494,25 +502,31 @@ may emit several reason codes):
 | **Brand impersonation** | `brand_homoglyph`, `homograph_skeleton_collision` |
 | **Dangerous payloads** | `dangerous_scheme`, `file_extension_tld`, `suspicious_extension`, `open_redirect_param` |
 | **Hidden characters** | `invisible_char`, `bidi_override`, `control_char`, `encoding_obfuscation`, `percent_encoding_malformed`, `low_byte_truncation`, `confusable_in_path` |
-| **Contextual signals** | `risky_tld`, `bait_tokens` |
 | **Agent-gated** | `prompt_injection_url`, `credential_harvesting`, `data_exfiltration`, `ssrf_cloud_metadata` |
 
-**Agent-gated is a caller-declared context, not a seventh kind of evidence.**
+**Agent-gated is a caller-declared context, not a sixth kind of evidence.**
 Those four run only when `InspectOptions.agentMode` is set, and §1.1 settles what
 they may claim: a property of what one consumer does with the bytes after every
 reader has agreed where they came from is reportable but not chartered to score,
 and a consequence-weighted escalation requires a fact that is already settled
-with the gate off. The per-code ruling lives in §1.1 (`LINK-uyoocslu`).
+with the gate off. The per-code ruling lives in §1.1 (`LINK-uyoocslu`) and
+shipped in schema `1.10` / weights `1.19` (`LINK-brsntven`): three of the four
+report at weight 0, and `ssrf_cloud_metadata` is the only one that scores.
+
+The **Contextual signals** family — `risky_tld` and `bait_tokens` — was deleted
+whole in the same change (§6.1.5). Both created a scoring finding from curated
+membership alone, which is the one thing the name-never-create rule forbids, and
+neither left a string fact to re-ground at weight 0.
 
 Informational detectors (`confusable_char`, `confusable_in_path`, `normalization_delta`, `idna_mapping_ambiguity`, `locale_case_ambiguity`, `host_length_unresolvable`, `fqdn_root_label`) have weight 0 — they annotate without raising severity. `idna_mapping_ambiguity` and `locale_case_ambiguity` each escalate to a weight-0.5 scoring code (`brand_idna_collapse`, `brand_locale_collapse`) when the alternate reading lands on a watchlist brand exactly.
 
 ## 6. Result schema
 
-Every channel returns the same `InspectResult` (schema version `1.9`):
+Every channel returns the same `InspectResult` (schema version `1.10`):
 
 ```ts
 interface InspectResult {
-  schemaVersion: '1.9';
+  schemaVersion: '1.10';
   status: 'ok' | 'invalid';
   input: string;
   parsed: ParsedUrl | null;
@@ -1052,6 +1066,201 @@ positives are all removed; the mechanical `REASON_CODES` pin in
 REMOVAL before the bumps were applied, which had previously only been
 demonstrated for an addition.
 
+#### 6.1.5 The contextual-signal tier — deleted (`LINK-brsntven`)
+
+**Decision — `risky_tld` and `bait_tokens` are deleted outright, and the three
+agent-gated dispositions §1.1 recorded as owed are shipped.** Removed and
+re-weighted in schema `1.10` / weights `1.19`. Like §6.1.2 and §6.1.4 this is a
+scope-of-claim correction, not a tuning change, and it was carried 3–0 on scope.
+§5's **Contextual signals** family is gone whole: seven families become six.
+
+**What both detectors were.** `risky_tld` was a public-suffix presence check
+followed by `RISKY_TLDS.has(tld)` — a lookup into a hand-kept set of sixteen
+high-abuse registries — and nothing else. `bait_tokens` counted distinct members
+of a seventeen-word English lexicon (`secure`, `verify`, `account`, `login`, …)
+across the host and the path and fired above a density threshold. Each emitted
+`0.15`. `mycompany.tk` read `0.15`/`low` and
+`secure-account-verify-login.com` read `0.15`/`low`, in both cases from
+membership alone.
+
+**Why the rule reaches them.** §1.1's name-never-create rule says a curated
+table may NAME a structural anomaly and may never CREATE a finding. `RISKY_TLDS`
+is such a table and the lookup WAS the finding. `bait_tokens` reads a lexicon
+rather than a domain list, which changes what is being looked up and not what is
+being done with the answer: `normalize(input) === input`, every conforming
+parser agrees where `secure-account-verify-login.com` goes, and the string
+describes itself accurately — none of the three forms. The only thing wrong with
+it is that a reader who already knows what phishing looks like finds it
+suggestive, which is verbatim the argument §1.1 makes about `paypal-login.com`.
+The two strings scored differently only because one carried more suggestive
+words, and §1.1 records that the line is structural rather than a matter of
+degree.
+
+**Why deletion rather than weight 0, and the test that decides it.** §6.1.4
+supplies the procedure: strip the world-claim and ask what string fact remains.
+For `credential_harvesting` the OAuth flow shape remained, so it is re-grounded
+at 0 rather than deleted. For `api_endpoint_impersonation` nothing remained, and
+it was deleted. Here nothing remains either — the residue of `risky_tld` is "the
+public suffix is `tk`", which `parsed` already carries, and the residue of
+`bait_tokens` is "the host contains English words". Reporting either at weight 0
+would not be applying the fourth rule; it would be re-emitting the world-claim
+with the score removed.
+
+And the weight-0 slot for the TLD judgment **already belongs to the caller**:
+`denyTlds` emits `tld_denied` at weight 0, `allowTlds` emits
+`tld_not_allowlisted`. That answer was only half true in practice, because
+`packages/cli/src/args.ts` shipped ZERO policy flags — a `linklint check` user
+lost the signal with no lever at all. `--deny-tld` and `--allow-tld` are added
+in this change so the answer holds on the tool's main surface, and both policy
+summaries in `schema/reason-codes.ts`, which named the deleted detector, are
+rewritten.
+
+**The three agent-mode dispositions, applied.** `prompt_injection_url` `0.50` →
+`0`, `data_exfiltration` `0.30` → `0`, and `credential_harvesting` `0.35` → `0`
+with `data/oauth-providers.ts` deleted: the flow shape is now reported for every
+host, `github.com` included. The inverse allowlist was the same claim-(b)
+structure as the api-brands watchlist run backwards, and §1.1 forbids it in
+either polarity. Their §1.1 ruling table is restated from *owed* to shipped, and
+its drift guard is unchanged and still bites — it reads each ruled code's weight
+from `REASON_CODES` and compares it to the number in the table, so all three
+rows now have to read `0.00`.
+
+**The `DataVersions` field is RENAMED, not deleted.** `FILE_EXTENSION_TLDS`
+lives in the same module and `dataVersions.riskyTlds` is its only pin. Dropping
+the field would strand a live, exported, weight-`0.4` scoring table with no
+version stamp, against NFR-DATA-1. The module becomes
+`data/file-extension-tlds.ts` and the stamp becomes
+`dataVersions.fileExtensionTlds`, carrying its value forward unchanged.
+`SCHEMA_VERSION` owns the rename because `DataVersions` is part of the
+serialized result (§6.4).
+
+**Measured cost.** Every row of the labeled corpus, the embarrassment corpus
+and the accepted-out-of-scope list was inspected THREE ways before and after —
+under the row's own declared options, with `agentMode` forced OFF, and with it
+forced ON — and every verdict diffed. That is 1 040 verdicts on the before side
+and 1 055 after, and the forced variants are the point: an agent-family row
+carries `{ agentMode: true }` of its own, so a diff that only honours row
+options leaves those inputs unobserved with the gate off. **41 verdicts change: 6
+with the gate forced off, 35 with it on or declared.** Precision and recall are
+`1.000` / `1.000` on each side. `risky_tld` appeared on 3 distinct inputs,
+`bait_tokens` on 3.
+
+The 6-versus-35 split is itself the result worth reading. With the gate off, the
+ONLY thing that moved is the deletion of the two membership-only detectors, and
+it moved exactly the six rows below. Everything else in this change is confined
+to a mode the caller has to ask for.
+
+*Six rows move band on the deletion,* identically in every mode:
+
+| Input | Before | After |
+|---|---|---|
+| `https://promo-login.tk/` | `0.150`/`low` | `0.000`/`info` |
+| `https://secure-account-verify-login.com` | `0.150`/`low` | `0.000`/`info` |
+| `https://a.b.c.d.paypal.com.evil-login.tk/` | `0.639`/`high` | `0.575`/`high` |
+| `https://paypa1-secure-login.com` | `0.830`/`critical` | `0.800`/`high` |
+| `https://login.paypal.com.account.evil.com/` | `0.575`/`high` | `0.500`/`medium` |
+| `https://login.paypal.com.evil.tk` | `0.575`/`high` | `0.500`/`medium` |
+
+The last two cross the shipped `--fail-on high` default. Both are
+`embedded_domain_in_subdomain` at `0.50` — which sits EXACTLY on the medium/high
+edge — plus a `0.15` companion. `paypa1-secure-login.com` changes band without
+crossing that default, and is now carried entirely by the `brand_homoglyph`
+fold, which is the right reading: the fold is the structure, and the pretext
+words were not.
+
+*Two further rows move band on the agent dispositions,* under `agentMode` only,
+where `credential_harvesting`'s `0.35` had been stacking on
+`open_redirect_param`:
+`https://example.com/login?redirect_uri=http://169.254.169.254/&client_id=x` and
+`https://idp.example.org/authorize?client_id=x&redirect_uri=https://myapp.io/cb&next=https://evil.com`,
+both `0.610`/`high` → `0.400`/`medium`. That is the ruling working as written —
+the open-redirect finding is the structural one and still stands at its own
+weight; what is gone is a second `0.35` charged for the same bytes on the
+strength of a list.
+
+*Eight agent rows drop to `0.000`/`info`* and keep their reason with weight 0.
+*Four provider rows gain a weight-0 `credential_harvesting`* they were
+previously suppressed on. Every other verdict in both modes is byte-identical.
+
+One test fixture moved too, and is worth recording because it shows how thin the
+old `high` was: `packages/cli/test/policy.test.ts` and `run.test.ts` used
+`https://www.gооgle.com@bad.tk/login` as their `high` case. The Cyrillic
+homoglyphs are in the USERINFO, not the host, so the only structural finding was
+`userinfo_present` at `0.50` and the band came entirely from `risky_tld`. It now
+reads `0.500`/`medium`, and both fixtures move to a deep-subdomain phish that
+reaches `high` from two structural findings and no membership lookup.
+
+The corpus also gains four benign rows on free-registry TLDs (`mycompany.tk`,
+`.ml`, `.xyz`, `.top`). It had **none** before, which is why `risky_tld`'s
+false-positive surface was invisible to the harness and the measured cost of
+deleting it read as zero for the wrong reason.
+
+**`embedded_domain_in_subdomain` stays at `0.50`. Decided, not defaulted.** The
+alternative was to raise it above the edge so those two rows keep failing a
+default run. It is refused on three grounds.
+
+*It is not a targeted repair.* Eleven distinct inputs across the corpora carry
+the code, and after this change **nine** of them read exactly `0.500`/`medium`
+with no companion at all. `0.500` is the medium/high boundary, so ANY raise
+above it moves all nine into `high` at once — the weight is a single number and
+cannot be applied to two rows. Two of the nine are the rows this change dropped;
+the other seven were `medium` before this change too, and would newly fail a default
+`--fail-on high` run. That is **seven new failures to restore two**, in the
+direction (precision) that §1.1's cited literature says is the instrument's only
+justification. The seven are ordinary embedded-domain shapes —
+`paypal.com.spoof.info`, `paypal.co.uk.evil.com`, `www.eu.paypal.com.evil.info`
+and the rest — which the corpus already labels `deceptive` at `medium`, and
+which no evidence in this change touches.
+
+*There is no new evidence about embedded domains.* Nothing about the detector
+moved in this change; what moved is that a companion signal was deleted. Raising
+this weight to preserve a band the companion produced would launder the deleted
+world-claim into a different code, which is the move §1.1 refuses for
+`credential_harvesting`'s allowlist — inverting or relocating a claim does not
+change what it is. If the `high` was reachable only via a curated list, the
+`high` was borrowed and not earned.
+
+*The tier is coherent as it stands.* `0.50` is the shipped "medium alone, high
+in combination" band, shared with `userinfo_present`, `separator_lookalike`,
+`suspicious_extension`, `brand_idna_collapse`, `brand_locale_collapse` and
+`homograph_skeleton_collision`. The one authority code above it,
+`ambiguous_authority` at `0.65`, earns the gap with a strictly stronger fact —
+two parsers reaching two hosts (form 2). `embedded_domain_in_subdomain` already
+needs two false-positive carve-outs to stay quiet on ordinary naming: the
+ICANN-suffix gate for `sub.domain.example.co.uk` and the region-code gate for
+`www.eu.playstation.com` (`LINK-pbilvjuv`). A signal needing two carve-outs does
+not belong in the band above that one.
+
+Nothing is lost from the finding itself: both rows still emit
+`embedded_domain_in_subdomain` with its full detail at `0.500`/`medium`, and
+`--fail-on` is a caller threshold — the caller who wants embedded-domain hosts
+to fail sets `--fail-on medium`, which is the same shape of answer as
+`--deny-tld` above. Both rows are pinned at their NEW bands in
+`test/corpus/corpus.ts` and in
+`packages/core/test/semantic-tier-retirement.test.ts`, so a future re-raise has
+to argue with them rather than discover them.
+
+**Accepted, deliberate loss of coverage.** `mycompany.tk`, `promo-login.tk`,
+`secure-account-verify-login.com` and `update-billing.example.tk/confirm/password`
+all score `0.00`/`info`. The first three are carried as benign corpus rows, and
+the `bait_tokens` false-positive guards (`accounts.google.com`,
+`login.microsoftonline.com`, `example.com/account/login`) were converted from
+`forbidReasons` rows to plain benign rows rather than dropped — the claim they
+make is unchanged, and it no longer names a code that cannot be emitted. That is
+the disposition §6.1.4 gave the V4e guards, applied again.
+
+**Implemented (`LINK-brsntven`).** Both detector modules,
+`data/oauth-providers.ts`, the two registry entries, the two reason codes, the
+two weights, the docs entries, the `RISKY_TLDS` / `isRiskyTld` public exports
+and the two corpus positives are removed; `data/risky-tlds.ts` is renamed
+`data/file-extension-tlds.ts` and `dataVersions.riskyTlds` renamed
+`dataVersions.fileExtensionTlds`; the three agent-gated weights are `0`; the CLI
+gains `--deny-tld` / `--allow-tld`. The mechanical `REASON_CODES` pin in
+`packages/core/test/docs-validation.test.ts` was confirmed to redden on this
+two-code REMOVAL before the bumps were applied, reporting
+`{ added: [], removed: ["bait_tokens", "risky_tld"] }` — previously demonstrated
+for an addition and for a single-code removal.
+
 ### 6.2 IDNA / UTS-46 conformance & the normalization flag profile
 
 Every verdict that rests on *"what host is this really"* flows through
@@ -1221,7 +1430,7 @@ three sentences are deleted.
 | `SCHEMA_VERSION` (`schema/base.ts`) | the serialized `InspectResult`: its fields, their nullability, their documented meanings, and their CLOSED value domains | any change to those, **including an additive one** — a field added, a documented meaning widened or narrowed, a value added to or removed from a closed domain |
 | `ENRICHMENT_SCHEMA_VERSION` (`schema/enrich.ts`) | the structured enrichment report: outcome states, evidence shapes, cause vocabulary | a change to those. It keeps its existing narrower ownership rather than folding into `SCHEMA_VERSION`, and it is also the cache-namespace key (§7) |
 | `WEIGHTS_VERSION` (`scoring/weights.ts`) | the scoring weights and the severity bands | a weight or a band change (NFR-DATA-1) |
-| `DataVersions` (`data/versions.ts`) | the pinned data snapshots — PSL, confusables, scripts, IDNA, risky TLDs, cloud metadata, IP ranges, brands | a snapshot re-pin, per §6.3 |
+| `DataVersions` (`data/versions.ts`) | the pinned data snapshots — PSL, confusables, scripts, IDNA, file-extension TLDs, cloud metadata, IP ranges, brands | a snapshot re-pin, per §6.3 |
 | package version + `CHANGELOG.md` | everything that is not the result contract: package semantics, `InspectOptions`, `linklint/experimental` exports, free-form `Reason.detail` prose | any such change — **unless** it also alters the result contract, in which case the stamp above applies as well |
 
 Why additive counts, against the ordinary semver instinct: `base.ts` states the
@@ -1401,7 +1610,7 @@ The three-layer model is a forward-compatibility contract:
 
 | Layer | Status | Description |
 |-------|--------|-------------|
-| **Lexical** (L1) | **Implemented** | Offline, deterministic, synchronous. 38 checks: 4 structural, 34 parsed (4 of them agent-gated). < 5 ms typical. |
+| **Lexical** (L1) | **Implemented** | Offline, deterministic, synchronous. 36 checks: 4 structural, 32 parsed (4 of them agent-gated). < 5 ms typical. |
 | **Resolution** (L2) | **Partial** | Exact local wrapper decoding and caller-authorized bounded redirect/refresh expansion are implemented; observed correlation/divergence and MIME evidence remain roadmap work. Every discovered target is re-inspected through L1. |
 | **Reputation** (L3) | Roadmap | Threat feeds, RDAP domain age, CT, DNS posture. Privacy-preserving by design. |
 

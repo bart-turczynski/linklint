@@ -61,7 +61,7 @@ describe("npmStamps — which DATA_VERSIONS entries get watched", () => {
         versions({
           publicSuffixList: "tldts@7.4.9",
           idna: "tr46@6.0.0",
-          riskyTlds: "2026-06-19",
+          fileExtensionTlds: "2026-06-19",
           brands: "2026-07-26-watchlist",
           unicodeConfusables: "uts39-16.0.0-curated",
           unicodeScripts: "ecma-unicode-property-escapes",

@@ -21,7 +21,7 @@
  * WHICH PACKAGES. Every stamp whose value is shaped `<name>@<version>`. That is
  * deliberate: a stamp added later for a new npm-backed data source comes under
  * this check by being stamped, with no list here to keep in sync. Stamps that
- * name a date or a curated snapshot (`riskyTlds`, `brands`, `ipRanges`, …)
+ * name a date or a curated snapshot (`fileExtensionTlds`, `brands`, `ipRanges`, …)
  * carry no `@` and are skipped — they have no registry to ask.
  *
  * WHAT IT DOES NOT DO.

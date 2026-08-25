@@ -50,6 +50,12 @@ describe("parseCli — flags resolve onto options", () => {
       "münchen.de",
       "--idn-allow",
       "köln.de",
+      "--deny-tld",
+      "tk",
+      "--deny-tld",
+      "zip",
+      "--allow-tld",
+      "com",
       "https://x.example",
     ]);
     expect(cli.kind).toBe("check");
@@ -64,6 +70,8 @@ describe("parseCli — flags resolve onto options", () => {
       agent: false,
       allowIdn: true,
       idnAllowlist: ["münchen.de", "köln.de"],
+      denyTlds: ["tk", "zip"],
+      allowTlds: ["com"],
     });
   });
 
@@ -80,6 +88,8 @@ describe("parseCli — flags resolve onto options", () => {
       agent: false,
       allowIdn: false,
       idnAllowlist: [],
+      denyTlds: [],
+      allowTlds: [],
     });
   });
 });
@@ -121,5 +131,38 @@ describe("parseCli — usage errors", () => {
 
   it("throws UsageError when batch has extra file arguments", () => {
     expect(() => parseCli(["batch", "a.txt", "b.txt"])).toThrow(UsageError);
+  });
+});
+
+// LINK-brsntven. `risky_tld` was deleted because curated TLD membership is a
+// fact about the world, and §1.1's answer is that the caller supplies that
+// judgment. That answer was false in practice for the CLI, which shipped ZERO
+// policy flags: a `linklint check` user lost the signal with no lever at all.
+// These two flags are the lever, and they emit the weight-0 policy codes rather
+// than re-creating a scoring finding.
+describe("parseCli — the caller-owned TLD judgment (LINK-brsntven)", () => {
+  it("--deny-tld is repeatable and lands on denyTlds", () => {
+    const cli = parseCli(["check", "--deny-tld", "tk", "--deny-tld", "ml", "https://x.example"]);
+    if (cli.kind !== "check") throw new Error("unreachable");
+    expect(cli.options.denyTlds).toEqual(["tk", "ml"]);
+    expect(cli.options.allowTlds).toEqual([]);
+  });
+
+  it("--allow-tld is repeatable and lands on allowTlds", () => {
+    const cli = parseCli(["check", "--allow-tld", "com", "--allow-tld", "de", "https://x.example"]);
+    if (cli.kind !== "check") throw new Error("unreachable");
+    expect(cli.options.allowTlds).toEqual(["com", "de"]);
+    expect(cli.options.denyTlds).toEqual([]);
+  });
+
+  it("both may be set together — the two lists fire independently", () => {
+    const cli = parseCli(["check", "--deny-tld", "tk", "--allow-tld", "com", "https://x.example"]);
+    if (cli.kind !== "check") throw new Error("unreachable");
+    expect(cli.options.denyTlds).toEqual(["tk"]);
+    expect(cli.options.allowTlds).toEqual(["com"]);
+  });
+
+  it("a bare --deny-tld with no value is a usage error", () => {
+    expect(() => parseCli(["check", "--deny-tld"])).toThrow(UsageError);
   });
 });

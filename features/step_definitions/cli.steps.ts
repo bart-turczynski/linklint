@@ -58,7 +58,7 @@ When(
       "# piped fixture",
       "https://www.example.com/path",
       "",
-      "https://www.gооgle.com@bad.tk/login",
+      "https://a.b.c.d.paypal.com.evil-login.tk/",
       "",
     ].join("\n");
     runCli(args, input);

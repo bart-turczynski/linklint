@@ -35,6 +35,10 @@ Flags:
   --allow-idn           permit internationalized (Unicode/punycode) domains
                         (default: IDNs are blocked at 'high')
   --idn-allow <domain>  exempt a registrable domain from the IDN block (repeatable)
+  --deny-tld <tld>      report a weight-0 tld_denied for this TLD (repeatable)
+  --allow-tld <tld>     report a weight-0 tld_not_allowlisted for any other TLD
+                        (repeatable). linklint ships no built-in high-abuse TLD
+                        list; these two flags are where that judgment lives.
   --offline             reserved no-op in v1 (accepted and ignored)
   --help                print this help and exit
   --version             print version and exit
@@ -132,6 +136,10 @@ function runInspections(
     // IDNs are blocked by default; --allow-idn opts out, --idn-allow exempts hosts.
     ...(options.allowIdn ? { idnPolicy: "allow" as const } : {}),
     ...(options.idnAllowlist.length > 0 ? { idnAllowlist: options.idnAllowlist } : {}),
+    // Caller-owned TLD judgment. Both emit weight-0 policy reasons, so they
+    // annotate the verdict without moving the deception score.
+    ...(options.denyTlds.length > 0 ? { denyTlds: options.denyTlds } : {}),
+    ...(options.allowTlds.length > 0 ? { allowTlds: options.allowTlds } : {}),
   };
 
   if (options.json) {

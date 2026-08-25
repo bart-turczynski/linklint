@@ -115,7 +115,7 @@ export interface InspectOptions {
    * SCHEMA_VERSION's ownership. This one entered the contract at `1.1` without
    * the bump it owed; CHANGELOG.md records the miss and does not retro-bump it.
    *
-   * @example suppressReasons: [{ code: "risky_tld" }, { code: "idn_host", host: "münchen.de" }]
+   * @example suppressReasons: [{ code: "idn_host", host: "münchen.de" }, { code: "excessive_subdomain_depth" }]
    */
   suppressReasons?: SuppressReasonRule[];
 

@@ -27,10 +27,18 @@ describe("J6 file_extension_tld — filename masquerade", () => {
     expect(codes("https://user@download.zip/")).toContain("file_extension_tld");
   });
 
-  it("scores >= medium on its own (weight 0.4) and never co-fires with risky_tld", () => {
+  it("scores >= medium on its own (weight 0.4)", () => {
     const r = inspect("https://invoice.zip/");
     expect(["medium", "high", "critical"]).toContain(r.severity);
-    expect(r.reasons.map((x) => x.code)).not.toContain("risky_tld");
+  });
+
+  // Converted guard (LINK-brsntven). `.zip`/`.mov` used to be carved OUT of the
+  // curated `RISKY_TLDS` set so the two never double-counted. That set is gone,
+  // so what must hold is that this detector is the ONLY thing a file-extension
+  // TLD emits — a bare `.zip` host produces one reason, not two.
+  it("a bare .zip host emits exactly one TLD-shaped reason", () => {
+    const r = inspect("https://invoice.zip/");
+    expect(r.reasons.map((x) => x.code)).toEqual(["file_extension_tld"]);
   });
 
   it("combines with the J2 slash-look-alike lure to land high", () => {

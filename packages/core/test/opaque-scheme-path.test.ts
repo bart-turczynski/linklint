@@ -137,14 +137,16 @@ describe("LINK-avefryhe — the other ctx.path readers on opaque bodies", () => 
     ]);
   });
 
-  // bait_tokens and credential_harvesting both bail on `!ctx.host`, and an
-  // opaque scheme has no host at all — structurally unreachable, pinned here so
-  // the guard cannot be dropped unnoticed. (api_endpoint_impersonation carried a
-  // third case here until it was deleted under LINK-eurtxkit.)
-  it("bait_tokens cannot reach an opaque body (no host)", () => {
-    expect(codes("mailto:secure-login-verify-account@bank.com")).not.toContain("bait_tokens");
-    expect(codes("tel:login-verify-secure-account-update")).not.toContain("bait_tokens");
-    expect(codes("about:login-verify-secure-account")).not.toContain("bait_tokens");
+  // credential_harvesting bails on `!ctx.host`, and an opaque scheme has no host
+  // at all — structurally unreachable, pinned here so the guard cannot be
+  // dropped unnoticed. (api_endpoint_impersonation carried a second case here
+  // until LINK-eurtxkit deleted it, and bait_tokens a third until
+  // LINK-brsntven deleted that; the bait strings survive below as a converted
+  // guard, because what they must produce is now nothing at all.)
+  it("a bait-stacked opaque body produces no reasons whatsoever", () => {
+    expect(codes("mailto:secure-login-verify-account@bank.com")).toEqual([]);
+    expect(codes("tel:login-verify-secure-account-update")).toEqual([]);
+    expect(codes("about:login-verify-secure-account")).toEqual([]);
   });
 
   it("credential_harvesting cannot reach an opaque body (no host)", () => {

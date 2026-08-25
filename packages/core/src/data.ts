@@ -6,5 +6,5 @@
  * consumers can read the reference data without deep-importing `src/`.
  */
 
-export { RISKY_TLDS, FILE_EXTENSION_TLDS } from "./data/risky-tlds.js";
+export { FILE_EXTENSION_TLDS } from "./data/file-extension-tlds.js";
 export { BRAND_DOMAINS, BRAND_WATCHLIST, type BrandEntry } from "./data/brands.js";

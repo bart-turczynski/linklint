@@ -59,9 +59,9 @@ const flattenProse = (markdown: string): string =>
     .replace(/\s+/g, " ");
 
 describe("InspectResult schema contract (schemaVersion + confidence, FR-SCORE-2b)", () => {
-  it("stamps schemaVersion 1.9 on ok and invalid results", () => {
-    expect(inspect("https://www.example.com/").schemaVersion).toBe("1.9");
-    expect(inspect("ht!tp://%%%not a url").schemaVersion).toBe("1.9");
+  it("stamps schemaVersion 1.10 on ok and invalid results", () => {
+    expect(inspect("https://www.example.com/").schemaVersion).toBe("1.10");
+    expect(inspect("ht!tp://%%%not a url").schemaVersion).toBe("1.10");
   });
 
   it("deterministic lexical results (ok AND invalid) carry confidence 1.0", () => {
@@ -257,7 +257,7 @@ describe("inspect() is synchronous and deterministic (published guarantee)", () 
 
 describe("async enrichment public boundary and documentation contract (K9)", () => {
   it("exports the runtime orchestration, validation, cache, and version surface", () => {
-    expect(root.SCHEMA_VERSION).toBe("1.9");
+    expect(root.SCHEMA_VERSION).toBe("1.10");
     expect(root.ENRICHMENT_SCHEMA_VERSION).toBe("1.0");
     expect(root.inspectAsync).toBeTypeOf("function");
     expect(root.isEnrichmentReport).toBeTypeOf("function");
@@ -323,7 +323,6 @@ describe("linklint/experimental — curated runtime surface", () => {
         "classifyHost",
         "ambiguousNumericHost",
         "embeddedDomain",
-        "riskyTld",
         "fileExtensionTld",
         "encodingObfuscation",
         "dangerousScheme",
@@ -334,7 +333,6 @@ describe("linklint/experimental — curated runtime surface", () => {
         "localeCaseCollapse",
         "lowByteTruncation",
         "idnHost",
-        "baitTokens",
         "openRedirectParam",
         "suspiciousExtension",
         "punycodeMalformed",
@@ -384,7 +382,7 @@ describe("linklint/data — curated runtime surface", () => {
   it("exposes exactly the reference-data value exports", () => {
     // BrandEntry is type-only and does not appear at runtime.
     expect(Object.keys(data).sort()).toEqual(
-      ["RISKY_TLDS", "FILE_EXTENSION_TLDS", "BRAND_DOMAINS", "BRAND_WATCHLIST"].sort(),
+      ["FILE_EXTENSION_TLDS", "BRAND_DOMAINS", "BRAND_WATCHLIST"].sort(),
     );
   });
 });
