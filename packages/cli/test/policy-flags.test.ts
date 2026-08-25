@@ -210,12 +210,26 @@ describe("a bad --deny-port is a usage error, not a silently dead policy", () =>
   // The core's `normalizePort` keeps any `number` it is handed, so a coerced
   // NaN/float/negative would become a deny-list entry no parsed URL can equal:
   // a policy the caller believes is in force and silently is not.
-  it.each(["", "http", "8080abc", "80.5", "-1", "65536", "0x1f90", "1e3", " 80", "+80"])(
+  //
+  // `" 80"` was in this list and is not a member of the class. It is a valid
+  // port with padding, and padding is harmless on every other repeatable value
+  // flag because the core trims at `normalizedList`; it was refused here only
+  // because `parsePort` ran before that trim could reach the value. Fixed and
+  // pinned in `policy-value-separators.test.ts` (LINK-patktxpv). Note `"+80"`
+  // and `""` stay in: `+` is not padding, and an all-whitespace value trims to
+  // empty, which is no port at all.
+  it.each(["", "http", "8080abc", "80.5", "-1", "65536", "0x1f90", "1e3", "+80", "   "])(
     "--deny-port %j throws UsageError",
     (value) => {
       expect(() => parseCli(["check", "--deny-port", value, PLAIN])).toThrow(UsageError);
     },
   );
+
+  it("padding is not in that class — a padded valid port is the port", () => {
+    const cli = parseCli(["check", "--deny-port", " 80 ", PLAIN]);
+    if (cli.kind !== "check") throw new Error("unreachable");
+    expect(cli.options.denyPorts).toEqual([80]);
+  });
 
   it("names the offending value and the accepted range", () => {
     expect(() => parseCli(["check", "--deny-port", "99999", PLAIN])).toThrow(/99999.*0-65535/s);
