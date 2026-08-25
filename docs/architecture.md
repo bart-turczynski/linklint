@@ -296,10 +296,53 @@ was *authority-fixed content licenses SCORING*. Nothing here scores: weight 0
 defeats the deception objection and RFC-fixed content defeats the durability
 objection, **both** are required, and neither suffices alone.
 
+**Handing back a modified URL, settled: the list doing the editing is a claim
+about the world** (`LINK-sarsncoh`). The recurring request is a `sanitize()` —
+return the URL with `utm_*`, `fbclid`, `gclid` and `msclkid` taken out. It is
+declined, and the reason is *not* that the return value would be a string
+instead of a verdict. It is that the list doing the removing asserts something
+linklint cannot settle from the string: **that those query keys do not affect
+the resource the URL addresses.** No standard says that. `utm_*` is a prefix
+glob over a namespace no registry owns, and three literals plus a wildcard is an
+opinion about whose analytics are worth dropping, not an enumeration — the same
+distinction §6.1.5 draws when it deletes `bait_tokens` for reading a lexicon
+rather than a standard. It is claim (b), pointed at the query string.
+
+*The repo had already ruled this in code, silently.* `canonicalizeUrl` — a
+public export of the declared `@linklint/online/mirrors` subpath — records that
+"a different path or query is a different URL" and that it "preserves path and
+query verbatim", and driven live it returns `?utm_source=nl&fbclid=abc&id=42`
+unedited. `decodeEmbeddedWrapper`, the one public surface that returns a URL at
+all, carries `utm_source` through into the destination it recovers. Query
+content is already part of a URL's identity wherever linklint touches one, and a
+sanitizer needs it to stop being that in exactly one place. §8 supplies the
+other half: enforcement is the consumer's job and linklint reports the verdict,
+so editing the caller's URL is acting on the caller's behalf.
+
+*The weight-0 fallback is foreclosed with it.* A `tracking_parameters_present`
+reason at weight 0 reads like the fourth rule applied, and it is not. §6.1.5's
+procedure is to strip the world-claim and ask what string fact remains; what
+remains here is "the query carries a key beginning `utm_`", which is the list
+re-emitted with the score taken off — verbatim the move that deletion refused.
+
+*What is declined is the class, not the proposal.* Any surface that returns a
+URL a curated list has edited lands here whatever shape it arrives in: a second
+field on the result, a `{ status, url, removed[] }` record, a parameter table
+with its own version stamp. Versioning the list and documenting the losses
+answers none of it, because the objection is not that the transform is
+undeclared — it is that the transform is not settleable from the string. A
+**stated non-goal and not a gap**. It is also one the mechanical gate does not
+catch: `packages/core/test/public-api-contract.test.ts` pins the `metadata`,
+`experimental` and `data` subpaths to exact key sets but checks root only as a
+superset of `experimental`, so a new root export reddens nothing there and a
+catalog held in a local `const` moves no `SCHEMA_VERSION`. This paragraph is the
+guard, which is why it argues the class rather than the API shape.
+
 Nothing in this section is open. What this section settles, and what
 should therefore not be re-filed: well-formed-but-unusable strings, the path
-layer, the agent-mode layer and the reserved special-use names, all above; the watchlist's name-never-create
-rule, combosquatting, and the reading of a clean result, all below.
+layer, the agent-mode layer, the reserved special-use names and the cleaned-URL
+output, all above; the watchlist's name-never-create rule, combosquatting, and
+the reading of a clean result, all below.
 
 **The rule.** The brand watchlist (`data/brands.ts`) may only be consulted to
 **NAME** a structural anomaly that was already detected independently. It may
