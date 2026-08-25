@@ -547,11 +547,18 @@ export const VECTORS: CorpusRow[] = [
     source: "Equivocal URLs ESORICS'22 Table 3 U3 (via rurl external-url-vectors.csv)",
   },
   {
+    // LINK-ouljoseh: re-labeled benign. The note below was always the giveaway
+    // — "# opens fragment, host n.pr" records that every reader AGREES, while
+    // the row asserted `ambiguous_authority`, whose claim is that they disagree.
+    // Re-measured across seven parsers (WHATWG, node legacy, Python, Go, PHP,
+    // Java URI, Java URL): all seven report `n.pr`. The `fragment_in_authority`
+    // sub-signal is retired; the row is kept as a standing benign assertion.
     input: "https://n.pr#@e.gg",
-    label: "deceptive",
-    minSeverity: "high",
-    expectReasons: ["ambiguous_authority"],
-    notes: "eq-U4 Pitfall 7 extra delimiter (# then @) — # opens fragment, host n.pr",
+    label: "benign",
+    forbidReasons: ["ambiguous_authority"],
+    notes:
+      "eq-U4 Pitfall 7 extra delimiter (# then @) — # opens fragment, host n.pr. " +
+      "LINK-ouljoseh: benign — all seven readers reach n.pr, so nothing is ambiguous",
     source: "Equivocal URLs ESORICS'22 Table 3 U4 (via rurl external-url-vectors.csv)",
   },
   {
