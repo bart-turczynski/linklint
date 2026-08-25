@@ -40,8 +40,9 @@ Policy flags — caller-supplied judgment, reported at weight 0. Each annotates
 the verdict with a policy reason and never moves the deception score. linklint
 ships no built-in high-abuse TLD, host or port list; these flags are where that
 judgment lives. All the <value> forms are repeatable, as is --idn-allow above:
-repeat the flag once per value. A comma inside a single value is a usage error,
-not a separator — "--deny-tld com,ru" would match no TLD at all.
+repeat the flag once per value. A comma, semicolon, vertical bar or whitespace
+inside a single value is a usage error, not a separator — "--deny-tld com,ru"
+would match no TLD at all. Whitespace AROUND a value is still just padding.
 
   --deny-tld <tld>      report tld_denied for this TLD
   --allow-tld <tld>     report tld_not_allowlisted for any other TLD
