@@ -22,8 +22,8 @@
  * different amounts of protection:
  *
  *   - ESCALATED (197) — `brand_homoglyph` + `ascii_homoglyph`, uniformly
- *     0.60/high. The real structural surface.
- *   - HOMOGLYPH_ONLY (55) — `brand_homoglyph` alone, uniformly 0.50/medium.
+ *     0.84/critical. The real structural surface.
+ *   - HOMOGLYPH_ONLY (55) — `brand_homoglyph` alone, uniformly 0.80/high.
  *     These fail `ascii_homoglyph`'s stricter gates (leading digit, or digits
  *     outnumbering letters) but still fold to a brand under `brand_homoglyph`'s
  *     separate laxer gates. `0penai.com` is here. That gate asymmetry is the
@@ -47,10 +47,13 @@
  * brand earns its place by fold-reachability, not by name recognition. A brand
  * whose label contains no `o`, `l`, or `s` has NO pre-images and contributes
  * nothing to the structural tier — `huggingface` is the clearest example, and
- * `openai` contributes only the 0.50/medium `0penai.com`. Such additions must be
+ * `openai` contributes only the 0.80/high `0penai.com`. Such additions must be
  * justified on other grounds (or declined), never on brand fame alone. The
  * ZERO_FOLD_SURFACE_BRANDS list below names all 43 of them.
  */
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { inspect } from "../src/index.js";
 import { BRAND_DOMAINS } from "../src/data/brands.js";
@@ -125,8 +128,9 @@ const surface = classify();
 const domainsOf = (c: readonly Candidate[]): string[] => c.map((x) => x.domain).sort();
 
 /**
- * The 0.60/high structural surface. Adding a brand adds lines here; removing one
- * removes them. Either way it is reviewed, which is the whole point.
+ * The 0.84/critical structural surface. Adding a brand adds lines here;
+ * removing one removes them. Either way it is reviewed, which is the whole
+ * point.
  */
 const ESCALATED_SURFACE: readonly string[] = [
   "a1ibaba.com",
@@ -330,8 +334,8 @@ const ESCALATED_SURFACE: readonly string[] = [
   "zel1epay.com",];
 
 /**
- * Folds to a brand but misses `ascii_homoglyph`'s gates, so it lands 0.50/medium
- * instead of 0.60/high. Real coverage, weaker band — see `LINK-cphogucn` Q3.
+ * Folds to a brand but misses `ascii_homoglyph`'s gates, so it lands 0.80/high
+ * instead of 0.84/critical. Real coverage, weaker band — see `LINK-cphogucn` Q3.
  */
 const HOMOGLYPH_ONLY_SURFACE: readonly string[] = [
   "0kta.com",
@@ -398,8 +402,8 @@ const HOMOGLYPH_ONLY_SURFACE: readonly string[] = [
 const INERT_CANDIDATES: readonly string[] = [];
 
 /**
- * Watchlist labels with NO fold pre-image that reaches the 0.60 band. They buy
- * no structural coverage; every one of them needs a non-fold justification.
+ * Watchlist labels with NO fold pre-image that reaches the escalated band. They
+ * buy no structural coverage; every one of them needs a non-fold justification.
  */
 const ZERO_FOLD_SURFACE_BRANDS: readonly string[] = [
   "airbnb",
@@ -447,11 +451,11 @@ const ZERO_FOLD_SURFACE_BRANDS: readonly string[] = [
   "zoom",];
 
 describe("brand fold surface — pinned review gate", () => {
-  it("pins the exact escalated (0.60/high) surface membership", () => {
+  it("pins the exact escalated (0.84/critical) surface membership", () => {
     expect(domainsOf(surface.escalated)).toEqual([...ESCALATED_SURFACE].sort());
   });
 
-  it("pins the exact homoglyph-only (0.50/medium) surface membership", () => {
+  it("pins the exact homoglyph-only (0.80/high) surface membership", () => {
     expect(domainsOf(surface.homoglyphOnly)).toEqual([...HOMOGLYPH_ONLY_SURFACE].sort());
   });
 
@@ -498,10 +502,115 @@ describe("brand fold surface — pinned review gate", () => {
   it("records that the two AI brands added in PR #124 buy no escalated surface", () => {
     // Kept explicit because it is the evidence behind the inclusion charter:
     // 'huggingface' has no foldable letter at all, and 'openai' only reaches the
-    // laxer 0.50 band via a leading digit.
+    // laxer homoglyph-only band via a leading digit.
     expect(ZERO_FOLD_SURFACE_BRANDS).toContain("huggingface");
     expect(ZERO_FOLD_SURFACE_BRANDS).toContain("openai");
     expect(HOMOGLYPH_ONLY_SURFACE).toContain("0penai.com");
     expect(foldPreimages("huggingface.co")).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Prose coupling (LINK-sdtpvqsy).
+//
+// The counts above are also asserted in prose, in the canonical decision record
+// — `docs/architecture.md` §6.1.1, inside an `— ADOPTED. … **Implemented**`
+// block, and §6.1.3, where the surface size carries a live argument declining
+// an external domain list. Nothing coupled the two, and the prose rotted: five
+// watchlist additions moved the surface while the record kept stating the old
+// figure in the present tense. The band pair rotted the same way, into source
+// comments as well as tests, after the weights moved.
+//
+// Every expected string below is BUILT FROM `surface`, which is derived by
+// running the shipped detectors. So the next watchlist or weight change fails
+// here by name instead of desynchronising silently — the mechanical-guard
+// pattern §6.4 already applies to `SCHEMA_VERSION`.
+// ---------------------------------------------------------------------------
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const SELF_PATH = fileURLToPath(import.meta.url);
+const architectureDoc = readFileSync(join(REPO_ROOT, "docs", "architecture.md"), "utf8");
+
+/**
+ * Markdown hard-wraps, so matching a raw substring against a doc sentence
+ * silently matches NOTHING the moment that sentence spans two lines — a guard
+ * that passes by never testing anything. Flatten to a single line first.
+ * Blockquote markers survive whitespace collapsing, so strip them per line
+ * before joining.
+ */
+function flattenMarkdown(markdown: string): string {
+  return markdown
+    .split("\n")
+    .map((line) => line.replace(/^\s*>\s?/, ""))
+    .join(" ")
+    .replace(/\s+/g, " ");
+}
+
+const architectureFlat = flattenMarkdown(architectureDoc);
+
+/** The band a group actually lands in, formatted the way the prose writes it. */
+function bandOf(candidates: readonly Candidate[]): { score: string; severity: string } {
+  const first = candidates[0];
+  expect(first, "band probe needs at least one member").toBeDefined();
+  const result = inspect(`https://${first!.domain}`);
+  return { score: result.score!.toFixed(2), severity: result.severity! };
+}
+
+const escalatedBand = bandOf(surface.escalated);
+const homoglyphOnlyBand = bandOf(surface.homoglyphOnly);
+
+describe("the prose is coupled to the derived surface (LINK-sdtpvqsy)", () => {
+  it("architecture.md §6.1.1 states the live enumerated surface", () => {
+    const reachable = new Set(surface.escalated.map((c) => c.label)).size;
+    const watchlist = new Set(BRAND_DOMAINS).size;
+    expect(architectureFlat).toContain(
+      `today it is **${reachable} of ${watchlist}** brand labels, yielding ` +
+        `**exactly ${surface.escalated.length} labels**`,
+    );
+  });
+
+  it("architecture.md §6.1.3's external-list argument rests on the live surface size", () => {
+    // The load-bearing half: the comparison against the 30,906-string surface a
+    // CrUX import would produce. Asserted together so a correction to one
+    // number cannot leave the other stranded.
+    expect(architectureFlat).toContain(
+      `its surface is ${surface.escalated.length} strings and therefore ` +
+        "exhaustively probable. At 30,906 that argument does not exist.",
+    );
+  });
+
+  it("architecture.md §6.1.1 states the live band pair for leading-digit folds", () => {
+    expect(architectureFlat).toContain(
+      `at \`${homoglyphOnlyBand.score}\`/\`${homoglyphOnlyBand.severity}\` rather than ` +
+        `\`${escalatedBand.score}\`/\`${escalatedBand.severity}\``,
+    );
+  });
+
+  it("no source comment describing this surface states a band it does not score", () => {
+    // `brand-homoglyph.ts` and `brands.ts` both narrate this surface's bands in
+    // prose, and both went stale when the weights moved. Any `<score>/<band>`
+    // pair they state — or this file states — must be one the live pipeline
+    // produces: the two surface bands, or the low band a digit-bearing label
+    // that folds to gibberish gets.
+    const gibberish = inspect("https://pete1.github.io/");
+    const live = new Set([
+      `${escalatedBand.score}/${escalatedBand.severity}`,
+      `${homoglyphOnlyBand.score}/${homoglyphOnlyBand.severity}`,
+      `${gibberish.score!.toFixed(2)}/${gibberish.severity!}`,
+    ]);
+
+    const sources = [
+      join(REPO_ROOT, "packages", "core", "src", "detectors", "brand-homoglyph.ts"),
+      join(REPO_ROOT, "packages", "core", "src", "data", "brands.ts"),
+      SELF_PATH,
+    ];
+    const stale = sources.flatMap((path) => {
+      const text = readFileSync(path, "utf8");
+      return [...text.matchAll(/\b\d\.\d{2}\/(?:low|medium|high|critical)\b/g)]
+        .map((m) => m[0])
+        .filter((pair) => !live.has(pair))
+        .map((pair) => `${path.slice(REPO_ROOT.length + 1)}: ${pair}`);
+    });
+    expect(stale).toEqual([]);
   });
 });

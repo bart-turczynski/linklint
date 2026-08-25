@@ -52,7 +52,7 @@ import {
  *
  * The two tiers are DEDUPED by construction — tier 1 returns immediately, so
  * `paypa1.com` (which matches at both tiers) still emits exactly one
- * `brand_homoglyph` reason and is unchanged at 0.60/high.
+ * `brand_homoglyph` reason and is unchanged at 0.84/critical.
  *
  * NOT in scope here: hyphen tokenization of `ascii_homoglyph`'s list-free 0.20
  * floor. That variant has no corpus evidence and belongs to `LINK-aqdajqfi`.

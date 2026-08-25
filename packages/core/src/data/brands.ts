@@ -26,7 +26,7 @@
  *    pre-images under the ASCII digit fold (`0`->o, `1`->l, `5`->s). A label with
  *    no `o`, `l`, or `s` has NO pre-images and buys nothing in the structural
  *    tier: `huggingface` is the clearest case, and `openai` reaches only the
- *    laxer 0.50/medium band via `0penai.com`. A brand with no pre-images buys
+ *    laxer 0.80/high band via `0penai.com`. A brand with no pre-images buys
  *    nothing at all and should be declined: since LINK-cphogucn deleted the
  *    edit-distance / soundsquat / bitsquat steps, fold-reachability is the ONLY
  *    structural route onto the list. Do not assume a famous name carries weight.
