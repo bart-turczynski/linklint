@@ -1,4 +1,5 @@
 import type { InspectOptions, InspectResult } from "./schema/types.js";
+import { describeParseFailure } from "./parse/failure.js";
 import { parsePrepared } from "./parse/parse.js";
 import { prepare } from "./parse/prepare.js";
 import { tokenizeRawUrl } from "./parse/raw-tokens.js";
@@ -109,10 +110,22 @@ export function inspect(input: string, rawOptions: InspectOptions = {}): Inspect
     // the entire lexical layer (structural scans included) was not fully applied,
     // so per-scan `lexical:<id>` skips are deliberately not threaded here — doing
     // so would change the cucumber-pinned invalid CSV value. (LINK-hastsuzd)
+    //
+    // The scheme-naming detail is deliberately NOT passed here either: this
+    // branch is an unexpected internal failure, and "the authority region is not
+    // a host" would name a cause nothing established. Naming the wrong failure
+    // is worse than the generic fallback (LINK-iuzphbnp).
     return buildInvalidResult(input, structural, undefined, optionSkipped);
   }
   // Unparseable input: still explain itself if the authority was ambiguous.
-  if (ctx === null) return buildInvalidResult(input, structural, undefined, optionSkipped);
+  // When no detector explains it, `parse_error` is the fallback — and per §1.1's
+  // fourth rule it must name what failed rather than stand in for the whole
+  // verdict, so the scheme token the tokenizer did recover is passed through
+  // the serializer's existing `parseErrorDetail` channel (LINK-iuzphbnp).
+  // Schemeless input yields `undefined` here and keeps the generic string.
+  if (ctx === null) {
+    return buildInvalidResult(input, structural, describeParseFailure(rawTokens), optionSkipped);
+  }
 
   const findings: CollectedFinding[] = [...structural];
   // Seed with the intake skips, then any structural-scan skips, so both reach
