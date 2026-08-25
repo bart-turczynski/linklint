@@ -43,7 +43,7 @@ import { dataExfiltration } from "./data-exfiltration.js";
 import { ssrfCloudMetadata } from "./ssrf-cloud-metadata.js";
 
 /**
- * THE single descriptor source for all 35 checks. `STRUCTURAL_SCANS`
+ * THE single descriptor source for all 38 checks. `STRUCTURAL_SCANS`
  * (structural.ts) and `DETECTORS` (registry.ts) are both DERIVED from this
  * array — add a check here once and both runtime arrays pick it up.
  *
