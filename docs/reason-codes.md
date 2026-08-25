@@ -469,9 +469,12 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   (`#/checkout?next=…`, taken after the first `?`). The two surfaces are scanned
   **independently**, so the OAuth exemption below is decided from parameters on
   the *same* surface: a `client_id` in the query does not silence a `redirect_uri`
-  in the fragment. Measured cost: **zero verdict change** across the 1 443 corpus
-  verdicts (every labeled, agent, vector, embarrassment and known-accepted row,
-  under its own options and with `agentMode` forced both ways).
+  in the fragment. Measured when the change landed: **zero verdict change** across
+  the corpus as it then stood — 1 443 verdicts, being every labeled, agent,
+  vector, embarrassment and known-accepted row, under its own options and with
+  `agentMode` forced both ways. That figure records one run over one snapshot; the
+  corpus has grown since, so re-running it would be a fresh measurement over a
+  larger denominator rather than a re-check of this number.
 - **Roadmap relocation (Phase 2 → Layer 1):** the PRD parks open-redirect under
   **Phase 2 (resolution)** because *confirming* an open redirect requires
   following it over the network. But the cross-host PAYLOAD inside the parameter
@@ -518,8 +521,8 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   `SCHEMA_VERSION` bump. A wrapped `javascript:` payload therefore lands one band
   below the same bytes standing alone (`medium` vs `critical`), which is still
   strictly better than the `info` it read before. Re-grading it is a weights
-  question for `scoring/weights.ts`, not a detector question. Measured cost: zero
-  verdict change across the 1 443 corpus verdicts.
+  question for `scoring/weights.ts`, not a detector question. Measured cost on the
+  same `LINK-txgqerim` snapshot as above: zero verdict change.
 - **A third surface: the Android intent fallback extra (`LINK-mdqykmiz`):**
   `intent://legit-bank.co.uk/x#Intent;scheme=https;S.browser_fallback_url=javascript%3Aalert(1);end`
   read `0.00`/`info` with zero reasons while the identical `javascript:` bytes read
@@ -544,13 +547,18 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   location at all but executable content is the case where the declaration fails,
   and that is §1.1's first form. The wider variant (`;` split plus the name in the
   redirect-parameter list, so divergence fires too) was implemented and measured
-  before being discarded: **zero** verdict change across all 1 506 corpus verdicts
-  — the corpus carries no `intent://` row, so it cannot discriminate here — while
-  firing `0.40` on the canonical Play Store handoff link. Avoiding that class by
-  construction is preferred to an allowlist of "real" fallback hosts, which §1.1
-  rules out. Same reason code, same weight, no `SCHEMA_VERSION` bump; the `detail`
-  reads `intent fallback parameter 's.browser_fallback_url' …`. Measured cost: zero
-  verdict change across the 1 506 corpus verdicts.
+  before being discarded: **zero** verdict change across the corpus as it then
+  stood — 1 506 verdicts — while firing `0.40` on the canonical Play Store handoff
+  link. That run could not discriminate on this surface, and the reason was that
+  the snapshot carried no `intent://` row at all. `LINK-uotkpxwp` has since added
+  five, so the zero is a record of that run rather than a description of today's
+  corpus: re-implementing the discarded variant now turns the two benign
+  app-handoff rows red along with the SC-2 zero-false-positive and precision
+  assertions, which is the narrowing measured instead of reasoned. Avoiding that
+  class by construction is preferred to an allowlist of "real" fallback hosts,
+  which §1.1 rules out. Same reason code, same weight, no `SCHEMA_VERSION` bump;
+  the `detail` reads `intent fallback parameter 's.browser_fallback_url' …`.
+  Measured cost on that same snapshot: zero verdict change.
 - **Authority, not registrable domain (`LINK-cvcjgewz`):** the comparison is over
   the **authority identity** of the two hosts — the registrable domain when the
   host has one, otherwise the **canonical address** of an IP literal, otherwise
