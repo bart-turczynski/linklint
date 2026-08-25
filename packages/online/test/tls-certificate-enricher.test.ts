@@ -55,7 +55,7 @@ function observeStep(observation = handshake("valid")) {
 }
 
 async function run(inspector: SafeTlsInspector, result: InspectResult): Promise<EnrichmentReport> {
-  const enricher = createTlsCertificateEnricher({ inspector, now: () => NOW });
+  const enricher = createTlsCertificateEnricher({ terms: { commercialMode: "commercial" }, inspector, now: () => NOW });
   return (await enricher.enrich(result, { previousOutcomes: [] })) as EnrichmentReport;
 }
 

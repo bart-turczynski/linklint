@@ -27,7 +27,11 @@ import {
   type InspectResult,
 } from "linklint";
 
-import { freshnessFor } from "../sources/index.js";
+import {
+  assertSourceTermsAccepted,
+  freshnessFor,
+  type SourceTermsAcceptance,
+} from "../sources/index.js";
 import { fetchRdapDomain, RDAP_SOURCE_ID, RDAP_SOURCE_VERSION } from "./rdap-client.js";
 import { RDAP_SOURCE_DESCRIPTOR } from "./rdap-descriptor.js";
 import type {
@@ -59,6 +63,13 @@ export const RDAP_BRAND_CORROBORATION_CODES: readonly string[] = [
 const MS_PER_DAY = 86_400_000;
 
 export interface RdapAgeEnricherOptions {
+  /**
+   * The caller's acceptance of this source's licensing terms. REQUIRED: the
+   * source is constructed only under terms it can honor, so there is no default
+   * to fall back to. `assertSourceTermsAccepted` checks them against
+   * `RDAP_SOURCE_DESCRIPTOR.terms` before the enricher exists.
+   */
+  readonly terms: SourceTermsAcceptance;
   /** Provider-scoped RDAP HTTP client (deterministic fixture in tests). */
   readonly client: RdapHttpClient;
   /**
@@ -99,6 +110,13 @@ export interface RdapAgeEnricherOptions {
  * single scored finding.
  */
 export function createRdapAgeEnricher(options: RdapAgeEnricherOptions): Enricher {
+  // Terms first: nothing else in this factory runs under terms RDAP cannot
+  // honor. RDAP supports every commercial mode and requires no attribution,
+  // so no legal `terms` value refuses here today — the argument is required
+  // so the "never constructed under terms it cannot honor" claim is true of
+  // every call, and stays true if the descriptor ever tightens.
+  assertSourceTermsAccepted(RDAP_SOURCE_DESCRIPTOR, options.terms);
+
   const now = options.now ?? (() => new Date());
   const thresholdDays = boundedThreshold(options.youngThresholdDays);
   const corroborating = new Set(options.corroboratingCodes ?? RDAP_BRAND_CORROBORATION_CODES);

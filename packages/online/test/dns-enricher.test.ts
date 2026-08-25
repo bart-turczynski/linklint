@@ -111,7 +111,7 @@ async function run(
   result: InspectResult,
   ctx: { signal?: AbortSignal } = {},
 ): Promise<EnrichmentReport> {
-  const enricher = createDnsStateEnricher({ resolver, now: () => NOW });
+  const enricher = createDnsStateEnricher({ terms: { commercialMode: "commercial" }, resolver, now: () => NOW });
   return (await enricher.enrich(result, { previousOutcomes: [], ...ctx })) as EnrichmentReport;
 }
 

@@ -27,7 +27,11 @@ import {
   type InspectResult,
 } from "linklint";
 
-import { freshnessFor } from "../sources/index.js";
+import {
+  assertSourceTermsAccepted,
+  freshnessFor,
+  type SourceTermsAcceptance,
+} from "../sources/index.js";
 import { canonicalizeUrl } from "./urlhaus-index.js";
 import {
   URLHAUS_SOURCE_DESCRIPTOR,
@@ -37,6 +41,13 @@ import {
 import type { UrlhausIndex, UrlhausRecord } from "./types.js";
 
 export interface UrlhausEnricherOptions {
+  /**
+   * The caller's acceptance of this source's licensing terms. REQUIRED: the
+   * source is constructed only under terms it can honor, so there is no default
+   * to fall back to. `assertSourceTermsAccepted` checks them against
+   * `URLHAUS_SOURCE_DESCRIPTOR.terms` before the enricher exists.
+   */
+  readonly terms: SourceTermsAcceptance;
   /**
    * Resolves the current caller-owned snapshot index, or `null` when no snapshot
    * is loaded yet. Called once per check so a caller can swap in a freshly-updated
@@ -55,6 +66,14 @@ export interface UrlhausEnricherOptions {
  * snapshot.
  */
 export function createUrlhausEnricher(options: UrlhausEnricherOptions): Enricher {
+  // Terms first, and here the gate genuinely refuses: abuse.ch grants free
+  // non-commercial / fair use WITH attribution, so `commercialMode:
+  // "commercial"` and a declined attribution both throw before an enricher
+  // exists. No feed credential is asked for — the Auth-Key is revealed only
+  // by the M4a updater, and querying a snapshot the caller already owns must
+  // not demand the key that downloaded it.
+  assertSourceTermsAccepted(URLHAUS_SOURCE_DESCRIPTOR, options.terms);
+
   const now = options.now ?? (() => new Date());
 
   return {

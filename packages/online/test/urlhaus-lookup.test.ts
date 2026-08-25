@@ -63,6 +63,7 @@ async function run(
   index: UrlhausIndex | null,
 ): Promise<EnrichmentReport> {
   const enricher = createUrlhausEnricher({
+    terms: { commercialMode: "fair-use", acceptAttribution: true },
     resolveIndex: () => index,
     now: () => new Date(NOW),
   });
@@ -213,7 +214,7 @@ describe("createUrlhausEnricher", () => {
 describe("createUrlhausEnricher — inspectAsync integration", () => {
   it("projects malware_url_listed into the result reasons with no network at check time", async () => {
     const index = indexOf([record(HIT_URL)]);
-    const enricher = createUrlhausEnricher({ resolveIndex: () => index, now: () => new Date(NOW) });
+    const enricher = createUrlhausEnricher({ terms: { commercialMode: "fair-use", acceptAttribution: true }, resolveIndex: () => index, now: () => new Date(NOW) });
     const result = await inspectAsync(HIT_URL, { enrichers: [enricher] });
 
     const codes = result.reasons.map((r) => r.code);
@@ -223,7 +224,7 @@ describe("createUrlhausEnricher — inspectAsync integration", () => {
 
   it("records a clean-URL miss as a completed no-hit, not a finding", async () => {
     const index = indexOf([record(HIT_URL)]);
-    const enricher = createUrlhausEnricher({ resolveIndex: () => index, now: () => new Date(NOW) });
+    const enricher = createUrlhausEnricher({ terms: { commercialMode: "fair-use", acceptAttribution: true }, resolveIndex: () => index, now: () => new Date(NOW) });
     const result = await inspectAsync("http://malware.example/not-listed.exe", {
       enrichers: [enricher],
     });

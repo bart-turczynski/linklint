@@ -10,6 +10,7 @@ export { createOnlineSecret, isOnlineSecret, REDACTED_SECRET } from "./secret.js
 export type { OnlineSecret } from "./secret.js";
 
 export {
+  assertSourceTermsAccepted,
   assertValidSourceDescriptor,
   freshnessFor,
   OnlineSourceConfigError,
@@ -21,6 +22,7 @@ export type {
   OnlineSourceConfigErrorCode,
   OnlineSourcePreflight,
   OnlineSourceSkipCode,
+  SourceTermsAcceptance,
 } from "./contract.js";
 
 export type {

@@ -314,6 +314,7 @@ function buildComposition(spec: CompositionSpec): Composition {
             : rdapResp(404),
         );
   const rdap = createRdapAgeEnricher({
+    terms: { commercialMode: "commercial" },
     client: rdapClient,
     registry: RDAP_REGISTRY,
     now,
@@ -326,7 +327,7 @@ function buildComposition(spec: CompositionSpec): Composition {
   if (urlhausSpec !== "omit") {
     const snapshot = urlhausSpec === "empty" ? emptyUrlhausSnapshot() : urlhausSnapshotFor(urlhausSpec.url);
     const index = createUrlhausIndex(snapshot);
-    enrichers.push(createUrlhausEnricher({ resolveIndex: () => index, now }));
+    enrichers.push(createUrlhausEnricher({ terms: { commercialMode: "fair-use", acceptAttribution: true }, resolveIndex: () => index, now }));
   }
 
   const phishtankSpec = spec.phishtank ?? "omit";
@@ -334,19 +335,19 @@ function buildComposition(spec: CompositionSpec): Composition {
     const snapshot =
       phishtankSpec === "empty" ? emptyPhishtankSnapshot() : phishtankSnapshotFor(phishtankSpec.url);
     const index = createPhishTankIndex(snapshot);
-    enrichers.push(createPhishTankEnricher({ resolveIndex: () => index, now }));
+    enrichers.push(createPhishTankEnricher({ terms: { commercialMode: "fair-use", acceptAttribution: true }, resolveIndex: () => index, now }));
   }
 
   let tls: TlsFixture | null = null;
   if (spec.tls === true) {
     tls = tlsFixtureFor(host);
-    enrichers.push(createTlsCertificateEnricher({ inspector: tls.inspector, now }));
+    enrichers.push(createTlsCertificateEnricher({ terms: { commercialMode: "commercial" }, inspector: tls.inspector, now }));
   }
 
   let dnsResolver: RecordingDnsResolver | null = null;
   if (spec.dns === true) {
     dnsResolver = new RecordingDnsResolver();
-    enrichers.push(createDnsStateEnricher({ resolver: dnsResolver, now }));
+    enrichers.push(createDnsStateEnricher({ terms: { commercialMode: "commercial" }, resolver: dnsResolver, now }));
   }
 
   return { enrichers, rdapClient, tls, dnsResolver };

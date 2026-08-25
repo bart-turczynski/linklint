@@ -29,7 +29,11 @@ import {
   type InspectResult,
 } from "linklint";
 
-import { freshnessFor } from "../sources/index.js";
+import {
+  assertSourceTermsAccepted,
+  freshnessFor,
+  type SourceTermsAcceptance,
+} from "../sources/index.js";
 import type {
   NormalizedTlsObservation,
   SafeTlsInspector,
@@ -43,6 +47,13 @@ import {
 } from "./tls-descriptor.js";
 
 export interface TlsCertificateEnricherOptions {
+  /**
+   * The caller's acceptance of this source's licensing terms. REQUIRED: the
+   * source is constructed only under terms it can honor, so there is no default
+   * to fall back to. `assertSourceTermsAccepted` checks them against
+   * `TLS_SOURCE_DESCRIPTOR.terms` before the enricher exists.
+   */
+  readonly terms: SourceTermsAcceptance;
   /** The M7a observational TLS inspector (deterministic fixture in tests). */
   readonly inspector: SafeTlsInspector;
   /** Observation clock; defaults to `Date`. */
@@ -54,6 +65,11 @@ export interface TlsCertificateEnricherOptions {
  * certificate and emits `tls.certificate` evidence; it never scores a finding.
  */
 export function createTlsCertificateEnricher(options: TlsCertificateEnricherOptions): Enricher {
+  // Terms first. The live TLS source supports every commercial mode and
+  // requires no attribution, so no legal `terms` value refuses here today;
+  // the argument is required so the doc claim holds for every construction.
+  assertSourceTermsAccepted(TLS_SOURCE_DESCRIPTOR, options.terms);
+
   const now = options.now ?? (() => new Date());
 
   return {

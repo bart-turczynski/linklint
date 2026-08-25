@@ -312,6 +312,7 @@ export function buildReputationEnrichers(row: ReputationCorpusRow): Enricher[] {
         )
       : INERT_RDAP_CLIENT;
   const rdap = createRdapAgeEnricher({
+    terms: { commercialMode: "commercial" },
     client: rdapClient,
     registry: RDAP_REGISTRY,
     now,
@@ -320,18 +321,18 @@ export function buildReputationEnrichers(row: ReputationCorpusRow): Enricher[] {
 
   const urlhausSnap = row.source === "urlhaus" ? urlhausSnapshot(row) : null;
   const urlhausIndex = urlhausSnap === null ? null : createUrlhausIndex(urlhausSnap);
-  const urlhaus = createUrlhausEnricher({ resolveIndex: () => urlhausIndex, now });
+  const urlhaus = createUrlhausEnricher({ terms: { commercialMode: "fair-use", acceptAttribution: true }, resolveIndex: () => urlhausIndex, now });
 
   const phishSnap = row.source === "phishtank" ? phishtankSnapshot(row) : null;
   const phishIndex = phishSnap === null ? null : createPhishTankIndex(phishSnap);
-  const phishtank = createPhishTankEnricher({ resolveIndex: () => phishIndex, now });
+  const phishtank = createPhishTankEnricher({ terms: { commercialMode: "fair-use", acceptAttribution: true }, resolveIndex: () => phishIndex, now });
 
   const inspector =
     row.source === "tls" && row.cert !== undefined ? tlsInspectorFor(row) : INERT_TLS_INSPECTOR;
-  const tls = createTlsCertificateEnricher({ inspector, now });
+  const tls = createTlsCertificateEnricher({ terms: { commercialMode: "commercial" }, inspector, now });
 
   const resolver = row.source === "dns" ? dnsResolverFor(row) : inertDnsResolver();
-  const dns = createDnsStateEnricher({ resolver, now });
+  const dns = createDnsStateEnricher({ terms: { commercialMode: "commercial" }, resolver, now });
 
   return [rdap, urlhaus, phishtank, tls, dns];
 }

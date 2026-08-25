@@ -63,9 +63,66 @@ The contract distinguishes two failure kinds, and enforces them differently:
   `disclosure-consent-required`). It never falls back to an anonymous call and
   never fabricates a safety claim.
 
-`preflightOnlineSource(descriptor, config)` runs both seams and returns either
-`{ ok: true, credential, disclosure }` — the credential to reveal at the provider
-boundary and the cleared disclosure channels — or `{ ok: false, cause }`.
+`assertSourceTermsAccepted(descriptor, terms)` IS the construction gate: it
+validates the descriptor and throws on a mode outside `terms.supportedModes` or a
+missing acknowledgement when `terms.attributionRequired`. It takes no credential
+and no consent, so it is safe to run while a source is being built — which is the
+only place it runs.
+
+`preflightOnlineSource(descriptor, config)` runs both seams — it calls
+`assertSourceTermsAccepted` first, so there is one definition of the terms rule —
+and returns either `{ ok: true, credential, disclosure }` (the credential to
+reveal at the provider boundary and the cleared disclosure channels) or
+`{ ok: false, cause }`.
+
+### Where the construction gate runs
+
+Every shipped reputation factory takes a **required** `terms` argument and calls
+`assertSourceTermsAccepted` with its own descriptor before returning an enricher:
+`createRdapAgeEnricher`, `createTlsCertificateEnricher`, `createDnsStateEnricher`,
+`createUrlhausEnricher`, `createPhishTankEnricher`.
+
+```ts
+import { createUrlhausEnricher } from "@linklint/online/mirrors";
+
+// Throws OnlineSourceConfigError('unsupported-commercial-mode'): abuse.ch grants
+// free non-commercial / fair use, and commercial use needs a separate plan.
+createUrlhausEnricher({
+  terms: { commercialMode: "commercial", acceptAttribution: true },
+  resolveIndex: () => snapshotIndex,
+});
+```
+
+Only **URLhaus and PhishTank can actually refuse today**. RDAP, live TLS and DNS
+declare all three commercial modes and require no attribution, so no legal
+`terms` value makes their gate throw. That asymmetry is a property of those
+**descriptors**, not of the gate, and it is why `terms` is required everywhere
+rather than only on the two mirrors:
+
+- an optional field would leave the unconditional claim above false for every
+  call that omitted it;
+- synthesizing a default posture for the omitted case would *be* the "silently
+  downgraded to a weaker default" the same paragraph forbids — only the caller
+  knows their commercial posture;
+- a uniform required argument keeps the claim true if a descriptor later
+  tightens. Narrowing RDAP's `supportedModes` would start refusing callers at
+  construction with no factory change and no new argument to add.
+
+The gate is **terms-only**. It never asks for a feed credential: the URLhaus
+Auth-Key and the PhishTank app key are revealed only by the M4a/M5a *updaters*,
+and querying a caller-owned local snapshot must not demand the key that
+downloaded it. Credentials and disclosure stay on the runtime seam.
+
+The three **resolution** enrichers (`createRedirectChainEnricher`,
+`createDivergenceProbeEnricher`, `createEmbeddedWrapperEnricher`) deliberately
+take no `terms`. M2 `terms` is feed licensing — `supportedModes`,
+`attributionRequired`, `redistribution`, `caching` — and none of them consumes a
+third-party feed; they fetch the inspected subject itself, or (for the wrapper
+decoder) do no I/O at all. Authorization to contact a destination is a different
+and explicitly runtime seam: the redirect chain and divergence probe already
+enforce a stricter control, a mandatory per-hop `authorize` callback whose result
+L0 re-checks for an exact URL match. Making construction a gate for them would
+contradict the pinned guarantee that construction is never consent to connect.
 
 ## BYOK secrets
 

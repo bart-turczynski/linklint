@@ -188,6 +188,17 @@ source adapter publishes machine-readable metadata for:
 
 Adapter construction or execution refuses a missing/incompatible required mode;
 terms are an executable configuration gate, not a documentation-only warning.
+Concretely: every shipped reputation factory takes a **required** `terms`
+argument and runs it through `assertSourceTermsAccepted` against its own
+descriptor before any enricher exists, so an unsupported commercial mode or a
+declined attribution throws rather than being noted in prose. Today only the two
+caller-owned mirrors can refuse — RDAP, TLS and DNS grant all three modes and
+require no attribution — which is a fact about those descriptors, not an
+exemption from the gate. The gate is terms-only: feed credentials are revealed by
+the updaters, never demanded to construct a query-side enricher. See
+[`online-source-contract.md`](online-source-contract.md) § "Where the
+construction gate runs".
+
 The repository ships integration code, not credentials or provider datasets.
 Caller-owned mirrors stay caller-owned and are never silently redistributed.
 Adapters whose terms cannot support the selected mode remain parked rather than

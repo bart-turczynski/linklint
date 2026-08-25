@@ -85,7 +85,7 @@ function hostResult(host = "example.com"): InspectResult {
 }
 
 async function run(resolver: DnsResolverPort): Promise<EnrichmentReport> {
-  const enricher = createDnsStateEnricher({ resolver, now: () => NOW });
+  const enricher = createDnsStateEnricher({ terms: { commercialMode: "commercial" }, resolver, now: () => NOW });
   return (await enricher.enrich(hostResult(), { previousOutcomes: [] })) as EnrichmentReport;
 }
 
