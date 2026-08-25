@@ -11,19 +11,19 @@ import { inspect } from "../src/index.js";
 // whole point — it states the relationship between the two surfaces rather than a
 // list of codes, so it survives unrelated detectors coming and going.
 //
-// State pinned by this revision: the detector passes `ctx.query` and nothing else,
-// so a payload in the fragment is silent — the fragment's code set is the query's
-// MINUS `open_redirect_param`. The fragment IS carried through `parse/context.ts`
-// and IS read by `encoding-obfuscation`, `low-byte-truncation` and
-// `percent-encoding-malformed`, so this is an input-surface omission and not a
-// parsing limit.
+// State pinned by this revision (LINK-txgqerim): the detector reads BOTH `ctx.query`
+// and `ctx.fragment`, so the two surfaces produce the SAME code set — same reason
+// code, same weight, wider input surface. The previous revision of this file pinned
+// the opposite (fragment silent) and its four fragment rows were watched to redden
+// on this change.
 
 const codes = (input: string): string[] =>
   inspect(input)
     .reasons.map((r) => r.code)
     .sort();
 
-const without = (list: string[], code: string): string[] => list.filter((c) => c !== code);
+const detailOf = (input: string): string =>
+  inspect(input).reasons.find((r) => r.code === "open_redirect_param")?.detail ?? "";
 
 /** Payloads that fire in the query today, paired with their fragment spelling. */
 const PAIRS: ReadonlyArray<{
@@ -62,21 +62,82 @@ describe("LINK-txgqerim — the query surface fires (unchanged baseline)", () =>
   }
 });
 
-describe("LINK-txgqerim — the fragment surface is CURRENTLY SILENT (pinned, to be changed)", () => {
+describe("LINK-txgqerim — the fragment surface fires identically to the query", () => {
   for (const { what, query, frag } of PAIRS) {
-    it(`fragment: ${what} does NOT fire — code set is the query's minus open_redirect_param`, () => {
-      expect(codes(frag)).toEqual(without(codes(query), "open_redirect_param"));
+    it(`fragment: ${what} produces the SAME code set as its query twin`, () => {
+      expect(codes(frag)).toEqual(codes(query));
+      expect(codes(frag)).toContain("open_redirect_param");
+    });
+
+    it(`fragment: ${what} scores the same as its query twin`, () => {
+      expect(inspect(frag).score).toBe(inspect(query).score);
+      expect(inspect(frag).severity).toBe(inspect(query).severity);
     });
   }
 
-  it("the fragment reaches the detector context even though nothing reads it here", () => {
+  it("same reason code and same weight — no new code, no SCHEMA_VERSION bump", () => {
     const r = inspect("https://example.com/login#next=https://evil.com/phish");
-    expect(r.parsed?.fragment).toBe("next=https://evil.com/phish");
+    const finding = r.reasons.find((x) => x.code === "open_redirect_param");
+    expect(finding).toBeDefined();
+    expect(finding!.weight).toBeCloseTo(0.4, 5);
   });
 
-  it("an SPA hash route carrying an off-site URL is silent too", () => {
-    expect(codes("https://example.com/#/route?url=https://cdn.example.org/x")).not.toContain(
+  it("the detail names the surface, so a consumer can tell the two apart", () => {
+    expect(detailOf("https://example.com/login#next=https://evil.com/phish")).toContain(
+      "fragment redirect parameter 'next'",
+    );
+    expect(detailOf("https://example.com/login?next=https://evil.com/phish")).toContain(
+      "redirect parameter 'next'",
+    );
+    expect(detailOf("https://example.com/login?next=https://evil.com/phish")).not.toContain(
+      "fragment",
+    );
+  });
+
+  it("a hash ROUTE with its own query is read after the first '?'", () => {
+    expect(codes("https://example.com/#/checkout?next=https://evil.com/x")).toContain(
       "open_redirect_param",
     );
+  });
+
+  it("the query is preferred when both surfaces carry a payload", () => {
+    expect(
+      detailOf("https://example.com/?next=https://evil.com/a#next=https://other.example.net/b"),
+    ).toContain("evil.com");
+  });
+});
+
+describe("LINK-txgqerim — the fragment surface must not over-flag (SC-2)", () => {
+  const benign = [
+    "https://example.com/#/dashboard", // hash route, no pairs at all
+    "https://example.com/#section-3", // ordinary document fragment
+    "https://example.com/#next=/dashboard", // relative same-host value
+    "https://example.com/#next=https://app.example.com/home", // same registrable domain
+    "https://example.com/#ref=https://evil.com", // not a redirect param name
+    "https://example.com/#url=2", // not URL-like
+    "https://example.com/#next=", // empty value
+    "https://example.com/#/route?q=hello&page=2", // hash route with an ordinary query
+  ];
+  for (const input of benign) {
+    it(`no open_redirect_param for ${JSON.stringify(input)}`, () => {
+      expect(codes(input)).not.toContain("open_redirect_param");
+    });
+  }
+
+  it("a junk fragment does not throw and does not fire", () => {
+    const input = "https://example.com/#next=%%%not-a-url%%%";
+    expect(() => inspect(input)).not.toThrow();
+    expect(codes(input)).not.toContain("open_redirect_param");
+  });
+
+  it("the RFC 6749 exemption applies on the fragment, decided per surface", () => {
+    // Both markers on the same surface: the string declares its own type.
+    expect(
+      codes("https://idp.example.org/authorize#client_id=x&redirect_uri=https://myapp.io/cb"),
+    ).not.toContain("open_redirect_param");
+    // Markers split across surfaces: no declaration on either, so it still fires.
+    expect(
+      codes("https://idp.example.org/authorize?client_id=x#redirect_uri=https://myapp.io/cb"),
+    ).toContain("open_redirect_param");
   });
 });

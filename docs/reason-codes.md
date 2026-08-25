@@ -444,8 +444,8 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 
 ### `open_redirect_param` — Epic I (I2) · weight 0.4
 
-- **Meaning:** a query parameter whose **name** is a known redirect parameter
-  (`next`, `url`, `redirect`, `redirect_uri`, `redirect_url`, `dest`,
+- **Meaning:** a **query or fragment** parameter whose **name** is a known redirect
+  parameter (`next`, `url`, `redirect`, `redirect_uri`, `redirect_url`, `dest`,
   `destination`, `return`, `returnUrl`, `continue`, `u`, `goto`, `target`) carries
   a **value that is itself a URL pointing to a different authority** than the link
   host.
@@ -453,6 +453,23 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   reads as `example.com`, but when the redirect fires the user lands on
   `evil.com`. The cross-host payload is the lexical fingerprint of an
   open-redirect lure.
+- **Both surfaces, one code (`LINK-txgqerim`):** the premise is a property of the
+  payload, not of the delimiter in front of it, so the **fragment** is scanned on
+  the same terms as the query. `…/login#next=https://evil.com/phish` used to score
+  `0.00` while its `?` twin scored `0.40`; that gap was precisely the **DOM-based
+  open redirect**, where client-side code reads `location.hash` into
+  `window.location` — the fragment never reaches the server, which is the whole
+  reason that variant exists. Same reason code, same weight, wider input surface:
+  a distinct code would force a `SCHEMA_VERSION` bump for no semantic gain, and
+  the `detail` string names the surface (`fragment redirect parameter 'next' …`)
+  for a consumer that needs to tell them apart. Both hash-router spellings are
+  read — bare pairs (`#next=…`) and a route with its own query
+  (`#/checkout?next=…`, taken after the first `?`). The two surfaces are scanned
+  **independently**, so the OAuth exemption below is decided from parameters on
+  the *same* surface: a `client_id` in the query does not silence a `redirect_uri`
+  in the fragment. Measured cost: **zero verdict change** across the 1 443 corpus
+  verdicts (every labeled, agent, vector, embarrassment and known-accepted row,
+  under its own options and with `agentMode` forced both ways).
 - **Roadmap relocation (Phase 2 → Layer 1):** the PRD parks open-redirect under
   **Phase 2 (resolution)** because *confirming* an open redirect requires
   following it over the network. But the cross-host PAYLOAD inside the parameter
@@ -514,7 +531,9 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 - **Example:** `https://example.com/login?next=https://evil.com/phish`;
   `https://example.com/?redirect=//evil.com`;
   `https://example.com/login?url=http://169.254.169.254/latest/meta-data/`;
-  `https://example.com/login?redirect_uri=http://169.254.169.254/&client_id=x`.
+  `https://example.com/login?redirect_uri=http://169.254.169.254/&client_id=x`;
+  `https://example.com/login#next=https://evil.com/phish`;
+  `https://example.com/#/checkout?next=https://evil.com/x`.
 - **Scoring:** scoring, weight 0.4.
 
 ### `open_redirect_observed` — Epic L (L3) · resolution layer, weight 0

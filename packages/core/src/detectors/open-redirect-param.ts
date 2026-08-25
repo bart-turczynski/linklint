@@ -6,7 +6,7 @@ import { boundedDecode, DEFAULT_MAX_DECODE_DEPTH } from "../parse/decode.js";
 /**
  * `open_redirect_param`. SCORING, weight 0.4.
  *
- * Flags a query parameter whose NAME is a known redirect parameter and whose
+ * Flags a redirect parameter whose NAME is a known redirect parameter and whose
  * decoded VALUE is itself a URL pointing to a DIFFERENT AUTHORITY than the input
  * host — the lexical fingerprint of an open-redirect lure:
  * `https://example.com/login?next=https://evil.com/phish` reads as `example.com`
@@ -17,6 +17,33 @@ import { boundedDecode, DEFAULT_MAX_DECODE_DEPTH } from "../parse/decode.js";
  *   - **absolute URL** — scheme + host (`https://evil.com/...`);
  *   - **protocol-relative** — `//evil.com/...`, a classic open-redirect payload
  *     that omits the scheme so naive string checks miss it.
+ *
+ * ## Two input surfaces: query AND fragment (`LINK-txgqerim`)
+ *
+ * The premise below — "the string presents one authority and the payload names
+ * another" — is a property of the payload, not of the delimiter in front of it,
+ * and nothing in §1.1, `docs/guarantees.md` or `docs/reason-codes.md` ever drew
+ * a boundary at `?`. The detector originally read `ctx.query` alone, so
+ * `…/login#next=https://evil.com/phish` scored `0.00` while its `?` twin scored
+ * `0.40`. That gap is exactly the DOM-based open redirect: `location.hash` read
+ * into `window.location` by client-side code. The fragment is never sent to the
+ * server, which is the whole reason the variant exists — and it is already
+ * carried through `parse/context.ts` and already read by `encoding-obfuscation`,
+ * `low-byte-truncation` and `percent-encoding-malformed`.
+ *
+ * SAME reason code, SAME weight, WIDER input surface. A distinct code would
+ * force a `SCHEMA_VERSION` bump for no semantic gain: the claim is identical and
+ * a consumer that wants to know which surface carried it can read the detail.
+ *
+ * {@link fragmentQueryLike} is what makes the fragment comparable. A fragment is
+ * not required to be a query string, and hash routers write both spellings:
+ * `#next=…` (bare pairs) and `#/route?next=…` (a route with its own query). The
+ * text after the FIRST `?` is taken when there is one, else the whole fragment;
+ * the two surfaces are then scanned by the same {@link openRedirectParamPayloads}
+ * with no second grammar to keep in step. Each surface is scanned independently,
+ * so the RFC 6749 exemption below is decided from the pairs on the SAME surface
+ * — a `client_id` in the query cannot silence a `redirect_uri` in the fragment,
+ * and the query path is byte-for-byte what it was.
  *
  * ## The divergence gate is over AUTHORITY, not over registrable domain
  *
@@ -184,6 +211,26 @@ function authorityOf(host: string): Authority | null {
   return { site: h, registrableDomain: null };
 }
 
+/**
+ * The query-like slice of a fragment, or null when there is nothing to scan.
+ *
+ * A fragment is opaque by RFC 3986 — it has no defined internal grammar — but the
+ * two spellings client-side routers actually produce are both readable as
+ * `application/x-www-form-urlencoded` pairs once the route prefix is removed:
+ *
+ *   - `#next=https://evil.com/phish`        → `next=https://evil.com/phish`
+ *   - `#/checkout?next=https://evil.com/x`  → `next=https://evil.com/x`
+ *
+ * Splitting on the FIRST `?` is what separates them: everything after it when a
+ * `?` is present, the whole fragment otherwise. A fragment with no `=` in it
+ * yields no pairs downstream and is therefore inert, so no extra guard is needed.
+ */
+function fragmentQueryLike(fragment: string | null): string | null {
+  if (fragment === null || fragment === "") return null;
+  const q = fragment.indexOf("?");
+  return q === -1 ? fragment : fragment.slice(q + 1);
+}
+
 /** One decoded `key=value` pair from the raw query, key lower-cased. */
 interface QueryPair {
   readonly key: string;
@@ -340,23 +387,34 @@ export const openRedirectParam: Detector = {
     const inputAuthority = authorityOf(ctx.host);
     if (inputAuthority === null) return [];
 
-    const [payload] = openRedirectParamPayloads(
-      ctx.query,
-      inputAuthority.site,
-      ctx.runtime.maxDecodeDepth,
-    );
-    if (payload === undefined) return [];
+    // Query first, then fragment: the query is the commoner spelling, and the
+    // first payload found is the one reported (the code is emitted at most once).
+    const surfaces: ReadonlyArray<readonly [string, string | null]> = [
+      ["redirect parameter", ctx.query],
+      ["fragment redirect parameter", fragmentQueryLike(ctx.fragment)],
+    ];
 
-    const linkHost = ctx.registrableDomain ?? inputAuthority.site;
-    const detail =
-      payload.registrableDomain !== null
-        ? `redirect parameter '${payload.param}' points off-site: its value resolves to ` +
-          `'${payload.registrableDomain}', a different registrable domain than the link host ` +
-          `'${linkHost}'`
-        : `redirect parameter '${payload.param}' points off-site: its value resolves to the ` +
-          `host '${payload.targetSite}', which has no registrable domain and is a different ` +
-          `authority than the link host '${linkHost}'`;
+    for (const [label, text] of surfaces) {
+      const [payload] = openRedirectParamPayloads(
+        text,
+        inputAuthority.site,
+        ctx.runtime.maxDecodeDepth,
+      );
+      if (payload === undefined) continue;
 
-    return [{ code: "open_redirect_param", detail }];
+      const linkHost = ctx.registrableDomain ?? inputAuthority.site;
+      const detail =
+        payload.registrableDomain !== null
+          ? `${label} '${payload.param}' points off-site: its value resolves to ` +
+            `'${payload.registrableDomain}', a different registrable domain than the link host ` +
+            `'${linkHost}'`
+          : `${label} '${payload.param}' points off-site: its value resolves to the ` +
+            `host '${payload.targetSite}', which has no registrable domain and is a different ` +
+            `authority than the link host '${linkHost}'`;
+
+      return [{ code: "open_redirect_param", detail }];
+    }
+
+    return [];
   },
 };
