@@ -1,10 +1,22 @@
 # LINK-qvsrmrzv — S3: IP ranges generated from the IANA special-purpose registries
 
+> **Historical worklog.** Written against `431f317` (2026-07-25), the commit
+> that shipped `LINK-qvsrmrzv`. The generator, the bucket mapping and the
+> four judgment calls below are still the shipped design — `IP_RANGES_VERSION`
+> is still `"iana-special-purpose-2026-07-25"` and the generated table still
+> carries 26 IPv4 + 25 IPv6 rows, both re-checked 2026-08-25. What has NOT held
+> up are the measured byte counts; see the correction under *Artifact size*.
+> Current behavior is described by `packages/core/src/data/ip-ranges.ts`,
+> `tools/build-ip-ranges.mjs` and `docs/reason-codes.md`.
+
 ## What landed
 
 - **`tools/data/iana-ipv{4,6}-special-registry-1.csv`** — the two pinned
-  registry snapshots, committed (2,423 + 2,289 = 4,712 bytes) so the build is
-  offline and byte-reproducible.
+  registry snapshots, committed so the build is offline and byte-reproducible.
+  *(This line originally read "2,423 + 2,289 = 4,712 bytes". Those figures were
+  wrong when written, not merely stale: `git cat-file -s 431f317:<path>` returns
+  **2,397 and 2,263** — 4,660 bytes — at the very commit that added them, and
+  the blobs have not changed since.)*
 - **`tools/build-ip-ranges.mjs`** — generator mirroring `build-confusables.mjs`
   (pinned source URL, `--check` drift mode, generated artifact committed, header
   carrying source URLs + license + row counts + a `sha256` per input, exported
@@ -64,8 +76,15 @@ Four judgment calls sit on top of that mechanical mapping:
    `203.0.113.0/24`, `2001:db8::/32`, and — a free addition from the registry —
    `3fff::/20`, RFC 9637's newer documentation block). A documentation address
    is inert: not an SSRF target, and naming one is not deception.
-   `corpus.ts:449` pins `https://[2001:db8::1]/` at score exactly 0 and
-   `precision-recall.test.ts` asserts `falsePositives === 0`.
+   `packages/core/test/corpus/corpus.ts` pins `https://[2001:db8::1]/` — the row
+   noted `J5: canonical IPv6`, `label: "benign"`,
+   `forbidReasons: ["ip_obfuscation"]` — and `precision-recall.test.ts` asserts
+   `falsePositives === 0`. It still scores exactly 0 with no reasons
+   (re-probed 2026-08-25). *(Originally cited as `corpus.ts:449`. That line
+   number rotted into the OPPOSITE label: line 449 today is
+   `https://[2001:0db8::1]/`, the zero-padded spelling, which is
+   `label: "deceptive"` with `expectReasons: ["ip_obfuscation"]`. Match on the
+   URL, not the line.)*
 
 3. **Transition wrapper prefixes → no bucket.** *(This one is a design fork; it
    is NOT what a literal reading of the registry would produce — see below.)*
@@ -122,7 +141,10 @@ reached by an `a >= 224` catch-all that conflated multicast with future-use.
 ## Artifact size (bundle budget)
 
 Budget (`docs/bundle-size-budget.md`): 250 KiB unpacked / 25 KiB gzip / 5% of
-the package. Measured after `pnpm build`:
+the package. Measured after `pnpm build` **at `431f317`** — every number in this
+table and the paragraph under it is a 2026-07-25 reading of a tree that has
+moved since. `docs/bundle-size-budget.md` and the size gate are the live
+authority:
 
 | Artifact | Raw bytes | Gzip bytes |
 | --- | ---: | ---: |
@@ -137,12 +159,12 @@ the package. Measured after `pnpm build`:
 16,362 bytes unpacked is **0.49%** of the 3,321,498-byte unpacked package and
 about 6.5% of the unpacked budget; 5,566 bytes gzip is 22% of the gzip budget.
 Below every threshold — keep the readable generated TypeScript. The two
-committed CSVs (4,712 bytes) are build inputs under `tools/`, not shipped in the
-package.
+committed CSVs (4,660 bytes; see the correction above) are build inputs under
+`tools/`, not shipped in the package.
 
 ## Verification
 
-`pnpm check` exit 0 — `Test Files 103 passed` (baseline 102 + the new
+`pnpm check` exit 0 at `431f317` — `Test Files 103 passed` (baseline 102 + the new
 `ip-ranges.test.ts`), `Tests 2079 passed` (baseline 2049 + 30), `51 scenarios`,
 `215 steps`. Perf gate: mean `inspect()` 0.0363 ms, worst single call 0.1115 ms
 (bound: 5 ms) — a ~26-row scan per family with no BigInt anywhere.

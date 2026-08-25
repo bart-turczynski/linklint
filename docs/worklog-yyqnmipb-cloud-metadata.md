@@ -1,10 +1,25 @@
 # LINK-yyqnmipb — S2: cloud-metadata provider table
 
+> **Historical worklog.** Written against `3e48ab7` (2026-07-25), the commit
+> that shipped `LINK-yyqnmipb`. The table it describes has since roughly
+> tripled and gained a second, hostname-keyed half. The only current-behavior
+> authority is `packages/core/src/data/cloud-metadata.ts` itself, whose header
+> comment carries the live sourcing rules; read this file for the reasoning that
+> produced the first four rows, not for the table's present contents.
+>
+> **Superseded figures, as of 2026-08-25.** `CLOUD_METADATA_VERSION` is
+> `"2026-08-25-gcp-ipv6"`, not the `"2026-07-25-providers"` quoted below.
+> `CLOUD_METADATA_ENDPOINTS` carries **10** address rows, not 4, and a companion
+> `CLOUD_METADATA_HOSTNAMES` carries 5 vendor-published names — a table that did
+> not exist when this was written and that has its own sourcing bar
+> (`LINK-hvawpgos`). Rows also now declare a `kind`, distinguishing an IMDS from
+> other provider-internal infrastructure (`LINK-mjbrzxeo`).
+
 ## What landed
 
 - New `packages/core/src/data/cloud-metadata.ts`: `CLOUD_METADATA_ENDPOINTS`
-  (4 rows: address + provider + vendor-doc source) and `CLOUD_METADATA_VERSION`
-  (`"2026-07-25-providers"`).
+  (4 rows at the time: address + provider + vendor-doc source) and
+  `CLOUD_METADATA_VERSION` (then `"2026-07-25-providers"`).
 - `detectors/ip-classification.ts`: the two literals (`0xa9fea9fe`,
   `"fd00:ec2::254"`) are gone. Two lookup maps are built once at module load by
   running every table row through the SAME parser (`analyzeIpv4`/`analyzeIpv6`)
@@ -67,11 +82,21 @@
 | `192.0.0.192` | Oracle Cloud | Oracle OCI "Getting instance metadata" docs; endpoint family `http://192.0.0.192/latest/{meta-data,user-data,attributes}` |
 | `100.100.100.200` | Alibaba Cloud | Alibaba ECS "View instance metadata" docs (`alibabacloud.com/help/en/ecs/user-guide/view-instance-metadata/`) — `http://100.100.100.200/latest/meta-data/` |
 
-## Additions found but deliberately NOT added (for the orchestrator to file)
+## Additions found and deferred at the time — all four have since landed
 
-Scope said exactly four rows, so these were left out. All four look
-well-established and are plausible follow-ups; each would need the same
-vendor-doc verification treatment before landing.
+> **This section is closed. Do not read it as an open proposal.** Scope for
+> `LINK-yyqnmipb` said exactly four rows, so the four candidates below were
+> recorded rather than added. Every one of them has since been verified against
+> vendor documentation and shipped as a second tier of
+> `CLOUD_METADATA_ENDPOINTS` under `LINK-vniqhcln`, and `169.254.170.23`'s IPv6
+> partner `fd00:ec2::23` shipped alongside it. Azure's `168.63.129.16` was
+> additionally re-classified `kind: "provider-internal"` by `LINK-mjbrzxeo`,
+> because Microsoft documents WireServer separately from the Azure IMDS and
+> calling it an instance-metadata endpoint contradicted the row's own citation.
+> The live rows and their current citations are in
+> `packages/core/src/data/cloud-metadata.ts`; the paragraphs below are the
+> 2026-07 scouting notes that preceded them and their citations were superseded
+> at landing. Nothing here is a request to widen the table.
 
 1. **`168.63.129.16` — Azure WireServer / IMDS-adjacent host-agent channel.**
    Microsoft-documented "special public IP" used by the Azure VM agent; also
@@ -91,14 +116,24 @@ vendor-doc verification treatment before landing.
    Metadata) / `tencentcloud.com/document/product/213/4934`.
 
 Note that (2), (3) and (4) sit inside `169.254.0.0/16`, so adding them only
-raises them from `ip_link_local` 0.20 to `ip_cloud_metadata` 0.75 — no new range
-logic needed, just table rows. (1) is the one that changes a *public* address's
-verdict, so it deserves the most scrutiny (false-positive cost is a `high`
-verdict on a routable IP).
+raised them from `ip_link_local` 0.20 to `ip_cloud_metadata` 0.75 — no new range
+logic needed, just table rows. (1) was the one that changes a *public* address's
+verdict, so it got the most scrutiny (false-positive cost is a `high` verdict on
+a routable IP); that reasoning is now recorded on the shipped row itself.
 
 ## Verification
 
-`pnpm check` exit 0 — `Test Files 102 passed`, `Tests 2027 passed`
-(baseline 2006 + 21 new), `51 scenarios`, `215 steps`. No pre-existing failures
-touched; the pinned corpus rows at `corpus.ts:781,789` (`169.254.10.20`,
-`[fe80::abcd]` → `ip_link_local`, forbidding `ip_cloud_metadata`) stay green.
+`pnpm check` exit 0 at `3e48ab7` — `Test Files 102 passed`, `Tests 2027 passed`
+(baseline 2006 + 21 new), `51 scenarios`, `215 steps`. Those totals are a
+2026-07-25 reading and have moved with every slice since. No pre-existing
+failures touched; the pinned link-local corpus rows stay green.
+
+**Corpus citation, re-anchored.** This paragraph originally cited
+`corpus.ts:781,789`. Both line numbers rotted — as of 2026-08-25 they land on
+`https://accounts.google.com` and `https://amazon.com`, unrelated benign brand
+rows. The rows actually meant are the two `V1b link-local bucket` entries in
+`packages/core/test/corpus/corpus.ts`: `http://169.254.10.20/` and
+`https://[fe80::abcd]/`, both `label: "deceptive"` with
+`expectReasons: ["ip_link_local"]` and `forbidReasons` including
+`ip_cloud_metadata`. Grep for the URL, not the line — both still score `0.20` on
+`ip_link_local` alone today.

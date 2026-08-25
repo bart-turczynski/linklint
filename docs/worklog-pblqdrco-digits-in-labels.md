@@ -5,6 +5,21 @@ the evidence was obtained**, because §6.1 finding #3 rejected the previous
 attempt for lacking exactly this and a future revisit needs to be able to redo
 the measurement rather than trust the numbers.
 
+> **Historical worklog.** The measurement was taken before the brand watchlist
+> grew, and the numbers below are the numbers it produced *then*. Following the
+> convention `docs/architecture.md` §6.1.1 now uses (`LINK-sdtpvqsy`), every
+> such figure is marked as adoption history and paired with the live one, which
+> is re-derived from the shipped detectors — not transcribed — by
+> `packages/core/test/brand-fold-surface.test.ts`. That test is the only
+> current-behavior authority for the surface; treat any count in this file as a
+> dated observation.
+>
+> **The surface figure was already stale when this file was committed.** The
+> file landed in `bc15e63` (2026-07-26, "Add AI/LLM providers to the brand
+> watchlist", `LINK-onikirjk`) — the very commit that took the surface from 192
+> to 197. Method and numbers were published together and only the method
+> survived contact with the same commit. The method is the part worth keeping.
+
 ## The method that unblocked a question that had been stuck
 
 The prior decision (§6.1, `LINK-yfejldva`) declined label-level matching partly
@@ -15,8 +30,13 @@ noticing that this particular mechanism has a **closed** firing surface.
 `fold(label) !== label && BRAND_LABEL_SET.has(fold(label))` can only fire on a
 valid pre-image of a brand label under the 0→o/1→l/5→s fold. Inverting the fold
 and enumerating subsets of the o/l/s positions (subject to `ascii_homoglyph`'s
-gates) yields **192 labels, full stop** — 65 of 106 brand labels are
-fold-reachable. So the FP surface did not have to be *sampled and extrapolated*;
+gates) yields a **closed set, full stop**. Enumerated at the time of this
+measurement: **192 labels**, from 65 of 106 fold-reachable brand labels. The
+watchlist has grown since; today the surface is **197 labels** from **68 of
+111** brand labels, pinned member by member by
+`packages/core/test/brand-fold-surface.test.ts`. The finiteness is the claim
+that carries — the cardinality is a reading of a watchlist that moves.
+So the FP surface did not have to be *sampled and extrapolated*;
 it could be **enumerated and probed exhaustively**. That is why this decision
 could be settled and the earlier one could not, and it is the reusable trick: ask
 whether a proposed matcher's firing surface is finite before arguing about its
@@ -34,7 +54,9 @@ point-in-time). Recreating them:
    `BRAND_LABEL_SET` member emit every non-empty subset of its o/l/s positions
    replaced by the corresponding digit, keeping those that pass
    `ascii-homoglyph.ts`'s gates (len ≥ 5, ASCII alnum, leading letter, digits ⊆
-   {0,1,5}, letters > digits). Result: 192.
+   {0,1,5}, letters > digits). Result at the time: 192; the same procedure over
+   today's watchlist returns 197, which is what
+   `packages/core/test/brand-fold-surface.test.ts` re-derives on every run.
 
 2. **Unseen tenant-label corpus.** `gh api "/users?since=<id>&per_page=100"`
    paginated to 36,200 logins. A GitHub login **is** the tenant label for
@@ -42,10 +64,14 @@ point-in-time). Recreating them:
    rather than a curated one — no judgment call selects its members. Run the
    gates over it: 427 (1.18%) pass, **0** fold to a brand label.
 
-3. **Exhaustive liveness probe + control.** `curl` each of the 192 labels under
-   `github.io` / `vercel.app` / `myshopify.com` and read the HTTP status and
-   `<title>`; 404 means no tenant. Then repeat against the 106 **unfolded**
-   labels as a control. 25 live vs 127 live is the number the decision turns on.
+3. **Exhaustive liveness probe + control.** `curl` each of the 192 labels of the
+   surface *as it then stood* under `github.io` / `vercel.app` /
+   `myshopify.com` and read the HTTP status and `<title>`; 404 means no tenant.
+   Then repeat against the 106 **unfolded** brand labels of that same watchlist
+   as a control. 25 live vs 127 live is the number the decision turns on. Both
+   probe counts are dated 2026-07 observations against third-party hosting and
+   are not reproducible from this repository at all — the surface has since
+   widened to 197 and tenancy changes independently of us.
 
 ## Non-obvious judgment calls
 

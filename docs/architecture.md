@@ -562,6 +562,25 @@ neither left a string fact to re-ground at weight 0.
 
 Informational detectors (`confusable_char`, `confusable_in_path`, `normalization_delta`, `idna_mapping_ambiguity`, `locale_case_ambiguity`, `host_length_unresolvable`, `special_use_name`, `fqdn_root_label`) have weight 0 — they annotate without raising severity. `idna_mapping_ambiguity` and `locale_case_ambiguity` each escalate to a weight-0.5 scoring code (`brand_idna_collapse`, `brand_locale_collapse`) when the alternate reading lands on a watchlist brand exactly.
 
+**How `ip_classification`'s three data-backed pieces were decided.** Three
+historical worklogs record the method behind the literal-IP surface — why the
+bucket taxonomy is shaped as it is, which judgment calls sit on top of the
+mechanical mapping, and what was measured rather than assumed:
+
+- [`docs/worklog-qvsrmrzv-iana-ip-ranges.md`](./worklog-qvsrmrzv-iana-ip-ranges.md)
+  — generating the range table from the IANA special-purpose registries, the
+  bucket mapping, and why longest-prefix-match is load-bearing.
+- [`docs/worklog-yyqnmipb-cloud-metadata.md`](./worklog-yyqnmipb-cloud-metadata.md)
+  — the cloud-metadata endpoint table, and why both sides are canonicalized
+  through the same parser instead of compared as text.
+- [`docs/worklog-oficsfiw-embedded-ipv4-unwrap.md`](./worklog-oficsfiw-embedded-ipv4-unwrap.md)
+  — unwrapping IPv4 embedded in the low-32 transition prefixes, and the split
+  between "written non-canonically" and "points somewhere else".
+
+Each is dated to the commit that shipped it and describes how a decision was
+reached, not what the code does today; `packages/core/src/data/` and
+`docs/reason-codes.md` are the current authority.
+
 ## 6. Result schema
 
 Every channel returns the same `InspectResult` (schema version `1.11`):
@@ -873,6 +892,13 @@ unmapped-digit gates respectively, and `987fm` fails the leading-letter gate —
 a knob would buy no coverage the existing gates withhold. Revisit only if a
 concrete consumer asks for it, and then as consumer-side policy over the
 `ascii_homoglyph` reason code, which already carries the skeleton in its detail.
+
+**How the evidence above was obtained:**
+[`docs/worklog-pblqdrco-digits-in-labels.md`](./worklog-pblqdrco-digits-in-labels.md)
+— a historical worklog recording the enumerate-then-probe method, the control
+group that won the argument, and the scripts needed to redo the measurement
+rather than trust its numbers. Its counts are dated; this section and
+`packages/core/test/brand-fold-surface.test.ts` are the current authority.
 
 #### 6.1.2 Structurally-clean brand near-misses — deleted (`LINK-cphogucn`)
 

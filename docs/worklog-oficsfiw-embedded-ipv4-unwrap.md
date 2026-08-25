@@ -1,5 +1,19 @@
 # LINK-oficsfiw — S1 embedded-IPv4 unwrap (low-32 wrapper forms)
 
+> **Historical worklog.** Written against the state of the tree at
+> `a412476` (2026-07-25), the commit that shipped `LINK-oficsfiw`. It records
+> HOW the decision was reached; the description of current behavior is
+> `packages/core/src/detectors/ip-classification.ts`, `src/parse/ip.ts` and
+> `docs/reason-codes.md`. Claims here are anchored on symbol and date rather
+> than on line number, because line-number citations in the sibling worklogs
+> rotted within weeks.
+>
+> **Re-checked 2026-08-25 and still true of the shipped code**: every behavioral
+> claim below was re-probed through `inspect()` — `[fe80::1.2.3.4]` emits
+> `ip_link_local`, `[::ffff:808:808]` scores `0`, `[2001:db8::1.2.3.4]` scores
+> `0.4` on `ip_obfuscation` alone, and `[64:ff9b::]` / `[::ffff:0:0]` both emit
+> `ip_reserved`.
+
 Scope executed: the three prefixes that put the IPv4 in the **low 32 bits** only
 — `::ffff:0:0/96`, `::/96`, `64:ff9b::/96`. 6to4, Teredo, the RFC 6052
 network-specific prefixes and `64:ff9b:1::/48` were left alone (out of scope by
