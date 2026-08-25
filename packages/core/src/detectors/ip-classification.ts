@@ -3,6 +3,7 @@ import type { ReasonCode } from "../schema/reason-codes.js";
 import { analyzeIpv4, analyzeIpv6 } from "../parse/ip.js";
 import {
   CLOUD_METADATA_ENDPOINTS,
+  matchCloudMetadataHostname,
   type CloudEndpointKind,
   type CloudMetadataEndpoint,
 } from "../data/cloud-metadata.js";
@@ -28,6 +29,25 @@ import { matchIpv4Range, matchIpv6Range, type IpRangeBucket } from "../data/ip-r
  * reaches an internal v4 target. The embedded address is read from the decoded
  * bits of the RFC transition wrapper prefixes, not from the spelling, so the
  * hex form `::ffff:7f00:1` classifies exactly like `::ffff:127.0.0.1`.
+ *
+ * ONE NON-IP CASE, DELIBERATELY (LINK-hvawpgos). The detector also recognizes
+ * the small set of HOSTNAMES a vendor publishes for a metadata endpoint this
+ * file already classifies by address (`data/cloud-metadata.ts`,
+ * {@link matchCloudMetadataHostname}). Until then `169.254.169.254` scored
+ * `high` while `metadata.google.internal` — the same credential endpoint, the
+ * spelling Google's own examples use — scored `0.00` with no reasons at all.
+ *
+ * It rides in THIS detector rather than a new one because the emitted code is
+ * unchanged: a matched name is `ip_cloud_metadata`, at the same weight, in the
+ * bucket `ip_classification` already declares in `checks.ts`. No new reason
+ * code, no registry entry, no schema version.
+ *
+ * The split it does NOT cross is {@link classifyHost}, which stays IP-only. That
+ * function is public API and `@linklint/online` calls it on a RESOLVED address
+ * to decide whether a connection may proceed; a hostname branch there would
+ * change what a caller outside this package is asking. The name lookup is
+ * therefore wired into the detector bodies, and address classification is left
+ * exactly as it was.
  */
 
 type Bucket = "ip_cloud_metadata" | IpRangeBucket;
@@ -215,6 +235,44 @@ export interface IpClassification {
    * path, so the reason can explain WHY an IPv6 host produced an IPv4 verdict.
    */
   embeddedVia?: string;
+  /**
+   * Set when the bucket was decided by a vendor-documented HOSTNAME rather than
+   * by an address in the URL (LINK-hvawpgos). {@link canonical} then holds the
+   * address the vendor publishes that name for, and the wording must say so:
+   * linklint resolved nothing, and a detail that read "resolves to" would be
+   * asserting a DNS outcome this library never observed.
+   *
+   * Never set by {@link classifyHost}, which is IP-only.
+   */
+  viaHostname?: true;
+}
+
+/**
+ * Classify a HOSTNAME that a vendor publishes as an address of a metadata
+ * endpoint already in `CLOUD_METADATA_ENDPOINTS`, or null for every other host.
+ *
+ * Exact match on the whole host after case folding and after dropping one
+ * trailing root dot — never a suffix, prefix, or substring test. The trailing
+ * dot matters: `metadata.google.internal.` is the documented Smokescreen
+ * allow-list bypass (see `fqdn-root-label.ts`), resolves identically, and would
+ * otherwise walk straight past this table. Two or more trailing dots never
+ * arrive — they fail parsing as an empty label.
+ *
+ * The narrowness IS the detector. `metadata.mycorp.com` and `svc.internal` are
+ * ordinary internal-looking names and must stay silent; anything looser than
+ * whole-host equality turns a specification index into a blocklist.
+ */
+export function classifyMetadataHostname(host: string): IpClassification | null {
+  const row = matchCloudMetadataHostname(host);
+  if (row === undefined) return null;
+  return {
+    bucket: "ip_cloud_metadata",
+    shown: host,
+    canonical: row.address,
+    provider: row.provider,
+    endpointKind: row.kind ?? "instance-metadata",
+    viaHostname: true,
+  };
 }
 
 /**
@@ -261,7 +319,10 @@ export const ipClassification: Detector = {
   id: "ip_classification",
   layer: "lexical",
   run(ctx): DetectorFinding[] {
-    const c = classifyHost(ctx.host);
+    // Name first, then address. The two are disjoint by construction — a
+    // hostname parses as neither IPv4 nor IPv6 — so the order is for reading,
+    // not for precedence.
+    const c = classifyMetadataHostname(ctx.host) ?? classifyHost(ctx.host);
     return c ? [finding(c)] : [];
   },
 };
@@ -286,6 +347,21 @@ export function cloudEndpointPhrase(c: IpClassification): string {
 }
 
 /**
+ * How to refer to the address that decided the bucket, shared by both detectors
+ * so the two details cannot drift.
+ *
+ * For an address in the URL this is just the canonical form. For a
+ * vendor-documented hostname it must not read as a resolution result: linklint
+ * performed no lookup, so the address is named as what the VENDOR publishes the
+ * name for, which is a citation rather than an observation.
+ */
+export function endpointLocator(c: IpClassification): string {
+  return c.viaHostname === true
+    ? `the vendor-documented name for ${c.canonical}`
+    : c.canonical;
+}
+
+/**
  * Bucket wording for the detail string. A matched cloud endpoint gets the
  * provider-and-kind phrase above; every other bucket keeps its generic phrasing.
  */
@@ -306,6 +382,17 @@ function finding(c: IpClassification): DetectorFinding {
   // number someone typed into this file.
   const cite =
     c.rangeName === undefined ? "" : ` — IANA ${c.rangeName}, ${c.rangeRfc ?? ""}`.trimEnd();
+  // A hostname match takes its own sentence shape. "resolves to" is accurate for
+  // an address the URL already carries and FALSE for a name — nothing was
+  // resolved, and a zero-network library must not put a DNS claim in its output.
+  // The address then trails as a citation rather than sitting in a second
+  // parenthetical after the first.
+  if (c.viaHostname === true) {
+    return {
+      code: c.bucket as ReasonCode,
+      detail: `host '${c.shown}' is ${summaryFor(c)} — ${endpointLocator(c)}`,
+    };
+  }
   return {
     code: c.bucket as ReasonCode,
     detail: `host '${c.shown}' resolves to ${summaryFor(c)} (${c.canonical}${via})${cite}`,

@@ -1352,6 +1352,120 @@ export const AGENT_CORPUS: CorpusRow[] = [
 // keeping a single shared corpus). Every other row runs with default options.
 CORPUS.push(...AGENT_CORPUS);
 
+// ---------------------------------------------------------------------------
+// LINK-hvawpgos — cloud metadata endpoints reached by NAME. BEGIN.
+//
+// Kept as one block appended after the two arrays rather than merged into
+// either, because the slice spans both option modes: the always-on
+// `ip_cloud_metadata` rows run with default options and the escalation rows
+// carry `AGENT`, and splitting them across the file would hide that they are
+// the same seven-line story.
+//
+// The story: `169.254.169.254` scored `high`, and `metadata.google.internal` —
+// the spelling Google's own documentation recommends over the address — scored
+// 0.00 with no reasons at all. The benign rows below are the other half and
+// carry equal weight: a hostname that merely LOOKS internal is not a metadata
+// endpoint, and the matcher is whole-host equality precisely so that these stay
+// at zero.
+// ---------------------------------------------------------------------------
+CORPUS.push(
+  {
+    input:
+      "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["ssrf_cloud_metadata"],
+    notes: "LINK-hvawpgos — GCP's RECOMMENDED spelling of the metadata server, on the token path; matches the address form at 0.75/high. ssrf_cloud_metadata is agent-gated so it is absent from the default verdict",
+    source: "https://docs.cloud.google.com/compute/docs/metadata/querying-metadata",
+  },
+  {
+    input: "http://metadata.goog/computeMetadata/v1/",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    notes: "LINK-hvawpgos — Google's second documented name for the same server; shares no suffix with metadata.google.internal, so a check written against `*.google.internal` misses it",
+    source: "https://docs.cloud.google.com/compute/docs/metadata/querying-metadata",
+  },
+  {
+    input: "http://metadata.tencentyun.com/latest/meta-data/",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    notes: "LINK-hvawpgos — the ONLY endpoint Tencent's own metadata guide documents; the address row (169.254.0.23) had to be cited to a different page because this one never writes a number down",
+    source: "https://www.tencentcloud.com/document/product/213/4934",
+  },
+  {
+    input: "http://api.metadata.cloud.ibm.com/metadata/v1/instance/",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    notes: "LINK-hvawpgos — IBM Cloud VPC. IBM REQUIRES the hostname over HTTPS and does not accept the address there, so an address-only check is blind to the vendor's own secure mode. Lands 0.875 because embedded_domain_in_subdomain already fired on this host before the slice existed",
+    source: "https://cloud.ibm.com/apidocs/vpc-metadata",
+  },
+  {
+    input: "http://metadata.exoscale.com/latest/meta-data",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    notes: "LINK-hvawpgos — Exoscale; the vendor page introduces the service on 169.254.169.254 and then gives every access example through this name",
+    source: "https://community.exoscale.com/product/compute/instances/how-to/cloud-init-user-data/",
+  },
+  {
+    input: "http://metadata.google.internal./computeMetadata/v1/",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata", "fqdn_root_label"],
+    notes: "LINK-hvawpgos — trailing root dot. Resolves identically and is the documented Smokescreen allow-list bypass, so the matcher drops one trailing dot before comparing; shipping the check without this would ship the bypass with it",
+  },
+  {
+    input:
+      "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
+    label: "deceptive",
+    minSeverity: "critical",
+    options: AGENT,
+    expectReasons: ["ip_cloud_metadata", "ssrf_cloud_metadata"],
+    notes: "LINK-hvawpgos — agentMode: the name now stacks 0.75 + 1.0 → critical, exactly as the address does. An agent that blocked 169.254.169.254 and fetched this one was not protected from anything",
+  },
+  {
+    input: "http://metadata.google.internal.evil.com/",
+    label: "deceptive",
+    minSeverity: "medium",
+    options: AGENT,
+    forbidReasons: ["ip_cloud_metadata", "ssrf_cloud_metadata"],
+    notes: "LINK-hvawpgos — the suffix attack. Caught as embedded_domain_in_subdomain (0.50) for what it actually is; it must NOT be called a metadata endpoint, which is what a suffix match rather than whole-host equality would have done",
+  },
+  {
+    input: "http://svc.internal/",
+    label: "benign",
+    options: AGENT,
+    forbidReasons: ["ip_cloud_metadata", "ssrf_cloud_metadata"],
+    notes: "LINK-hvawpgos FP guard — LINK-mgnbgicq's own worked example of a context-dependent RFC 6761 name. It stays at 0.00 whichever way that issue is decided, which is what makes this slice independent of it",
+  },
+  {
+    input: "http://foo.metadata.example.com/",
+    label: "benign",
+    options: AGENT,
+    forbidReasons: ["ip_cloud_metadata", "ssrf_cloud_metadata"],
+    notes: "LINK-hvawpgos FP guard — the metadata label in a subdomain of an ordinary registrable domain",
+  },
+  {
+    input: "http://metadata.mycorp.com/",
+    label: "benign",
+    options: AGENT,
+    forbidReasons: ["ip_cloud_metadata", "ssrf_cloud_metadata"],
+    notes: "LINK-hvawpgos FP guard — somebody's own internal metadata host. No vendor publishes this name, so nothing here may fire on it",
+  },
+  {
+    input: "http://my-instance-data.example.org/",
+    label: "benign",
+    options: AGENT,
+    forbidReasons: ["ip_cloud_metadata", "ssrf_cloud_metadata"],
+    notes: "LINK-hvawpgos FP guard — a documented metadata label as a SUBSTRING of a longer one; the guard against a `.includes()` implementation",
+  },
+);
+// LINK-hvawpgos — END.
+
 export function successCriteriaForLabel(label: CorpusLabel): CorpusSuccessCriterion[] {
   switch (label) {
     case "deceptive":
