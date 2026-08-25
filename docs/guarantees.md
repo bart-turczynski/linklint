@@ -30,9 +30,10 @@ does, and it must not outrun the code.
 register cannot rot the way the claims it tracks did:
 
 1. **Claim budget.** It re-extracts every line matching the guarantee-word
-   pattern across `docs/` and the four package READMEs and compares the
-   per-file counts to the budget table below. Adding or removing an
-   unconditional claim fails `pnpm check` until the register is updated —
+   pattern and compares the per-file counts to the budget table below. The
+   swept set is every `.md` under `docs/` **at any depth**, the root
+   `README.md`, and one `README.md` per workspace package. Adding or removing
+   an unconditional claim fails `pnpm check` until the register is updated —
    which forces the triage to happen at authoring time.
 2. **Pin integrity.** Every test path named in the *Pinned by* column must
    exist.
@@ -41,6 +42,28 @@ register cannot rot the way the claims it tracks did:
 
 The register itself is excluded from its own budget: it quotes the claims it
 tracks.
+
+**The sweep's shape is pinned rather than inherited from the tree
+(`LINK-umlssdan`).** The `docs/` walk was flat until then, and read as "across
+`docs/`" here, which any reader takes as recursive. It was total only because
+`docs/` happens to have no subdirectories — a property of the tree, not of the
+walk. One `mkdir docs/whatever` and new prose would have stopped being swept
+with the suite staying green, and the obvious workaround was refused as well:
+a budget row for `docs/<subdir>/<file>.md` named a path outside the scanned
+set, so it failed the *budgets exactly the files that are scanned* assertion
+instead of fixing anything. Both halves are now pinned in
+`packages/core/test/guarantee-register.test.ts` — a subdirectory file is swept,
+and a budget that omits it is the one that fails — against a fixture tree,
+because an assertion made through the live `docs/` would pass whatever the walk
+did.
+
+The package walk stays **one level deep** on purpose. `pnpm-workspace.yaml`
+declares `packages/*`, so a workspace package is exactly one directory under
+`packages/`, and that glob is itself asserted, so the depth is a construction
+rather than a second accident. What the budget covers inside a package is its
+published `README.md`; other markdown under `packages/<name>/` — for example
+`packages/core/_worklog/` — is outside the register's scope, which is why
+moving such a file into `docs/` brings it in and requires a budget row for it.
 
 ### Claim budget
 
