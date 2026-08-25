@@ -279,9 +279,20 @@ describe("LINK-stuiljry — characters that legitimately occur inside one value"
  * `--deny-tld " com"` matches. Any screen for whitespace has to leave that
  * alone, which is why these cases are pinned next to the joined ones.
  *
- * `--idn-allow` is absent on purpose: `idnAllowlist` is normalized in
- * `normalizeOptions` without routing through `normalizedList`, so it does not
- * inherit that trim.
+ * `--idn-allow` belongs in the tables, and its absence was the tell. It was
+ * excluded here on the premise that `idnAllowlist` is normalized in
+ * `normalizeOptions` without routing through `normalizedList`, and so does not
+ * inherit that trim. MR !56 (LINK-qajalduf) retired that premise: `idnAllowlist`
+ * routes through the choke point now, a padded value exempts exactly as an
+ * unpadded one does, and the exclusion had quietly become a coverage gap rather
+ * than a decision (LINK-bsudgkfk).
+ *
+ * Trimming is a property of every LIST-VALUED caller option, not of the policy
+ * axes — reading it as axis-scoped is what shipped two fail-opens. Which options
+ * are in the class, which route through `normalizedList`, and why the ones that
+ * cannot are named rather than counted, are all DERIVED from the source by
+ * `packages/core/test/list-option-trim-scope.test.ts`; this file does not
+ * restate them.
  */
 /** A padded value whose axis reason must still FIRE. */
 const PADDED_FIRES: ReadonlyArray<readonly [string, string, string, string]> = [
@@ -302,13 +313,19 @@ const PADDED_CLEARS: ReadonlyArray<readonly [string, string, string, string]> = 
 ];
 
 describe("LINK-stuiljry — surrounding whitespace on a single value still matches", () => {
-  it.each(PADDED_FIRES)("%s %j matches and reports %s", (flag, value, url, code) => {
+  // The case titles name the URL as well as the code: with four columns and
+  // three placeholders the trailing `%s` used to consume the URL and print it
+  // where the reader expected the reason code.
+  it.each(PADDED_FIRES)("%s %j on %s matches and reports %s", (flag, value, url, code) => {
     expect(check(flag, value, url).codes).toContain(code);
   });
 
-  it.each(PADDED_CLEARS)("%s %j allow-lists the value and clears %s", (flag, value, url, code) => {
-    expect(check(flag, value, url).codes).not.toContain(code);
-  });
+  it.each(PADDED_CLEARS)(
+    "%s %j on %s allow-lists the value and clears %s",
+    (flag, value, url, code) => {
+      expect(check(flag, value, url).codes).not.toContain(code);
+    },
+  );
 
   // LINK-bsudgkfk. The exclusion this block once carried was silent: nothing
   // failed when `--idn-allow` sat outside the padded tables, so the coverage

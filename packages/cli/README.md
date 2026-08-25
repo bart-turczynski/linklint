@@ -43,8 +43,9 @@ Repeat the flag once per value — the same goes for `--idn-allow` above. A comm
 semicolon, vertical bar or whitespace inside a single value is a usage error
 rather than a separator: `--deny-tld "com ru"` is one value, the literal string
 `com ru`, which matches no TLD, so the CLI refuses it and points at `--deny-tld
-com --deny-tld ru`. Whitespace _around_ a value is still just padding, and
-`--deny-tld " com"` matches `.com`.
+com --deny-tld ru`. Whitespace _around_ a value is still just padding, on the
+value flags whose option routes through the core's list normalizer: `--deny-tld
+" com"` matches `.com`, and `--idn-allow " münchen.de "` exempts `münchen.de`.
 
 | Flag                          | Option                  | Effect                                                                                   |
 | ----------------------------- | ----------------------- | ---------------------------------------------------------------------------------------- |
