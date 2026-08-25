@@ -240,6 +240,32 @@ staged `dependsOn` plans, and the caching rules are in
 [`docs/enrichment-outcomes.md`](./enrichment-outcomes.md); this section covers
 only what a composition root needs to read its own output.
 
+### Chain success is not TLS evidence
+
+A third run, this one against `http://iana.org/`, with the per-hop callback
+approving both hops from the table above and only the redirect-chain and TLS
+sources configured so the two outcomes that matter sit alone:
+
+```
+resolution:redirect-chain.http  success  url=http://iana.org/
+resolution:redirect-chain.http  success  url=https://www.iana.org/
+reputation:tls.live-endpoint    skipped  url=http://iana.org/  cause=tls-not-https-endpoint
+
+checksRun:      lexical, resolution:redirect-chain.http
+checksSkipped:  reputation:tls.live-endpoint
+```
+
+The chain reached a live HTTPS endpoint, and the TLS outcome is still `skipped`.
+That is the source's declared subject rather than a failed connection: the live
+TLS enricher inspects the **input** origin, and an input that is not an absolute
+HTTPS URL with a host is skipped ahead of any DNS query or socket — the
+inspector is not called at all. The certificate on `https://www.iana.org/` is
+therefore absent from this result, and chain success must not be read as
+evidence about the endpoint the chain resolved to. The semantics, the evidence
+gap this leaves, and the successor shape it should be closed with are in
+[`docs/online-source-contract.md`](./online-source-contract.md) § "The live TLS
+source's subject is the input origin".
+
 ## Sources this root deliberately omits
 
 - **RDAP** (`createRdapAgeEnricher`) is runnable — `createNodeRdapHttpClient`

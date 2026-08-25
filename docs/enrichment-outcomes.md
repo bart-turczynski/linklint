@@ -227,7 +227,11 @@ supplies: a source owns its own cause vocabulary and versions it itself. The
 and stamped under `TRANSPORT_SCHEMA_VERSION` in
 [`docs/safe-transport.md`](safe-transport.md), not here. A consumer branching on
 `cause.code` therefore reads the framework list above for framework states and
-the producing source's own registry for everything else.
+the producing source's own registry for everything else. An adapter may also
+synthesize a cause of its own: the live TLS source's `tls-not-https-endpoint`,
+which marks an input that is not an absolute HTTPS URL with a host, is defined
+in [`docs/online-source-contract.md`](online-source-contract.md) § "The live TLS
+source's subject is the input origin".
 
 ## Subject-aware scoring and suppression
 
