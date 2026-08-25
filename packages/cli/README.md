@@ -60,7 +60,7 @@ linklint check --allow-host mycompany.com --allow-scheme https \
 ```
 
 Port and scheme axes only look at what the URL states explicitly: a URL with no
-port never emits `port_denied`, and a schemeless input never emits
+port does not emit `port_denied`, and a schemeless input does not emit
 `scheme_denied`.
 
 ## Exit codes

@@ -64,8 +64,8 @@ tracks.
 | `docs/scoring.md` | 6 |
 | `docs/tracker-hygiene.md` | 3 |
 | `docs/wrapper-decoding.md` | 1 |
-| `README.md` | 14 |
-| `packages/cli/README.md` | 1 |
+| `README.md` | 15 |
+| `packages/cli/README.md` | 2 |
 | `packages/core/README.md` | 2 |
 | `packages/mcp/README.md` | 2 |
 | `packages/online/README.md` | 4 |
@@ -192,7 +192,7 @@ with no test behind any of them, the exact `LINK-zsbeqtcr` shape. B3's
 | --- | --- | --- | --- |
 | C1 | Probabilistic-OR aggregation is order-independent and saturating — it approaches 1 but never passes it | `README.md`, `docs/scoring.md` | `packages/core/test/score.test.ts` |
 | C2 | Weight-0 informational reasons never change the score | `README.md`, `docs/reason-codes.md` | `packages/core/test/score.test.ts` |
-| C3 | Policy reasons carry `weight: 0` and never change `score` or `severity` | `README.md`, `docs/architecture.md` §5, `docs/reason-codes.md` | `packages/core/test/policy-channel-separation.test.ts` |
+| C3 | Policy reasons carry `weight: 0` and never change `score` or `severity` | `README.md`, `packages/cli/README.md`, `docs/architecture.md` §5, `docs/reason-codes.md` | `packages/core/test/policy-channel-separation.test.ts` |
 | C4 | Detectors never supply their own weight; core attaches it from the version-pinned table | `docs/architecture.md` §5, `docs/reason-codes.md`, `docs/layer3-reputation-model.md` | type-level — `CollectedFinding` has no `weight` field, so `tsc` rejects one |
 | C5 | Suppression never hides itself: the `suppression` token appears in `checksRun` whenever the option is present, even as `[]` | `docs/architecture.md` §8, `docs/scoring.md` | `packages/core/test/suppress-reasons.test.ts` |
 | C6 | With `suppressReasons` absent, output is byte-for-byte unchanged | `docs/scoring.md` | `packages/core/test/suppress-reasons.test.ts` |
