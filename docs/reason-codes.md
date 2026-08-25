@@ -319,8 +319,10 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
 
 - **Meaning:** the **target-less sibling** of `homograph_skeleton_collision`. A
   non-ASCII registrable domain whose UTS#39 confusable skeleton is **pure
-  ASCII-Latin** — every character folds to a Latin look-alike, so the whole host
-  reads to a human as an ASCII domain — with **no brand list needed**. An
+  ASCII-Latin** — every character folds to a Basic Latin look-alike, so the whole
+  host reads to a human as an ASCII domain — with **no brand list needed**. Read
+  *ASCII-Latin* as the Basic Latin block, digits included: the UTS#39 table maps
+  Cyrillic `б` to `6`, so `бг.com` reads as `6r.com` and fires. An
   all-Cyrillic `сһаѕе.com` skeletonizes to `chase.com`; `ехямрӏе.com` to
   `example.com`. Either way the host is Unicode masquerading as Latin.
 - **Why it's a signal:** "pure unicode that looks like ASCII" has no legitimate
@@ -334,6 +336,19 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   detector fires only when the result contains **no non-ASCII codepoint**.
   - **Non-ASCII only**, and skips the NFKC compatibility-fold family (owned by
     `idna_mapping_ambiguity`) — same guards as the collision sibling.
+  - **The public suffix is excluded from the masquerade test** (`LINK-ubzfajzm`).
+    A suffix is picked from a fixed IANA set, so a non-Latin ccTLD is a fact
+    about the registry, not a disguise a registrant chose; the non-Latin evidence
+    has to sit in the registrant's own label. Sixteen ICANN suffixes in the
+    pinned PSL skeleton to pure ASCII — `бг`→`6r`, `срб`→`cp6`, `орг`→`opr`,
+    `рус`→`pyc`, `обр.срб`, `орг.срб` and ten Norwegian municipal suffixes that
+    fold through `æ`→`ae` — and without this exclusion every host under them,
+    `google.бг` and `example.bærum.no` included, read as a whole-label homograph
+    at weight 1.0. This is a narrowing on top of the whole-domain test above, so
+    ordinary vocabulary such as `гора.рф` is unaffected: its skeleton keeps a
+    non-ASCII codepoint either way. It is **not** per-label evaluation, which
+    `LINK-vtfyaizy` declined 2–0 on measured evidence. A registrant label that is
+    itself a fold still fires wherever it is registered (`сһаѕе.bærum.no`).
   - **Legitimate IDNs are excluded by construction:** a genuine non-Latin word
     always contains at least one character with no Latin confusable, so its
     skeleton keeps a non-ASCII codepoint and never folds to pure ASCII

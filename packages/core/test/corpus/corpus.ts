@@ -707,6 +707,34 @@ export const CORPUS: CorpusRow[] = [
     notes: "target-LESS: all-Cyrillic ассеѕѕ.com folds to the non-brand word 'access' — pure-Latin skeleton blocks with NO brand match",
   },
 
+  // Info (SC-2) — LINK-ubzfajzm. Real hosts under real IANA IDN public
+  // suffixes whose Unicode form skeletons to pure ASCII (бг→'6r', срб→'cp6',
+  // орг→'opr', рус→'pyc', bærum.no→'baerum.no'). Every one of them scored 1.00
+  // CRITICAL on `homograph_latin_skeleton` until the detector stopped reading
+  // the public suffix as a masquerade: a ccTLD is chosen from a fixed IANA set,
+  // not disguised by a registrant, so an ordinary Bulgarian, Serbian or
+  // Norwegian address was being called a maximum-severity homograph attack.
+  // The corpus carried no Cyrillic or Greek TLD at all, which is why the whole
+  // suite stayed green through it — the LINK-tydjfmci fingerprint recorded in
+  // architecture.md §6.2, one script over. These rows are the tripwire.
+  { input: `https://google.${cyr(0x0431, 0x0433)}/`, label: "info", options: ALLOW_IDN, expectReasons: ["confusable_char", "normalization_delta"], forbidReasons: ["homograph_latin_skeleton", "homograph_skeleton_collision", "mixed_script"], notes: "LINK-ubzfajzm: google.бг — Google's Bulgarian domain. The registrant label is pure ASCII; only the ccTLD is Cyrillic" },
+  { input: `https://${cyr(0x043f, 0x0440, 0x0430, 0x0432, 0x0438, 0x0442, 0x0435, 0x043b, 0x0441, 0x0442, 0x0432, 0x043e)}.${cyr(0x0431, 0x0433)}/`, label: "info", options: ALLOW_IDN, expectReasons: ["confusable_char", "normalization_delta"], forbidReasons: ["homograph_latin_skeleton", "mixed_script"], notes: "LINK-ubzfajzm: правителство.бг — the Bulgarian government domain, Cyrillic label AND Cyrillic ccTLD" },
+  { input: `https://nic.${cyr(0x0441, 0x0440, 0x0431)}/`, label: "info", options: ALLOW_IDN, expectReasons: ["confusable_char", "normalization_delta"], forbidReasons: ["homograph_latin_skeleton", "mixed_script"], notes: "LINK-ubzfajzm: nic.срб — Serbia's registry under its own ccTLD" },
+  { input: `https://shop.${cyr(0x043e, 0x0440, 0x0433)}/`, label: "info", options: ALLOW_IDN, expectReasons: ["confusable_char", "normalization_delta"], forbidReasons: ["homograph_latin_skeleton", "mixed_script"], notes: "LINK-ubzfajzm: shop.орг — the Cyrillic .org gTLD (xn--c1avg), which folds to pure ASCII LETTERS, so an ASCII-letters guard would not have saved it" },
+  { input: `https://news.${cyr(0x0440, 0x0443, 0x0441)}/`, label: "info", options: ALLOW_IDN, expectReasons: ["confusable_char", "normalization_delta"], forbidReasons: ["homograph_latin_skeleton", "mixed_script"], notes: "LINK-ubzfajzm: news.рус — likewise folds to pure ASCII letters ('pyc')" },
+  { input: "https://kommune.bærum.no/", label: "info", options: ALLOW_IDN, expectReasons: ["normalization_delta"], forbidReasons: ["homograph_latin_skeleton", "mixed_script"], notes: "LINK-ubzfajzm: bærum.no is one of TEN Norwegian municipal public suffixes that fold through æ→ae; Bærum is Norway's fifth-largest municipality" },
+  { input: `https://example.${cyr(0x043e, 0x0431, 0x0440)}.${cyr(0x0441, 0x0440, 0x0431)}/`, label: "info", options: ALLOW_IDN, expectReasons: ["confusable_char", "normalization_delta"], forbidReasons: ["homograph_latin_skeleton", "mixed_script"], notes: "LINK-ubzfajzm: обр.срб — a MULTI-LABEL IDN public suffix, so the exclusion has to strip the whole suffix and not just the last label" },
+  {
+    // The other side of the same fix: excluding the suffix must not disarm the
+    // detector for a registrant label that IS a fold, wherever it is registered.
+    input: `https://${cyr(0x0441, 0x04bb, 0x0430, 0x0455, 0x0435)}.bærum.no/`,
+    label: "deceptive",
+    minSeverity: "critical",
+    options: ALLOW_IDN,
+    expectReasons: ["homograph_latin_skeleton"],
+    notes: "LINK-ubzfajzm: сһаѕе.bærum.no — an all-Cyrillic chase look-alike under an IDN suffix still blocks; the suffix is excluded from the masquerade test, not from the host",
+  },
+
   // Deceptive — brand_locale_collapse (LINK-ynsgmybj, weight 0.5): the host
   // collapses to EXACTLY a brand under a tr/az lowercase while UTS-46 resolves
   // it elsewhere. The forbid list is the point: every existing homograph/brand

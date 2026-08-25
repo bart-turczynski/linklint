@@ -133,13 +133,14 @@ const OBR_SRB = `${cp(0x043e, 0x0431, 0x0440)}.${SRB}`; // обр.срб (xn--90
  * Unicode form skeletons to pure ASCII — enumerated, not sampled, by walking
  * every one of the 7,387 ICANN rules in the bundled trie and running each
  * through `skeleton(toUnicode(rule))`. 446 of those rules carry an `xn--`
- * label; exactly these 16 fold away entirely, and each one takes its WHOLE
- * namespace to `critical` under the registrable-domain predicate.
+ * label; exactly these 16 fold away entirely, and each one used to take its
+ * WHOLE namespace to `critical` under the plain registrable-domain predicate.
  *
  * Note what the second column shows: only four of the sixteen fold to something
  * containing a digit, so a guard that merely required ASCII *letters* would
- * still block the other twelve — the ten Norwegian municipal suffixes fold
- * through `æ -> ae`, which is ASCII letters throughout.
+ * still have blocked the other twelve — the ten Norwegian municipal suffixes
+ * fold through `æ -> ae`, which is ASCII letters throughout. That is why the
+ * shipped fix is the suffix exclusion and not the letters guard.
  */
 const ASCII_FOLDING_SUFFIXES: readonly (readonly [string, string])[] = [
   [SRB, "cp6"],
@@ -172,12 +173,12 @@ describe("LINK-ubzfajzm — a public suffix is not a registrant's disguise", () 
   });
 
   it.each(ASCII_FOLDING_SUFFIXES.map(([suffix]) => suffix))(
-    "an ordinary ASCII registrant label under '%s' is CRITICAL (the defect)",
+    "an ordinary ASCII registrant label under '%s' is quiet",
     (suffix) => {
       const r = inspect(`https://registrant.${suffix}/`, ALLOW);
-      expect(r.reasons.map((x) => x.code)).toContain("homograph_latin_skeleton");
-      expect(r.score).toBe(1);
-      expect(r.severity).toBe("critical");
+      expect(r.reasons.map((x) => x.code)).not.toContain("homograph_latin_skeleton");
+      expect(r.score).toBe(0);
+      expect(r.severity).toBe("info");
     },
   );
 
@@ -188,10 +189,13 @@ describe("LINK-ubzfajzm — a public suffix is not a registrant's disguise", () 
     `shop.${ORG_CYR}`,
     `news.${RUS}`,
     "kommune.bærum.no",
-  ])("the named national host %s is CRITICAL (the defect)", (host) => {
+  ])("the named national host %s is quiet", (host) => {
     const r = inspect(`https://${host}/`, ALLOW);
-    expect(r.reasons.map((x) => x.code)).toContain("homograph_latin_skeleton");
-    expect(r.severity).toBe("critical");
+    expect(r.reasons.map((x) => x.code)).not.toContain("homograph_latin_skeleton");
+    expect(r.score).toBe(0);
+    // Under the default IDN policy it still reads `high` on `idn_host` alone —
+    // a policy signal, not a homograph verdict.
+    expect(inspect(`https://${host}/`).severity).toBe("high");
   });
 
   it("правителство.бг does NOT fire — its own label keeps a non-ASCII skeleton", () => {
