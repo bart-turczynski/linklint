@@ -751,3 +751,78 @@ describe("L1 explicit stop and degradation outcomes", () => {
     expect(authorize).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * `LINK-zmkkoeyl` — Alt-Svc. A browser that receives `Alt-Svc: h3=":443"` may
+ * move the very next request onto an HTTP/3 alternative authority; linklint's
+ * HTTP/1.1 `node:http` stack cannot, and pinning that here stops a future
+ * transport change from silently acquiring the behavior.
+ */
+describe("L1 Alt-Svc alternative-service advertisement", () => {
+  const ALT_SVC = 'h3=":443"; ma=86400';
+
+  it("receives the Alt-Svc response header through the L0 transport", async () => {
+    const url = "https://origin.example/start";
+    const harness = new TransportFixtureHarness(
+      scriptFor([{ url, status: 200, headers: { "alt-svc": ALT_SVC } }]),
+    );
+    const transport = createSafeTransport({
+      resolver: harness.resolver,
+      connector: harness.connector,
+      http: harness.http,
+      clock: harness.clock,
+    });
+    const outcome = await transport.createSession().fetch({
+      url,
+      authorization: { kind: "destination-fetch", url },
+    });
+    expect(outcome.status).toBe("success");
+    expect(
+      outcome.status === "success" ? outcome.response.headers["alt-svc"] : null,
+    ).toEqual([ALT_SVC]);
+    harness.assertExhausted();
+  });
+
+  it("does not follow an advertised alternative service: no extra hop, no extra connection", async () => {
+    const start = "https://origin.example/start";
+    const { harness, authorize, enricher } = fixtureEnricher([
+      {
+        url: start,
+        status: 200,
+        headers: { "alt-svc": ALT_SVC, "content-type": "text/plain" },
+        body: "done",
+      },
+    ]);
+    const result = await inspectAsync(start, { enrichers: [enricher] });
+
+    // One authorization, one resolution, one connection, one request. An
+    // alternative authority would have to appear as a second of each.
+    expect(authorize).toHaveBeenCalledTimes(1);
+    expect(harness.resolver.calls).toHaveLength(1);
+    expect(harness.connector.calls).toHaveLength(1);
+    expect(harness.http.calls).toHaveLength(1);
+    const hops = result.enrichment?.outcomes ?? [];
+    expect(hops).toHaveLength(1);
+    const chainHop = hops[0]?.evidence?.find((item) => item.type === "resolution.chain-hop");
+    expect(chainHop?.payload).toMatchObject({ hop: 1, requestUrl: start, transition: null });
+    harness.assertExhausted();
+  });
+
+  it("does not surface the advertisement anywhere in the result today", async () => {
+    const start = "https://origin.example/start";
+    const { harness, enricher } = fixtureEnricher([
+      {
+        url: start,
+        status: 200,
+        headers: { "alt-svc": ALT_SVC, "content-type": "text/plain" },
+        body: "done",
+      },
+    ]);
+    const result = await inspectAsync(start, { enrichers: [enricher] });
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain("alt-svc");
+    expect(serialized).not.toContain("h3=");
+    expect(result.score).toBe(inspect(start).score);
+    harness.assertExhausted();
+  });
+});
