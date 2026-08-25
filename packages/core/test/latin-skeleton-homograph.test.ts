@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { inspect } from "../src/index.js";
+import { inspect, type InspectOptions } from "../src/index.js";
 import { toAscii } from "../src/unicode/idna.js";
+import { skeleton } from "../src/unicode/skeleton.js";
+import { analyzeHost } from "../src/parse/psl.js";
 
 const codes = (input: string) => inspect(input).reasons.map((r) => r.code);
 const cp = (...cps: number[]): string => String.fromCodePoint(...cps);
@@ -106,5 +108,135 @@ describe("homograph_latin_skeleton — precision negatives (genuine non-Latin re
     // post-NFKC non-ASCII guard so the two detectors don't overlap.
     const fullwidth = `https://${cp(0xff47, 0xff4f, 0xff4f, 0xff47, 0xff4c, 0xff45)}.com`;
     expect(codes(fullwidth)).not.toContain("homograph_latin_skeleton");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LINK-ubzfajzm — the public suffix is evaluated as a homograph target.
+// ---------------------------------------------------------------------------
+
+const ALLOW: InspectOptions = { idnPolicy: "allow" };
+
+/**
+ * Real IANA IDN public suffixes, built from codepoints so a reviewer can see
+ * that every character below is Cyrillic and none of it is Latin. The ACE form
+ * is the identity these actually have in the pinned PSL.
+ */
+const BG = cp(0x0431, 0x0433); //         бг  — Bulgaria      (xn--90ae)
+const SRB = cp(0x0441, 0x0440, 0x0431); // срб — Serbia        (xn--90a3ac)
+const ORG_CYR = cp(0x043e, 0x0440, 0x0433); // орг — Cyrillic .org (xn--c1avg)
+const RUS = cp(0x0440, 0x0443, 0x0441); // рус — .rus          (xn--p1acf)
+const OBR_SRB = `${cp(0x043e, 0x0431, 0x0440)}.${SRB}`; // обр.срб (xn--90azh.xn--90a3ac)
+
+/**
+ * The complete set of ICANN public suffixes in the pinned `tldts@7.4.10` whose
+ * Unicode form skeletons to pure ASCII — enumerated, not sampled, by walking
+ * every one of the 7,387 ICANN rules in the bundled trie and running each
+ * through `skeleton(toUnicode(rule))`. 446 of those rules carry an `xn--`
+ * label; exactly these 16 fold away entirely, and each one takes its WHOLE
+ * namespace to `critical` under the registrable-domain predicate.
+ *
+ * Note what the second column shows: only four of the sixteen fold to something
+ * containing a digit, so a guard that merely required ASCII *letters* would
+ * still block the other twelve — the ten Norwegian municipal suffixes fold
+ * through `æ -> ae`, which is ASCII letters throughout.
+ */
+const ASCII_FOLDING_SUFFIXES: readonly (readonly [string, string])[] = [
+  [SRB, "cp6"],
+  [BG, "6r"],
+  [OBR_SRB, "o6p.cp6"],
+  ["bærum.no", "baerum.no"],
+  [ORG_CYR, "opr"],
+  [`${ORG_CYR}.${SRB}`, "opr.cp6"],
+  ["fræna.no", "fraena.no"],
+  ["hægebostad.no", "haegebostad.no"],
+  ["klæbu.no", "klaebu.no"],
+  ["kvæfjord.no", "kvaefjord.no"],
+  ["kvænangen.no", "kvaenangen.no"],
+  ["lærdal.no", "laerdal.no"],
+  [RUS, "pyc"],
+  ["rælingen.no", "raelingen.no"],
+  ["træna.no", "traena.no"],
+  ["tysvær.no", "tysvaer.no"],
+];
+
+describe("LINK-ubzfajzm — a public suffix is not a registrant's disguise", () => {
+  it("the enumerated suffix list is really 16 real ICANN public suffixes", () => {
+    // Guards the fixture itself: if a `tldts` re-pin retires one of these rules
+    // the list below stops measuring what its comment says it measures.
+    expect(ASCII_FOLDING_SUFFIXES.length).toBe(16);
+    for (const [suffix, folded] of ASCII_FOLDING_SUFFIXES) {
+      expect(skeleton(suffix).normalize("NFC"), suffix).toBe(folded);
+      expect(analyzeHost(`registrant.${suffix}`).publicSuffix, suffix).toBe(suffix);
+    }
+  });
+
+  it.each(ASCII_FOLDING_SUFFIXES.map(([suffix]) => suffix))(
+    "an ordinary ASCII registrant label under '%s' is CRITICAL (the defect)",
+    (suffix) => {
+      const r = inspect(`https://registrant.${suffix}/`, ALLOW);
+      expect(r.reasons.map((x) => x.code)).toContain("homograph_latin_skeleton");
+      expect(r.score).toBe(1);
+      expect(r.severity).toBe("critical");
+    },
+  );
+
+  it.each([
+    `google.${BG}`,
+    `sofia.${BG}`,
+    `nic.${SRB}`,
+    `shop.${ORG_CYR}`,
+    `news.${RUS}`,
+    "kommune.bærum.no",
+  ])("the named national host %s is CRITICAL (the defect)", (host) => {
+    const r = inspect(`https://${host}/`, ALLOW);
+    expect(r.reasons.map((x) => x.code)).toContain("homograph_latin_skeleton");
+    expect(r.severity).toBe("critical");
+  });
+
+  it("правителство.бг does NOT fire — its own label keeps a non-ASCII skeleton", () => {
+    // Filed on the issue as a casualty; it is not one. The Bulgarian government
+    // host carries в/и/т/л/ь, none of which has a Latin confusable, so the
+    // registrable domain skeletons to 'пpaвитeлcтвo.6r' and the ASCII guard
+    // rejects it before the suffix is ever reached. It scores on `idn_host`
+    // alone. Pinned so the correction is not re-lost.
+    const host = `${cp(0x043f, 0x0440, 0x0430, 0x0432, 0x0438, 0x0442, 0x0435, 0x043b, 0x044c, 0x0441, 0x0442, 0x0432, 0x043e)}.${BG}`;
+    expect(codes(`https://${host}/`)).not.toContain("homograph_latin_skeleton");
+    expect(inspect(`https://${host}/`, ALLOW).score).toBe(0);
+    expect(inspect(`https://${host}/`).severity).toBe("high"); // idn_host only
+  });
+
+  describe("true positives that must survive any narrowing", () => {
+    const CYR_COP = cp(CYR.c, CYR.o, CYR.p); // сор -> cop, the documented residual
+    it.each([
+      [CYR_CHASE.replace("https://", ""), "brand homograph under an ASCII TLD"],
+      [CYR_ACCESS.replace("https://", ""), "non-brand homograph under an ASCII TLD"],
+      [`p${cp(CYR.a)}ypal.com`, "one-character Cyrillic swap in a brand"],
+      [`${CYR_COP}.com`, "short all-Cyrillic word folding to ASCII"],
+      [`${CYR_COP}.${BG}`, "the same, under a Cyrillic ccTLD — the registrant label is still a fold"],
+      [`${cp(CYR.c, CYR.h, CYR.a, CYR.s, CYR.e)}.bærum.no`, "brand homograph under a Norwegian municipal suffix"],
+      [`${BG}.com`, "a Cyrillic label folding to a DIGIT ('6r') — an ASCII-letters guard would drop this"],
+      [`${cp(0x0430, 0x14bf)}.com`, "a2.com via U+14BF — likewise digit-folding"],
+    ])("%s still fires (%s)", (host) => {
+      expect(codes(`https://${host}/`), host).toContain("homograph_latin_skeleton");
+    });
+  });
+
+  describe("no widening — a genuine non-Latin word stays quiet", () => {
+    // §6.2's LINK-tydjfmci trap in the opposite direction: a narrowing must not
+    // be smuggled in as a re-scoping that starts firing on ordinary vocabulary.
+    // Every host here keeps a non-ASCII codepoint in its skeleton today.
+    it.each([
+      `${cp(0x0433, 0x043e, 0x0440, 0x0430)}.${cp(0x0440, 0x0444)}`, // гора.рф
+      `${cp(0x0440, 0x0435, 0x0441, 0x0443, 0x0440, 0x0441)}.${cp(0x0440, 0x0444)}`, // ресурс.рф
+      `${cp(0x0448, 0x043a, 0x043e, 0x043b, 0x0430)}.${cp(0x0440, 0x0444)}`, // школа.рф
+      `${cp(0x043c, 0x0438, 0x0440)}.${ORG_CYR}`, // мир.орг — Cyrillic word AND Cyrillic TLD
+      "þingvellir.is",
+      "straße.de",
+    ])("%s stays quiet", (host) => {
+      const r = inspect(`https://${host}/`, ALLOW);
+      expect(r.reasons.map((x) => x.code), host).not.toContain("homograph_latin_skeleton");
+      expect(r.score, host).toBe(0);
+    });
   });
 });
