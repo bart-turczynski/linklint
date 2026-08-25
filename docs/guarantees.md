@@ -58,7 +58,7 @@ tracks.
 | `docs/online-runtime-boundary.md` | 10 |
 | `docs/online-source-contract.md` | 14 |
 | `docs/raw-url-tokenization-spike.md` | 1 |
-| `docs/reason-codes.md` | 82 |
+| `docs/reason-codes.md` | 83 |
 | `docs/redirect-chain-resolution.md` | 4 |
 | `docs/safe-transport.md` | 11 |
 | `docs/scoring.md` | 6 |
@@ -333,7 +333,7 @@ an oversight. These lines match the pattern and are deliberately unpinned:
   would have done, so there is no behavior to pin; the section's actual
   disposition is the decline.
 - **Cross-references to a rule stated elsewhere** — "§5's result-invariant list",
-  "satisfies §1.1's name-never-create rule", and §6.4's "§6's invariant list"
+  "satisfies §1.1's name-never-create rule" (also in `docs/reason-codes.md`, where `open_redirect_param`'s rejected-alternatives bullet names the rule that forbids an IdP allowlist), and §6.4's "§6's invariant list"
   naming the block whose `Reason.suppressed` bullet it corrects. These point at
   a claim rather than making one; the claim is pinned where it is stated — D7,
   E1, and, for §6's block, D9/D10 plus the §6 assertions in
