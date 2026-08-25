@@ -59,9 +59,9 @@ const flattenProse = (markdown: string): string =>
     .replace(/\s+/g, " ");
 
 describe("InspectResult schema contract (schemaVersion + confidence, FR-SCORE-2b)", () => {
-  it("stamps schemaVersion 1.7 on ok and invalid results", () => {
-    expect(inspect("https://www.example.com/").schemaVersion).toBe("1.7");
-    expect(inspect("ht!tp://%%%not a url").schemaVersion).toBe("1.7");
+  it("stamps schemaVersion 1.8 on ok and invalid results", () => {
+    expect(inspect("https://www.example.com/").schemaVersion).toBe("1.8");
+    expect(inspect("ht!tp://%%%not a url").schemaVersion).toBe("1.8");
   });
 
   it("deterministic lexical results (ok AND invalid) carry confidence 1.0", () => {
@@ -257,7 +257,7 @@ describe("inspect() is synchronous and deterministic (published guarantee)", () 
 
 describe("async enrichment public boundary and documentation contract (K9)", () => {
   it("exports the runtime orchestration, validation, cache, and version surface", () => {
-    expect(root.SCHEMA_VERSION).toBe("1.7");
+    expect(root.SCHEMA_VERSION).toBe("1.8");
     expect(root.ENRICHMENT_SCHEMA_VERSION).toBe("1.0");
     expect(root.inspectAsync).toBeTypeOf("function");
     expect(root.isEnrichmentReport).toBeTypeOf("function");
@@ -266,7 +266,7 @@ describe("async enrichment public boundary and documentation contract (K9)", () 
   });
 
   it("keeps public schema and async cache documentation aligned with the code", () => {
-    expect(publicReadme).toContain("schemaVersion: '1.7'");
+    expect(publicReadme).toContain(`schemaVersion: '${root.SCHEMA_VERSION}'`);
     expect(publicReadme).toContain("enrichment?: EnrichmentReport");
     expect(publicReadme).toContain("cacheTtlMsFor(report, context)");
 
@@ -274,8 +274,8 @@ describe("async enrichment public boundary and documentation contract (K9)", () 
     expect(coreReadme).toContain("Promise-capable stores");
     expect(coreReadme).toContain("cacheTtlMsFor(report, context)");
 
-    expect(architectureDoc).toContain("schema version `1.7`");
-    expect(architectureDoc).toContain("schemaVersion: '1.7'");
+    expect(architectureDoc).toContain(`schema version \`${root.SCHEMA_VERSION}\``);
+    expect(architectureDoc).toContain(`schemaVersion: '${root.SCHEMA_VERSION}'`);
     expect(architectureDoc).not.toContain("schemaVersion: '1.2';");
     expect(architectureDoc).toContain("enrichment?: EnrichmentReport");
 

@@ -10,7 +10,7 @@ adds `enrichment`. `inspectAsync()` with no enrichers remains byte-identical to
 
 ## Versions
 
-- `InspectResult.schemaVersion` is `1.7`.
+- `InspectResult.schemaVersion` is `1.8`.
 - `InspectResult.enrichment.schemaVersion` is independently versioned and is
   currently `1.0` (`ENRICHMENT_SCHEMA_VERSION`).
 - The `enrichment` field is present only when at least one enricher is configured.

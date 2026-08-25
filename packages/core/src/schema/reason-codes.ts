@@ -337,6 +337,13 @@ export const REASON_CODES = {
     summary:
       "A resolved response's bytes sniff to an active/executable type (html/xml) that diverges from the declared Content-Type with no nosniff — resolution-time content-type-spoofing corroboration, informational (weight 0).",
   },
+  https_downgrade_observed: {
+    layer: "resolution",
+    scoring: false,
+    weight: 0,
+    summary:
+      "A resolved chain transitioned from an https: hop to an http: target (HTTP redirect, Refresh header, or meta refresh) — the chain left TLS for plaintext. Reported, never refused. Informational (weight 0): the chain does not misrepresent itself, so this is a fact worth reporting, not a claim that the URL is deceptive.",
+  },
 
   // ── Reputation (Layer 3 source-attributed, conjunctive) ──────────────────
   young_domain_brand_risk: {

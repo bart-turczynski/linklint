@@ -4,6 +4,39 @@ All notable changes to this project will be documented here.
 
 ## Unreleased
 
+- Name the HTTPS → HTTP downgrade a resolved chain walks into
+  (`https_downgrade_observed`, `LINK-emlbzwct`). The fact was already fully
+  derivable from the shipped `resolution.chain-hop` payloads — each carries
+  `transport.protocol` for the hop it fetched and the ordered
+  `transition.targetUrl` it was sent to — but nothing stated it, so a consumer
+  had to reconstruct the scheme sequence to learn that a chain left TLS. The
+  finding is raised on the hop that ISSUED the transition, once per downgrading
+  transition, for all three mechanisms (HTTP redirect, `Refresh` header, HTML
+  meta refresh), with a `resolution.https-downgrade` evidence record. The
+  discriminator is the TRANSITION, never a hop's scheme: an `http://` input at
+  hop 1 is an ordinary plaintext origin, and an upgrade or an `https:`→`https:`
+  hop is nothing. **Weight 0, and not as a placeholder** — a downgrade is not
+  deceptive under `docs/architecture.md` §1.1: the chain plainly says `http://`
+  and no two readers disagree about what it says. It is reported under the
+  fourth rule (report what you can determine, never silently pass), not scored.
+  **The chain is never stopped and there is no option to stop it** (decided 2–1):
+  refusal buys no confidentiality, because L0 sends no body, no cookie jar and no
+  credentials and strips the caller's `Referer`, while it costs detection,
+  because a refused hop is never fetched and the worst-hop projection, the
+  open-redirect correlation and the MIME evidence all read fetched hops only.
+- **`SCHEMA_VERSION` 1.7 → 1.8**, owed by the entry above under the §6.4 bump
+  matrix: `https_downgrade_observed` is a new value in `ReasonCode`, a CLOSED,
+  publicly exported domain enumerated by `REASON_CODES` and
+  `docs/reason-codes.md`. This is the first bump taken under that matrix, and
+  the mechanical guard shipped with it did its job — registering the code with
+  `schema/base.ts` untouched failed
+  `packages/core/test/docs-validation.test.ts` with `added:
+  ["https_downgrade_observed"]` and the instruction to bump and re-stamp, which
+  is exactly the shape of the `5813e01` miss the pin was written for. Both
+  constants (`PINNED_SCHEMA_VERSION`, `PINNED_REASON_CODES`) are re-stamped in
+  the same commit. `ENRICHMENT_SCHEMA_VERSION` does NOT move: evidence `type` is
+  documented source-defined and open, so `resolution.https-downgrade` adds no
+  value to a closed domain.
 - Settle when `SCHEMA_VERSION` bumps (`LINK-zzydqrkd`). The repository stated two
   incompatible rules: `packages/core/src/schema/base.ts` claimed every contract
   change including additive ones, while `schema/options.ts`,

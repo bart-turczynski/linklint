@@ -719,7 +719,7 @@ describe("the ReasonCode registry is pinned to the SCHEMA_VERSION it registered 
   // the same commit. That is deliberate — a pin that may outlive its version is
   // a pin that silently stops checking, which is the failure mode the whole
   // guarantee register exists to prevent.
-  const PINNED_SCHEMA_VERSION = "1.7";
+  const PINNED_SCHEMA_VERSION = "1.8";
 
   /** Every `REASON_CODES` key as of `PINNED_SCHEMA_VERSION`, sorted. */
   const PINNED_REASON_CODES: readonly string[] = [
@@ -749,6 +749,7 @@ describe("the ReasonCode registry is pinned to the SCHEMA_VERSION it registered 
   "host_denied",
   "host_length_unresolvable",
   "host_not_allowlisted",
+  "https_downgrade_observed",
   "idn_host",
   "idna_mapping_ambiguity",
   "invisible_char",

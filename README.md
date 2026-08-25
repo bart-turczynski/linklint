@@ -274,7 +274,7 @@ detector logic is versioned there, not in `dataVersions`.
 
 ```ts
 interface InspectResult {
-  schemaVersion: '1.7';
+  schemaVersion: '1.8';
   status: 'ok' | 'invalid';
   input: string;
   parsed: ParsedUrl | null;        // scheme, userinfo, registrableDomain, publicSuffix,

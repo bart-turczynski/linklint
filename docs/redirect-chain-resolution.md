@@ -102,6 +102,37 @@ and codes already present on the original offline result are not projected
 again. This makes the chain's worst observed hop visible without multiplying
 the same lexical evidence merely because it appeared at several redirects.
 
+### HTTPS → HTTP downgrade (`https_downgrade_observed`)
+
+A hop fetched over `https:` that hands the chain an `http:` target raises the
+informational (weight 0) `https_downgrade_observed` finding, with a
+`resolution.https-downgrade` evidence record on the hop that **issued** the
+transition. All three transition kinds are covered — HTTP redirect, `Refresh`
+header, and `<meta http-equiv="refresh">` — because each arrives at the same
+place in the chain loop.
+
+The discriminator is the **transition**, never a single hop's scheme. An
+`http://` input at hop 1 is an ordinary plaintext origin, not a downgrade;
+neither is an `http:`→`https:` upgrade or an `https:`→`https:` hop. An
+`https → http → https` bounce reports once, at the hop that downgraded, and the
+rest of the chain is unaffected.
+
+The finding is keyed on the transition rather than on the target hop's fetch, so
+a chain cut short after the downgrade — hop cap, denied authorization, transport
+failure — still reports the plaintext target it was directed to.
+
+**The chain is never stopped, and there is no option to stop it.** Refusing the
+downgraded hop would buy no confidentiality: L0 sends no request body, no cookie
+jar and no credentials, and strips the caller's `Referer`, so the plaintext
+request discloses only the URL the server itself just named. It would cost
+detection, because a refused hop is never fetched and the worst-hop projection,
+the open-redirect correlation and the MIME evidence all read fetched hops only.
+
+The finding carries **weight 0** and that is not a placeholder. A downgrade is
+not deceptive under §1.1 — the chain plainly says `http://` and no two readers
+disagree about what it says. It is reported because the fourth rule is *report
+what you can determine, never silently pass*, not because it makes the URL a lie.
+
 ## Privacy disclosure (Layer 2 sources)
 
 Layer 2 adds two network-touching resolution sources and one purely local one.
