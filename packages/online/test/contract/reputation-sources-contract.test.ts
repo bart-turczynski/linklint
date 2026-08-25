@@ -1,14 +1,19 @@
 /**
- * M10 U1 — cross-source descriptor contract fan-in (LINK-lbhcpjkj).
+ * M10 U1 — cross-source descriptor contract fan-in (LINK-lbhcpjkj, LINK-angnbelm).
  *
  * This is the single place that proves EVERY shipped online reputation source
  * satisfies the M2 online-source contract. Each source's own suite still calls
  * {@link assertOnlineSourceContract} in isolation; the value of this file is the
- * fan-in: all five real descriptors are enumerated in one table and run through
- * the same 8-criteria kit here, closing the gap where a source (notably RDAP)
- * had never been driven through the FULL kit. If a sixth reputation source ships
- * without an entry in `SOURCES` below, its absence is a visible omission in this
- * cross-source gate rather than a silent one.
+ * fan-in: every real descriptor runs through the same 8-criteria kit here,
+ * closing the gap where a source (notably RDAP) had never been driven through
+ * the FULL kit.
+ *
+ * The table is no longer written here. It comes from
+ * {@link ONLINE_SOURCE_REGISTRY} (LINK-angnbelm), and the first assertion below
+ * reflects over the public `./reputation` and `./mirrors` barrels to prove the
+ * registry covers every descriptor those barrels export. A sixth source that
+ * ships without being registered fails HERE, by id, instead of leaving this
+ * gate quietly measuring five things forever.
  *
  * Fan-in only: this file asserts the CONTRACT for each descriptor and nothing
  * about any source's internal behavior (findings, evidence payloads, lookups) —
@@ -17,62 +22,34 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  DNS_SOURCE_DESCRIPTOR,
-  RDAP_SOURCE_DESCRIPTOR,
-  TLS_SOURCE_DESCRIPTOR,
-} from "../../src/reputation/index.js";
-import {
-  PHISHTANK_SOURCE_DESCRIPTOR,
-  URLHAUS_SOURCE_DESCRIPTOR,
-} from "../../src/mirrors/index.js";
-import type { OnlineSourceDescriptor } from "../../src/sources/index.js";
+import * as mirrors from "../../src/mirrors/index.js";
+import * as reputation from "../../src/reputation/index.js";
 import {
   assertOnlineSourceContract,
   type OnlineSourceContractOptions,
 } from "./online-source-contract-kit.js";
+import { ONLINE_SOURCE_REGISTRY, shippedDescriptorIds } from "./online-source-registry.js";
 
-interface ContractCase {
-  readonly name: string;
-  readonly descriptor: OnlineSourceDescriptor;
-  /** Per-source kit options; omitted (`{}`) for no-credential sources. */
-  readonly options: OnlineSourceContractOptions;
+/** Kit options are derived from the registry entry, never restated per source. */
+function kitOptions(sampleCredential: string | undefined): OnlineSourceContractOptions {
+  return sampleCredential === undefined ? {} : { sampleCredential };
 }
 
-/**
- * Every shipped online reputation source, with the kit options that source
- * requires. Evidence-only live providers (RDAP/TLS/DNS) take no credential;
- * the caller-owned BYOK mirrors (URLhaus/PhishTank) supply a sample credential.
- */
-const SOURCES: readonly ContractCase[] = [
-  { name: "RDAP", descriptor: RDAP_SOURCE_DESCRIPTOR, options: {} },
-  { name: "TLS", descriptor: TLS_SOURCE_DESCRIPTOR, options: {} },
-  { name: "DNS", descriptor: DNS_SOURCE_DESCRIPTOR, options: {} },
-  {
-    name: "URLhaus",
-    descriptor: URLHAUS_SOURCE_DESCRIPTOR,
-    options: { sampleCredential: "urlhaus-auth-key-abc123" },
-  },
-  {
-    name: "PhishTank",
-    descriptor: PHISHTANK_SOURCE_DESCRIPTOR,
-    options: { sampleCredential: "phishtank-app-key-xyz789" },
-  },
-];
-
 describe("reputation sources — cross-source M2 contract fan-in", () => {
-  it("enumerates every shipped reputation source (a sixth is a visible omission)", () => {
-    expect(SOURCES).toHaveLength(5);
-    expect(SOURCES.map((source) => source.descriptor.id)).toEqual([
-      RDAP_SOURCE_DESCRIPTOR.id,
-      TLS_SOURCE_DESCRIPTOR.id,
-      DNS_SOURCE_DESCRIPTOR.id,
-      URLHAUS_SOURCE_DESCRIPTOR.id,
-      PHISHTANK_SOURCE_DESCRIPTOR.id,
-    ]);
+  it("covers every source descriptor the public barrels export", () => {
+    const registered = [...ONLINE_SOURCE_REGISTRY.map((source) => source.descriptor.id)].sort();
+    const shipped = shippedDescriptorIds([reputation, mirrors]);
+
+    // Named-difference assertions, so a failure says WHICH source is missing.
+    expect(shipped.filter((id) => !registered.includes(id))).toEqual([]);
+    expect(registered.filter((id) => !shipped.includes(id))).toEqual([]);
+    expect(ONLINE_SOURCE_REGISTRY.length).toBeGreaterThan(0);
   });
 
-  it.each(SOURCES)("$name satisfies the shared online-source contract", ({ descriptor, options }) => {
-    assertOnlineSourceContract(descriptor, options);
-  });
+  it.each(ONLINE_SOURCE_REGISTRY)(
+    "$name satisfies the shared online-source contract",
+    ({ descriptor, sampleCredential }) => {
+      assertOnlineSourceContract(descriptor, kitOptions(sampleCredential));
+    },
+  );
 });

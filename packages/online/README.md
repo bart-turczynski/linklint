@@ -58,6 +58,39 @@ const redirectChain = createRedirectChainEnricher({
 });
 ```
 
+## Terms are a construction gate
+
+Every reputation and mirror enricher factory takes a **required** `terms`
+argument — the caller's licensing posture for that source — and checks it against
+the source's descriptor before the enricher exists. There is no default: only you
+know your commercial posture, and inventing one would be the silent downgrade the
+contract forbids.
+
+```ts
+import { createUrlhausEnricher } from "@linklint/online/mirrors";
+
+// Throws OnlineSourceConfigError('unsupported-commercial-mode'): abuse.ch grants
+// free non-commercial / fair use, and commercial use needs a separate plan.
+createUrlhausEnricher({
+  terms: { commercialMode: "commercial", acceptAttribution: true },
+  resolveIndex,
+});
+
+// Accepted.
+createUrlhausEnricher({
+  terms: { commercialMode: "fair-use", acceptAttribution: true },
+  resolveIndex,
+});
+```
+
+Only the two mirrors can refuse today. RDAP, live TLS and DNS declare all three
+commercial modes and require no attribution, so no legal `terms` value makes
+their gate throw — a property of those descriptors, not an exemption. The gate
+is terms-only and never asks for a feed credential: the Auth-Key and app key are
+revealed by the *updaters* below, and querying a snapshot you already own must
+not demand the key that downloaded it. The resolution enrichers take no `terms`
+at all; a destination is authorized per hop, not per construction.
+
 ## Caller-owned threat-feed mirrors
 
 The `@linklint/online/mirrors` subpath exposes the URLhaus and PhishTank

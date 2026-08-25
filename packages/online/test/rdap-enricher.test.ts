@@ -87,6 +87,7 @@ async function run(
   opts: { youngThresholdDays?: number } = {},
 ): Promise<EnrichmentReport> {
   const enricher = createRdapAgeEnricher({
+    terms: { commercialMode: "commercial" },
     client,
     registry,
     now: () => new Date(NOW),
@@ -240,6 +241,7 @@ describe("createRdapAgeEnricher — bootstrap availability", () => {
     client: OneShotClient,
   ): Promise<EnrichmentReport> {
     const enricher = createRdapAgeEnricher({
+      terms: { commercialMode: "commercial" },
       client,
       registry: bootstrap,
       now: () => new Date(NOW),
@@ -320,7 +322,7 @@ describe("createRdapAgeEnricher — inspectAsync integration", () => {
     const client = new OneShotClient(
       resp(200, rdapJson({ ldhName: "paypa1.com", registrationDate: daysAgo(7) })),
     );
-    const enricher = createRdapAgeEnricher({ client, registry, now: () => new Date(NOW) });
+    const enricher = createRdapAgeEnricher({ terms: { commercialMode: "commercial" }, client, registry, now: () => new Date(NOW) });
     const result = await inspectAsync("http://paypa1.com", { enrichers: [enricher] });
 
     // The chosen input is a digit-fold brand homoglyph; guard the precondition.

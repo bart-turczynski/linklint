@@ -27,7 +27,11 @@ import {
   type InspectResult,
 } from "linklint";
 
-import { freshnessFor } from "../sources/index.js";
+import {
+  assertSourceTermsAccepted,
+  freshnessFor,
+  type SourceTermsAcceptance,
+} from "../sources/index.js";
 import { canonicalizeUrl } from "./url-canonical.js";
 import {
   PHISHTANK_SOURCE_DESCRIPTOR,
@@ -37,6 +41,13 @@ import {
 import type { PhishTankIndex, PhishTankRecord } from "./phishtank-types.js";
 
 export interface PhishTankEnricherOptions {
+  /**
+   * The caller's acceptance of this source's licensing terms. REQUIRED: the
+   * source is constructed only under terms it can honor, so there is no default
+   * to fall back to. `assertSourceTermsAccepted` checks them against
+   * `PHISHTANK_SOURCE_DESCRIPTOR.terms` before the enricher exists.
+   */
+  readonly terms: SourceTermsAcceptance;
   /**
    * Resolves the current caller-owned snapshot index, or `null` when no snapshot
    * is loaded. Called once per check so a caller can swap in a freshly-updated
@@ -55,6 +66,13 @@ export interface PhishTankEnricherOptions {
  * within a fresh snapshot.
  */
 export function createPhishTankEnricher(options: PhishTankEnricherOptions): Enricher {
+  // Terms first, and here the gate genuinely refuses: PhishTank grants free
+  // use WITH attribution and assumes no commercial grant, so `commercialMode:
+  // "commercial"` and a declined attribution both throw before an enricher
+  // exists. No feed credential is asked for — the app key is revealed only by
+  // the M5a updater, in the download URL path.
+  assertSourceTermsAccepted(PHISHTANK_SOURCE_DESCRIPTOR, options.terms);
+
   const now = options.now ?? (() => new Date());
 
   return {

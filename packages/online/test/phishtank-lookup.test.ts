@@ -60,6 +60,7 @@ function fakeResult(input: string): InspectResult {
 
 async function run(input: string, index: PhishTankIndex | null): Promise<EnrichmentReport> {
   const enricher = createPhishTankEnricher({
+    terms: { commercialMode: "fair-use", acceptAttribution: true },
     resolveIndex: () => index,
     now: () => new Date(NOW),
   });
@@ -157,7 +158,7 @@ describe("createPhishTankEnricher", () => {
 describe("createPhishTankEnricher — inspectAsync integration", () => {
   it("projects verified_phish_listed into the result reasons with no network at check time", async () => {
     const index = indexOf([record(HIT_URL)]);
-    const enricher = createPhishTankEnricher({ resolveIndex: () => index, now: () => new Date(NOW) });
+    const enricher = createPhishTankEnricher({ terms: { commercialMode: "fair-use", acceptAttribution: true }, resolveIndex: () => index, now: () => new Date(NOW) });
     const result = await inspectAsync(HIT_URL, { enrichers: [enricher] });
 
     expect(result.reasons.map((r) => r.code)).toContain("verified_phish_listed");
@@ -166,7 +167,7 @@ describe("createPhishTankEnricher — inspectAsync integration", () => {
 
   it("records a clean-URL miss as a completed no-hit, not a finding", async () => {
     const index = indexOf([record(HIT_URL)]);
-    const enricher = createPhishTankEnricher({ resolveIndex: () => index, now: () => new Date(NOW) });
+    const enricher = createPhishTankEnricher({ terms: { commercialMode: "fair-use", acceptAttribution: true }, resolveIndex: () => index, now: () => new Date(NOW) });
     const result = await inspectAsync("http://evil.example/not-listed", { enrichers: [enricher] });
     expect(result.reasons.map((r) => r.code)).not.toContain("verified_phish_listed");
   });

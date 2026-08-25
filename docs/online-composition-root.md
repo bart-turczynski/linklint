@@ -54,30 +54,69 @@ const transport = createNodeSafeTransport();
 const tlsInspector = createNodeSafeTlsInspector();
 const dnsResolver = createNodeDnsResolver();
 
-// 3. Plan, in caller order.
+// 3. Terms. Every reputation factory requires them; only the caller knows their
+//    commercial posture, so there is no default. DNS and TLS grant all three
+//    modes, so this value is accepted — see "Terms are required" below.
+const terms = { commercialMode: "commercial" } as const;
+
+// 4. Plan, in caller order.
 const enrichers = [
   createRedirectChainEnricher({ transport, authorize }),
-  createDnsStateEnricher({ resolver: dnsResolver }),
-  createTlsCertificateEnricher({ inspector: tlsInspector }),
+  createDnsStateEnricher({ terms, resolver: dnsResolver }),
+  createTlsCertificateEnricher({ terms, inspector: tlsInspector }),
 ];
 
-// 4. Run.
+// 5. Run.
 const result = await inspectAsync("https://example.com/", { enrichers });
 ```
 
+### Terms are required
+
+The two resolution enrichers take no `terms`; both reputation enrichers do, and
+the argument is not optional. `terms` is the source's *licensing* posture —
+`commercialMode`, plus `acceptAttribution` when the source demands it — and each
+factory checks it against its own descriptor before the enricher exists. There is
+no default, because synthesizing one would be exactly the silent downgrade
+[`online-source-contract.md`](./online-source-contract.md) forbids.
+
+For DNS, TLS and RDAP no legal value refuses: their descriptors grant all three
+commercial modes and require no attribution. The two caller-owned mirrors do
+refuse — `commercial` is outside both licences and both require attribution:
+
+```ts
+// Throws OnlineSourceConfigError('unsupported-commercial-mode').
+createUrlhausEnricher({
+  terms: { commercialMode: "commercial", acceptAttribution: true },
+  resolveIndex,
+});
+
+// Accepted.
+createPhishTankEnricher({
+  terms: { commercialMode: "fair-use", acceptAttribution: true },
+  resolveIndex,
+});
+```
+
+The redirect chain's `authorize` callback is a different seam and is not replaced
+by this one: terms govern whether a *feed* may be used, `authorize` governs
+whether a *destination* may be contacted. Construction is still never consent to
+connect.
+
 ### Which factory takes which adapter
 
-The three enrichers reach the network through three different ports, so they do
-not share one argument name. This is the part that otherwise requires reading
-the source:
+The enrichers reach the network through different ports, so they do not share one
+argument name; the reputation and mirror factories additionally require `terms`.
+This is the part that otherwise requires reading the source:
 
 | Enricher factory | Subpath | Adapter option | Adapter factory |
 | --- | --- | --- | --- |
 | `createRedirectChainEnricher` | `./resolution` | `transport: SafeTransport` | `createNodeSafeTransport()` (`./transport`) |
 | `createDivergenceProbeEnricher` | `./resolution` | `transport: SafeTransport` | `createNodeSafeTransport()` (`./transport`) |
-| `createTlsCertificateEnricher` | `./reputation` | `inspector: SafeTlsInspector` | `createNodeSafeTlsInspector()` (`./transport`) |
-| `createDnsStateEnricher` | `./reputation` | `resolver: DnsResolverPort` | `createNodeDnsResolver()` (`./reputation`) |
-| `createRdapAgeEnricher` | `./reputation` | `client: RdapHttpClient` + `registry` | `createNodeRdapHttpClient()` (`./reputation`) |
+| `createTlsCertificateEnricher` | `./reputation` | `inspector: SafeTlsInspector` + `terms` | `createNodeSafeTlsInspector()` (`./transport`) |
+| `createDnsStateEnricher` | `./reputation` | `resolver: DnsResolverPort` + `terms` | `createNodeDnsResolver()` (`./reputation`) |
+| `createRdapAgeEnricher` | `./reputation` | `client: RdapHttpClient` + `registry` + `terms` | `createNodeRdapHttpClient()` (`./reputation`) |
+| `createUrlhausEnricher` | `./mirrors` | `resolveIndex` + `terms` | — (caller-owned snapshot) |
+| `createPhishTankEnricher` | `./mirrors` | `resolveIndex` + `terms` | — (caller-owned snapshot) |
 | `createEmbeddedWrapperEnricher` | `./resolution` | none — local decoding only | — |
 
 The transport is entered through `SafeTransport.createSession()`, not a bare
@@ -211,9 +250,12 @@ only what a composition root needs to read its own output.
   `rdap-bootstrap-stale`. Adding it to a root therefore means deciding where the
   snapshot lives and how often it is updated, which is an application decision
   rather than a line of composition.
-- **URLhaus and PhishTank** (`@linklint/online/mirrors`) ship no Node client or
-  store adapter (`LINK-mpkglaqb`), so they cannot appear in a runnable example
-  yet. Their mirrors are caller-owned by design.
+- **URLhaus and PhishTank** (`@linklint/online/mirrors`) ship no snapshot store
+  (`LINK-mpkglaqb` added the two Node feed clients but deliberately not a store),
+  so a runnable example would first have to invent where the snapshot lives.
+  Their mirrors are caller-owned by design. Their factories appear in the table
+  above because both now require `terms`, and both are the only two sources whose
+  licence can refuse a construction outright.
 
 ## Why there is no `createDefaultOnlineEnrichers()`
 

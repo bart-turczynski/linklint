@@ -99,7 +99,15 @@ done: `@linklint/online` ships the source-contract root export (descriptor
 validation, terms/attribution construction gate, credential/disclosure runtime
 skips, `OnlineSecret` BYOK wrapper, freshness helper, and evidence-vs-score
 policy), documented in [`online-source-contract.md`](online-source-contract.md)
-and enforced by a shared contract-test kit. **RDAP M1 (`LINK-tqlqshlt`) is now
+and enforced by a shared contract-test kit. **`LINK-angnbelm` wired the terms
+half of that to the factories**: M2 shipped the gate as a function nothing
+called, so the construction claim was documentation-only. All five reputation
+factories now take a required `terms` argument and run
+`assertSourceTermsAccepted` before returning an enricher, and the cross-source
+fan-in derives its cases from one registry so a sixth source cannot ship
+unwired. The three resolution enrichers are out of scope by design — M2 `terms`
+is feed licensing, and destination contact stays on the per-hop `authorize`
+seam. **RDAP M1 (`LINK-tqlqshlt`) is now
 done**: `@linklint/online/reputation` ships bootstrap routing + a bounded
 domain-lookup client with read-through caching and normalization (M1a), and the
 `createRdapAgeEnricher` conjunctive finding — `young_domain_brand_risk` fires

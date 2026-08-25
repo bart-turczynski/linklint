@@ -6,7 +6,11 @@
  * 1. TERMS are a construction gate. Requesting a commercial mode a source does
  *    not support, or declining required attribution, throws {@link
  *    OnlineSourceConfigError}. A source is never constructed under terms it
- *    cannot honor and never silently downgraded.
+ *    cannot honor and never silently downgraded. {@link
+ *    assertSourceTermsAccepted} IS that gate: every shipped reputation factory
+ *    takes a required `terms` argument and calls it before returning an
+ *    enricher, so the claim holds for construction and not merely for a
+ *    preflight a caller might never run.
  * 2. CREDENTIALS and DISCLOSURE are runtime gates. A missing required credential
  *    or an un-granted consent-gated channel yields a structured skip cause, so
  *    the operation degrades to `skipped`/`checksSkipped` with a machine-readable
@@ -76,12 +80,24 @@ export type OnlineSourceSkipCode =
   | "credentials-missing"
   | "disclosure-consent-required";
 
-/** Caller configuration resolved against a descriptor before any operation runs. */
-export interface OnlineSourceConfig {
+/**
+ * The caller's explicit acceptance of a source's licensing terms. This is the
+ * whole of the CONSTRUCTION gate's input: a commercial posture, plus the
+ * attribution acknowledgement when the source's terms demand one.
+ *
+ * It carries no credential and no consent. Feed-download credentials are
+ * revealed only in the updaters, and disclosure consent is decided per
+ * operation — neither belongs at construction, so neither is asked for here.
+ */
+export interface SourceTermsAcceptance {
   /** The commercial posture the caller operates under. Must be a supported mode. */
   readonly commercialMode: CommercialMode;
   /** Required when `terms.attributionRequired`; acknowledges the attribution duty. */
   readonly acceptAttribution?: boolean;
+}
+
+/** Caller configuration resolved against a descriptor before any operation runs. */
+export interface OnlineSourceConfig extends SourceTermsAcceptance {
   /** Caller-owned BYOK secret. Required for a `required` credential source. */
   readonly credential?: OnlineSecret;
   /** Per-operation consent for otherwise-refused disclosure channels. */
@@ -212,6 +228,60 @@ export function assertValidSourceDescriptor(
 }
 
 /**
+ * THE TERMS GATE. Validate a descriptor and refuse, by throwing, any acceptance
+ * the source's licence cannot honor: a commercial mode outside
+ * `terms.supportedModes`, or a missing acknowledgement when
+ * `terms.attributionRequired`. It touches nothing else — no credential, no
+ * consent, no I/O — so it is safe to run at construction, which is the only
+ * place it is meant to run.
+ *
+ * Every source factory calls this with its own descriptor and a `terms`
+ * argument the caller MUST supply. Three of the five shipped reputation sources
+ * (RDAP, TLS, DNS) declare all three commercial modes and require no
+ * attribution, so no legal value of `terms` can make this throw for them: today
+ * only the URLhaus and PhishTank mirrors can actually refuse. That asymmetry is
+ * a property of THOSE DESCRIPTORS, not of this gate, and it is not a reason to
+ * ask only the mirrors for terms:
+ *
+ *   - The docs claim, without qualification, that a source is never constructed
+ *     under terms it cannot honor. An OPTIONAL `terms` field leaves that claim
+ *     false for every call that omits it — the claim would be true only of the
+ *     callers who happened to opt in.
+ *   - Synthesizing a default posture for the omitted case would BE the "silently
+ *     downgraded to a weaker default" the same paragraph forbids. There is no
+ *     honest default commercial mode; only the caller knows theirs.
+ *   - A uniform required argument makes the claim true for all five, and keeps
+ *     it true if a descriptor later tightens — narrowing `supportedModes` on
+ *     RDAP would start refusing callers at construction with no factory change
+ *     and no new argument for anyone to add.
+ *
+ * So the argument is required everywhere and the gate is reachable where the
+ * licence makes it reachable.
+ */
+export function assertSourceTermsAccepted(
+  descriptor: OnlineSourceDescriptor,
+  terms: SourceTermsAcceptance,
+): void {
+  assertValidSourceDescriptor(descriptor);
+
+  if (!descriptor.terms.supportedModes.includes(terms.commercialMode)) {
+    throw new OnlineSourceConfigError(
+      "unsupported-commercial-mode",
+      descriptor.id,
+      `Source '${descriptor.id}' does not support commercial mode '${terms.commercialMode}'; ` +
+        `supported: ${descriptor.terms.supportedModes.join(", ")}`,
+    );
+  }
+  if (descriptor.terms.attributionRequired && terms.acceptAttribution !== true) {
+    throw new OnlineSourceConfigError(
+      "attribution-not-accepted",
+      descriptor.id,
+      `Source '${descriptor.id}' requires attribution; set terms.acceptAttribution = true`,
+    );
+  }
+}
+
+/**
  * Resolve caller configuration against a descriptor. Enforces the TERMS gate
  * (throws on unsupported mode or declined attribution) and then the runtime
  * credential/disclosure gates (returns a skip cause). A successful preflight
@@ -222,24 +292,9 @@ export function preflightOnlineSource(
   descriptor: OnlineSourceDescriptor,
   config: OnlineSourceConfig,
 ): OnlineSourcePreflight {
-  assertValidSourceDescriptor(descriptor);
-
-  // --- Terms gate (construction-time; throws) ---
-  if (!descriptor.terms.supportedModes.includes(config.commercialMode)) {
-    throw new OnlineSourceConfigError(
-      "unsupported-commercial-mode",
-      descriptor.id,
-      `Source '${descriptor.id}' does not support commercial mode '${config.commercialMode}'; ` +
-        `supported: ${descriptor.terms.supportedModes.join(", ")}`,
-    );
-  }
-  if (descriptor.terms.attributionRequired && config.acceptAttribution !== true) {
-    throw new OnlineSourceConfigError(
-      "attribution-not-accepted",
-      descriptor.id,
-      `Source '${descriptor.id}' requires attribution; set config.acceptAttribution = true`,
-    );
-  }
+  // --- Terms gate (construction-time; throws). Descriptor validation happens
+  //     inside it, so it stays the single definition of both. ---
+  assertSourceTermsAccepted(descriptor, config);
 
   // --- Credential gate (runtime; skip cause) ---
   if (descriptor.credentials.kind === "required") {
