@@ -123,7 +123,7 @@ export const EMBARRASSMENT_CORPUS: EmbarrassmentEntry[] = [
   },
   {
     input: "https://0racle-support.com",
-    why: "leading-digit fold plus a support pretext; the brand tier has no leading-letter gate, so the hyphen token is enough (`ascii_homoglyph` still declines it, which is why this lands 0.50/medium not 0.60/high)",
+    why: "leading-digit fold plus a support pretext; the brand tier has no leading-letter gate, so the hyphen token is enough (`ascii_homoglyph` still declines it, which is why this lands 0.80/high rather than the 0.84/critical a fold that also passes `ascii_homoglyph` reaches — see LINK-sdtpvqsy, which corrected the same stale 0.50/0.60 pair in docs/architecture.md §6.1.1 and two source comments)",
   },
   {
     input: "https://netf1ix-billing.com",
