@@ -39,36 +39,62 @@ const NAME =
 
 const codesOf = (url: string, agentMode = false): string[] =>
   inspect(url, agentMode ? { agentMode: true } : undefined).reasons.map((r) => r.code);
-const scoreOf = (url: string, agentMode = false): number =>
+const scoreOf = (url: string, agentMode = false): number | null =>
   inspect(url, agentMode ? { agentMode: true } : undefined).score;
 
-describe("the GCP IPv6 metadata endpoint is under-scored (LINK-eyjfhbzu, PINNED)", () => {
-  it("fd20:ce::254 lands in the generic ULA bucket, not the metadata bucket", () => {
-    expect(codesOf(V6)).toEqual(["ip_private"]);
-    expect(scoreOf(V6)).toBeCloseTo(0.2, 5);
-    expect(inspect(V6).severity).toBe("low");
+describe("the GCP IPv6 metadata endpoint scores as one (LINK-eyjfhbzu)", () => {
+  it("fd20:ce::254 is ip_cloud_metadata at 0.75, not the generic ULA bucket", () => {
+    expect(codesOf(V6)).toEqual(["ip_cloud_metadata"]);
+    expect(scoreOf(V6)).toBeCloseTo(0.75, 5);
+    expect(inspect(V6).severity).toBe("high");
   });
 
-  it("classifyHost calls it ip_private, with an IANA range citation", () => {
+  // The bucket REPLACES the `fc00::/7` match rather than stacking with it:
+  // `classifyIpv6` consults the metadata table first and returns on a hit, so
+  // the range lookup is not reached and the address carries no registry
+  // citation. One address, one bucket — the property the classifier's header
+  // states and the reason the /128 overlay works at all.
+  it("outranks fc00::/7 rather than stacking with it", () => {
     const c = classifyHost("fd20:ce::254");
-    expect(c?.bucket).toBe("ip_private");
-    expect(c?.rangeName).toBe("Unique-Local");
-    expect(c?.provider).toBeUndefined();
+    expect(c?.bucket).toBe("ip_cloud_metadata");
+    expect(c?.provider).toBe("GCP (IPv6-only instances)");
+    expect(c?.endpointKind).toBe("instance-metadata");
+    expect(c?.rangeName).toBeUndefined();
+    expect(c?.rangeRfc).toBeUndefined();
+    expect(codesOf(V6)).not.toContain("ip_private");
+    expect(inspect(V6).reasons[0]?.detail).not.toContain("IANA");
   });
 
-  // The escalation is not reachable independently: `ssrf_cloud_metadata` asks
-  // `classifyHost` for the `ip_cloud_metadata` bucket, so an address that never
-  // reaches that bucket cannot reach the blocker either. The under-scoring is
-  // therefore two findings deep — 0.20 instead of 0.75 always-on, and no
-  // agent-mode block at all.
-  it("agentMode adds nothing — the blocker rides on the bucket it never gets", () => {
-    expect(codesOf(V6, true)).toEqual(["ip_private"]);
-    expect(scoreOf(V6, true)).toBeCloseTo(0.2, 5);
+  // `ssrf_cloud_metadata` asks `classifyHost` for the `ip_cloud_metadata`
+  // bucket, so the under-scoring was two findings deep: 0.20 instead of 0.75
+  // always-on, and no agent-mode block at all. Reaching the bucket restores
+  // both at once.
+  it("escalates under agentMode, stacking to 1.00 critical", () => {
+    expect(codesOf(V6, true).sort()).toEqual(["ip_cloud_metadata", "ssrf_cloud_metadata"]);
+    expect(scoreOf(V6, true)).toBeCloseTo(1, 5);
+    expect(inspect(V6, { agentMode: true }).severity).toBe("critical");
   });
 
-  it("the address is absent from the endpoint table", () => {
-    expect(CLOUD_METADATA_ENDPOINTS.map((e) => e.address)).not.toContain("fd20:ce::254");
+  it("the row is in the endpoint table, cited to Google's own endpoint list", () => {
+    const row = CLOUD_METADATA_ENDPOINTS.find((e) => e.address === "fd20:ce::254");
+    expect(row?.provider).toBe("GCP (IPv6-only instances)");
+    expect(row?.source).toBe(
+      "https://docs.cloud.google.com/compute/docs/metadata/querying-metadata",
+    );
   });
+
+  // The row is matched on decoded bits, not on its text — the property the
+  // table's header calls out and the one a `startsWith("fd20:ce")` fix would
+  // break in the other direction. `classifyHost` is used rather than `inspect`
+  // because a non-canonical spelling also earns `ip_obfuscation`, which is a
+  // different detector's business.
+  it.each(["fd20:ce::254", "fd20:00ce::254", "FD20:CE:0:0:0:0:0:254", "fd20:ce::0254"])(
+    "%s is the same 128 bits and matches the same row",
+    (spelling) => {
+      expect(classifyHost(spelling)?.bucket).toBe("ip_cloud_metadata");
+      expect(classifyHost(spelling)?.provider).toBe("GCP (IPv6-only instances)");
+    },
+  );
 });
 
 describe("the spellings that already score, and must not move (LINK-eyjfhbzu control)", () => {

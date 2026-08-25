@@ -5,9 +5,10 @@
  * target, but it is not one address: the industry converged on
  * `169.254.169.254` for most providers while several large clouds ship their
  * own well-known address (Oracle's `192.0.0.192`, Alibaba's
- * `100.100.100.200`), and AWS additionally serves the IMDS over IPv6 at
- * `fd00:ec2::254`. Hardcoding a single constant left three of those scoring as
- * "reserved" or as an ordinary public IP.
+ * `100.100.100.200`), and two of them additionally serve metadata over IPv6 —
+ * AWS at `fd00:ec2::254`, GCP at `fd20:ce::254` for IPv6-only instances.
+ * Hardcoding a single constant left three of those scoring as "reserved" or as
+ * an ordinary public IP.
  *
  * PROVENANCE. This table is NOT IANA-derived — IANA's special-purpose registries
  * describe *ranges* (169.254.0.0/16 link-local, 100.64.0.0/10 CGNAT), not which
@@ -123,7 +124,7 @@
  * `dataVersions.cloudMetadata`. Bump deliberately whenever a row is added,
  * removed, or re-attributed.
  */
-export const CLOUD_METADATA_VERSION = "2026-08-25-hostnames";
+export const CLOUD_METADATA_VERSION = "2026-08-25-gcp-ipv6";
 
 /**
  * What a row IS, which selects the noun used to describe it in the emitted
@@ -271,6 +272,34 @@ export const CLOUD_METADATA_ENDPOINTS: readonly CloudMetadataEndpoint[] = [
     provider: "Tencent Cloud",
     source: "https://www.tencentcloud.com/document/product/213/32364",
   },
+
+  // --- GCP over IPv6 (LINK-eyjfhbzu) -------------------------------------
+  {
+    // GCP's metadata server on an IPv6-only instance. Google's endpoint list
+    // gives the three spellings together — "http://metadata.google.internal/
+    // computeMetadata/v1" (recommended), "http://169.254.169.254/
+    // computeMetadata/v1", and "http://fd20:ce::254/computeMetadata/v1", the
+    // last annotated as being for IPv6-only instances — and the same three
+    // appear again for the HTTPS (Shielded VM) form of the endpoint. Two of the
+    // three already scored 0.75 here; this one scored 0.20 as an ordinary
+    // `fc00::/7` address, so an IPv6-only GCP instance was the one deployment
+    // shape where the credential endpoint was under-scored, and the agentMode
+    // `ssrf_cloud_metadata` block — which reads this table's bucket — could not
+    // fire on it at all.
+    //
+    // Sits INSIDE `fc00::/7` (Unique-Local), so it depends on the same
+    // most-specific-wins ordering as the rows above: the table is consulted
+    // before the IANA range buckets, and this /128 overlay replaces the
+    // `ip_private` match rather than stacking with it.
+    //
+    // Not the same prefix as AWS's `fd00:ec2::254` despite the resemblance —
+    // `fd20:ce` and `fd00:ec2` are different ULA prefixes, and each vendor
+    // publishes only its own.
+    address: "fd20:ce::254",
+    provider: "GCP (IPv6-only instances)",
+    source: "https://docs.cloud.google.com/compute/docs/metadata/querying-metadata",
+    // #endpoints — "http://fd20:ce::254/computeMetadata/v1", IPv6-only instances
+  },
 ];
 
 /**
@@ -321,6 +350,13 @@ export const CLOUD_METADATA_HOSTNAMES: readonly CloudMetadataHostname[] = [
     // recommended, with "http://169.254.169.254/computeMetadata/v1" beside it as
     // the same server. Every GCP SSRF write-up and every GCP code sample uses
     // the name; only linklint was reading the address.
+    //
+    // The `address` tie stays on the IPv4 row now that the table also carries
+    // GCP's IPv6 endpoint (LINK-eyjfhbzu). Google publishes this name for the
+    // metadata server, not for one address family of it, and `address` selects
+    // the endpoint quoted in the emitted detail — so it should name the address
+    // the overwhelming majority of instances reach the server on. The IPv6 row
+    // sits ALONGSIDE this one; it does not re-point it.
     hostname: "metadata.google.internal",
     address: "169.254.169.254",
     provider: "GCP",
