@@ -41,6 +41,8 @@ const MAX_REFRESH_DELAY_MS = 60_000;
 const MAX_CHAIN_URL_LENGTH = 16_384;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const HTML_MEDIA_TYPES = new Set(["text/html", "application/xhtml+xml"]);
+const MAX_ALT_SVC_PROTOCOLS = 16;
+const ALT_SVC_PROTOCOL_PATTERN = /^[A-Za-z0-9!#$&^_.+%-]{1,32}$/;
 const FRESHNESS: EnrichmentFreshness = { status: "fresh", expiresAt: null };
 
 interface ChainHop {
@@ -313,6 +315,7 @@ export function createRedirectChainEnricher(
         correlation !== null && correlation.hop === hop ? correlation : null,
         mimeEvidenceFor(hop),
         httpsDowngradeFor(hop),
+        altSvcEvidenceFor(hop),
       ));
       outcomes.push(...stops);
       return report(outcomes);
@@ -453,6 +456,7 @@ function hopOutcome(
   correlation: OpenRedirectCorrelation | null,
   mime: MimeEvidence,
   downgrade: HttpsDowngrade | null,
+  altSvc: EnrichmentEvidence | null,
 ): EnrichmentOutcome {
   const subject = { kind: "url" as const, value: hop.url };
   const provenance = declaredProvenance();
@@ -492,6 +496,7 @@ function hopOutcome(
       ...(correlation === null ? [] : [correlation.evidence]),
       mime.evidence,
       ...(downgrade === null ? [] : [downgrade.evidence]),
+      ...(altSvc === null ? [] : [altSvc]),
     ],
     findings: [
       ...findings,
@@ -571,6 +576,74 @@ function schemeOf(url: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Record an `Alt-Svc` advertisement the hop's response carried (`LINK-zmkkoeyl`).
+ *
+ * A browser that reads `Alt-Svc: h3=":443"` may move its next request onto the
+ * named alternative authority. This stack cannot: L0 pins ALPN to `http/1.1`,
+ * keeps no alternative-service cache, and `transitionFor` branches only on the
+ * redirect statuses, a `Refresh` header, and an in-body meta refresh. So the
+ * advertisement names a place a browser could have gone and linklint did not,
+ * and that gap between the two is what makes it worth recording.
+ *
+ * Evidence only: no finding, no reason code, weight 0, byte-neutral on the
+ * verdict. An advertisement is a routing hint, not a statement about whether
+ * the URL is deceptive. It also costs nothing to read — L0 already holds the
+ * header, so there is no extra request and no extra disclosure.
+ *
+ * `Alt-Svc` is a list header, so every field line is kept verbatim and the
+ * protocol ids are parsed out of all of them under a bounded, deduplicated cap.
+ * The special `clear` value is recorded as itself: it withdraws advertisements
+ * rather than making one.
+ */
+function altSvcEvidenceFor(hop: ChainHop): EnrichmentEvidence | null {
+  const advertisements = headerValues(hop.response.headers, "alt-svc");
+  if (advertisements.length === 0) return null;
+
+  const protocols: string[] = [];
+  let cleared = false;
+  for (const advertisement of advertisements) {
+    for (const entry of advertisement.split(",")) {
+      const token = (entry.split("=")[0] ?? "").trim();
+      if (token.toLowerCase() === "clear") {
+        cleared = true;
+        continue;
+      }
+      if (!ALT_SVC_PROTOCOL_PATTERN.test(token)) continue;
+      if (protocols.includes(token)) continue;
+      if (protocols.length >= MAX_ALT_SVC_PROTOCOLS) continue;
+      protocols.push(token);
+    }
+  }
+
+  return {
+    type: "resolution.alt-svc",
+    subject: { kind: "url", value: hop.url },
+    observedAt: hop.observedAt,
+    provenance: declaredProvenance(),
+    freshness: FRESHNESS,
+    payload: {
+      hop: hop.hop,
+      advertisements: [...advertisements],
+      protocols,
+      cleared,
+      followed: false,
+      requestProtocol: "http/1.1",
+    },
+  };
+}
+
+/** Every field line sent under `name`, trimmed, with empties dropped. */
+function headerValues(
+  headers: Readonly<Record<string, readonly string[]>>,
+  name: string,
+): readonly string[] {
+  return Object.entries(headers)
+    .filter(([headerName]) => headerName.toLowerCase() === name)
+    .flatMap(([, values]) => values.map((value) => value.trim()))
+    .filter((value) => value !== "");
 }
 
 /**

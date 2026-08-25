@@ -133,6 +133,33 @@ not deceptive under §1.1 — the chain plainly says `http://` and no two reader
 disagree about what it says. It is reported because the fourth rule is *report
 what you can determine, never silently pass*, not because it makes the URL a lie.
 
+### Alternative-service advertisement (`resolution.alt-svc`)
+
+A hop whose response carried an `Alt-Svc` field emits a `resolution.alt-svc`
+evidence record with the field lines verbatim, the protocol ids parsed out of
+them (deduplicated, bounded at 16, entries whose id is not a token dropped), a
+`cleared` flag for the special `clear` value, and `requestProtocol` naming what
+this stack actually spoke.
+
+The record exists because a browser and this tool read the field differently. A
+browser may move its next request onto the advertised alternative authority;
+this stack does not, so the field names a place a browser could have gone and
+linklint did not. The `followed: false` marker states that outcome in the
+payload rather than leaving a reader to infer it.
+
+**Not following it is pinned, not incidental.** L0 constrains ALPN to
+`http/1.1`, holds no alternative-service cache, and the chain's transition
+decision reads only the redirect statuses, a `Refresh` header, and an in-body
+meta refresh. `packages/online/test/redirect-chain.test.ts` pins that an
+advertised alternative service adds no authorization, no resolution, no
+connection and no request, so a later transport change cannot pick the behavior
+up silently.
+
+This is evidence only — no finding, no reason code, weight 0, byte-neutral on
+the verdict — and it costs nothing to collect: the header is already in the
+response L0 fetched, so there is no extra request and nothing extra disclosed.
+An advertisement is a routing hint, not a claim that the URL is deceptive.
+
 ## Privacy disclosure (Layer 2 sources)
 
 Layer 2 adds two network-touching resolution sources and one purely local one.

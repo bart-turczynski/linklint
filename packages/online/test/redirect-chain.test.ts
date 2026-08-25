@@ -808,7 +808,7 @@ describe("L1 Alt-Svc alternative-service advertisement", () => {
     harness.assertExhausted();
   });
 
-  it("does not surface the advertisement anywhere in the result today", async () => {
+  it("surfaces the advertisement as evidence and stays byte-neutral on the verdict", async () => {
     const start = "https://origin.example/start";
     const { harness, enricher } = fixtureEnricher([
       {
@@ -819,10 +819,116 @@ describe("L1 Alt-Svc alternative-service advertisement", () => {
       },
     ]);
     const result = await inspectAsync(start, { enrichers: [enricher] });
-    const serialized = JSON.stringify(result);
-    expect(serialized).not.toContain("alt-svc");
-    expect(serialized).not.toContain("h3=");
-    expect(result.score).toBe(inspect(start).score);
+    const outcome = result.enrichment?.outcomes[0];
+    expect(outcome?.evidence?.find((item) => item.type === "resolution.alt-svc")).toMatchObject({
+      subject: { kind: "url", value: start },
+      payload: {
+        hop: 1,
+        advertisements: [ALT_SVC],
+        protocols: ["h3"],
+        cleared: false,
+        followed: false,
+        requestProtocol: "http/1.1",
+      },
+    });
+
+    // Evidence only: no finding, no reason code, and the same verdict bytes the
+    // offline inspection produced.
+    expect(outcome?.findings ?? []).toEqual([]);
+    const offline = inspect(start);
+    expect(result.score).toBe(offline.score);
+    expect(result.severity).toBe(offline.severity);
+    expect(result.reasons.map((reason) => reason.code)).toEqual(
+      offline.reasons.map((reason) => reason.code),
+    );
+    harness.assertExhausted();
+  });
+
+  it("keeps every field line of the list header and bounds what it parses out", async () => {
+    const start = "https://origin.example/start";
+    const { harness, enricher } = fixtureEnricher([
+      {
+        url: start,
+        status: 200,
+        headers: {
+          "alt-svc": [
+            'h3=":443"; ma=86400, h3-29=":443"; ma=86400, h3=":8443"',
+            'h2=":443"; persist=1, not a token=":443"',
+          ],
+          "content-type": "text/plain",
+        },
+        body: "done",
+      },
+    ]);
+    const result = await inspectAsync(start, { enrichers: [enricher] });
+    const evidence = result.enrichment?.outcomes[0]?.evidence?.find(
+      (item) => item.type === "resolution.alt-svc",
+    );
+    expect(evidence?.payload).toMatchObject({
+      advertisements: [
+        'h3=":443"; ma=86400, h3-29=":443"; ma=86400, h3=":8443"',
+        'h2=":443"; persist=1, not a token=":443"',
+      ],
+      // Deduplicated, and the entry whose id is not a token is dropped rather
+      // than recorded as one.
+      protocols: ["h3", "h3-29", "h2"],
+      cleared: false,
+    });
+    harness.assertExhausted();
+  });
+
+  it("records `clear` as a withdrawal rather than an advertised protocol", async () => {
+    const start = "https://origin.example/start";
+    const { harness, enricher } = fixtureEnricher([
+      {
+        url: start,
+        status: 200,
+        headers: { "alt-svc": "clear", "content-type": "text/plain" },
+        body: "done",
+      },
+    ]);
+    const result = await inspectAsync(start, { enrichers: [enricher] });
+    expect(
+      result.enrichment?.outcomes[0]?.evidence?.find(
+        (item) => item.type === "resolution.alt-svc",
+      )?.payload,
+    ).toMatchObject({ advertisements: ["clear"], protocols: [], cleared: true });
+    harness.assertExhausted();
+  });
+
+  it("emits no record for a hop whose response carried no advertisement", async () => {
+    const start = "https://origin.example/start";
+    const { harness, enricher } = fixtureEnricher([
+      { url: start, status: 200, headers: { "content-type": "text/plain" }, body: "done" },
+    ]);
+    const result = await inspectAsync(start, { enrichers: [enricher] });
+    expect(
+      result.enrichment?.outcomes[0]?.evidence?.map((item) => item.type),
+    ).toEqual(["resolution.chain-hop", "resolution.mime-evidence"]);
+    harness.assertExhausted();
+  });
+
+  it("attributes the record to the hop that carried it across a redirect", async () => {
+    const start = "https://origin.example/start";
+    const next = "https://origin.example/landing";
+    const { harness, enricher } = fixtureEnricher([
+      { url: start, status: 302, headers: { location: "/landing" } },
+      {
+        url: next,
+        status: 200,
+        headers: { "alt-svc": ALT_SVC, "content-type": "text/plain" },
+        body: "done",
+      },
+    ]);
+    const result = await inspectAsync(start, { enrichers: [enricher] });
+    const records = (result.enrichment?.outcomes ?? []).flatMap((outcome) =>
+      (outcome.evidence ?? []).filter((item) => item.type === "resolution.alt-svc"),
+    );
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({
+      subject: { kind: "url", value: next },
+      payload: { hop: 2, protocols: ["h3"], followed: false },
+    });
     harness.assertExhausted();
   });
 });
