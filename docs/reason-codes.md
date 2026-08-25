@@ -1953,8 +1953,8 @@ exactly `["lexical"]`.
   Since `LINK-brsntven` deleted `risky_tld`, this is the ONLY TLD-membership
   channel linklint has: it ships no curated high-abuse TLD list of its own, and
   a caller who wants `.tk` to matter says so here. It remains a *policy verdict*
-  deception signal over a curated abuse-TLD set; `tld_denied` is whatever the
-  caller chose, advisory only.
+  rather than a deception finding; `tld_denied` is whatever the caller chose,
+  advisory only.
 - **Matching:** TLD values are compared case-insensitively and bare (a leading
   dot is tolerated and stripped). IP / hostless inputs have no public suffix and
   never match.
