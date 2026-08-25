@@ -32,16 +32,20 @@ import { RECOGNIZED_OPTION_KEYS } from "../src/schema/options.js";
  *   4. anything list-valued and NOT routed must be named in one of the two
  *      exception maps below, with its reason.
  *
- * So a new list-valued option that is normalized inline fails here by default,
- * which is the failure mode this ticket exists to close.
+ * So a new list-valued option that is normalized inline fails here by default
+ * — the failure mode this ticket exists to close — and the counts published in
+ * `docs/architecture.md` §8 are checked against the same derivation, over
+ * whitespace-flattened prose so a hard wrap cannot make the match vacuous.
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SRC = join(HERE, "..", "src");
+const REPO_ROOT = join(HERE, "..", "..", "..");
 
 const SOURCE_OPTIONS = readFileSync(join(SRC, "schema", "options.ts"), "utf8");
 const SOURCE_ASYNC = readFileSync(join(SRC, "inspect-async.ts"), "utf8");
 const SOURCE_RUNTIME = readFileSync(join(SRC, "parse", "runtime.ts"), "utf8");
+const architectureDoc = readFileSync(join(REPO_ROOT, "docs", "architecture.md"), "utf8");
 
 /**
  * The list-valued options that deliberately do NOT route through
@@ -154,6 +158,15 @@ describe("the trim covers every list-valued caller option (LINK-wutunnbk)", () =
   });
 });
 
+/**
+ * The behavior itself is pinned in depth by `list-option-trim.test.ts`
+ * (LINK-qajalduf). These three cases are held here as well, for the reason
+ * `list-option-trim.test.ts` already gives for overlapping
+ * `policy-runtime.test.ts`: the claim under test is about the CLASS, not about
+ * any one option. They are the evidence behind the classification above —
+ * routed, field-trimmed, and scalar-safe — so a reader of the exception maps
+ * can see each branch actually holds without leaving the file.
+ */
 describe("the trim itself, on both sides of the exception", () => {
   it("trims a routed non-policy list (idnAllowlist)", () => {
     const config = normalizeOptions({ idnAllowlist: ["  München.DE  "] });
@@ -177,5 +190,49 @@ describe("the trim itself, on both sides of the exception", () => {
 
   it("leaves a numeric axis alone — the trim is scalar-safe, not string-only", () => {
     expect(normalizeOptions({ denyPorts: [8080] }).policy.denyPorts.values).toEqual([8080]);
+  });
+});
+
+/**
+ * Whitespace-flattened, blockquote-stripped prose. A doc assertion that matches
+ * a raw substring matches NOTHING the moment the sentence it targets hard-wraps
+ * — it then passes vacuously and proves nothing. Every sentence asserted below
+ * spans a line break in the document as written.
+ */
+function flatten(markdown: string): string {
+  return markdown
+    .split("\n")
+    .map((line) => line.replace(/^\s*>\s?/, "").trim())
+    .join(" ")
+    .replace(/\s+/g, " ");
+}
+
+describe("docs/architecture.md §8 states the rule, coupled to the derivation", () => {
+  const flat = flatten(architectureDoc);
+
+  /** `toContain` on a 2,000-line document prints the whole document on failure. */
+  function statesThat(sentence: string): void {
+    expect(flat.includes(sentence), `docs/architecture.md §8 must state: ${sentence}`).toBe(true);
+  }
+
+  it("scopes the property to list-valued options rather than to the axes", () => {
+    statesThat(
+      "Trimming is a property of **every list-valued caller option**, not of the policy axes",
+    );
+    statesThat("`normalizedList`");
+  });
+
+  it("publishes counts that match the code", () => {
+    statesThat(`**${LIST_VALUED.length}** of the **${RECOGNIZED_OPTION_KEYS.size}** option keys`);
+    statesThat(`**${ROUTED.length}** of them route through the choke point`);
+  });
+
+  it("states the structural exception and the out-of-class list by name", () => {
+    statesThat(
+      "`suppressReasons` is the one structural exception. Its entries are OBJECTS, " +
+        "so there is no single value for a list-level normalizer to trim",
+    );
+    statesThat("the identical trim to each field through the shared `trimListValue` helper");
+    statesThat("`enrichers` is out of class. It is the tenth list-valued key");
   });
 });

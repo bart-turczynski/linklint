@@ -1746,15 +1746,46 @@ schemeless input has to reject or qualify it upstream. Opaque and hostless
 inputs (`javascript:…`, `data:…`) do carry a scheme, so scheme policy applies to
 them as usual.
 
-Entries on the string axes are trimmed and lower-cased, and a leading `.` is
-tolerated on `*Tlds` / `*Hosts`, so a list built by splitting a config string
+Entries on the string axes are lower-cased, and a leading `.` is tolerated on
+`*Tlds` / `*Hosts`, so a list built by splitting a config string
 (`env.DENY_TLDS.split(",")`) behaves as written. An entry left empty after
-trimming is dropped; an allow-list whose entries all drop stays *configured*, so
-it reports every input as not-allow-listed rather than falling open.
+normalization is dropped; an allow-list whose entries all drop stays
+*configured*, so it reports every input as not-allow-listed rather than falling
+open.
 
 Enforcement is the consumer's job — linklint only reports the verdict. Ready-made
 fail-closed wrappers (Claude Code PreToolUse hook, curl/wget shell aliases) live in
 [`docs/enforcement.md`](enforcement.md).
+
+### Trimming belongs to list-valued options, not to the axes
+
+Trimming is a property of **every list-valued caller option**, not of the policy
+axes. It happens once, inside `normalizedList` in
+`packages/core/src/parse/runtime.ts`, so a list option inherits it by routing
+through that function rather than by its author remembering to trim: **10** of
+the **17** option keys the two entry points recognize are list-valued, and **8**
+of them route through the choke point — the seven list-valued axes above
+plus `idnAllowlist`, which is not an axis at all. Reading the property as
+axis-scoped shipped two fail-opens: `idnAllowlist` was normalized inline, so
+`--idn-allow " münchen.de"` exempted nothing, and `suppressReasons` matched
+nothing on either of its two caller strings — both because each reader checked
+the policy axes above and stopped there (LINK-qajalduf).
+
+`suppressReasons` is the one structural exception. Its entries are OBJECTS, so
+there is no single value for a list-level normalizer to trim — the caller's
+strings are the `code` and `host` fields one level down. It applies the identical
+trim to each field through the shared `trimListValue` helper, and the comment at
+its definition records why it cannot be folded into `normalizedList`.
+
+`enrichers` is out of class. It is the tenth list-valued key, but its entries are
+provider objects supplied in code rather than configuration text a caller typed
+or split, so a padded value there is visibly wrong rather than silently void.
+
+Both counts, the routed set, and the two exceptions are derived from the option
+interfaces and from `parse/runtime.ts` by
+[`packages/core/test/list-option-trim-scope.test.ts`](../packages/core/test/list-option-trim-scope.test.ts):
+a new list-valued option that skips the choke point reddens the suite instead of
+waiting for a reader to notice.
 
 ### Caller false-positive escape hatch (`suppressReasons`)
 
