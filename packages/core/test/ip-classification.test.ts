@@ -360,6 +360,7 @@ describe("cloud-metadata provider table", () => {
       "169.254.170.23",
       "fd00:ec2::23",
       "169.254.0.23",
+      "fd20:ce::254",
     ]);
   });
 
@@ -393,6 +394,7 @@ describe("cloud-metadata provider table", () => {
     { host: "169.254.170.23", provider: "AWS (EKS Pod Identity)" },
     { host: "fd00:ec2::23", provider: "AWS (EKS Pod Identity, IPv6)" },
     { host: "169.254.0.23", provider: "Tencent Cloud" },
+    { host: "fd20:ce::254", provider: "GCP (IPv6-only instances)" },
   ])("detail for $host names the provider ($provider)", ({ host, provider }) => {
     expect(detailFor(host)).toContain(provider);
   });
@@ -408,6 +410,7 @@ describe("cloud-metadata provider table", () => {
     "169.254.170.23",
     "fd00:ec2::23",
     "169.254.0.23",
+    "fd20:ce::254",
   ])("%s is an IMDS row and still reads as an instance-metadata endpoint", (host) => {
     expect(classifyHost(host)?.endpointKind).toBe("instance-metadata");
     expect(detailFor(host)).toContain("instance-metadata endpoint");

@@ -978,6 +978,7 @@ instead of minting one. Absent either, this stays closed.
   | `169.254.170.23` | AWS (EKS Pod Identity) |
   | `fd00:ec2::23` | AWS (EKS Pod Identity, IPv6) |
   | `169.254.0.23` | Tencent Cloud |
+  | `fd20:ce::254` | GCP (IPv6-only instances) |
 
   An IPv4-mapped equivalent (`::ffff:169.254.169.254`) matches through the same
   table via its embedded IPv4. The emitted detail **names the provider**, so the
@@ -1004,6 +1005,19 @@ instead of minting one. Absent either, this stays closed.
   rule — it scored `info` 0.00 with **zero** reasons before the row existed,
   where endpoints nested in link-local or CGNAT were at least visible as a
   weaker bucket.
+
+  **Both address families of an endpoint are rows** (`LINK-eyjfhbzu`). Google
+  documents three spellings of the GCP metadata server together in one endpoint
+  list — `metadata.google.internal` (the recommended form), `169.254.169.254`,
+  and `fd20:ce::254` for IPv6-only instances — and the third scored `0.20`
+  `ip_private` while the other two scored `0.75`, because it sits inside
+  `fc00::/7`. An IPv6-only GCP instance was therefore the one deployment shape
+  where the credential endpoint was under-scored, and since the agentMode
+  escalation reads this bucket, it was also the one shape where a fetch of the
+  endpoint was not blocked. AWS's `fd00:ec2::254` and `fd00:ec2::23` are the
+  same case, already covered. The GCP hostname rows below still quote
+  `169.254.169.254`: they name the metadata server rather than one address
+  family of it, and `address` selects the endpoint the emitted detail cites.
 - **Named endpoints:** the code also fires on the small set of HOSTNAMES a vendor
   publishes for an endpoint in the table above (`LINK-hvawpgos`). Same code, same
   0.75 weight, same agentMode escalation:
@@ -1061,9 +1075,14 @@ instead of minting one. Absent either, this stays closed.
   spelling of the identical 128 bits through.
 - **Precedence:** the table is consulted **before** the range buckets, so an
   endpoint nested inside a broader special-use range still classifies as
-  metadata — `169.254.169.254` over link-local `169.254.0.0/16`, and
-  `100.100.100.200` over the CGNAT `100.64.0.0/10` reserved range. The rest of
-  those ranges is unaffected (`169.254.10.20` stays `ip_link_local`).
+  metadata — `169.254.169.254` over link-local `169.254.0.0/16`,
+  `100.100.100.200` over the CGNAT `100.64.0.0/10` reserved range, and
+  `fd20:ce::254` over the Unique-Local `fc00::/7` private range. A matched row
+  **replaces** the range bucket rather than stacking with it: the lookup returns
+  on the first hit, so one address still yields exactly one bucket, and a
+  matched endpoint carries no IANA citation. The rest of those ranges is
+  unaffected (`169.254.10.20` stays `ip_link_local`, `fd20:ce::255` stays
+  `ip_private`).
 - **Data source:** vendor documentation, **not** an IANA registry — IANA
   registers the ranges, not which single address inside them a given cloud
   answers metadata on. The table therefore carries its own provenance stamp,

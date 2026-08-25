@@ -1834,3 +1834,70 @@ const DATA_MARKER_CORPUS: CorpusRow[] = [
 CORPUS.push(...DATA_MARKER_CORPUS);
 applyAcceptanceMetadata(DATA_MARKER_CORPUS);
 // LINK-uyoocslu — BLOCK END.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LINK-eyjfhbzu — the GCP metadata server over IPv6. BLOCK START.
+//
+// Google publishes three spellings of one endpoint in one list:
+// `metadata.google.internal` (recommended), `169.254.169.254`, and
+// `fd20:ce::254` for IPv6-only instances. The first two scored 0.75/high and
+// escalated to critical under agentMode; the third scored 0.20/low as an
+// ordinary `fc00::/7` address and could not escalate at all, because the
+// agent-mode blocker reads the bucket this address was not reaching. An
+// IPv6-only GCP instance was the one deployment shape where the credential
+// endpoint was under-scored.
+//
+// Kept as one contiguous block because the slice spans both option modes and
+// both labels: the deceptive rows are the fix, and the control rows are what
+// makes it a row addition rather than a widening. The table is a /128 overlay
+// keyed on the parsed address, so `fd20:ce::255` and the rest of the ULA space
+// are untouched — those rows are what would catch a fix rewritten as a text
+// prefix test or as a new range rule.
+const GCP_IPV6_METADATA_CORPUS: CorpusRow[] = [
+  {
+    input: "http://[fd20:ce::254]/computeMetadata/v1/instance/service-accounts/default/token",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["ip_private", "ip_obfuscation", "ssrf_cloud_metadata"],
+    notes: "LINK-eyjfhbzu — GCP's IPv6-only metadata endpoint on the token path; most-specific-wins over fc00::/7 (was ip_private 0.20, now ip_cloud_metadata 0.75). ssrf_cloud_metadata is agent-gated, so it is absent from the default verdict",
+    source: "https://docs.cloud.google.com/compute/docs/metadata/querying-metadata",
+  },
+  {
+    input: "http://[fd20:ce::254]/computeMetadata/v1/instance/service-accounts/default/token",
+    label: "deceptive",
+    minSeverity: "critical",
+    options: AGENT,
+    expectReasons: ["ip_cloud_metadata", "ssrf_cloud_metadata"],
+    notes: "LINK-eyjfhbzu — agentMode: the v6 spelling stacks 0.75 + 1.0 → critical, exactly as the v4 address and the hostname do. Before the row it could not reach the blocker at all, since the escalation reads the ip_cloud_metadata bucket",
+  },
+  {
+    input: "https://[fd20:00ce::254]/computeMetadata/v1/",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ip_cloud_metadata"],
+    forbidReasons: ["ip_private", "ssrf_cloud_metadata"],
+    notes: "LINK-eyjfhbzu — canonical (not textual) matching: fd20:00ce::254 is the SAME 128 bits as fd20:ce::254, which a string prefix test on `fd20:ce` would miss (ip_obfuscation also fires: the spelling is non-canonical)",
+  },
+  {
+    input: "http://[fd20:ce::255]/",
+    label: "deceptive",
+    minSeverity: "low",
+    options: AGENT,
+    expectReasons: ["ip_private"],
+    forbidReasons: ["ip_cloud_metadata", "ssrf_cloud_metadata"],
+    notes: "LINK-eyjfhbzu CONTROL — the neighbour one bit away in the low hextet. Still the generic ULA bucket at 0.20 under agentMode: the row is a /128 overlay, so it promotes one address and not its /64",
+  },
+  {
+    input: "http://[fc00::1]/",
+    label: "deceptive",
+    minSeverity: "low",
+    options: AGENT,
+    expectReasons: ["ip_private"],
+    forbidReasons: ["ip_cloud_metadata", "ssrf_cloud_metadata"],
+    notes: "LINK-eyjfhbzu CONTROL — the enclosing fc00::/7 block itself; unchanged by the row, which is what makes this a table addition rather than a range edit",
+  },
+];
+CORPUS.push(...GCP_IPV6_METADATA_CORPUS);
+applyAcceptanceMetadata(GCP_IPV6_METADATA_CORPUS);
+// LINK-eyjfhbzu — BLOCK END.
