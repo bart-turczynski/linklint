@@ -1574,6 +1574,21 @@ Available axes (all optional, all default-allow):
 | `denyPorts` / `denyNonStandardPorts` | Port policy |
 | `maxDecodeDepth` | Decode-bomb guard |
 
+**A schemeless input is exempt from the scheme axis.** `allowSchemes` /
+`denySchemes` are evaluated only when the input carries a scheme, so a bare
+hostname (`example.com/path`) clears the axis without emitting `scheme_denied`.
+This matters to an https-only lockdown built on `allowSchemes`: the axis
+constrains inputs that state a scheme, and a caller who also wants to refuse
+schemeless input has to reject or qualify it upstream. Opaque and hostless
+inputs (`javascript:…`, `data:…`) do carry a scheme, so scheme policy applies to
+them as usual.
+
+Entries on the string axes are trimmed and lower-cased, and a leading `.` is
+tolerated on `*Tlds` / `*Hosts`, so a list built by splitting a config string
+(`env.DENY_TLDS.split(",")`) behaves as written. An entry left empty after
+trimming is dropped; an allow-list whose entries all drop stays *configured*, so
+it reports every input as not-allow-listed rather than falling open.
+
 Enforcement is the consumer's job — linklint only reports the verdict. Ready-made
 fail-closed wrappers (Claude Code PreToolUse hook, curl/wget shell aliases) live in
 [`docs/enforcement.md`](enforcement.md).

@@ -126,13 +126,42 @@ export function normalizePolicyOptions(options: InspectOptions): PolicyRuntimeCo
   };
 }
 
+/**
+ * Normalize one policy axis into its ordered values + membership set.
+ *
+ * Surrounding whitespace is stripped here, at the single choke point every axis
+ * routes through, rather than in the per-axis normalizers — so a future axis
+ * inherits the trim by construction and cannot reintroduce the fail-open by
+ * forgetting it. Building a list by splitting a config string
+ * (`env.DENY_TLDS.split(",")`) is the natural way to configure policy, and an
+ * untrimmed `" ru"` matches nothing while reporting nothing (LINK-uxkrtcnw).
+ * The URL input is already trimmed on the way in; policy values now get the
+ * same courtesy.
+ *
+ * An entry that is EMPTY after normalization is DROPPED, not rejected:
+ *
+ * - `normalizeOptions` is contractually total ("Never throws — inspection must
+ *   be total"), so the library cannot raise a usage error without breaking the
+ *   invariant every caller is built on. The `UsageError` precedent belongs at
+ *   the CLI boundary, where a human typed the flag and can be told; it stays
+ *   there.
+ * - Dropping is not a second fail-open. An empty string can never match any
+ *   axis key — `publicSuffixTld`, `registrableDomainLower` and `scheme` are all
+ *   non-empty wherever an axis runs — so `""` is already dead weight in the set
+ *   today. Removing it changes no verdict, only the allow-list detail strings.
+ * - On the allow-list axes it stays fail-CLOSED: `configured` is derived from
+ *   `values !== undefined`, never from length, so `allowTlds: ["  "]` remains
+ *   configured with an empty list and every input is reported as
+ *   not-allow-listed. A fat-fingered allow-list gets loud, not silent.
+ */
 function normalizedList<T, U>(
   values: readonly T[] | undefined,
   normalize: (value: T) => U | null,
 ): PolicyList<U> {
   const normalized = (Array.isArray(values) ? values : [])
+    .map((value) => (typeof value === "string" ? (value.trim() as unknown as T) : value))
     .map(normalize)
-    .filter((value): value is U => value !== null);
+    .filter((value): value is U => value !== null && value !== ("" as unknown as U));
   return { configured: values !== undefined, values: normalized, set: new Set(normalized) };
 }
 
