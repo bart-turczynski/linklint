@@ -1,0 +1,26 @@
+{
+  "$comment": [
+    "Accepted dependency-vulnerability risk, read by `pnpm audit:deps`",
+    "(tools/audit-dependencies.ts, LINK-urjaxlrz). Entries here SUPPRESS a high or",
+    "critical advisory; nothing else can, and `pnpm audit --ignore` is never used",
+    "because it records no reason and no expiry.",
+    "",
+    "Each entry requires: `advisory` (GHSA id), `module` (asserted against the",
+    "advisory's own package name — a mismatch fails rather than suppresses),",
+    "`reason` (at least 20 characters of actual reasoning), `acceptedOn` and",
+    "`reviewBy`, both real YYYY-MM-DD dates.",
+    "",
+    "`reviewBy` is inclusive: ON that date the exception stops suppressing and the",
+    "advisory blocks again. That is the point — an accepted risk expires instead of",
+    "becoming permanent by being forgotten. Extending one is a deliberate edit with",
+    "a fresh reason, not a bump.",
+    "",
+    "An entry matching no advisory in the current report is printed as stale and",
+    "should be deleted; it does not fail the command, because a dependency being",
+    "fixed upstream is good news, not a build break.",
+    "",
+    "The list is empty on purpose. Accepting a known-vulnerable dependency is a",
+    "maintainer decision; the mechanism ships without any such decision pre-made."
+  ],
+  "exceptions": []
+}
