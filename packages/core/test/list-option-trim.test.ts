@@ -3,20 +3,32 @@ import { inspect } from "../src/index.js";
 import { normalizeOptions, normalizePolicyOptions } from "../src/parse/runtime.js";
 
 /**
- * The TRIM CLASS (LINK-uxkrtcnw → LINK-stuiljry → LINK-qajalduf).
+ * The TRIM CLASS (LINK-uxkrtcnw → LINK-stuiljry → LINK-qajalduf → LINK-wutunnbk).
  *
  * MR !41 put the surrounding-whitespace trim inside `normalizedList` — the
- * single choke point every POLICY axis routes through — precisely so a future
+ * single choke point every POLICY axis routed through — precisely so a future
  * axis would inherit it by construction. Two list-valued options never routed
  * through that choke point and so never inherited it: `idnAllowlist` and
- * `suppressReasons`. Both are caller-supplied EXEMPTIONS, so a padded value is
- * silently void: no error, no warning, and the caller believes an escape hatch
- * is in force when it is not.
+ * `suppressReasons`. Both are caller-supplied EXEMPTIONS, so a padded value was
+ * silently void: no error, no warning, and the caller believed an escape hatch
+ * was in force when it was not. MR !56 (LINK-qajalduf) closed both halves —
+ * `idnAllowlist` now routes through the choke point, and `suppressReasons` takes
+ * the identical trim field-wise through `trimListValue` because its entries are
+ * objects — so every block below asserts the trim rather than its absence.
  *
- * This file is the class-level pin. It asserts BOTH halves of the enumeration —
- * the seven options that do route through `normalizedList`, and the two that do
- * not — so the choke point cannot be emptied out from under the policy axes and
- * a third option cannot silently join the untrimmed side.
+ * This file is the BEHAVIORAL pin: what each option actually does with a padded
+ * value, on both sides of the choke point, so emptying the trim out of
+ * `normalizedList` must fail here.
+ *
+ * It deliberately publishes NO COUNT. Membership of the class — which option
+ * keys are list-valued, which route, and why the ones that cannot route cannot —
+ * is DERIVED from the option interfaces and from `parse/runtime.ts` by
+ * `list-option-trim-scope.test.ts` (LINK-wutunnbk), which is where a new
+ * list-valued option reddens. A count restated in a header is exactly the prose
+ * that rots: the "seven that route, and the two that do not" this header used to
+ * claim was falsified by the very commit that fixed the fail-open it describes,
+ * and it then taught the wrong class from inside the pin meant to prevent that
+ * (LINK-bsudgkfk).
  */
 
 const codes = (input: string, opts?: Parameters<typeof inspect>[1]) =>
@@ -25,11 +37,13 @@ const codes = (input: string, opts?: Parameters<typeof inspect>[1]) =>
 const suppressed = (input: string, opts: Parameters<typeof inspect>[1]) =>
   inspect(input, opts).reasons.filter((r) => r.suppressed === true).map((r) => r.code);
 
-// ── The routed side: every option that goes through normalizedList ───────────
-// Held here as well as in policy-runtime.test.ts because the claim under test
-// is about the CHOKE POINT, not about any one axis: emptying the trim out of
-// normalizedList must fail this block.
-describe("list options that route through normalizedList — trim inherited", () => {
+// ── The routed side, policy axes ─────────────────────────────────────────────
+// The other routed option, `idnAllowlist`, has its own block below — it is not
+// an axis and reaches the choke point from `normalizeOptions` rather than from
+// `normalizePolicyOptions`. Held here as well as in policy-runtime.test.ts
+// because the claim under test is about the CHOKE POINT, not about any one
+// axis: emptying the trim out of normalizedList must fail this block.
+describe("policy axes route through normalizedList — trim inherited", () => {
   it("trims every string policy axis", () => {
     const policy = normalizePolicyOptions({
       denyTlds: [" ru"],
