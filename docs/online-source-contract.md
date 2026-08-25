@@ -160,6 +160,57 @@ DV/OV/EV posture. Certificate state is neutral on its own — DV alone is not ri
 so it emits `tls.certificate` evidence and never a scored finding; a connection or
 validation problem is a `skipped`/`failure` outcome, never a safety claim.
 
+### The live TLS source's subject is the input origin
+
+`createTlsCertificateEnricher` reads `parsed.scheme` and `parsed.effectiveHost`
+off the inspected input, so the origin it inspects is the one the caller passed.
+An input that is not an absolute HTTPS URL with a host — an `http://` link, or a
+hostless string — produces a `skipped` outcome carrying
+`cause.code: "tls-not-https-endpoint"`, a `url` subject holding the raw input,
+and no evidence. That guard sits ahead of the inspector call, so such an input
+costs no DNS query and opens no socket. `tls-not-https-endpoint` is synthesized
+by this enricher rather than by the framework — it is absent from
+`TLS_OBSERVATION_CAUSE_CODES` and outside the framework list stamped by
+`ENRICHMENT_SCHEMA_VERSION` — which is why it is documented here, with the
+source that owns it.
+
+**A successful redirect resolution does not imply TLS metadata for the resolved
+endpoint.** A run over `http://iana.org/` that resolves to `https://www.iana.org/`
+reports the chain hops as `success` and, in the same result, the TLS outcome as
+`skipped` on the `http://` input. The certificate on the landing page was not
+inspected, so nothing in `enrichment` describes it. The two outcomes are about
+different endpoints, and a consumer must not read one as the other;
+[`online-composition-root.md`](online-composition-root.md) § "Reading the
+result" prints that run.
+
+**The evidence gap this leaves is real and unclosed.** For an `http://` input,
+the certificate a user would actually meet goes uninspected. `LINK-wwnrkjnm`
+decided 2-0 to document these semantics rather than close the gap by declaring
+the redirect chain a `dependsOn` prerequisite of the TLS source, for two reasons:
+
+- **That wiring is a net evidence loss.** `runIsAvailable` admits a prerequisite
+  only when every one of its outcomes is `success` or `no-hit`, so a single
+  degraded chain outcome — an authorization refusal, a hop-limit stop, a
+  redirect loop, a caller abort, an oversized body — suppresses the TLS source
+  entirely. The `https://iana.org/` run published in
+  [`online-composition-root.md`](online-composition-root.md), where the chain is
+  `skipped` with `authorization-denied` beside a `success` TLS outcome, would
+  invert to `prerequisite-unavailable`: HTTPS inputs that carry certificate
+  evidence today would stop carrying it.
+- **It would connect to an adversary-named host through a seam with no consent
+  check.** A chain-discovered target is named by a `Location` header, which the
+  threat model treats as attacker-chosen, and `SafeTlsInspector.inspect` takes
+  `{ url, signal }` with no `authorize` callback — against register entry
+  **F6**, which holds that construction is not consent to connect.
+
+The successor shape is `LINK-boqmfrcn`, and a future proposal should take that
+form rather than `dependsOn`: the redirect chain already completes an authorized
+TLS handshake on every HTTPS hop it fetches, and `TransportConnection` carries
+an optional `tls` field that `TransportEvidence` drops, so surfacing it adds no
+connection and reopens no authorization question. Until an authorization seam
+exists (`LINK-sndjnmig`), no code path may hand a redirect-discovered URL to
+`SafeTlsInspector.inspect`.
+
 ## The shared contract-test kit
 
 `assertOnlineSourceContract(descriptor, options)` (test-only, not shipped) is the
