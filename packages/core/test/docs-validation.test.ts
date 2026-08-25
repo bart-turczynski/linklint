@@ -6,6 +6,7 @@ import { CLOUD_METADATA_ENDPOINTS } from "../src/data/cloud-metadata.js";
 import { CHECKS } from "../src/detectors/checks.js";
 import { DETECTORS } from "../src/detectors/registry.js";
 import { STRUCTURAL_SCANS } from "../src/detectors/structural.js";
+import { inspect } from "../src/index.js";
 import { analyzeIpv4, analyzeIpv6 } from "../src/parse/ip.js";
 import { REASON_CODES, type ReasonCode } from "../src/schema/reason-codes.js";
 import { WEIGHTS_VERSION } from "../src/scoring/weights.js";
@@ -437,6 +438,108 @@ describe("the scope-of-claim boundary is stated in one canonical place", () => {
     ] as ReasonCode[]) {
       expect(section).toContain(code);
       expect(REASON_CODES[code]).toBeDefined();
+    }
+  });
+});
+
+describe("§6's `status: \"invalid\"` invariant matches real inspect() output", () => {
+  // LINK-qtenxsfi. §1.1's cited codes are pinned at their quoted weights above,
+  // but the Key-invariants block under §6 had no guard at all — which is exactly
+  // how it rotted. It stated `status: "invalid"` → "`parse_error` reason,
+  // `checksRun: []`" as unconditional consequences, and both halves have been
+  // false since `buildInvalidResult` (`src/schema/serialize.ts`) started
+  // reporting structural findings that predate the parse failure: `parse_error`
+  // is the FALLBACK for when nothing else explains it, and a findings-bearing
+  // invalid result runs the lexical layer. The doc kept the pre-fourth-rule text
+  // and nothing in the repository could contradict it.
+  //
+  // Anchored on the doc text and on live output — never on line numbers — so
+  // both a reworded doc and a changed serializer land here.
+  const invariantsStart = architectureDoc.indexOf("\nKey invariants:");
+  const invariants = architectureDoc.slice(
+    invariantsStart,
+    architectureDoc.indexOf("\n### 6.1 ", invariantsStart),
+  );
+
+  // The bullet is one source line; take it whole so an assertion cannot be
+  // satisfied by wording that lives in a different invariant.
+  const invalidBullet =
+    invariants.split("\n").find((line) => line.startsWith('- `status: "invalid"`')) ?? "";
+
+  it("the Key-invariants block still carries an invalid-status bullet", () => {
+    // Guards against a silently vacuous sweep: if the block or the bullet is
+    // renamed away, every assertion below would pass on an empty string.
+    expect(invariantsStart).toBeGreaterThan(-1);
+    expect(invariants).toContain("- `score: 0` → `severity: \"info\"`");
+    expect(invalidBullet.length).toBeGreaterThan(0);
+  });
+
+  it("the bullet no longer states the two halves the serializer falsified", () => {
+    // The exact shipped conjunction. Restoring it must turn this red.
+    expect(invalidBullet).not.toMatch(/`parse_error` reason, `checksRun: \[\]`/);
+    // `parse_error` must be described as the fallback it is, not as the reason
+    // an invalid result carries.
+    expect(invalidBullet.toLowerCase()).toContain("fallback");
+    // And the findings-bearing shape must be stated, not merely implied.
+    expect(invalidBullet).toContain('`["lexical"]`');
+  });
+
+  it("the two halves that DO hold are stated: score and severity are null", () => {
+    expect(invalidBullet).toContain("`score: null`");
+    expect(invalidBullet).toContain("`severity: null`");
+    expect(invalidBullet).toContain("not** benign");
+  });
+
+  it("the block states what an invalid result MAY carry, as an applicable rule", () => {
+    // Two engineers read the old silence oppositely — weight-0 reports only, vs.
+    // weights on a null score being inert decoration. Neither is the contract,
+    // and the block must now say so rather than leave it to be re-litigated.
+    expect(invariants).toContain("What an invalid result may carry");
+    expect(invariants).toContain("ambiguous_authority");
+    // The grounding: `aggregate()` is on the ok path only, so a weight here is
+    // per-finding evidence and never an input to arithmetic.
+    expect(invariants).toContain("aggregate()");
+  });
+
+  // LIVE HALF — the doc text above is only worth pinning if it is true of the
+  // shipped serializer. These are the two shapes `buildInvalidResult` produces.
+  it("a findings-bearing invalid result reports findings and runs the lexical layer", () => {
+    for (const url of ["https:///evil.com", "https://ex ample.com"]) {
+      const result = inspect(url);
+      expect(result.status, url).toBe("invalid");
+      expect(result.score, url).toBeNull();
+      expect(result.severity, url).toBeNull();
+      // Not empty, and NOT parse_error: the documented fallback must not fire
+      // when a detector already explained the failure.
+      expect(result.reasons.length, url).toBeGreaterThan(0);
+      expect(result.reasons.map((r) => r.code), url).not.toContain("parse_error");
+      expect(result.checksRun, url).toEqual(["lexical"]);
+      expect(result.checksSkipped, url).toEqual(["resolution", "reputation"]);
+    }
+  });
+
+  it("an invalid result may carry a SCORING weight, at the registry value", () => {
+    // The worked case the doc quotes. If this ever collapses to weight 0 the
+    // "not weight-0 annotations only" rule stops being true of the code.
+    const result = inspect("https:///evil.com");
+    const ambiguous = result.reasons.find((r) => r.code === "ambiguous_authority");
+    expect(ambiguous).toBeDefined();
+    expect(ambiguous?.weight).toBeCloseTo(REASON_CODES.ambiguous_authority.weight, 5);
+    expect(ambiguous?.weight).toBeGreaterThan(0);
+    // And the weight is evidence, not arithmetic: nothing aggregated it.
+    expect(result.score).toBeNull();
+  });
+
+  it("`parse_error` with an empty checksRun is the fallback shape only", () => {
+    for (const url of ["not a url at all", "", "http://"]) {
+      const result = inspect(url);
+      expect(result.status, url).toBe("invalid");
+      expect(result.score, url).toBeNull();
+      expect(result.severity, url).toBeNull();
+      expect(result.reasons.map((r) => r.code), url).toEqual(["parse_error"]);
+      expect(result.reasons[0]?.weight, url).toBe(0);
+      expect(result.checksRun, url).toEqual([]);
+      expect(result.checksSkipped, url).toEqual(["lexical", "resolution", "reputation"]);
     }
   });
 });
