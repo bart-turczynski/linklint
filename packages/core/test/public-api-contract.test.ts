@@ -266,7 +266,7 @@ describe("async enrichment public boundary and documentation contract (K9)", () 
   });
 
   it("keeps public schema and async cache documentation aligned with the code", () => {
-    expect(publicReadme).toContain("schemaVersion: '1.7'");
+    expect(publicReadme).toContain(`schemaVersion: '${root.SCHEMA_VERSION}'`);
     expect(publicReadme).toContain("enrichment?: EnrichmentReport");
     expect(publicReadme).toContain("cacheTtlMsFor(report, context)");
 
@@ -274,8 +274,8 @@ describe("async enrichment public boundary and documentation contract (K9)", () 
     expect(coreReadme).toContain("Promise-capable stores");
     expect(coreReadme).toContain("cacheTtlMsFor(report, context)");
 
-    expect(architectureDoc).toContain("schema version `1.7`");
-    expect(architectureDoc).toContain("schemaVersion: '1.7'");
+    expect(architectureDoc).toContain(`schema version \`${root.SCHEMA_VERSION}\``);
+    expect(architectureDoc).toContain(`schemaVersion: '${root.SCHEMA_VERSION}'`);
     expect(architectureDoc).not.toContain("schemaVersion: '1.2';");
     expect(architectureDoc).toContain("enrichment?: EnrichmentReport");
 

@@ -209,7 +209,7 @@ another signal.
 
 ### Zero-weight codes
 
-The remaining **16** codes never move the score. They are listed separately
+The remaining **17** codes never move the score. They are listed separately
 because "weight `0.00`" means three different things, and mixing them into the
 table above is what let this section drift: a reader scanning for weights has no
 reason to read past the last non-zero row.
@@ -223,6 +223,7 @@ reason to read past the last non-zero row.
 | `host_denied`              | policy     | policy verdict |
 | `host_length_unresolvable` | lexical    | annotation     |
 | `host_not_allowlisted`     | policy     | policy verdict |
+| `https_downgrade_observed` | resolution | annotation     |
 | `idna_mapping_ambiguity`   | lexical    | annotation     |
 | `locale_case_ambiguity`    | lexical    | annotation     |
 | `normalization_delta`      | lexical    | annotation     |

@@ -406,11 +406,11 @@ Informational detectors (`confusable_char`, `confusable_in_path`, `normalization
 
 ## 6. Result schema
 
-Every channel returns the same `InspectResult` (schema version `1.7`):
+Every channel returns the same `InspectResult` (schema version `1.8`):
 
 ```ts
 interface InspectResult {
-  schemaVersion: '1.7';
+  schemaVersion: '1.8';
   status: 'ok' | 'invalid';
   input: string;
   parsed: ParsedUrl | null;
