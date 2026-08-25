@@ -46,7 +46,7 @@ tracks.
 
 | File | Claim lines |
 | --- | --- |
-| `docs/architecture.md` | 48 |
+| `docs/architecture.md` | 51 |
 | `docs/bundle-size-budget.md` | 0 |
 | `docs/enforcement.md` | 0 |
 | `docs/enrichment-outcomes.md` | 12 |
@@ -58,7 +58,7 @@ tracks.
 | `docs/online-runtime-boundary.md` | 10 |
 | `docs/online-source-contract.md` | 14 |
 | `docs/raw-url-tokenization-spike.md` | 1 |
-| `docs/reason-codes.md` | 87 |
+| `docs/reason-codes.md` | 83 |
 | `docs/redirect-chain-resolution.md` | 8 |
 | `docs/safe-transport.md` | 11 |
 | `docs/scoring.md` | 6 |
