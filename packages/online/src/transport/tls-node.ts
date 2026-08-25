@@ -171,8 +171,16 @@ function captureObservation(
   };
 }
 
-/** Walk the peer chain leaf-first into DER byte arrays, stopping at the root/self. */
-function collectChain(
+/**
+ * Walk the peer chain leaf-first into DER byte arrays, stopping at the root/self.
+ *
+ * Exported for the fetch connector (`node.ts`), which presents the leaf its own
+ * already-authorized handshake carried (`LINK-boqmfrcn`). Sharing this walk is the
+ * point: two different readings of the same chain is precisely the divergence class
+ * linklint exists to report, so the observe path and the fetch path must not each
+ * grow their own.
+ */
+export function collectChain(
   leaf: DetailedPeerCertificate | Record<string, never>,
 ): readonly Uint8Array[] {
   const chain: Uint8Array[] = [];

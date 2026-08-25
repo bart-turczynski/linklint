@@ -1,3 +1,4 @@
+import type { NormalizedCertificate } from "../transport/tls-types.js";
 import type { ClockPort } from "./clock.js";
 import { UnexpectedFixtureCall } from "./errors.js";
 import { runFixtureStep, type FixtureStep } from "./script.js";
@@ -20,6 +21,13 @@ export interface FixtureConnection {
     readonly authorized: boolean;
     readonly serverName: string;
     readonly peerDnsNames: readonly string[];
+    /**
+     * Optional so existing fixtures stay valid unchanged. A fixture that sets this is
+     * asserting a shape, never a real handshake — the live pin for certificate
+     * evidence is `node-transport-tls-live.test.ts` against loopback
+     * (`LINK-boqmfrcn`).
+     */
+    readonly certificate?: NormalizedCertificate;
   };
 }
 

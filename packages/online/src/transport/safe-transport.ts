@@ -39,6 +39,7 @@ interface AttemptState {
   port?: number;
   resolvedAddresses?: readonly string[];
   selectedAddress?: string;
+  tls?: TransportEvidence["tls"];
 }
 
 type OperationPhase = "dns" | "connect" | "tls" | "http" | "decompression";
@@ -241,6 +242,9 @@ class SafeSession implements SafeTransportSession {
       ) {
         throw new OperationError("tls", { code: "tls-certificate" });
       }
+      // Recorded only past the check above, so evidence can never carry an
+      // unauthorized or identity-mismatched peer (`LINK-boqmfrcn`).
+      if (connection.tls !== undefined) state.tls = connection.tls;
 
       const response = await wrapOperation(
         "http",
@@ -486,6 +490,7 @@ function evidence(state: AttemptState, observedAt: string): TransportEvidence {
       ? {}
       : { resolvedAddresses: state.resolvedAddresses }),
     ...(state.selectedAddress === undefined ? {} : { selectedAddress: state.selectedAddress }),
+    ...(state.tls === undefined ? {} : { tls: state.tls }),
   };
 }
 

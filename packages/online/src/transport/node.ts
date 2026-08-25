@@ -13,11 +13,14 @@ import {
 import {
   checkServerIdentity,
   connect as connectTls,
+  type DetailedPeerCertificate,
   type PeerCertificate,
   type TLSSocket,
 } from "node:tls";
 
 import { NodeResolver, systemErrorCode } from "./node-resolver.js";
+import { normalizeTlsCertificate } from "./tls-certificate.js";
+import { collectChain } from "./tls-node.js";
 import { observedPeer } from "./peer.js";
 import { createSafeTransport } from "./safe-transport.js";
 import { SystemClock } from "./system-clock.js";
@@ -26,6 +29,7 @@ import {
   resolveTransportPolicy,
   type TransportPolicy,
 } from "./policy.js";
+import type { NormalizedCertificate } from "./tls-types.js";
 import type {
   ConnectRequest,
   ConnectorPort,
@@ -116,12 +120,16 @@ export class NodeConnectionPorts implements ConnectorPort, HttpPort {
     if (request.protocol === "http:") return base;
 
     const tlsSocket = socket as TLSSocket;
+    const serverName = request.serverName ?? request.hostname;
+    const detailed = tlsSocket.getPeerCertificate(true);
+    const certificate = leafCertificate(detailed, serverName);
     return {
       ...base,
       tls: {
         authorized: tlsSocket.authorized,
-        serverName: request.serverName ?? request.hostname,
-        peerDnsNames: peerDnsNames(tlsSocket.getPeerCertificate()),
+        serverName,
+        peerDnsNames: peerDnsNames(detailed),
+        ...(certificate === undefined ? {} : { certificate }),
       },
     };
   }
@@ -424,6 +432,46 @@ function responseHeaders(
     normalized[name.toLowerCase()] = Array.isArray(value) ? [...value] : [String(value)];
   }
   return normalized;
+}
+
+/**
+ * Normalize the leaf the handshake already presented, reusing the SAME normalizer and
+ * chain walk as the TLS observe path so the two cannot disagree (`LINK-boqmfrcn`).
+ *
+ * Deliberately non-fatal. This runs on a connection the caller already authorized and
+ * whose identity `safe-transport` checks separately; a chain that is too deep, too
+ * large, or unparseable is a reason to publish no certificate evidence, NOT a reason to
+ * fail a hop that Node itself authorized. Returning `undefined` keeps the fetch outcome
+ * exactly what it was before this evidence existed.
+ *
+ * Only `.leaf` is taken. The placeholder peer/trust fields below feed the normalizer's
+ * `validation` block, which is DISCARDED here: trust on this path is Node's own
+ * `authorized` flag plus the identity check `safe-transport` runs, and re-deriving a
+ * second verdict from the same bytes would be exactly the self-disagreement this
+ * evidence exists to avoid. Do not start reading `validation` from this call site.
+ */
+function leafCertificate(
+  detailed: DetailedPeerCertificate | Record<string, never>,
+  hostname: string,
+): NormalizedCertificate | undefined {
+  const certificateChain = collectChain(detailed);
+  if (certificateChain.length === 0) return undefined;
+  try {
+    return normalizeTlsCertificate(
+      {
+        serverName: hostname,
+        remoteAddress: "",
+        remotePort: 0,
+        certificateChain,
+        chainTrusted: true,
+        trustErrorCode: null,
+        protocolVersion: null,
+      },
+      { hostname, observedAt: new Date() },
+    ).leaf;
+  } catch {
+    return undefined;
+  }
 }
 
 function peerDnsNames(certificate: PeerCertificate): readonly string[] {

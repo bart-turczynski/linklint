@@ -267,6 +267,17 @@ Every outcome carries the URL subject, observation time, and
 protocol, hostname, port, resolver-returned address set, and selected pinned
 address. Runtime-specific exception messages are not copied into causes.
 
+For an `https:` hop the evidence additionally carries what that hop's own
+handshake observed — the authorization flag, the server name, the peer DNS
+names, and, when the port recovered one, the normalized leaf certificate. This
+is read off the connection the hop already opened: it opens no further
+connection and asks no further authorization question, because the hop passed
+`authorize` before it was fetched. It is recorded only after the authorization
+and identity checks above have passed, so a populated block never describes an
+unverified peer. The leaf is best-effort — a chain this port cannot parse
+leaves it absent rather than failing an authorized hop, so its absence means
+"not recovered here", never "no certificate".
+
 These are transport outcomes, not phishing verdicts. L1 maps them into the
 versioned enrichment contract, re-inspects every discovered hop through the
 offline pipeline, and preserves incomplete or blocked coverage honestly.

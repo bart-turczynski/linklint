@@ -86,7 +86,7 @@ that moved them.
 | `docs/raw-url-tokenization-spike.md` | 1 |
 | `docs/reason-codes.md` | 88 |
 | `docs/redirect-chain-resolution.md` | 8 |
-| `docs/safe-transport.md` | 11 |
+| `docs/safe-transport.md` | 13 |
 | `docs/scoring.md` | 6 |
 | `docs/tracker-hygiene.md` | 3 |
 | `docs/worklog-oficsfiw-embedded-ipv4-unwrap.md` | 2 |
@@ -291,6 +291,7 @@ that the reason fires at each limit and that the reason list is not empty.
 | F14 | A source is never constructed under terms it cannot honor and never silently downgraded to a weaker default — every reputation factory takes a required `terms` argument and runs `assertSourceTermsAccepted` before the enricher exists; the gate is terms-only and never demands a feed credential to construct a query-side enricher | `docs/online-source-contract.md`, `docs/online-runtime-boundary.md`, `docs/online-composition-root.md`, `packages/online/README.md` | `packages/online/test/contract/terms-gate-wiring.test.ts` |
 | F15 | An HTTPS-to-HTTP downgrade is reported at weight 0 and the chain is not stopped: the finding is keyed on the transition, not on a hop's own scheme, so a plaintext origin is not a downgrade, and a hop-capped or authorization-denied chain still reports the plaintext target it was directed into | `docs/redirect-chain-resolution.md`, `docs/reason-codes.md` | `packages/online/test/https-downgrade.test.ts` |
 | F16 | The transport outcome statuses and cause vocabularies published in `docs/safe-transport.md` are exactly the sets exported at runtime under `TRANSPORT_SCHEMA_VERSION`, and a value added to or removed from either side without moving the stamp fails the build | `docs/safe-transport.md`, `packages/online/README.md` | `packages/online/test/transport-outcome-registry.test.ts` |
+| F17 | Certificate evidence on a `transport.attempt` is read from the hop's own already-authorized handshake — it opens no additional connection and asks no additional authorization question — and a populated `tls` block never describes an unverified peer, because the authorization and identity checks run before the record is taken. The leaf is best-effort: absence means "not recovered here", never "no certificate" | `docs/safe-transport.md` | `packages/online/test/safe-transport.test.ts`, `packages/online/test/node-transport-tls-live.test.ts` |
 
 **F6 and F7 are scoped to this boundary and to the built-in composition
 (`LINK-zzaerxod`).** Both are pinned through `createSafeTransport` with

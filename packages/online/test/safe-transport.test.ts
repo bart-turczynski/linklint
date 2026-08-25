@@ -1451,3 +1451,173 @@ describe("empty response bodies declaring a content encoding", () => {
     harness.assertExhausted();
   });
 });
+
+describe("certificate evidence from the hop's own handshake (LINK-boqmfrcn)", () => {
+  const LEAF = {
+    subject: "CN=origin.example",
+    issuer: "CN=linklint test CA",
+    serialNumber: "46F095011A92E656824857648CC5BFCF09E580E5",
+    subjectAltNames: ["origin.example"],
+    policyOids: [],
+    assuranceLevel: "unknown",
+    notBefore: "2026-07-27T10:54:08.000Z",
+    notAfter: "2126-07-03T10:54:08.000Z",
+    selfIssued: false,
+  } as const;
+
+  // FIXTURE, not live: this pins the connection -> evidence wiring only. That the
+  // connector recovers a real leaf off a real handshake is pinned separately and
+  // against loopback, in `node-transport-tls-live.test.ts`.
+  it("carries the leaf through to the evidence the caller is given", async () => {
+    const { harness, session: transportSession } = session({
+      startTime: "2026-07-17T12:00:00.000Z",
+      resolver: [
+        {
+          hostname: "origin.example",
+          outcome: { value: [{ address: PUBLIC_A, family: 4, ttlSeconds: 60 }] },
+        },
+      ],
+      connector: [
+        {
+          expect: {
+            protocol: "https:",
+            hostname: "origin.example",
+            address: PUBLIC_A,
+            port: 443,
+            serverName: "origin.example",
+          },
+          outcome: {
+            value: {
+              ...connection("c1"),
+              tls: {
+                authorized: true,
+                serverName: "origin.example",
+                peerDnsNames: ["origin.example"],
+                certificate: LEAF,
+              },
+            },
+          },
+        },
+      ],
+      http: [
+        {
+          expect: { connectionId: "c1", url: URL_A, method: "GET" },
+          outcome: { value: { status: 200, body: "ok" } },
+        },
+      ],
+    });
+
+    const outcome = await transportSession.fetch({
+      url: URL_A,
+      authorization: authorization(URL_A),
+    });
+
+    expect(outcome.status).toBe("success");
+    expect(outcome.evidence.tls?.authorized).toBe(true);
+    expect(outcome.evidence.tls?.certificate).toEqual(LEAF);
+    harness.assertExhausted();
+  });
+
+  // The gap this closes is evidence-shaped, so the absence case matters as much as
+  // the presence one: a connector that recovers no leaf must yield evidence with no
+  // certificate, NOT an empty or partially-filled one.
+  it("omits the certificate when the connector recovered none", async () => {
+    const { harness, session: transportSession } = session({
+      startTime: "2026-07-17T12:00:00.000Z",
+      resolver: [
+        {
+          hostname: "origin.example",
+          outcome: { value: [{ address: PUBLIC_A, family: 4, ttlSeconds: 60 }] },
+        },
+      ],
+      connector: [
+        {
+          expect: {
+            protocol: "https:",
+            hostname: "origin.example",
+            address: PUBLIC_A,
+            port: 443,
+            serverName: "origin.example",
+          },
+          outcome: { value: connection("c1") },
+        },
+      ],
+      http: [
+        {
+          expect: { connectionId: "c1", url: URL_A, method: "GET" },
+          outcome: { value: { status: 200, body: "ok" } },
+        },
+      ],
+    });
+
+    const outcome = await transportSession.fetch({
+      url: URL_A,
+      authorization: authorization(URL_A),
+    });
+
+    expect(outcome.status).toBe("success");
+    expect(outcome.evidence.tls?.authorized).toBe(true);
+    expect(outcome.evidence.tls?.certificate).toBeUndefined();
+    harness.assertExhausted();
+  });
+});
+
+describe("certificate evidence is never published for an unverified peer", () => {
+  // Pins the claim in docs/safe-transport.md that a populated tls block never
+  // describes an unverified peer: the identity check runs BEFORE the record, so a
+  // mismatched peer yields no tls evidence at all rather than evidence marked bad.
+  it("publishes no tls evidence when the peer identity does not match", async () => {
+    const { harness, session: transportSession } = session({
+      startTime: "2026-07-17T12:00:00.000Z",
+      resolver: [
+        {
+          hostname: "origin.example",
+          outcome: { value: [{ address: PUBLIC_A, family: 4, ttlSeconds: 60 }] },
+        },
+      ],
+      connector: [
+        {
+          expect: {
+            protocol: "https:",
+            hostname: "origin.example",
+            address: PUBLIC_A,
+            port: 443,
+            serverName: "origin.example",
+          },
+          outcome: {
+            value: {
+              ...connection("c1"),
+              tls: {
+                authorized: true,
+                // The peer answered to a different name than the hop asked for.
+                serverName: "attacker.example",
+                peerDnsNames: ["attacker.example"],
+                certificate: {
+                  subject: "CN=attacker.example",
+                  issuer: "CN=linklint test CA",
+                  serialNumber: "00",
+                  subjectAltNames: ["attacker.example"],
+                  policyOids: [],
+                  assuranceLevel: "unknown",
+                  notBefore: "2026-07-27T10:54:08.000Z",
+                  notAfter: "2126-07-03T10:54:08.000Z",
+                  selfIssued: false,
+                },
+              },
+            },
+          },
+        },
+      ],
+      http: [],
+    });
+
+    const outcome = await transportSession.fetch({
+      url: URL_A,
+      authorization: authorization(URL_A),
+    });
+
+    expect(outcome.status).toBe("incomplete");
+    expect(outcome.evidence.tls).toBeUndefined();
+    harness.assertExhausted();
+  });
+});
