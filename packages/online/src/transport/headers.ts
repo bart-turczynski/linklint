@@ -27,6 +27,21 @@ export function destinationHeaders(
     if (
       typeof value === "string" &&
       FORWARDED_REQUEST_HEADERS.has(normalized) &&
+      // A request-SPLITTING guard, and ONLY that. It is not the wire charset and
+      // must not be widened into one: this seam runs for every HTTP port,
+      // caller-supplied ones included, so what it refuses has to be what NO port
+      // may ever be handed — a value that could forge a second request or
+      // terminate the header block. Silently dropping such a value is right
+      // here, because it is an injection attempt rather than a request the
+      // caller can restate.
+      //
+      // Whether a value is SENDABLE is a different question with a different
+      // answer per port. Node's line is Latin-1, so `ü` is legal and `Ā` is not,
+      // and a copy of that line in this file would be an adapter's rule wearing
+      // the boundary's clothes. `transport/node.ts` owns it, screens for it
+      // before dispatch, and catches Node's synchronous refusal behind that —
+      // where an unsendable value becomes a typed `http-malformed` the caller
+      // can act on rather than a silent drop or a raw `TypeError` (LINK-ppwocsez).
       !/[\0\r\n]/.test(value)
     ) {
       headers[normalized] = value;

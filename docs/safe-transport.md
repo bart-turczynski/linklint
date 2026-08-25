@@ -55,6 +55,20 @@ statement about an adapter it did not build.
   `Accept-Encoding` are set by the transport. Authorization, proxy
   authorization, cookies, Referer, API keys, and all other ambient headers are
   never copied.
+- Those three forwarded values pass two independent checks, and neither check
+  can end an attempt with an untyped exception. A value carrying CR, LF, or NUL
+  is a request-splitting attempt and is dropped before any HTTP port sees it —
+  that check is port-agnostic, so a caller-supplied port is never handed one
+  either. A value the built-in HTTP/1.1 adapter cannot put on the wire ends the
+  attempt as `incomplete` with the `http-malformed` cause, before the request is
+  sent, and the cause never quotes the refused value. The sendable set is the
+  HTTP/1.1 field-value set that adapter writes — HTAB, printable ASCII, and the
+  `obs-text` range — so an ordinary `Accept-Language: de-DE, fr;q=0.9` and any
+  value containing `ü` reach the destination byte for byte, while a value
+  outside Latin-1 such as `Accept-Language: 日本語` is refused rather than
+  truncated, re-encoded, or silently dropped. The second check belongs to the
+  adapter and not to this boundary because the sendable set is a property of the
+  wire a port writes; a caller-supplied port answers for its own.
 - `Referer` has one dedicated channel, `sameOriginReferer`, and is never
   forwarded from `headers`. The candidate must be an absolute `http(s)` URL,
   free of userinfo, at most 2048 characters, and same-origin with the request
