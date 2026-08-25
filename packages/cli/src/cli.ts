@@ -39,7 +39,9 @@ Flags:
 Policy flags — caller-supplied judgment, reported at weight 0. Each annotates
 the verdict with a policy reason and never moves the deception score. linklint
 ships no built-in high-abuse TLD, host or port list; these flags are where that
-judgment lives. All the <value> forms are repeatable.
+judgment lives. All the <value> forms are repeatable, as is --idn-allow above:
+repeat the flag once per value. A comma inside a single value is a usage error,
+not a separator — "--deny-tld com,ru" would match no TLD at all.
 
   --deny-tld <tld>      report tld_denied for this TLD
   --allow-tld <tld>     report tld_not_allowlisted for any other TLD

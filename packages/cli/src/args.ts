@@ -92,6 +92,57 @@ function parsePort(value: string): number {
   return port;
 }
 
+/**
+ * How many repetitions the comma advice spells out before eliding the rest.
+ * The example is built from the caller's own value, and a config string joined
+ * from thirty TLDs should not produce a thirty-clause error message.
+ */
+const SUGGESTION_LIMIT = 3;
+
+/**
+ * Reject one comma-joined value on a repeatable list flag, or return.
+ *
+ * `--deny-tld "com, ru"` is the natural thing to type at a flag that advertises
+ * itself as a list, and it is the one shape the CLI cannot honor: `parseArgs`
+ * hands it over as ONE value, the literal string `com, ru`. That string is not
+ * a TLD, so the deny-list matches nothing while reporting nothing — no error,
+ * no warning, exit 0, and a caller who believes a two-TLD policy is in force
+ * (LINK-ynozvajn). The trim at the core's `normalizedList` choke point closed
+ * the neighbouring padded case `--deny-tld " com"` and cannot close this one,
+ * because there is nothing to trim.
+ *
+ * Refusing rather than splitting, for three reasons:
+ *
+ * - It is the same disposition `parsePort` already takes on this same surface:
+ *   a value that can never match is a usage error at the boundary where a human
+ *   typed it, not a dead deny-list entry the caller never hears about.
+ * - Splitting would spend the comma repo-wide and permanently. No value on any
+ *   axis TODAY can hold one — a comma in a host makes the URL unparseable, and
+ *   the scheme and port grammars exclude it — but `,` is an RFC 3986 sub-delim
+ *   that appears freely in paths and query strings, so a future path- or
+ *   param-shaped axis would need it. A flag that refuses a comma can be taught
+ *   to split one later; a flag that splits cannot be taught to stop.
+ * - The core cannot do it. `normalizeOptions` is contractually total ("Never
+ *   throws — inspection must be total"), which is exactly why this lives here.
+ */
+function assertNotCommaJoined(flag: string, value: string): void {
+  if (!value.includes(",")) return;
+  const parts = value
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part !== "");
+  const shown = parts.slice(0, SUGGESTION_LIMIT).map((part) => `${flag} ${part}`);
+  const suggestion =
+    parts.length > SUGGESTION_LIMIT ? `${shown.join(" ")} ...` : shown.join(" ");
+  const advice =
+    suggestion === ""
+      ? `repeat ${flag} once per value`
+      : `repeat the flag once per value: ${suggestion}`;
+  throw new UsageError(
+    `invalid ${flag} value: ${value} (a comma is not a value separator — ${advice})`,
+  );
+}
+
 /** A fully-parsed CLI invocation. */
 export type ParsedCli =
   | { kind: "help" }
@@ -159,6 +210,25 @@ export function parseCli(argv: readonly string[]): ParsedCli {
     throw new UsageError(
       `invalid --fail-on value: ${failOn} (expected: info|low|medium|high|critical)`,
     );
+  }
+
+  // Every repeatable value flag, enumerated rather than derived: a ninth one
+  // added to `options` above has to be added here to inherit the comma refusal,
+  // and the omission is visible in the diff. `--deny-port` is screened here too,
+  // ahead of `parsePort`, so a comma-joined port list is told about the
+  // repeatable form rather than about the valid port range.
+  const listValues: ReadonlyArray<readonly [string, readonly string[] | undefined]> = [
+    ["--idn-allow", values["idn-allow"]],
+    ["--deny-tld", values["deny-tld"]],
+    ["--allow-tld", values["allow-tld"]],
+    ["--deny-host", values["deny-host"]],
+    ["--allow-host", values["allow-host"]],
+    ["--allow-scheme", values["allow-scheme"]],
+    ["--deny-scheme", values["deny-scheme"]],
+    ["--deny-port", values["deny-port"]],
+  ];
+  for (const [flag, flagValues] of listValues) {
+    for (const value of flagValues ?? []) assertNotCommaJoined(flag, value);
   }
 
   const options: CheckOptions = {
