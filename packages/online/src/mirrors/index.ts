@@ -9,6 +9,12 @@
  *
  * URLhaus datasets are caller-owned: they are never bundled in this package or
  * redistributed.
+ *
+ * LINK-mpkglaqb adds the two concrete Node HTTP clients that make both updaters
+ * runnable. It deliberately does NOT add a snapshot store: the caller supplies
+ * the directory, database or object store, exactly as
+ * `docs/online-runtime-boundary.md` requires and as the RDAP bootstrap updater
+ * already does. `packages/online/README.md` carries a worked fs-backed example.
  */
 
 export {
@@ -20,6 +26,12 @@ export {
 export { canonicalizeUrl, createUrlhausIndex } from "./urlhaus-index.js";
 export { createUrlhausEnricher } from "./urlhaus-enricher.js";
 export type { UrlhausEnricherOptions } from "./urlhaus-enricher.js";
+export {
+  createNodeUrlhausHttpClient,
+  UrlhausHttpAbortError,
+  UrlhausHttpFailure,
+} from "./urlhaus-node.js";
+export type { NodeUrlhausHttpClientOptions } from "./urlhaus-node.js";
 export { parseUrlhausCsv } from "./urlhaus-parse.js";
 export { updateUrlhausSnapshot } from "./urlhaus-updater.js";
 export type {
@@ -50,6 +62,12 @@ export {
 export { createPhishTankIndex } from "./phishtank-index.js";
 export { createPhishTankEnricher } from "./phishtank-enricher.js";
 export type { PhishTankEnricherOptions } from "./phishtank-enricher.js";
+export {
+  createNodePhishTankHttpClient,
+  PhishTankHttpAbortError,
+  PhishTankHttpFailure,
+} from "./phishtank-node.js";
+export type { NodePhishTankHttpClientOptions } from "./phishtank-node.js";
 export { parsePhishTankCsv } from "./phishtank-parse.js";
 export { updatePhishTankSnapshot } from "./phishtank-updater.js";
 export type {
