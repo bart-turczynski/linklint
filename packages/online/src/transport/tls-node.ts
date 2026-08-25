@@ -73,16 +73,10 @@ export class NodeTlsObserver implements TlsObservationPort {
     return new Promise((resolve, reject) => {
       let settled = false;
       const identity = request.serverName;
-      const socket: TLSSocket = connectTls({
-        host: request.address,
-        port: request.port,
-        rejectUnauthorized: false,
-        ALPNProtocols: ["http/1.1"],
-        // Identity is recomputed downstream from preserved DER, never inferred here.
-        checkServerIdentity: () => undefined,
-        ...(isIP(identity) === 0 ? { servername: identity } : {}),
-        ...(request.signal === undefined ? {} : { signal: request.signal }),
-      });
+      // Declared before the dispatch so the synchronous catch below can settle
+      // without one. Nothing is destroyed on that path: no socket was ever
+      // constructed.
+      let socket: TLSSocket;
 
       const fail = (error: Error) => {
         if (settled) return;
@@ -93,6 +87,46 @@ export class NodeTlsObserver implements TlsObservationPort {
         else if (isCode(error, "ETIMEDOUT")) reject(new NodeTlsObserveFailure("connect-timeout"));
         else reject(new NodeTlsObserveFailure("tls-handshake"));
       };
+
+      // `tls.connect` validates its options inside the socket constructor and
+      // THROWS rather than emitting `error`, so a refused option escapes before
+      // `fail` is attached — the same bare-call-in-executor shape
+      // `transport/node.ts` fixed in `NodeConnectionPorts.request` and
+      // `openSocket`. Left bare, the executor turned such a throw into a
+      // rejection carrying a raw Node error: untyped at this port, and reported
+      // one layer up only because `tls-inspect.ts` happens to floor an
+      // unrecognized connect-phase rejection at `connect-error`.
+      //
+      // The guard below already covers the one synchronous throw known to be
+      // reachable here — Node 26 raises `ERR_INVALID_ARG_VALUE` from
+      // `tls.connect` for an IP `servername`, where Node 24 only warns
+      // (DEP0123), and both majors are gated (LINK-bgcfgujq). That is precisely
+      // why this catch is not speculative: the failure class has materialized in
+      // this exact call once already, and was survived only because someone
+      // anticipated it. A boundary typed only for the throws its authors
+      // enumerated is not typed. `test/tls-observe-live.test.ts` drives it
+      // through the port surface, where an out-of-range port IS reachable, so it
+      // is not dead code.
+      try {
+        socket = connectTls({
+          host: request.address,
+          port: request.port,
+          rejectUnauthorized: false,
+          ALPNProtocols: ["http/1.1"],
+          // Identity is recomputed downstream from preserved DER, never inferred here.
+          checkServerIdentity: () => undefined,
+          ...(isIP(identity) === 0 ? { servername: identity } : {}),
+          ...(request.signal === undefined ? {} : { signal: request.signal }),
+        });
+      } catch {
+        // A local option Node refused: no socket exists to destroy, no peer was
+        // contacted, and nothing was sent. `connect-error` is what the connect
+        // phase reports for this anyway, stated here rather than inferred from
+        // an escaped `RangeError`.
+        settled = true;
+        reject(new NodeTlsObserveFailure("connect-error"));
+        return;
+      }
 
       socket.once("error", fail);
       socket.once("secureConnect", () => {

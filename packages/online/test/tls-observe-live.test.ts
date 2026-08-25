@@ -187,3 +187,81 @@ describe("NodeTlsObserver — chain trust is the verifier's verdict (LINK-zgmixa
     expect(trustedCa.chainTrusted).toBe(false);
   });
 });
+
+/**
+ * The second defect this file pins is not about certificates at all.
+ *
+ * `NodeTlsObserver.observe` calls `tls.connect` BARE inside a `new Promise`
+ * executor and attaches its `fail` mapper only afterwards. `tls.connect`
+ * validates its options inside the socket constructor and THROWS rather than
+ * emitting `error`, so a refused option escapes before any listener exists and
+ * the executor turns it into a rejection carrying a raw Node error — untyped at
+ * this port. That is the same shape `transport/node.ts` fixed in
+ * `NodeConnectionPorts.request` and `openSocket`, and it is pinned here the way
+ * `test/node-transport-headers.test.ts` pins `openSocket`: at the port surface,
+ * where an out-of-range port IS reachable.
+ *
+ * The trigger opens NO socket and contacts NO peer — `tls.connect` refuses the
+ * port inside its own constructor, so nothing leaves the process.
+ */
+describe("NodeTlsObserver — synchronous connect throws", () => {
+  it("types a connect option Node refuses synchronously", async () => {
+    const failure = await rejectionOf(
+      new NodeTlsObserver().observe({
+        hostname: SERVER_NAME,
+        address: "127.0.0.1",
+        // Out of range, so `tls.connect` throws `ERR_SOCKET_BAD_PORT` from the
+        // constructor. Nothing is ever sent, and no peer is contacted.
+        port: 99_999,
+        serverName: SERVER_NAME,
+      }),
+    );
+
+    expect(failure.name).toBe("NodeTlsObserveFailure");
+    expect(failure.code).toBe("connect-error");
+  });
+
+  it("omits SNI for an IP identity, which Node 26 refuses outright", async () => {
+    // The guard behind the catch, asserted rather than assumed. `observe` is
+    // reached with `serverName` set to the inspected hostname, so an IP-literal
+    // subject arrives here as an IP identity. Node 26 THROWS
+    // `ERR_INVALID_ARG_VALUE` from `tls.connect` for an IP `servername` where
+    // Node 24 only warns (DEP0123), and both majors are gated — without the
+    // `isIP` guard this observation would fail on one of them through ordinary
+    // use, not just through a malformed port. A real handshake, so the guard is
+    // proved against the socket rather than against the option object.
+    const created = createTlsServer(
+      { key: pem("valid.key.pem"), cert: pem("valid.cert.pem") },
+      (_req, res) => res.end("unreachable: observe sends no HTTP"),
+    );
+    created.on("tlsClientError", () => undefined);
+    servers.push(created);
+    await new Promise<void>((resolve) => created.listen(0, "127.0.0.1", () => resolve()));
+    const address = created.address();
+    if (address === null || typeof address === "string") throw new Error("no port");
+
+    const observation = await new NodeTlsObserver().observe({
+      hostname: "127.0.0.1",
+      address: "127.0.0.1",
+      port: address.port,
+      serverName: "127.0.0.1",
+    });
+
+    expect(observation.remoteAddress).toBe("127.0.0.1");
+    expect(observation.certificateChain.length).toBeGreaterThan(0);
+  });
+});
+
+async function rejectionOf(promise: Promise<unknown>) {
+  try {
+    await promise;
+  } catch (error) {
+    const failure = error as { name?: unknown; code?: unknown; message?: unknown };
+    return {
+      name: typeof failure.name === "string" ? failure.name : "",
+      code: failure.code,
+      message: typeof failure.message === "string" ? failure.message : "",
+    };
+  }
+  throw new Error("expected a rejection");
+}
