@@ -6,3 +6,26 @@ allowBuilds:
 
 onlyBuiltDependencies:
   - esbuild
+
+# Transitive-dependency advisory fixes. Every version below is inside the range
+# its parent already declares, so these force a patch pickup rather than a
+# forced-incompatible upgrade. See LINK-lqhilztf and CONTRIBUTING.md
+# "Auditing dependencies for known vulnerabilities".
+overrides:
+  # ajv -> fast-uri: host confusion via backslash authority delimiter
+  # (GHSA-v2hh-gcrm-f6hx), backslash authority introducer (GHSA-7p8r-x3mc-p8w7)
+  # and failed IDN canonicalization (GHSA-4c8g-83qw-93j6). ajv declares ^3.0.1.
+  fast-uri: "^3.1.6"
+  # express-rate-limit -> ip-address: leading-zero octets decoded as decimal
+  # while resolvers decode them as octal (GHSA-mwp4-54f8-5fhr), plus the CIDR
+  # and IPv4-mapped misclassifications. express-rate-limit declares ^10.2.0.
+  ip-address: "^10.5.0"
+  # @hono/node-server -> hono: memo()/jsx cross-request disclosure, cx() XSS,
+  # CORS and language-middleware ReDoS. @hono/node-server declares ^4.
+  hono: "^4.13.3"
+  # @modelcontextprotocol/sdk -> @hono/node-server: serve-static path traversal
+  # via encoded backslash. The SDK declares ^1.19.9 || ^2.0.5.
+  "@hono/node-server": "^1.19.17"
+  # postcss -> nanoid: custom generators loop indefinitely at size zero
+  # (dev-only; postcss declares ^3.3.16).
+  nanoid: "^3.3.18"
