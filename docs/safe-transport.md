@@ -36,6 +36,29 @@ TCP/TLS connector, HTTP/1.1 client, and clock. Construction performs no DNS or
 network I/O. The raw built-in socket implementation is not exported, so other
 built-in adapters cannot bypass the authorization layer.
 
+A caller-supplied connector or HTTP port is a **trusted capability**, and the
+rules below are scoped accordingly. `SafeSession.execute()` pins one address,
+checks the connector's reported peer against it, and then identifies the
+connection to the HTTP port by an opaque `connectionId` string; the response it
+gets back carries a status, headers and a body, and nothing that says which
+socket they came off. So the obligation to use that exact connection — and to
+return a redirect response as-is, and to send only the header set it was handed —
+rests on the port, and this boundary is unable to re-check it. An adapter that
+re-resolves the request URL instead, the shape a `fetch`- or `undici`-backed
+port falls into, sends the request to whatever the runtime resolves at that
+moment and reopens the DNS-rebinding window the pin exists to close. The
+built-in composition meets the obligation structurally rather than by protocol:
+`NodeConnectionPorts` implements both ports and owns the socket map, and
+`createNodeSafeTransport()` passes one `NodeConnectionPorts` instance as both
+the connector and the HTTP port, so the binding is object identity
+(`LINK-zzaerxod`, pinned by
+`packages/online/test/transport-trust-boundary.test.ts`). Should this API ever
+break compatibility to remove the gap, the shape it would take is merging
+`ConnectorPort` and `HttpPort` into a single connection capability, so that
+wiring a socket to one port and a request to another stops being
+representable; moving or renaming the existing exports would leave the gap
+exactly where it is.
+
 Those built-in adapters never route through Node's ambient proxy configuration.
 The connector opens its own `net`/`tls` socket to the pinned address, and the
 HTTP/1.1 client hangs that already-connected socket off a freshly constructed

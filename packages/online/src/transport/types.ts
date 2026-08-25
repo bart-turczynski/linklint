@@ -50,6 +50,21 @@ export interface ConnectorPort {
 }
 
 export interface HttpRequest {
+  /**
+   * The connection {@link ConnectorPort.connect} returned, whose address was
+   * pinned before the connect and whose reported peer was checked against that
+   * pin afterwards. An {@link HttpPort} must write this request onto THAT
+   * connection and no other. {@link HttpResponse} carries a status, headers and
+   * a body and nothing that identifies the socket they came off, so the
+   * transport cannot re-check this binding the way it re-checks
+   * {@link TransportConnection.remoteAddress} at connect time — the obligation
+   * is the port's (LINK-zzaerxod).
+   *
+   * A port that ignores this field and re-resolves {@link HttpRequest.url}
+   * instead — the shape a `fetch`- or `undici`-backed adapter falls into — sends
+   * the request to whatever the runtime resolves at that moment, reopening the
+   * DNS-rebinding window the pin exists to close.
+   */
   readonly connectionId: string;
   readonly url: string;
   readonly method: TransportMethod;
@@ -63,6 +78,26 @@ export interface HttpResponse {
   readonly body: AsyncIterable<Uint8Array>;
 }
 
+/**
+ * A trusted capability, not a sandboxed one. The transport's destination rules
+ * stop at this seam — everything past it is the adapter's own conduct — so an
+ * implementer takes on three obligations that nothing downstream can check
+ * (LINK-zzaerxod):
+ *
+ * - use the connection named by {@link HttpRequest.connectionId} and no other,
+ *   rather than re-resolving {@link HttpRequest.url};
+ * - return a redirect response as-is. Following one skips the caller's per-hop
+ *   authorization and the offline inspection of the new target behind it;
+ * - send exactly {@link HttpRequest.headers} — no cookie jar, ambient
+ *   credential, proxy authorization, or runtime default of the port's own.
+ *
+ * The built-in composition meets all three structurally rather than by
+ * protocol: `NodeConnectionPorts` implements this interface and
+ * {@link ConnectorPort} together and owns the socket map, and
+ * `createNodeSafeTransport()` passes ONE instance as both, so the pinned socket
+ * and the request written onto it are bound by object identity. See
+ * `docs/safe-transport.md` and F6/F7 in `docs/guarantees.md`.
+ */
 export interface HttpPort {
   request(request: HttpRequest): Promise<HttpResponse>;
 }

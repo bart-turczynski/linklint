@@ -249,8 +249,8 @@ that the reason fires at each limit and that the reason list is not empty.
 | F3 | Every pluggable call is a total boundary — an exception becomes an attributed failure outcome and never rejects `inspectAsync()` | `docs/enrichment-outcomes.md` | `packages/core/test/enrichment-resilience.test.ts` |
 | F4 | Online evidence is additive and never replaces the lexical verdict | `docs/layer3-reputation-model.md`, `docs/online-source-contract.md`, `docs/reason-codes.md` | `packages/online/test/reputation-composition.test.ts` |
 | F5 | Evidence-only sources (TLS, DNS) never score a finding and are byte-neutral on the verdict | `docs/layer3-reputation-model.md`, `docs/online-source-contract.md` | `packages/online/test/tls-certificate-enricher.test.ts`, `packages/online/test/dns-enricher.test.ts` |
-| F6 | Redirects are returned to the caller and never followed implicitly; construction is never consent to connect | `packages/online/README.md`, `docs/safe-transport.md`, `docs/online-runtime-boundary.md` | `packages/online/test/safe-transport.test.ts` |
-| F7 | Ambient credential headers are never copied to a destination; `Referer` is never forwarded from caller headers | `docs/safe-transport.md` | `packages/online/test/safe-transport.test.ts` |
+| F6 | Redirects are returned to the caller and never followed implicitly; construction is never consent to connect — scoped to this boundary and the built-in composition, since a caller-supplied HTTP port is a trusted capability (see the note below) | `packages/online/README.md`, `docs/safe-transport.md`, `docs/online-runtime-boundary.md` | `packages/online/test/safe-transport.test.ts`, `packages/online/test/transport-trust-boundary.test.ts` |
+| F7 | Ambient credential headers are never copied to a destination; `Referer` is never forwarded from caller headers — same scope as F6: the header set this boundary builds and hands the port carries neither, and a caller-supplied port answers for anything it adds of its own | `docs/safe-transport.md` | `packages/online/test/safe-transport.test.ts`, `packages/online/test/transport-trust-boundary.test.ts` |
 | F8 | Local wrapper decoding never calls a vendor decoder service and performs no I/O at all | `packages/online/README.md`, `docs/wrapper-decoding.md`, `docs/redirect-chain-resolution.md` | `packages/online/test/embedded-wrapper.test.ts`, `packages/online/test/package-contract.test.ts` |
 | F9 | A reputation match is never broadened to the host — a different path, query, subdomain, or parent is a `no-hit` | `docs/layer3-reputation-model.md`, `docs/reason-codes.md`, `docs/online-roadmap.md` | `packages/online/test/urlhaus-lookup.test.ts`, `packages/online/test/phishtank-lookup.test.ts` |
 | F10 | The built-in Node transport never routes through Node's ambient proxy configuration — `HTTP_PROXY`/`HTTPS_PROXY`, `NODE_USE_ENV_PROXY`, or a runtime `http.setGlobalProxyFromEnv()` | `docs/safe-transport.md` | `packages/online/test/node-transport-live.test.ts`, `packages/online/test/node-transport-tls-live.test.ts` |
@@ -260,6 +260,35 @@ that the reason fires at each limit and that the reason list is not empty.
 | F14 | A source is never constructed under terms it cannot honor and never silently downgraded to a weaker default — every reputation factory takes a required `terms` argument and runs `assertSourceTermsAccepted` before the enricher exists; the gate is terms-only and never demands a feed credential to construct a query-side enricher | `docs/online-source-contract.md`, `docs/online-runtime-boundary.md`, `docs/online-composition-root.md`, `packages/online/README.md` | `packages/online/test/contract/terms-gate-wiring.test.ts` |
 | F15 | An HTTPS-to-HTTP downgrade is reported at weight 0 and the chain is not stopped: the finding is keyed on the transition, not on a hop's own scheme, so a plaintext origin is not a downgrade, and a hop-capped or authorization-denied chain still reports the plaintext target it was directed into | `docs/redirect-chain-resolution.md`, `docs/reason-codes.md` | `packages/online/test/https-downgrade.test.ts` |
 | F16 | The transport outcome statuses and cause vocabularies published in `docs/safe-transport.md` are exactly the sets exported at runtime under `TRANSPORT_SCHEMA_VERSION`, and a value added to or removed from either side without moving the stamp fails the build | `docs/safe-transport.md`, `packages/online/README.md` | `packages/online/test/transport-outcome-registry.test.ts` |
+
+**F6 and F7 are scoped to this boundary and to the built-in composition
+(`LINK-zzaerxod`).** Both are pinned through `createSafeTransport` with
+*injected fixture ports*, so what they hold for is the generic composition as
+the transport defines it: it follows no redirect, and it builds a fresh
+destination header set for every request. Narrowing them to
+`createNodeSafeTransport()` would make the register less accurate than the code
+and orphan those tests. What they do not reach is what a caller-supplied
+`HttpPort` does after the handoff. `SafeSession.execute()` pins an address,
+verifies the connector's reported peer against it, and then passes the port an
+opaque `connectionId` string; the `HttpResponse` that comes back carries a
+status, headers and a body and no evidence of which socket produced them, so a
+port that ignores the id and re-resolves the URL, leaves `redirect: "follow"`
+on, or attaches a cookie jar defeats both claims underneath the boundary — and
+the transport cannot see it happen. The threat model makes that a documentation
+problem rather than an API one: the adversary here is the destination (SSRF, DNS
+rebinding), not the caller, who already holds ambient network authority
+in-process; the case to close is the honest-but-wrong adapter. So the obligation
+is stated where an implementer meets it — on `HttpRequest.connectionId` and
+`HttpPort` in `packages/online/src/transport/types.ts`, following the precedent
+`TransportConnection.remoteAddress` already set — and named in
+`docs/safe-transport.md` as a trusted capability. The built-in composition is
+safe structurally rather than by protocol: `createNodeSafeTransport()` passes one
+`NodeConnectionPorts` instance as both `connector` and `http`, and
+`packages/online/test/transport-trust-boundary.test.ts` pins that object
+identity, which is the property the scoped half of both claims rests on and
+which nothing held before. F11 is deliberately left unqualified: it is a closure
+claim about what the transport hands the connector, which `execute()` enforces
+for every port, built-in or not.
 
 **F10 is scoped to the built-ins, deliberately.** It is a claim about
 `createNodeSafeTransport()`'s own connector and HTTP port, not about a
