@@ -260,7 +260,9 @@ For example, `userinfo_present` (0.5) + `mixed_script` (0.4) →
 
 Informational reasons (e.g. `normalization_delta`, `confusable_char`) have weight `0`
 and never change the score on their own — they add context. Weights and data sources
-are **version-pinned** (`dataVersions` on every result) so verdicts are reproducible.
+are **version-pinned** (`dataVersions` on every result), which records what a verdict
+was computed against. Reproducing a verdict means pinning the package version —
+detector logic is versioned there, not in `dataVersions`.
 
 > A parsed URL with zero scoring weight is benign (`score: 0`). **Invalid** input is
 > _not_ benign — it returns `score: null`, `severity: null`, and you should treat it

@@ -239,6 +239,16 @@ describe("inspect() is synchronous and deterministic (published guarantee)", () 
       ).not.toContain(FALSIFIED);
     }
 
+    // The same false inference, restated in the scoring section: version-pinned
+    // weights and data sources do NOT make a verdict reproducible, for exactly
+    // the reason above — `dataVersions` stamps no detector logic. Refused
+    // separately because it reaches the conclusion without quoting the
+    // antecedent, so the phrase-level check above walks straight past it.
+    expect(
+      flattenProse(publicReadme),
+      "README.md still derives reproducibility from `dataVersions` alone.",
+    ).not.toContain("so verdicts are reproducible");
+
     // §0 states the bare adjective and no antecedent, which is why it is not
     // asserted against the conditional above. Swept, and deliberately clean.
     expect(architectureDoc).toContain("synchronous, deterministic");
