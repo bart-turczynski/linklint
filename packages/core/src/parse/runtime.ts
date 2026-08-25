@@ -72,11 +72,15 @@ export function normalizeOptions(options: InspectOptions): RuntimeConfig {
   const idnPolicy = options.idnPolicy === "allow" ? "allow" : "block";
   // Canonicalize allow-list entries to their Unicode, lower-cased form so a
   // user's "münchen.de" matches a punycode (xn--) input and vice-versa.
-  const idnAllowlist = new Set<string>(
-    (Array.isArray(options.idnAllowlist) ? options.idnAllowlist : [])
-      .filter((d): d is string => typeof d === "string")
-      .map((d) => toUnicode(d.replace(/^\./, "")).toLowerCase()),
-  );
+  //
+  // Routed through `normalizedList` — the same choke point the policy axes use —
+  // rather than normalized inline. `idnAllowlist` is not a policy axis, which is
+  // exactly why it missed the trim MR !41 (LINK-uxkrtcnw) placed there: the
+  // choke point only protects what goes through it (LINK-qajalduf). Only the
+  // membership set is kept; the ordered `values` and `configured` flag have no
+  // reader here, because `idnAllowlist` has no allow-list-configured semantics
+  // to report — an empty set simply exempts nothing.
+  const idnAllowlist = normalizedList(options.idnAllowlist, normalizeIdnDomain).set;
   return {
     maxDecodeDepth,
     idnPolicy,
@@ -94,6 +98,14 @@ export function normalizeOptions(options: InspectOptions): RuntimeConfig {
  * input's registrable domain regardless of punycode/Unicode presentation. A
  * missing/blank/non-string `host` becomes `null` (suppress `code` for all hosts).
  * Never throws — inspection must be total.
+ *
+ * This is the one list-valued option that CANNOT route through
+ * {@link normalizedList}: its entries are objects, not scalars, so there is no
+ * single value for the list-level normalizer to trim — the caller's strings are
+ * the `code` and `host` FIELDS one level down. It therefore calls
+ * {@link trimListValue} directly on each of them, which is the same trim
+ * `normalizedList` applies. Do not try to fold this into `normalizedList`; the
+ * shapes do not match. Keep the two field trims here instead (LINK-qajalduf).
  */
 export function normalizeSuppressReasons(
   rules: InspectOptions["suppressReasons"],
@@ -104,11 +116,25 @@ export function normalizeSuppressReasons(
     if (typeof rule !== "object" || rule === null) continue;
     const { code, host } = rule as { code?: unknown; host?: unknown };
     if (typeof code !== "string") continue;
+    // Empty-after-trim DROPS the whole rule, matching normalizedList. A blank
+    // `code` matches no reason today either, so this removes dead weight rather
+    // than changing a verdict — and `suppressConfigured` reads the raw option,
+    // never the normalized length, so the `suppression` honesty marker in
+    // `checksRun` still appears.
+    const normalizedCode = trimListValue(code);
+    if (normalizedCode === "") continue;
+    const trimmedHost = trimListValue(host);
+    // A blank `host` still means "all hosts" — that is the documented shape of a
+    // global rule, and it was already reached via `host.trim() !== ""` before
+    // this. Only the VALUE was untrimmed. A host that canonicalizes to `""`
+    // (e.g. a bare ".") stays a non-null dead scope that matches nothing; it
+    // must NOT collapse to `null`, which would silently widen the rule to every
+    // host.
     const normalizedHost =
-      typeof host === "string" && host.trim() !== ""
-        ? toUnicode(host.replace(/^\./, "")).toLowerCase()
+      typeof trimmedHost === "string" && trimmedHost !== ""
+        ? normalizeIdnDomain(trimmedHost)
         : null;
-    normalized.push({ code, host: normalizedHost });
+    normalized.push({ code: normalizedCode, host: normalizedHost });
   }
   return normalized;
 }
@@ -127,16 +153,35 @@ export function normalizePolicyOptions(options: InspectOptions): PolicyRuntimeCo
 }
 
 /**
- * Normalize one policy axis into its ordered values + membership set.
+ * The single trim applied to every caller-supplied list value. Non-strings pass
+ * through untouched, so a numeric axis (`denyPorts`) is unaffected.
  *
- * Surrounding whitespace is stripped here, at the single choke point every axis
- * routes through, rather than in the per-axis normalizers — so a future axis
- * inherits the trim by construction and cannot reintroduce the fail-open by
- * forgetting it. Building a list by splitting a config string
+ * Factored out of {@link normalizedList} so the one list-valued option whose
+ * entries are OBJECTS — `suppressReasons` — can apply the identical trim to its
+ * inner fields. Both callers must use this rather than an inline `.trim()`:
+ * a second copy of the rule is a second thing to forget.
+ */
+function trimListValue<T>(value: T): T {
+  return typeof value === "string" ? (value.trim() as unknown as T) : value;
+}
+
+/**
+ * Normalize one list-valued option into its ordered values + membership set.
+ *
+ * Surrounding whitespace is stripped here, at the single choke point every
+ * scalar list routes through, rather than in the per-axis normalizers — so a
+ * future option inherits the trim by construction and cannot reintroduce the
+ * fail-open by forgetting it. Building a list by splitting a config string
  * (`env.DENY_TLDS.split(",")`) is the natural way to configure policy, and an
  * untrimmed `" ru"` matches nothing while reporting nothing (LINK-uxkrtcnw).
- * The URL input is already trimmed on the way in; policy values now get the
- * same courtesy.
+ * The URL input is already trimmed on the way in; list values now get the same
+ * courtesy.
+ *
+ * The seven policy axes and `idnAllowlist` all route through here.
+ * `suppressReasons` is the sole exception and says why at its own definition.
+ * Inheritance beats discipline: put a new list-valued option through this
+ * function rather than normalizing it inline, which is precisely how
+ * `idnAllowlist` missed the trim for a release (LINK-qajalduf).
  *
  * An entry that is EMPTY after normalization is DROPPED, not rejected:
  *
@@ -146,23 +191,38 @@ export function normalizePolicyOptions(options: InspectOptions): PolicyRuntimeCo
  *   the CLI boundary, where a human typed the flag and can be told; it stays
  *   there.
  * - Dropping is not a second fail-open. An empty string can never match any
- *   axis key — `publicSuffixTld`, `registrableDomainLower` and `scheme` are all
- *   non-empty wherever an axis runs — so `""` is already dead weight in the set
- *   today. Removing it changes no verdict, only the allow-list detail strings.
+ *   key this feeds — `publicSuffixTld`, `registrableDomainLower` and `scheme`
+ *   are all non-empty wherever an axis runs, and `idn_host` compares against a
+ *   registrable domain it has already guarded as non-empty — so `""` is already
+ *   dead weight in the set today. Removing it changes no verdict, only the
+ *   allow-list detail strings.
  * - On the allow-list axes it stays fail-CLOSED: `configured` is derived from
  *   `values !== undefined`, never from length, so `allowTlds: ["  "]` remains
  *   configured with an empty list and every input is reported as
  *   not-allow-listed. A fat-fingered allow-list gets loud, not silent.
+ * - `idnAllowlist` is fail-CLOSED for a simpler reason: it is an exemption list,
+ *   so an emptied one exempts nothing and every IDN keeps emitting `idn_host`.
+ *   Dropping can only ever make it stricter, never more permissive.
  */
 function normalizedList<T, U>(
   values: readonly T[] | undefined,
   normalize: (value: T) => U | null,
 ): PolicyList<U> {
   const normalized = (Array.isArray(values) ? values : [])
-    .map((value) => (typeof value === "string" ? (value.trim() as unknown as T) : value))
+    .map(trimListValue)
     .map(normalize)
     .filter((value): value is U => value !== null && value !== ("" as unknown as U));
   return { configured: values !== undefined, values: normalized, set: new Set(normalized) };
+}
+
+/**
+ * Canonicalize a registrable domain supplied by a caller — leading dot stripped,
+ * Unicode (U-label) form, lower-cased — so it matches an input's registrable
+ * domain regardless of punycode/Unicode presentation. Shared by `idnAllowlist`
+ * and a `suppressReasons` rule's `host` so the two can never drift.
+ */
+function normalizeIdnDomain(value: string): string | null {
+  return typeof value === "string" ? toUnicode(value.replace(/^\./, "")).toLowerCase() : null;
 }
 
 function normalizeTld(value: string): string | null {

@@ -83,8 +83,12 @@ export interface InspectOptions {
    * blocked by default.
    *
    * Values are registrable domains compared **case-insensitively** against the
-   * host's registrable domain (in its Unicode form); a leading dot is tolerated
-   * and stripped. Listing the registrable domain covers all its subdomains.
+   * host's registrable domain (in its Unicode form); surrounding whitespace is
+   * trimmed and a leading dot is tolerated and stripped, so a list built by
+   * splitting a config string (`env.IDN_ALLOW.split(",")`) works. Listing the
+   * registrable domain covers all its subdomains. An entry left empty after
+   * trimming is dropped — it could never have matched, and an emptied exemption
+   * list simply exempts nothing (fail-closed).
    *
    * @example idnAllowlist: ["münchen.de", "日本語.jp"]
    */
@@ -100,8 +104,10 @@ export interface InspectOptions {
    *
    * A rule with no `host` suppresses its `code` for all hosts; a rule with a
    * `host` applies only to inputs whose registrable domain matches (see
-   * {@link SuppressReasonRule.host}). Rules with an unrecognized/invalid shape are
-   * ignored (inspection is total, never throws).
+   * {@link SuppressReasonRule.host}). Surrounding whitespace is trimmed from both
+   * `code` and `host`; a rule whose `code` is empty after trimming is dropped
+   * (it could never have matched a reason). Rules with an unrecognized/invalid
+   * shape are ignored (inspection is total, never throws).
    *
    * Honesty: whenever this field is present (even `[]`), the `suppression` token
    * appears in `checksRun`, so a result never hides that a caller escape hatch was

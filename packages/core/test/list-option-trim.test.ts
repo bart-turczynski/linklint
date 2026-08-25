@@ -54,72 +54,128 @@ describe("list options that route through normalizedList — trim inherited", ()
   });
 });
 
-// ── The unrouted side: PINNED AS THE FAIL-OPEN IT IS ─────────────────────────
-// LINK-qajalduf. Each `expect` below records behaviour that is WRONG. The fix
-// inverts this block; it is here first so the fix has to move it deliberately
-// rather than by accident.
-describe("idnAllowlist — untrimmed entries (pinned fail-open)", () => {
-  it("a padded entry does not exempt: idn_host still fires", () => {
-    expect(codes("https://münchen.de", { idnAllowlist: [" münchen.de"] })).toContain("idn_host");
-    expect(codes("https://münchen.de", { idnAllowlist: ["münchen.de "] })).toContain("idn_host");
+// ── The formerly-unrouted side: FIXED ────────────────────────────────────────
+// LINK-qajalduf. `idnAllowlist` now routes through normalizedList; each `it`
+// below was pinned in the previous commit asserting the opposite.
+describe("idnAllowlist — trimmed entries", () => {
+  it("a padded entry exempts, exactly as an unpadded one does", () => {
+    expect(codes("https://münchen.de", { idnAllowlist: [" münchen.de"] })).not.toContain(
+      "idn_host",
+    );
+    expect(codes("https://münchen.de", { idnAllowlist: ["münchen.de "] })).not.toContain(
+      "idn_host",
+    );
+    expect(codes("https://münchen.de", { idnAllowlist: ["\tmünchen.de\n"] })).not.toContain(
+      "idn_host",
+    );
   });
 
-  it("leading whitespace defeats the leading-dot strip", () => {
-    expect(codes("https://münchen.de", { idnAllowlist: [" .münchen.de"] })).toContain("idn_host");
+  it("the trim runs BEFORE the leading-dot strip, so ' .x' still works", () => {
+    expect(codes("https://münchen.de", { idnAllowlist: [" .münchen.de"] })).not.toContain(
+      "idn_host",
+    );
   });
 
-  it("splitting a config string on ',' voids every entry after the first", () => {
+  it("splitting a config string on ',' now exempts every entry", () => {
     const allow = "köln.de, münchen.de".split(",");
     expect(codes("https://köln.de", { idnAllowlist: allow })).not.toContain("idn_host");
-    expect(codes("https://münchen.de", { idnAllowlist: allow })).toContain("idn_host");
+    expect(codes("https://münchen.de", { idnAllowlist: allow })).not.toContain("idn_host");
   });
 
-  it("the padded entry survives into the runtime set as a dead member", () => {
-    const runtime = normalizeOptions({ idnAllowlist: [" münchen.de", "  "] });
-    expect(runtime.idnAllowlist.has(" münchen.de")).toBe(true);
-    expect(runtime.idnAllowlist.has("münchen.de")).toBe(false);
-    expect(runtime.idnAllowlist.has("  ")).toBe(true);
+  it("still exempts across Unicode/punycode presentations after trimming", () => {
+    expect(codes("https://xn--mnchen-3ya.de/", { idnAllowlist: [" münchen.de "] })).not.toContain(
+      "idn_host",
+    );
+    expect(codes("https://münchen.de", { idnAllowlist: [" xn--mnchen-3ya.de "] })).not.toContain(
+      "idn_host",
+    );
   });
 
-  it("the exemption still fails OPEN silently — no error, no skipped token", () => {
-    const r = inspect("https://münchen.de", { idnAllowlist: [" münchen.de"] });
-    expect(r.checksSkipped).not.toContain("options:idnAllowlist");
-    expect(r.severity).toBe("high");
+  it("an unlisted IDN is still blocked — the trim widens nothing", () => {
+    expect(codes("https://köln.de", { idnAllowlist: [" münchen.de"] })).toContain("idn_host");
+  });
+
+  it("drops an entry that is empty after trimming, keeping its neighbours", () => {
+    const runtime = normalizeOptions({ idnAllowlist: ["  ", "münchen.de", "", "."] });
+    expect(runtime.idnAllowlist.has("münchen.de")).toBe(true);
+    expect(runtime.idnAllowlist.has("")).toBe(false);
+    expect(runtime.idnAllowlist.has("  ")).toBe(false);
+    expect(runtime.idnAllowlist.size).toBe(1);
+  });
+
+  // Dropping is fail-CLOSED here for a simpler reason than on the policy
+  // allow-lists: idnAllowlist is an EXEMPTION list, so an emptied one exempts
+  // nothing and every IDN keeps emitting idn_host.
+  it("an all-blank allow-list exempts nothing, so it fails CLOSED", () => {
+    expect(codes("https://münchen.de", { idnAllowlist: ["  "] })).toContain("idn_host");
+    expect(inspect("https://münchen.de", { idnAllowlist: ["  "] }).severity).toBe("high");
+  });
+
+  it("non-string entries are still dropped without throwing", () => {
+    const runtime = normalizeOptions({
+      idnAllowlist: [null, 42, { }, " münchen.de"] as unknown as string[],
+    });
+    expect([...runtime.idnAllowlist]).toEqual(["münchen.de"]);
   });
 });
 
 // LINK-qajalduf, found by the enumeration this unit was asked to run:
-// `suppressReasons` is the NINTH list-valued option and it is defective the
-// same way, on BOTH of its caller-supplied strings.
-describe("suppressReasons — untrimmed entries (pinned fail-open)", () => {
-  it("a padded host does not scope: the reason is never suppressed", () => {
+// `suppressReasons` is the NINTH list-valued option and was defective the same
+// way, on BOTH of its caller-supplied strings. It cannot route through
+// normalizedList (its entries are objects), so it applies the same
+// `trimListValue` to its inner fields instead.
+describe("suppressReasons — trimmed entries", () => {
+  it("a padded host scopes correctly: the reason is suppressed", () => {
     const rule = { code: "idn_host", host: " münchen.de" } as const;
-    expect(suppressed("https://münchen.de", { suppressReasons: [rule] })).toEqual([]);
-    expect(inspect("https://münchen.de", { suppressReasons: [rule] }).score).toBeCloseTo(0.7, 5);
+    expect(suppressed("https://münchen.de", { suppressReasons: [rule] })).toContain("idn_host");
+    expect(inspect("https://münchen.de", { suppressReasons: [rule] }).score).toBe(0);
   });
 
-  it("leading whitespace defeats the host's leading-dot strip", () => {
+  it("the trim runs BEFORE the host's leading-dot strip", () => {
     const rule = { code: "idn_host", host: " .münchen.de" } as const;
-    expect(suppressed("https://münchen.de", { suppressReasons: [rule] })).toEqual([]);
+    expect(suppressed("https://münchen.de", { suppressReasons: [rule] })).toContain("idn_host");
   });
 
-  it("a padded code matches no reason", () => {
-    const rule = { code: " idn_host" } as unknown as { code: "idn_host" };
-    expect(suppressed("https://münchen.de", { suppressReasons: [rule] })).toEqual([]);
+  it("a padded code matches its reason", () => {
+    const rule = { code: " idn_host " } as unknown as { code: "idn_host" };
+    expect(suppressed("https://münchen.de", { suppressReasons: [rule] })).toContain("idn_host");
   });
 
-  it("the padded strings survive into the runtime rules", () => {
+  it("a host-scoped rule still does not leak to another host", () => {
+    const rule = { code: "idn_host", host: " münchen.de" } as const;
+    expect(suppressed("https://köln.de", { suppressReasons: [rule] })).toEqual([]);
+  });
+
+  it("a rule whose code is blank after trimming is dropped", () => {
     const runtime = normalizeOptions({
-      suppressReasons: [{ code: "idn_host", host: " münchen.de" }],
+      suppressReasons: [{ code: "  " }, { code: " idn_host" }] as never,
     });
-    expect(runtime.suppressReasons).toEqual([{ code: "idn_host", host: " münchen.de" }]);
+    expect(runtime.suppressReasons).toEqual([{ code: "idn_host", host: null }]);
   });
 
-  it("the suppression still fails silently — the honesty marker claims it ran", () => {
-    const r = inspect("https://münchen.de", {
-      suppressReasons: [{ code: "idn_host", host: " münchen.de" }],
-    });
+  // The honesty marker reads the RAW option, never the normalized length, so
+  // dropping a rule cannot hide that an escape hatch was wired.
+  it("dropping every rule still reports the suppression channel in checksRun", () => {
+    const r = inspect("https://münchen.de", { suppressReasons: [{ code: "  " }] as never });
     expect(r.checksRun).toContain("suppression");
     expect(r.reasons.some((x) => x.suppressed === true)).toBe(false);
+  });
+
+  // A blank host means "all hosts" — the documented shape of a global rule,
+  // unchanged by this fix. A host that CANONICALIZES to "" must not collapse to
+  // null, which would silently widen the rule to every host.
+  it("a blank host is still a global rule; a '.' host is a dead scope", () => {
+    const runtime = normalizeOptions({
+      suppressReasons: [
+        { code: "idn_host", host: "  " },
+        { code: "mixed_script", host: " . " },
+      ],
+    });
+    expect(runtime.suppressReasons).toEqual([
+      { code: "idn_host", host: null },
+      { code: "mixed_script", host: "" },
+    ]);
+    expect(suppressed("https://köln.de", { suppressReasons: [{ code: "idn_host", host: "  " }] }))
+      .toContain("idn_host");
   });
 });
