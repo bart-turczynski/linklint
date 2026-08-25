@@ -1379,3 +1379,123 @@ export function applyAcceptanceMetadata(rows: CorpusRow[]): void {
 }
 
 applyAcceptanceMetadata(CORPUS);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LINK-cvcjgewz — open_redirect_param divergence gate. BLOCK START.
+//
+// Self-contained and appended at the tail: the block pushes its own rows and
+// applies its own acceptance metadata, so it neither depends on nor disturbs a
+// neighbouring block.
+//
+// The gate used to compare REGISTRABLE DOMAINS, which is null for an IP literal
+// and null for a non-PSL name. Two defects fell out of that one clause and both
+// are covered here:
+//   - under-firing: every IP-literal redirect target was exempt, so the
+//     SSRF-to-IMDS pivot scored 0.00 through a `?url=` wrapper while the bare
+//     address scores 1.00/critical under agentMode. Divergence is now decided
+//     over AUTHORITY, which is total.
+//   - over-firing: `redirect_uri` is a plain member of the redirect-parameter
+//     set, so standards-shaped OAuth authorize URLs — whose whole purpose is a
+//     cross-registrable-domain handoff — scored 0.40/medium. The RFC 6749
+//     `redirect_uri` + `client_id` shape, pointing at a public-DNS target, is
+//     now read as an authorization request. No IdP list is involved; the benign
+//     rows below are deliberately NOT tied to any curated set of hosts.
+// ─────────────────────────────────────────────────────────────────────────────
+const OPEN_REDIRECT_GATE_CORPUS: CorpusRow[] = [
+  // Deceptive — the IP-literal targets the old gate exempted.
+  {
+    input: "https://example.com/login?url=http://169.254.169.254/latest/meta-data/",
+    label: "deceptive",
+    expectReasons: ["open_redirect_param"],
+    notes: "LINK-cvcjgewz: cloud-metadata address wrapped in a redirect param — the SSRF-to-IMDS pivot the null-registrable-domain gate exempted",
+  },
+  {
+    input: "https://example.com/login?redirect=//127.0.0.1/admin",
+    label: "deceptive",
+    expectReasons: ["open_redirect_param"],
+    notes: "LINK-cvcjgewz: protocol-relative loopback payload — no registrable domain, still a different authority",
+  },
+  {
+    input: "https://example.com/login?url=http://10.0.0.5:8080/admin",
+    label: "deceptive",
+    expectReasons: ["open_redirect_param"],
+    notes: "LINK-cvcjgewz: private-range internal target behind a redirect param",
+  },
+  {
+    input: "https://example.com/login?url=http://2130706433/",
+    label: "deceptive",
+    expectReasons: ["open_redirect_param"],
+    notes: "LINK-cvcjgewz: dotless-decimal loopback — authorities compare by canonical address, not by spelling",
+  },
+  {
+    input: "https://example.com/?next=http://localhost/app",
+    label: "deceptive",
+    expectReasons: ["open_redirect_param"],
+    notes: "LINK-cvcjgewz: a bare non-PSL name has no registrable domain either, and is still a different authority than example.com",
+  },
+  {
+    input: "http://198.51.100.7/?next=https://evil.com/phish",
+    label: "deceptive",
+    expectReasons: ["open_redirect_param"],
+    notes: "LINK-cvcjgewz: an IP-literal INPUT host used to short-circuit the whole scan and hide an off-site payload",
+  },
+  // Deceptive — the OAuth exemption must not become a suppression tool.
+  {
+    input: "https://example.com/login?redirect_uri=http://169.254.169.254/&client_id=x",
+    label: "deceptive",
+    expectReasons: ["open_redirect_param"],
+    notes: "LINK-cvcjgewz: the exemption covers public-DNS targets only, so an authorize-shaped request pointing at cloud metadata still fires",
+  },
+  {
+    input: "https://example.com/login?next=https://evil.com&client_id=x",
+    label: "deceptive",
+    expectReasons: ["open_redirect_param"],
+    notes: "LINK-cvcjgewz: the exemption is keyed to the exact RFC 6749 spelling, so a client_id bolted onto `next` suppresses nothing",
+  },
+  {
+    input: "https://example.com/login?redirect_url=https://evil.com&client_id=x",
+    label: "deceptive",
+    expectReasons: ["open_redirect_param"],
+    notes: "LINK-cvcjgewz: `redirect_url` is not the OAuth parameter — same guard, adjacent spelling",
+  },
+  {
+    input: "https://idp.example.org/authorize?client_id=x&redirect_uri=https://myapp.io/cb&next=https://evil.com",
+    label: "deceptive",
+    expectReasons: ["open_redirect_param"],
+    notes: "LINK-cvcjgewz: the exemption is per-parameter — an exempt authorize payload does not cover a second off-site payload beside it",
+  },
+  // Benign (SC-2) — standards-shaped authorization requests.
+  {
+    input: "https://accounts.google.com/o/oauth2/v2/auth?client_id=x&response_type=code&redirect_uri=https://myapp.io/cb",
+    label: "benign",
+    forbidReasons: ["open_redirect_param"],
+    notes: "LINK-cvcjgewz guard: RFC 6749 authorization request — the cross-registrable-domain handoff IS the protocol",
+  },
+  {
+    input: "https://github.com/login/oauth/authorize?client_id=x&redirect_uri=https://vercel.com/cb",
+    label: "benign",
+    forbidReasons: ["open_redirect_param"],
+    notes: "LINK-cvcjgewz guard: real deployments omit `response_type`, which is why the marker is `client_id` alone",
+  },
+  {
+    input: "https://slack.com/oauth/v2/authorize?client_id=x&scope=chat:write&redirect_uri=https://myapp.io/cb",
+    label: "benign",
+    forbidReasons: ["open_redirect_param"],
+    notes: "LINK-cvcjgewz guard: second real shape without `response_type`",
+  },
+  {
+    input: "https://random-startup.example/authorize?client_id=1&redirect_uri=https://cb.example.net/x",
+    label: "benign",
+    forbidReasons: ["open_redirect_param"],
+    notes: "LINK-cvcjgewz guard: the discriminator is the request SHAPE, not the host — an unknown host with the same shape is equally exempt, which is what keeps this off the watchlist path (§1.1)",
+  },
+  {
+    input: "https://accounts.google.com/o/oauth2/v2/auth?client_id=x&redirect_uri=https://accounts.google.com/cb",
+    label: "benign",
+    forbidReasons: ["open_redirect_param"],
+    notes: "LINK-cvcjgewz guard: same-authority authorize target — clean for the ordinary divergence reason, before the exemption is even reached",
+  },
+];
+CORPUS.push(...OPEN_REDIRECT_GATE_CORPUS);
+applyAcceptanceMetadata(OPEN_REDIRECT_GATE_CORPUS);
+// LINK-cvcjgewz — BLOCK END.
