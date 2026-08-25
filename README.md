@@ -260,7 +260,9 @@ For example, `userinfo_present` (0.5) + `mixed_script` (0.4) →
 
 Informational reasons (e.g. `normalization_delta`, `confusable_char`) have weight `0`
 and never change the score on their own — they add context. Weights and data sources
-are **version-pinned** (`dataVersions` on every result) so verdicts are reproducible.
+are **version-pinned** (`dataVersions` on every result), which records what a verdict
+was computed against. Reproducing a verdict means pinning the package version —
+detector logic is versioned there, not in `dataVersions`.
 
 > A parsed URL with zero scoring weight is benign (`score: 0`). **Invalid** input is
 > _not_ benign — it returns `score: null`, `severity: null`, and you should treat it
@@ -418,7 +420,9 @@ No network, no API keys — the CLI runs entirely on the local machine.
 
 - **No network** — nothing about the URL is ever transmitted.
 - **No telemetry, no runtime file I/O** — pure, in-process computation.
-- **Deterministic** — same input + same pinned data versions → same verdict.
+- **Deterministic** — same input + same package version → same verdict, with no
+  state carried between calls. The package version is the pin that matters:
+  `dataVersions` on the result stamps the data snapshots, not detector logic.
 - **Safe on untrusted input** — `inspect()` never throws; malformed input is reported,
   not crashed on. Unconditionally: even a non-string argument returns `invalid`.
 

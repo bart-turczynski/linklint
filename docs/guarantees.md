@@ -79,14 +79,64 @@ detector.
 | --- | --- | --- | --- |
 | A1 | `inspect()` never throws — unconditionally, including non-string input | `README.md`, `packages/core/README.md`, `docs/architecture.md` §9, `docs/reason-codes.md` (`parse_error`) | `packages/core/test/non-string-input.test.ts` |
 | A2 | `inspect()` is synchronous — it returns a result, not a `Promise` | `docs/architecture.md` §0, `packages/core/README.md` | `packages/core/test/public-api-contract.test.ts` |
-| A3 | Deterministic — same input + same pinned data versions → same verdict, with no state carried between calls | `README.md`, `docs/architecture.md` §0 | `packages/core/test/public-api-contract.test.ts` |
+| A3 | Deterministic — same input + same package version → same verdict, with no state carried between calls | `README.md`, `docs/architecture.md` §0 | `packages/core/test/public-api-contract.test.ts` |
 | A4 | Core opens no network connection, does no filesystem I/O, and emits no telemetry | `README.md`, `docs/architecture.md` §0 | `packages/core/test/runtime-compat.test.ts` |
 | A5 | `inspectAsync()` with no enrichers is deep-equal to `inspect()` | `docs/architecture.md` §7, `docs/enrichment-outcomes.md` | `packages/core/test/inspect-async.test.ts` |
 | A6 | `confidence` is `1.0` for every deterministic lexical result and never feeds score aggregation | `docs/architecture.md` §7 | `packages/core/test/public-api-contract.test.ts` |
 | A7 | Reason ordering is locale-independent (no `localeCompare`, no `Intl.Collator`) | `docs/locale-case-mapping.md` §1 | `packages/core/test/locale-independence.test.ts` |
 | A8 | A new reason code never enters the `REASON_CODES` registry without a `SCHEMA_VERSION` bump | `docs/architecture.md` §6.4, `packages/core/src/schema/base.ts` | `packages/core/test/docs-validation.test.ts` |
 
-**A3 is qualified, deliberately.** `pslSnapshot.stale` is the one time-relative
+**A3's antecedent named the wrong stamp, and was false until this correction.**
+It read "same input + same pinned **data versions** → same verdict".
+`5813e01 (LINK-ephrdynz)` added the `fqdn_root_label` detector and its reason code — changing
+`reasons[]` for every fully-qualified host input — with
+`packages/core/src/schema/base.ts` and `packages/core/src/scoring/weights.ts`
+both untouched, `WEIGHTS_VERSION` at 1.17 before and after, and no
+`DataVersions` field moved. Same input, same pinned data versions, different
+verdict. The cause is structural rather than careless: `DataVersions` stamps the
+DATA (PSL, confusables, IP ranges, IDNA) and `WEIGHTS_VERSION` stamps the
+WEIGHTS, so **neither stamps detector logic**, and a weight-0 informational
+detector — `fqdn_root_label` is `scoring: false` — moves neither by design,
+because there is no weight to bump.
+
+**The antecedent is now the package version, because that is the stamp a caller
+can actually pin.** `DataVersions` is emitted *on* the result; nobody installs
+"linklint at data versions X". A caller installs a package version and is handed
+whatever data that version ships. The old wording named something the reader
+cannot control while omitting the one thing they can, so it was not merely false
+— it was inactionable. This is also what §6.4's bump matrix had already decided:
+its last row gives "package version + `CHANGELOG.md`" everything that is not the
+result contract. A3's prose had not caught up with it.
+
+**A detector-logic stamp was considered and declined.** A fourth stamp moving
+whenever behavior could have changed is the most faithful reading of the
+original intent, but the channel that actually failed here is already covered by
+a stamp that exists. Under §6.4 a new reason code bumps `SCHEMA_VERSION`, and
+A8's pin checks the `REASON_CODES` key set in beside the version it registered
+under. Applied retroactively that rule catches `5813e01` exactly — it is the
+pin's own worked example, and `fqdn_root_label` is in its key list today. What a
+new stamp would add is only the residual: a detector that changes WHICH inputs
+raise an EXISTING code, moving no registry key. That residual is what the
+matrix's last row already assigns to the package version. Against it: a new
+versioned artifact needs its own drift guard — realistically a behavioral digest
+over the corpus, re-stamped on every intentional detector change — and a stale
+one is worse than none, because it would assert "logic unchanged since X" while
+being wrong. That is the `LINK-zsbeqtcr` shape this register exists to prevent,
+so the stamp would import the very failure it was meant to close.
+
+**A3's pin did not test A3.** It asserted `toContain("**Deterministic**")` — a
+bare adjective that stays green under any antecedent, including the false one —
+and referenced `dataVersions` nowhere, so the single clause that was wrong was
+the single clause nothing tested. A guarantee whose pin does not bite is the same
+defect class as an unpinned one. The test now matches the whole conditional in
+both `README.md` and this file, required as the package version and refused as
+the data versions, over whitespace-flattened and blockquote-stripped prose so a
+hard wrap cannot make the match silently vacuous. The behavioral half gained a
+cold re-import under a reset module registry: repeat-call and reversed-order
+equality both observe one already-initialized module graph, so a lazily-built
+table mutated on first use could survive both.
+
+**A3 is also qualified, deliberately.** `pslSnapshot.stale` is the one time-relative
 field on a result: it reflects wall-clock time at inspection, so two calls a
 year apart can differ in that field alone. The qualification is already stated
 on `PslSnapshot` in `packages/core/src/data/psl-provenance.ts` and is asserted

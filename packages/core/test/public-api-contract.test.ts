@@ -36,6 +36,27 @@ const enrichmentDoc = readFileSync(
   join(repoRoot, "docs", "enrichment-outcomes.md"),
   "utf8",
 );
+const guaranteeRegister = readFileSync(join(repoRoot, "docs", "guarantees.md"), "utf8");
+
+/**
+ * Collapse a markdown document to one whitespace-normalized line so an assertion
+ * matches the CLAIM rather than the line breaks that happen to sit inside it.
+ *
+ * Two failure modes this repository has already paid for, both of which make an
+ * assertion pass by matching NOTHING:
+ *
+ *   1. A hard wrap mid-sentence. `toContain("same input + same package version")`
+ *      silently stops matching the moment a reflow puts a newline after `+`.
+ *   2. Blockquote markers. `> ` SURVIVES whitespace flattening — joining lines
+ *      and collapsing runs leaves `claim > continued` — so the marker has to be
+ *      stripped per line, BEFORE the join.
+ */
+const flattenProse = (markdown: string): string =>
+  markdown
+    .split("\n")
+    .map((line) => line.replace(/^\s*>+\s?/, ""))
+    .join(" ")
+    .replace(/\s+/g, " ");
 
 describe("InspectResult schema contract (schemaVersion + confidence, FR-SCORE-2b)", () => {
   it("stamps schemaVersion 1.7 on ok and invalid results", () => {
@@ -143,8 +164,93 @@ describe("inspect() is synchronous and deterministic (published guarantee)", () 
     }
   });
 
-  it("states the determinism guarantee it is pinning", () => {
-    expect(publicReadme).toContain("**Deterministic**");
+  // The strongest reading of "no state carried between calls": a SECOND
+  // instance of the module graph must agree with the first. Repeat-call and
+  // reversed-order equality above both observe one already-initialized module
+  // registry, so a lazily-built table that is mutated on first use — a memo
+  // keyed on something it should not be, a detector array sorted in place —
+  // can survive both. Re-importing under a reset registry compares a warm
+  // instance against a cold one and reddens on exactly that.
+  it("carries no module-scope state either (a cold re-import agrees with the warm one)", async () => {
+    const warm = CORPUS.map((input) => inspect(input));
+    vi.resetModules();
+    const cold = await import("../src/index.js");
+    expect(cold.inspect).not.toBe(inspect);
+    expect(CORPUS.map((input) => cold.inspect(input))).toEqual(warm);
+  });
+
+  /**
+   * The ANTECEDENT is the load-bearing half of A3, and it was wrong.
+   *
+   * The published claim was "same input + same pinned DATA VERSIONS → same
+   * verdict". False, and falsifiable from the history: `5813e01` added the
+   * `fqdn_root_label` detector and its reason code, changing `reasons[]` for
+   * every fully-qualified host, with `schema/base.ts` and `scoring/weights.ts`
+   * both untouched and no `DataVersions` field moved. Same input, same data
+   * versions, different verdict.
+   *
+   * It is structural rather than careless. `DataVersions` stamps the DATA (PSL,
+   * confusables, IP ranges, IDNA), `WEIGHTS_VERSION` stamps the WEIGHTS, and
+   * NEITHER stamps detector logic — a weight-0 informational detector moves
+   * neither by design, because there is no weight to bump.
+   *
+   * The deeper defect: `DataVersions` is an EMITTED stamp, not a pinnable
+   * input. No caller can install "linklint at data versions X"; they install a
+   * package version and are handed whatever data it ships. The old antecedent
+   * named something the caller cannot control while omitting the one thing they
+   * can, which is also where `docs/architecture.md` §6.4's own matrix already
+   * assigns detector-logic changes ("package version + CHANGELOG.md").
+   *
+   * The previous assertion here was `toContain("**Deterministic**")` — a bare
+   * adjective that stays green under ANY antecedent, including the false one.
+   * A guarantee whose pin does not bite is the same defect in a different
+   * place, so this matches the whole conditional, both ways.
+   */
+  it("publishes the determinism antecedent a caller can actually pin", () => {
+    const CORRECTED = "same input + same package version → same verdict";
+    const FALSIFIED = "same pinned data versions";
+
+    // The register NARRATES the old wording — it quotes the claims it tracks,
+    // which is the same reason it is exempt from its own claim budget. So the
+    // refusal below is scoped to A3's ROW, not to the whole document: the row
+    // is the claim, the prose around it is the history of the claim.
+    const registerRow = flattenProse(guaranteeRegister)
+      .split("|")
+      .map((cell) => cell.trim())
+      .find((cell) => cell.startsWith("Deterministic —"));
+
+    expect(
+      registerRow,
+      "docs/guarantees.md has no A3 row starting `Deterministic —`. If the row " +
+        "was reworded, this assertion is matching nothing and has stopped checking.",
+    ).toBeDefined();
+
+    for (const [name, prose] of [
+      ["README.md", flattenProse(publicReadme)],
+      ["docs/guarantees.md (A3 row)", registerRow as string],
+    ] as const) {
+      expect(prose, `${name} must state the antecedent as the package version`).toContain(
+        CORRECTED,
+      );
+      expect(
+        prose,
+        `${name} still conditions determinism on the data versions. DataVersions ` +
+          "stamps no detector logic and is not a pinnable input — see 5813e01.",
+      ).not.toContain(FALSIFIED);
+    }
+
+    // The same false inference, restated in the scoring section: version-pinned
+    // weights and data sources do NOT make a verdict reproducible, for exactly
+    // the reason above — `dataVersions` stamps no detector logic. Refused
+    // separately because it reaches the conclusion without quoting the
+    // antecedent, so the phrase-level check above walks straight past it.
+    expect(
+      flattenProse(publicReadme),
+      "README.md still derives reproducibility from `dataVersions` alone.",
+    ).not.toContain("so verdicts are reproducible");
+
+    // §0 states the bare adjective and no antecedent, which is why it is not
+    // asserted against the conditional above. Swept, and deliberately clean.
     expect(architectureDoc).toContain("synchronous, deterministic");
   });
 });
