@@ -448,7 +448,8 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   parameter (`next`, `url`, `redirect`, `redirect_uri`, `redirect_url`, `dest`,
   `destination`, `return`, `returnUrl`, `continue`, `u`, `goto`, `target`) carries
   a **value that is itself a URL pointing to a different authority** than the link
-  host.
+  host — or, on the Android intent surface, a `browser_fallback_url` extra whose
+  value is an executable-scheme payload rather than a location.
 - **Why it's a signal:** `https://example.com/login?next=https://evil.com/phish`
   reads as `example.com`, but when the redirect fires the user lands on
   `evil.com`. The cross-host payload is the lexical fingerprint of an
@@ -519,6 +520,37 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   strictly better than the `info` it read before. Re-grading it is a weights
   question for `scoring/weights.ts`, not a detector question. Measured cost: zero
   verdict change across the 1 443 corpus verdicts.
+- **A third surface: the Android intent fallback extra (`LINK-mdqykmiz`):**
+  `intent://legit-bank.co.uk/x#Intent;scheme=https;S.browser_fallback_url=javascript%3Aalert(1);end`
+  read `0.00`/`info` with zero reasons while the identical `javascript:` bytes read
+  `0.90`/`critical` standing alone. Adding the parameter name to the list above
+  would not have moved it: an intent URI separates its extras with `;`, not `&`, so
+  the pair splitter read the whole fragment as one pair keyed `intent;scheme` and
+  the fallback name did not become a key at all — and Android's `S.` typed-extra
+  prefix is a second reason the bare name misses. The grammar is therefore read,
+  and only where the string declares it: the fragment has to be `Intent;…;end`, the
+  exact shape AOSP's `Intent.parseUri` accepts, so a fragment that merely carries a
+  `;` is untouched and every non-intent input is byte-for-byte what it was. The
+  surface is scanned last, after the query and fragment surfaces find nothing.
+
+  **On this surface only the *hostless dangerous-scheme* shape fires, not the
+  cross-authority shape** — §1.1 applied, not a tuning choice. A
+  `browser_fallback_url` pointing at another site is what the mechanism is *for*:
+  it is where the browser goes when the app is absent, and the documented Android
+  pattern points it at the app's Play Store listing, a different authority by
+  construction. The string declares its type and the declaration *holds* — nothing
+  hidden, no two readers disagreeing — which is the same reasoning that exempts an
+  RFC 6749 authorize request below. A declared *fallback URL* whose value is not a
+  location at all but executable content is the case where the declaration fails,
+  and that is §1.1's first form. The wider variant (`;` split plus the name in the
+  redirect-parameter list, so divergence fires too) was implemented and measured
+  before being discarded: **zero** verdict change across all 1 506 corpus verdicts
+  — the corpus carries no `intent://` row, so it cannot discriminate here — while
+  firing `0.40` on the canonical Play Store handoff link. Avoiding that class by
+  construction is preferred to an allowlist of "real" fallback hosts, which §1.1
+  rules out. Same reason code, same weight, no `SCHEMA_VERSION` bump; the `detail`
+  reads `intent fallback parameter 's.browser_fallback_url' …`. Measured cost: zero
+  verdict change across the 1 506 corpus verdicts.
 - **Authority, not registrable domain (`LINK-cvcjgewz`):** the comparison is over
   the **authority identity** of the two hosts — the registrable domain when the
   host has one, otherwise the **canonical address** of an IP literal, otherwise

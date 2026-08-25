@@ -84,6 +84,49 @@ import { boundedDecode, DEFAULT_MAX_DECODE_DEPTH } from "../parse/decode.js";
  * — a `client_id` in the query cannot silence a `redirect_uri` in the fragment,
  * and the query path is byte-for-byte what it was.
  *
+ * ## A third surface: the Android intent URI's fallback extra (`LINK-mdqykmiz`)
+ *
+ * `intent://legit-bank.co.uk/x#Intent;scheme=https;S.browser_fallback_url=javascript%3Aalert(1);end`
+ * read `0.00`/`info` with zero reasons, while the identical `javascript:` bytes
+ * read `0.90`/`critical` standing alone. The ticket guessed the fix was one entry
+ * in {@link REDIRECT_PARAMS}; it is not, and the reason is measurable. An intent
+ * URI separates its extras with `;`, not `&`, so {@link queryPairs} reads the
+ * whole fragment as ONE pair whose key is `intent;scheme` — the fallback name
+ * never becomes a key at all, whatever the list says. The `S.` typed-extra prefix
+ * is a second reason the bare name would not match.
+ *
+ * So the grammar is what had to be read, and it is read only where the string
+ * DECLARES it: {@link intentExtras} requires the fragment to be
+ * `Intent;…;end`, which is the exact shape AOSP's `Intent.parseUri` accepts. A
+ * fragment that merely contains a `;` is untouched, and every non-intent input is
+ * byte-for-byte what it was — the query and fragment surfaces above are not
+ * modified.
+ *
+ * **On this surface only the HOSTLESS dangerous-scheme shape fires, not the
+ * divergence shape**, and that narrowing is the §1.1 test applied rather than a
+ * tuning choice. A `browser_fallback_url` naming a different site is what the
+ * mechanism is FOR — it is where the browser goes when the app is not installed,
+ * and the documented Android pattern points it at the app's Play Store listing,
+ * which is a different authority by construction. The string declares its own
+ * type and the declaration HOLDS: nothing is hidden, no two readers disagree, so
+ * there is no claim-(a) finding — the same reasoning that exempts an RFC 6749
+ * authorize request below. What does NOT hold is a declared *fallback URL* whose
+ * value is not a location at all but executable content; that is §1.1's first
+ * form and it is the shape the ticket filed.
+ *
+ * This was measured, not assumed. The wider variant — `;` split plus the name in
+ * {@link REDIRECT_PARAMS}, so divergence fires too — was implemented, run, and
+ * discarded: it produced **zero** verdict change across all 1 506 corpus verdicts
+ * (the corpus carries no `intent://` row, so it cannot discriminate here) while
+ * firing `0.40` on
+ * `intent://example.com/deep#Intent;scheme=https;package=com.example.app;S.browser_fallback_url=…play.google.com…;end`,
+ * the canonical benign app-handoff link. The false-positive class the ticket
+ * flagged as unquantified is therefore real and is avoided by construction rather
+ * than by an allowlist of "real" fallback hosts, which §1.1 forbids outright.
+ *
+ * SAME reason code, SAME weight, one more input surface — no new code and no
+ * `SCHEMA_VERSION` bump, for the same reason the fragment surface needed neither.
+ *
  * ## The divergence gate is over AUTHORITY, not over registrable domain
  *
  * The premise is claim-(a) structural: the string presents one authority and the
@@ -293,16 +336,50 @@ function fragmentQueryLike(fragment: string | null): string | null {
   return q === -1 ? fragment : fragment.slice(q + 1);
 }
 
+/**
+ * The Android intent URI fragment grammar: `#Intent;<extra>;<extra>;end`. This is
+ * the exact spelling AOSP's `Intent.parseUri` accepts — the literal `Intent;`
+ * opener and the `end` terminator, both case-sensitive — so a fragment that
+ * merely contains a `;` is not treated as one, and neither is a truncated intent
+ * block that no reader would parse.
+ */
+const INTENT_FRAGMENT = /^Intent;.*;end$/;
+
+/**
+ * The fallback-URL extra, in the two spellings that reach a reader: the bare name
+ * and the `S.` string-typed-extra prefix Android writes in practice. Keys are
+ * compared lower-cased, as in {@link REDIRECT_PARAMS}. Like that list, this one
+ * only NAMES which token counts — the finding comes from the payload.
+ */
+const INTENT_FALLBACK_PARAMS = new Set(["browser_fallback_url", "s.browser_fallback_url"]);
+
+/**
+ * The `;`-separated extras of an Android intent URI fragment, or null when the
+ * fragment does not declare itself one.
+ */
+function intentExtras(fragment: string | null): string | null {
+  if (fragment === null) return null;
+  const f = fragment.trim();
+  return INTENT_FRAGMENT.test(f) ? f : null;
+}
+
 /** One decoded `key=value` pair from the raw query, key lower-cased. */
 interface QueryPair {
   readonly key: string;
   readonly rawValue: string;
 }
 
-/** Split a raw query into pairs, decoding names defensively (a bad name is dropped). */
-function queryPairs(query: string, maxDecodeDepth: number): QueryPair[] {
+/**
+ * Split a raw parameter string into pairs, decoding names defensively (a bad name
+ * is dropped).
+ *
+ * The separator is a parameter because the Android intent surface uses `;` where
+ * the query and fragment surfaces use `&`; the pair grammar either side of it is
+ * identical, so there is no second splitter to keep in step.
+ */
+function queryPairs(query: string, maxDecodeDepth: number, separator = "&"): QueryPair[] {
   const pairs: QueryPair[] = [];
-  for (const pair of query.split("&")) {
+  for (const pair of query.split(separator)) {
     if (pair === "") continue;
     const eq = pair.indexOf("=");
     if (eq === -1) continue;
@@ -434,6 +511,47 @@ export function openRedirectParamPayloads(
 }
 
 /**
+ * The executable payload declared as an Android intent URI's browser fallback, or
+ * null.
+ *
+ * Deliberately narrower than {@link openRedirectParamPayloads}: only the HOSTLESS
+ * dangerous-scheme shape is a finding here. A fallback naming another site is the
+ * mechanism working as documented — see the `LINK-mdqykmiz` section above — so the
+ * divergence gate carries no information on this surface and is not applied.
+ *
+ * Pure, bounded and defensive: a junk fragment yields null and nothing throws.
+ */
+function intentFallbackPayload(
+  fragment: string | null,
+  maxDecodeDepth: number,
+): OpenRedirectPayload | null {
+  const extras = intentExtras(fragment);
+  if (extras === null) return null;
+
+  for (const { key, rawValue } of queryPairs(extras, maxDecodeDepth, ";")) {
+    if (!INTENT_FALLBACK_PARAMS.has(key)) continue;
+    if (rawValue === "") continue;
+
+    let value: string;
+    try {
+      value = boundedDecode(rawValue, maxDecodeDepth).decoded;
+    } catch {
+      continue;
+    }
+
+    const scheme = dangerousPayloadScheme(value);
+    if (scheme === null) continue;
+    return {
+      param: key,
+      targetSite: `${scheme}:`,
+      registrableDomain: null,
+      dangerousScheme: scheme,
+    };
+  }
+  return null;
+}
+
+/**
  * Off-site payload targets that carry a registrable domain.
  *
  * Consumed by the Layer 2 resolution enricher to check whether an OBSERVED chain
@@ -479,14 +597,23 @@ export const openRedirectParam: Detector = {
       ["fragment redirect parameter", fragmentQueryLike(ctx.fragment)],
     ];
 
+    const found: Array<readonly [string, OpenRedirectPayload]> = [];
     for (const [label, text] of surfaces) {
       const [payload] = openRedirectParamPayloads(
         text,
         inputAuthority.site,
         ctx.runtime.maxDecodeDepth,
       );
-      if (payload === undefined) continue;
+      if (payload !== undefined) found.push([label, payload]);
+    }
+    // The Android intent fallback extra is scanned LAST and on its own terms, so
+    // every non-intent input is byte-for-byte what it was (`LINK-mdqykmiz`).
+    if (found.length === 0) {
+      const payload = intentFallbackPayload(ctx.fragment, ctx.runtime.maxDecodeDepth);
+      if (payload !== null) found.push(["intent fallback parameter", payload]);
+    }
 
+    for (const [label, payload] of found) {
       const linkHost = ctx.registrableDomain ?? inputAuthority.site;
       let detail: string;
       if (payload.dangerousScheme !== null) {
