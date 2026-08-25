@@ -68,7 +68,7 @@ tracks.
 | `packages/cli/README.md` | 1 |
 | `packages/core/README.md` | 2 |
 | `packages/mcp/README.md` | 2 |
-| `packages/online/README.md` | 2 |
+| `packages/online/README.md` | 3 |
 
 ## A. Public API contract
 
@@ -308,6 +308,16 @@ an oversight. These lines match the pattern and are deliberately unpinned:
 - **Cross-references to a rule stated elsewhere** — "§5's result-invariant list",
   "satisfies §1.1's name-never-create rule". These point at a claim rather than
   making one; the claim is pinned where it is stated (D7 and E1 respectively).
+- **Requirements imposed on a caller's implementation** — "a reader must never
+  observe a partial dataset" (`packages/online/README.md`) states the atomicity
+  the snapshot updaters *rely on* from a `replace` the caller supplies. It binds
+  the caller's store, not linklint's code, so there is nothing here for our
+  suite to pin: the store is an interface (`docs/online-runtime-boundary.md`
+  gives the directory and the durability policy to the deployment), and the
+  README's write-then-rename sketch is one way to satisfy it, not a promise that
+  it holds. Same category as the process rules above — it binds an implementor.
+  Whether `@linklint/online` should ship its own fs-backed store, and so make
+  this a claim we could pin, is `LINK-tkafhtrf`.
 
 ## Adding a claim
 
