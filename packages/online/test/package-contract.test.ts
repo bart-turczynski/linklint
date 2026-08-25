@@ -23,6 +23,11 @@ function mirrorSources(only?: (name: string) => boolean): string {
     .join("\n");
 }
 
+/** Drop comments: prose ABOUT a forbidden token is the opposite of using one. */
+function stripComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+}
+
 describe("@linklint/online package boundary", () => {
   const manifest = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8")) as {
     dependencies: Record<string, string>;
@@ -182,30 +187,68 @@ describe("@linklint/online package boundary", () => {
   });
 
   /**
-   * LINK-mpkglaqb, the gap stated as an assertion.
-   *
-   * `updateUrlhausSnapshot` and `updatePhishTankSnapshot` are shipped and
-   * tested, but both take an injected `*HttpClient` and an injected
-   * `*SnapshotStore` and the package supplies NEITHER, so no caller can
-   * actually refresh a mirror with anything `@linklint/online` provides. Every
-   * other capability — transport, DNS, TLS, and now RDAP — ships a concrete
-   * `createNode*` factory behind its port.
-   *
-   * Pinned rather than left as prose so the day the adapters land, this
-   * assertion has to be rewritten deliberately instead of the gap quietly
-   * persisting behind a green suite.
+   * LINK-mpkglaqb. `updateUrlhausSnapshot` and `updatePhishTankSnapshot` were
+   * shipped and tested but both took an injected `*HttpClient` the package did
+   * not supply, so no caller could refresh a mirror with anything
+   * `@linklint/online` provided. Both feeds now ship a `createNode*` factory
+   * behind their port, matching every other capability.
    */
-  it("ships no Node HTTP client and no filesystem store for either mirror feed", () => {
-    expect(mirrors).not.toHaveProperty("createNodeUrlhausHttpClient");
-    expect(mirrors).not.toHaveProperty("createNodePhishTankHttpClient");
+  it("ships a Node HTTP client for each mirror feed", () => {
+    expect(mirrors.createNodeUrlhausHttpClient).toBeTypeOf("function");
+    expect(mirrors.createNodePhishTankHttpClient).toBeTypeOf("function");
+    expect(mirrors.UrlhausHttpFailure).toBeTypeOf("function");
+    expect(mirrors.PhishTankHttpFailure).toBeTypeOf("function");
+    // Side-effect-free construction: a factory call opens no socket and reads
+    // no configuration, so importing the subpath still performs no I/O.
+    expect(mirrors.createNodeUrlhausHttpClient().request).toBeTypeOf("function");
+    expect(mirrors.createNodePhishTankHttpClient().request).toBeTypeOf("function");
+  });
+
+  /**
+   * LINK-mpkglaqb, the other half of the acceptance: the snapshot store stays
+   * CALLER-AUTHORED. `docs/online-runtime-boundary.md` says the caller supplies
+   * the database or directory, and `rdap-bootstrap-updater.ts` already settled
+   * the house answer by shipping a store interface and no filesystem behind it.
+   * A convenience fs store here would be the package's first `node:fs` reach
+   * and would quietly take ownership of a directory the caller is meant to own.
+   */
+  it("ships no filesystem snapshot store for either mirror feed", () => {
     expect(mirrors).not.toHaveProperty("createNodeUrlhausSnapshotStore");
     expect(mirrors).not.toHaveProperty("createNodePhishTankSnapshotStore");
-
-    const source = mirrorSources();
-    expect(source).not.toMatch(
-      /from\s+["']node:(?:dns|net|tls|http|https|fs|fs\/promises|path|os)["']/,
+    expect(stripComments(mirrorSources())).not.toMatch(
+      /from\s+["']node:(?:fs|fs\/promises|path|os)["']/,
     );
-    expect(source).not.toMatch(/\bfetch\s*\(/);
+  });
+
+  /**
+   * The two feed clients are the package's only concrete network clients that
+   * carry a CALLER CREDENTIAL — URLhaus reveals its Auth-Key into a request
+   * header, PhishTank its app key into the request PATH. Three source facts are
+   * what keep that safe, pinned here because each one is a single line that a
+   * later edit could drop without any behavioral test noticing.
+   */
+  it("keeps the mirror provider clients ambient-free and on the shared address policy", () => {
+    const nodeAdapters = new Set([
+      "mirror-http-node.ts",
+      "urlhaus-node.ts",
+      "phishtank-node.ts",
+    ]);
+    const adapters = stripComments(mirrorSources((name) => nodeAdapters.has(name)));
+
+    // No second place a credential could come from.
+    expect(adapters).not.toContain("process.env");
+    // No error may quote the URL (PhishTank's key) or a header value
+    // (URLhaus's), so nothing is ever built out of a raw Node error message.
+    expect(adapters).not.toContain("error.message");
+    // The shared address table, not a second block-list primitive.
+    expect(adapters).toContain("classifyTransportAddress");
+    expect(adapters).not.toContain("BlockList");
+
+    // Everything OUTSIDE those three files stays free of concrete I/O: the
+    // parse, index, enricher and updater modules are pure and must remain so.
+    const rest = mirrorSources((name) => !nodeAdapters.has(name));
+    expect(rest).not.toMatch(/from\s+["']node:(?:dns|net|tls|http|https)["']/);
+    expect(rest).not.toMatch(/\bfetch\s*\(/);
   });
 
   it("routes redirect expansion through the injected L0 session without concrete clients", () => {
