@@ -22,6 +22,7 @@ import { compareReasons, reasonMeta, weightFor } from "./schema/reason-codes.js"
 import { aggregate } from "./scoring/score.js";
 import { applySuppressions, suppressionSubjectHostContext } from "./scoring/suppress.js";
 import { normalizeSuppressReasons } from "./parse/runtime.js";
+import { usableOptions } from "./schema/options.js";
 import {
   ENRICHMENT_SCHEMA_VERSION,
   isEnricherFindingArray,
@@ -123,11 +124,23 @@ interface PlannedEnricher {
  */
 export async function inspectAsync(
   input: string,
-  options: InspectAsyncOptions = {},
+  rawOptions: InspectAsyncOptions = {},
 ): Promise<InspectResult> {
   // Stage 1: the synchronous lexical result, produced exactly as today. Passing
-  // the superset options is safe — inspect() reads only the keys it knows.
-  const base = inspect(input, options);
+  // the superset options is safe: the shared intake recognizes the four
+  // async-only keys (`enrichers`/`signal`/`cache`/`governor`) alongside every
+  // InspectOptions key, so `inspect()` does not mistake this function's own
+  // plumbing for dropped configuration.
+  //
+  // The intake is therefore ALREADY REPORTED by the time we get here
+  // (LINK-sjsxfqoo): a mistyped key rides out on `base.checksSkipped` as
+  // `options:<key>` and survives stage 3, which filters only the bare
+  // resolution/reputation layer placeholders. inspectAsync needs no second copy
+  // of the reporting rule — it needs only to stop dereferencing an argument
+  // that may not be an object, which `usableOptions` handles. `null` options
+  // used to reject straight out of this function at `options.enrichers`.
+  const base = inspect(input, rawOptions);
+  const options = usableOptions<InspectAsyncOptions>(rawOptions);
 
   const enrichers = options.enrichers ?? [];
   if (enrichers.length === 0) return base;

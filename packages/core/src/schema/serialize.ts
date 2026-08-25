@@ -25,11 +25,18 @@ export interface CollectedFinding {
  * reasons: a structurally-ambiguous-yet-unresolvable URL (`ambiguous_
  * authority`) returns `invalid` *with* an explanation instead of a bare
  * `parse_error`. When `findings` is empty we fall back to `parse_error`.
+ *
+ * `optionSkipped` carries the option-intake tokens (LINK-sjsxfqoo). They lead
+ * `checksSkipped` because reading the caller's options precedes every check —
+ * and they must reach this path too: an input that fails to parse must still
+ * report the configuration the caller lost. Defaults to empty, so the invalid
+ * result for a well-formed call is byte-for-byte unchanged.
  */
 export function buildInvalidResult(
   input: string,
   findings: CollectedFinding[] = [],
   parseErrorDetail?: string,
+  optionSkipped: readonly string[] = [],
 ): InspectResult {
   const hasFindings = findings.length > 0;
   const reasons: Reason[] = hasFindings
@@ -67,9 +74,12 @@ export function buildInvalidResult(
     reasons,
     confusables: hasFindings ? findings.flatMap((f) => f.confusables ?? []) : [],
     checksRun: hasFindings ? ["lexical"] : [],
-    checksSkipped: hasFindings
-      ? ["resolution", "reputation"]
-      : ["lexical", "resolution", "reputation"],
+    checksSkipped: [
+      ...optionSkipped,
+      ...(hasFindings
+        ? ["resolution", "reputation"]
+        : ["lexical", "resolution", "reputation"]),
+    ],
     dataVersions: DATA_VERSIONS,
     // PSL-snapshot provenance + advisory staleness of the trust boundary this
     // verdict rests on (schema 1.2, LINK-rkhuihjx).

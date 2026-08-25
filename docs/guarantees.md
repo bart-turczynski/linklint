@@ -46,7 +46,7 @@ tracks.
 
 | File | Claim lines |
 | --- | --- |
-| `docs/architecture.md` | 43 |
+| `docs/architecture.md` | 44 |
 | `docs/bundle-size-budget.md` | 0 |
 | `docs/enforcement.md` | 0 |
 | `docs/enrichment-outcomes.md` | 12 |
