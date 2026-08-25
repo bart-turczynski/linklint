@@ -8,9 +8,9 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { REPO_ROOT, packageReadmes, sweptDocs } from "./doc-sweep.js";
 
 /**
  * LINK-ltyjctpf — the ratchet behind [`docs/guarantees.md`](../../../docs/guarantees.md).
@@ -40,7 +40,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
  * second unpinned guarantee inside the guarantee register.
  */
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const REGISTER_PATH = join(REPO_ROOT, "docs", "guarantees.md");
 const register = readFileSync(REGISTER_PATH, "utf8");
 
@@ -55,44 +54,15 @@ const GUARANTEE_WORDS =
 const SELF = "docs/guarantees.md";
 
 /**
- * The `docs/` half of the sweep, taken as a function of its root so the walk
- * itself can be pinned against a fixture tree. `docs/` has no subdirectories in
- * this repository today, so any claim about them asserted through the live tree
- * would be vacuous — it would pass whatever the walk does.
- *
- * RECURSIVE (LINK-umlssdan). It was flat until then, and `docs/` happened to be
- * flat too, so the ratchet's coverage was total by accident: one
- * `mkdir docs/whatever` and new prose would have stopped being swept with the
- * suite staying green — and a budget row naming the new file would have failed
- * the keys assertion rather than fixing it. Every `.md` at any depth is
- * returned, so a subdirectory file is swept AND budgetable. See the sweep-shape
- * block at the bottom of this file.
+ * The sweep itself lives in `./doc-sweep.ts` (LINK-fmmzkmas) so that
+ * `doc-links.test.ts` walks the SAME set rather than a parallel one that can
+ * drift. `sweptDocs` is recursive (LINK-umlssdan) and `packageReadmes` is one
+ * level deep because the workspace glob is; both are pinned against a fixture
+ * tree by the sweep-shape block at the bottom of this file.
  */
-function sweptDocs(root: string): string[] {
-  const walk = (dir: string, prefix: string): string[] =>
-    readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
-      entry.isDirectory()
-        ? walk(join(dir, entry.name), `${prefix}${entry.name}/`)
-        : entry.name.endsWith(".md")
-          ? [`${prefix}${entry.name}`]
-          : [],
-    );
-  return walk(root, "docs/").sort();
-}
-
 function claimFiles(): string[] {
   const docs = sweptDocs(join(REPO_ROOT, "docs")).filter((path) => path !== SELF);
-  // One level deep, and correct by construction rather than by accident:
-  // `pnpm-workspace.yaml` declares `packages/*`, so a workspace package is
-  // always exactly one directory under `packages/`. That glob is asserted
-  // below, so a change to it reddens here instead of silently narrowing the
-  // sweep. Markdown inside a package other than its `README.md` is outside the
-  // register's scope by design — the budget covers the published READMEs.
-  const packages = readdirSync(join(REPO_ROOT, "packages"))
-    .map((name) => `packages/${name}/README.md`)
-    .filter((path) => existsSync(join(REPO_ROOT, path)))
-    .sort();
-  return [...docs, "README.md", ...packages];
+  return [...docs, "README.md", ...packageReadmes(REPO_ROOT)];
 }
 
 function countClaimLines(path: string): number {
