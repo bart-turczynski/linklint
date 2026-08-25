@@ -99,8 +99,8 @@ The [`@linklint/mcp`](../packages/mcp/README.md) server is the third enforcement
 surface: an agent calls `check_url` / `check_domain` before fetching. Pass
 `agentMode: true` (per call) or set `LINKLINT_AGENT_MODE=1` (server default) to
 enable the agent-gated detector channel — `prompt_injection_url`,
-`api_endpoint_impersonation`, `credential_harvesting`, `data_exfiltration`, and
-the `ssrf_cloud_metadata` escalation.
+`credential_harvesting`, `data_exfiltration`, and the `ssrf_cloud_metadata`
+escalation.
 
 ## Out of scope (deliberate non-goals)
 

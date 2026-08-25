@@ -642,8 +642,7 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   registration event, computed its age, and found it **below the young-domain
   threshold** (default 90 days) **while the lexical result already carries a
   brand-impersonation signal** — `brand_homoglyph`,
-  `homograph_skeleton_collision`, `homograph_latin_skeleton`, or
-  `api_endpoint_impersonation`.
+  `homograph_skeleton_collision`, or `homograph_latin_skeleton`.
 - **Why it's a signal:** a brand look-alike domain registered very recently is
   the dominant phishing-campaign pattern — a two-axis age × brand check that is
   far more specific than either axis alone.
