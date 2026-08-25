@@ -60,7 +60,7 @@ tracks.
 | `docs/raw-url-tokenization-spike.md` | 1 |
 | `docs/reason-codes.md` | 82 |
 | `docs/redirect-chain-resolution.md` | 4 |
-| `docs/safe-transport.md` | 9 |
+| `docs/safe-transport.md` | 11 |
 | `docs/scoring.md` | 6 |
 | `docs/tracker-hygiene.md` | 3 |
 | `docs/wrapper-decoding.md` | 1 |
@@ -205,6 +205,8 @@ that the reason fires at each limit and that the reason list is not empty.
 | F9 | A reputation match is never broadened to the host — a different path, query, subdomain, or parent is a `no-hit` | `docs/layer3-reputation-model.md`, `docs/reason-codes.md`, `docs/online-roadmap.md` | `packages/online/test/urlhaus-lookup.test.ts`, `packages/online/test/phishtank-lookup.test.ts` |
 | F10 | The built-in Node transport never routes through Node's ambient proxy configuration — `HTTP_PROXY`/`HTTPS_PROXY`, `NODE_USE_ENV_PROXY`, or a runtime `http.setGlobalProxyFromEnv()` | `docs/safe-transport.md` | `packages/online/test/node-transport-live.test.ts`, `packages/online/test/node-transport-tls-live.test.ts` |
 | F11 | The connector is never handed an address outside the set the hop's own resolution returned, and every member of that set is classified before one is selected | `docs/safe-transport.md` | `packages/online/test/safe-transport.test.ts` |
+| F12 | A caller header value carrying CR, LF, or NUL is never forwarded to any HTTP port, caller-supplied ports included | `docs/safe-transport.md` | `packages/online/test/node-transport-headers.test.ts` |
+| F13 | A caller header value the built-in HTTP/1.1 adapter cannot put on the wire ends the attempt as `incomplete` / `http-malformed` before the request is sent, and the cause never quotes the refused value; the sendable set is Latin-1, so `Accept-Language: de-DE, fr;q=0.9` and any value containing `ü` still reach the destination byte for byte | `docs/safe-transport.md` | `packages/online/test/node-transport-headers.test.ts` |
 
 **F10 is scoped to the built-ins, deliberately.** It is a claim about
 `createNodeSafeTransport()`'s own connector and HTTP port, not about a

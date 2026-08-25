@@ -41,7 +41,7 @@ export function destinationHeaders(
       // the boundary's clothes. `transport/node.ts` owns it, screens for it
       // before dispatch, and catches Node's synchronous refusal behind that —
       // where an unsendable value becomes a typed `http-malformed` the caller
-      // can act on rather than a silent drop or a raw `TypeError`.
+      // can act on rather than a silent drop or a raw `TypeError` (LINK-ppwocsez).
       !/[\0\r\n]/.test(value)
     ) {
       headers[normalized] = value;
