@@ -61,9 +61,12 @@ The package walk stays **one level deep** on purpose. `pnpm-workspace.yaml`
 declares `packages/*`, so a workspace package is exactly one directory under
 `packages/`, and that glob is itself asserted, so the depth is a construction
 rather than a second accident. What the budget covers inside a package is its
-published `README.md`; other markdown under `packages/<name>/` — for example
-`packages/core/_worklog/` — is outside the register's scope, which is why
-moving such a file into `docs/` brings it in and requires a budget row for it.
+published `README.md`; other markdown under `packages/<name>/` is outside the
+register's scope, which is why moving such a file into `docs/` brings it in and
+requires a budget row for it. The four `docs/worklog-*.md` files are the worked
+example: they sat unswept in `packages/core/_worklog/` until `LINK-lfqeuaik`
+relocated them, and they entered the budget at 2 / 0 / 0 / 2 in the same commit
+that moved them.
 
 ### Claim budget
 
@@ -86,6 +89,10 @@ moving such a file into `docs/` brings it in and requires a budget row for it.
 | `docs/safe-transport.md` | 11 |
 | `docs/scoring.md` | 6 |
 | `docs/tracker-hygiene.md` | 3 |
+| `docs/worklog-oficsfiw-embedded-ipv4-unwrap.md` | 2 |
+| `docs/worklog-pblqdrco-digits-in-labels.md` | 0 |
+| `docs/worklog-qvsrmrzv-iana-ip-ranges.md` | 0 |
+| `docs/worklog-yyqnmipb-cloud-metadata.md` | 2 |
 | `docs/wrapper-decoding.md` | 1 |
 | `README.md` | 15 |
 | `packages/cli/README.md` | 2 |
