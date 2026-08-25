@@ -759,6 +759,136 @@ describe("the scope-of-claim boundary is stated in one canonical place", () => {
     });
   });
 
+  // LINK-sarsncoh / LINK-ftljzcjh. The declined sanitize() / cleaned-URL API.
+  // This block is pinned for a reason the other §1.1 settlements do not have:
+  // there is NO mechanical gate behind it. public-api-contract.test.ts pins the
+  // metadata/experimental/data subpaths to exact key sets but checks root only
+  // as a superset of experimental (see "linklint root — legacy advanced
+  // compatibility surface" in that file: a per-key toHaveProperty loop, not a
+  // key-set equality), so a new root export reddens nothing and a catalog in a
+  // local const moves no SCHEMA_VERSION. The prose IS the guard, and an unpinned
+  // guard is a deletable one — the same reasoning the path-layer block above
+  // records. What these assertions can hold is that the record still exists and
+  // still argues the CLASS; they cannot hold the judgment, and a test that
+  // merely matched /sanitize/ would pass on a paragraph saying the opposite,
+  // which is why every check below is anchored on the reasoning instead.
+  describe("§1.1 settles the cleaned-URL output", () => {
+    const start = architectureDoc.indexOf("### 1.1 Scope of claim");
+    const section = architectureDoc.slice(start, architectureDoc.indexOf("\n## 2.", start));
+    const blockStart = section.indexOf("**Handing back a modified URL, settled");
+    const blockEnd = section.indexOf("Nothing in this section is open", blockStart);
+    const block = section.slice(blockStart, blockEnd);
+
+    // Same trap the path-layer and agent-mode blocks document: the load-bearing
+    // sentences below hard-wrap mid-claim, so a raw substring match against the
+    // document finds NOTHING while still reading as a passing assertion. Strip
+    // any leading `> ` / `*` marker per line, then flatten whitespace. Every
+    // assertion below runs against `flat`. Swapping `flat` for `block` here
+    // turns this describe red, which is how the flattening was shown to bite.
+    const flat = block
+      .replace(/^\s*(?:>|\*)\s?/gm, "")
+      .replace(/\s+/g, " ");
+
+    it("the block exists and the slice is not empty (anti-vacuity)", () => {
+      expect(blockStart).toBeGreaterThan(-1);
+      expect(blockEnd).toBeGreaterThan(blockStart);
+      expect(flat.length).toBeGreaterThan(1000);
+      expect(flat).toContain("LINK-sarsncoh");
+      // The positive anchor for every absence check below: the request must be
+      // named, or a rename passes the whole block vacuously.
+      expect(flat).toContain("`sanitize()`");
+    });
+
+    it("declines it on the world-claim, and records the return-type reading as NOT the reason", () => {
+      // This is the wording constraint the decision turned on. Recorded as a
+      // product-contract objection ("a second contract", "a lossy output"), the
+      // next proposal arrives with a version stamp and the record has no answer.
+      expect(flat).toContain(
+        "the list doing the removing asserts something linklint cannot settle from the string",
+      );
+      expect(flat).toContain("those query keys do not affect the resource the URL addresses");
+      expect(flat).toContain("claim (b)");
+      // The unregistered-namespace argument, which is what a curated filter list
+      // cannot clear and `decodeEmbeddedWrapper`'s exact vendor formats can.
+      expect(flat).toContain("prefix glob");
+      expect(flat).toContain("not an enumeration");
+      expect(flat).toContain("§6.1.5");
+    });
+
+    it("cites the code that already ruled it, so the record is not merely an opinion", () => {
+      // Spans the paragraph break, so the code precedent is pinned as THIS
+      // record's evidence rather than as a nearby aside that survives the
+      // block being gutted. It also spans a leading `*` emphasis marker, which
+      // is the half of the normalization above that whitespace-flattening
+      // alone does not handle: without the marker strip this assertion fails.
+      expect(flat).toContain(
+        "It is claim (b), pointed at the query string. " +
+          "The repo had already ruled this in code, silently.",
+      );
+      expect(flat).toContain("canonicalizeUrl");
+      expect(flat).toContain("`@linklint/online/mirrors`");
+      expect(flat).toContain("preserves path and query verbatim");
+      expect(flat).toContain("decodeEmbeddedWrapper");
+      expect(flat).toContain("utm_source");
+      // §8's half: enforcement is the consumer's job. Cited rather than
+      // duplicated, so the argument lives in exactly one place.
+      expect(flat).toContain("§8");
+      expect(flat).toContain("enforcement is the consumer's job");
+    });
+
+    it("forecloses the weight-0 fallback, or it gets proposed next", () => {
+      expect(flat).toContain("tracking_parameters_present");
+      expect(flat).toContain("weight 0");
+      expect(flat).toContain("strip the world-claim");
+    });
+
+    it("declines the CLASS rather than the proposal's API shape", () => {
+      expect(flat).toContain("{ status, url, removed[] }");
+      expect(flat).toContain("version stamp");
+      expect(flat).toContain("not settleable from the string");
+      expect(flat).toContain("stated non-goal and not a gap");
+    });
+
+    it("records that the mechanical gate does not catch a future one", () => {
+      expect(flat).toContain("packages/core/test/public-api-contract.test.ts");
+      expect(flat).toContain("superset of `experimental`");
+      expect(flat).toContain("`SCHEMA_VERSION`");
+    });
+
+    it("joins the settles-list, which is where a proposer looks for a decided class", () => {
+      // Recording the block without listing it leaves the class undiscoverable
+      // to anyone scanning "is this already decided?" — the exact absence
+      // LINK-pralkaeo had to go back and fill for combosquatting.
+      const listFlat = section
+        .slice(blockEnd, section.indexOf("**The rule.**", blockEnd))
+        .replace(/\s+/g, " ");
+      expect(listFlat.length).toBeGreaterThan(200);
+      expect(listFlat).toContain("should therefore not be re-filed");
+      expect(listFlat).toContain("the cleaned-URL output");
+    });
+
+    it("the README carries the product-facing half and defers rather than restating", () => {
+      const listStart = readme.indexOf("Concretely, linklint is not:");
+      expect(listStart).toBeGreaterThan(-1);
+      const listFlat = readme
+        .slice(listStart, readme.indexOf("\n### ", listStart))
+        .replace(/^\s*(?:>|-|\*)\s?/gm, "")
+        .replace(/\s+/g, " ");
+      expect(listFlat).toContain("A URL cleaner or rewriter.");
+      // Hard-wraps mid-sentence in the README, so this one is only reachable
+      // through the flattening above.
+      expect(listFlat).toContain(
+        "There is no `sanitize()`: you get a verdict about the string you passed in",
+      );
+      expect(listFlat).toContain("stated non-goal");
+      // It must point at the canonical section rather than re-argue it: two
+      // copies of the reasoning is the rot this repo has recorded twice.
+      expect(listFlat).toContain("docs/architecture.md` §1.1");
+      expect(listFlat).not.toContain("prefix glob");
+      expect(listFlat).not.toContain("canonicalizeUrl");
+    });
+  });
+
   // LINK-uyoocslu. §5 listed "Agent-gated" as a seventh detector family with no
   // scope note, so the family read as a seventh kind of evidence rather than as
   // a caller-declared context. The families table is asserted elsewhere in this

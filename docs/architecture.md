@@ -341,8 +341,8 @@ guard, which is why it argues the class rather than the API shape.
 Nothing in this section is open. What this section settles, and what
 should therefore not be re-filed: well-formed-but-unusable strings, the path
 layer, the agent-mode layer, the reserved special-use names and the cleaned-URL
-output, all above; the watchlist's name-never-create
-rule, combosquatting, and the reading of a clean result, all below.
+output, all above; the watchlist's name-never-create rule, combosquatting, and
+the reading of a clean result, all below.
 
 **The rule.** The brand watchlist (`data/brands.ts`) may only be consulted to
 **NAME** a structural anomaly that was already detected independently. It may
