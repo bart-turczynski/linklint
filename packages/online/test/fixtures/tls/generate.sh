@@ -48,6 +48,13 @@ sign_leaf valid origin.example "DNS:origin.example" -days "$DAYS"
 # checkServerIdentity re-check rather than chain verification.
 sign_leaf wrong-name other.example "DNS:other.example" -days "$DAYS"
 
+# Attests an IP ADDRESS and no DNS name. Drives the identity-vs-pin divergence
+# (LINK-bgcfgujq): a leaf that is genuinely valid for the address `openSocket`
+# connects to, while saying nothing about the identity the caller asked for.
+# Node's default checkServerIdentity would accept it for both; the override
+# accepts it only for the requested identity.
+sign_leaf ip-san 127.0.0.1 "IP:127.0.0.1" -days "$DAYS"
+
 # Correctly signed and correctly named, but expired: CERT_HAS_EXPIRED.
 sign_leaf expired origin.example "DNS:origin.example" \
   -not_before 20200101000000Z -not_after 20200102000000Z

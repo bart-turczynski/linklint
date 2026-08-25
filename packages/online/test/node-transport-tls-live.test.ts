@@ -272,6 +272,71 @@ describe("node TLS transport (live loopback)", () => {
     }
   });
 
+  // --- identity vs. pin (LINK-bgcfgujq) ------------------------------------
+  //
+  // `openSocket` connects to `request.address` — the pinned answer — but must
+  // verify `request.serverName ?? request.hostname`. Node's own default would
+  // verify `options.servername || options.host`, and `options.host` IS the pin.
+  // The pair below is the input that tells those two rules apart: without the
+  // `checkServerIdentity` override in `openSocket`, the second case AUTHORIZES.
+  //
+  // The certificate attests `IP:127.0.0.1` and no DNS name, so it is genuinely
+  // valid for the address the socket reaches and says nothing about the name
+  // the caller asked for.
+
+  it("accepts a leaf that attests the requested IP identity", async () => {
+    // Positive control for the pair. It proves the IP-SAN path verifies at all,
+    // so the rejection below is about WHICH name was checked rather than about
+    // IP SANs being unsupported. On Node >= 26 it also proves the
+    // `isIP(identity) === 0` guard is doing its job: setting `servername` to an
+    // IP literal throws ERR_INVALID_ARG_VALUE there (it merely warned, DEP0123,
+    // on Node 24), so dropping the guard fails this case synchronously.
+    const { port, seen } = await startTlsServer(identity("ip-san"));
+    const ports = new NodeConnectionPorts();
+
+    const connection = await ports.connect({
+      protocol: "https:",
+      hostname: "127.0.0.1",
+      address: "127.0.0.1",
+      port,
+    });
+
+    try {
+      expect(connection.tls?.authorized).toBe(true);
+      expect(connection.tls?.serverName).toBe("127.0.0.1");
+      // No DNS SAN at all — the leaf attests an address and nothing else.
+      expect(connection.tls?.peerDnsNames).toEqual([]);
+      // RFC 6066 forbids an IP literal in SNI, so none was offered.
+      expect(seen.servername).toBeUndefined();
+    } finally {
+      ports.close(connection.id);
+    }
+  });
+
+  it("rejects a leaf that attests the pinned address but not the requested identity", async () => {
+    // The pin (`address`) and the identity (`hostname`) are independent inputs
+    // at this port's contract — that independence is the whole point of DNS
+    // pinning. The leaf is valid for 127.0.0.1, which is where the socket
+    // actually goes, but the caller asked for 10.0.0.1 and the leaf says
+    // nothing about that name.
+    //
+    // Node's default would compare the certificate against `options.host` —
+    // i.e. against the pin — and authorize, letting the pinned address confirm
+    // itself. That is the TLS-layer form of the failure LINK-abozdqtp names for
+    // the peer-address check.
+    const { port } = await startTlsServer(identity("ip-san"));
+    const ports = new NodeConnectionPorts();
+
+    expect(
+      await connectFailure(ports, {
+        protocol: "https:",
+        hostname: "10.0.0.1",
+        address: "127.0.0.1",
+        port,
+      }),
+    ).toBe("tls-certificate");
+  });
+
   it("maps a refused TLS connection to connect-refused", async () => {
     // Bind and release a port so nothing is listening on a known-free number.
     const probe = createTcpServer();
