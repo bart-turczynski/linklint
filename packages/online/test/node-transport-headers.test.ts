@@ -1,5 +1,5 @@
 /**
- * Caller-supplied request header values at the L0 boundary (LINK-l0hdrl1).
+ * Caller-supplied request header values at the L0 boundary.
  *
  * `SafeFetchRequest.headers` is PUBLIC and `transport/headers.ts` forwards three
  * of its fields verbatim — `accept`, `accept-language`, `user-agent`. Its filter

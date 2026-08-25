@@ -145,8 +145,8 @@ export class NodeConnectionPorts implements ConnectorPort, HttpPort {
     agent.createConnection = () => socket;
 
     // Screened here rather than left to Node, even though the catch below would
-    // also type it (LINK-l0hdrl1). Three reasons this is not the duplicated
-    // charset copy `reputation/rdap-node.ts` declined:
+    // also type it. Three reasons this is not the duplicated charset copy
+    // `reputation/rdap-node.ts` declined:
     //
     //   1. These values are CALLER-supplied and free-form. RDAP's two are fixed
     //      literals whose only caller influence is a stored validator; here the
@@ -215,7 +215,7 @@ export class NodeConnectionPorts implements ConnectorPort, HttpPort {
         // turned them into a rejection carrying a raw Node error — untyped at
         // this port, and reported one layer up as the generic `http-error`,
         // indistinguishable from a socket fault. Routed through the same mapper
-        // as every asynchronous failure instead (LINK-l0hdrl1).
+        // as every asynchronous failure instead.
         fail(requestFailure(error));
         return;
       }
@@ -279,7 +279,7 @@ export class NodeConnectionPorts implements ConnectorPort, HttpPort {
       // Both `net.connect` and `tls.connect` validate their options inside the
       // socket constructor and THROW rather than emitting `error`, so a refused
       // option escapes before `onError` is attached — the same bare-call shape
-      // the header block had in `request` above (LINK-l0hdrl1).
+      // the header block had in `request` above.
       //
       // No caller path reaches it today: `port` comes from `effectivePort` on a
       // WHATWG-parsed URL and cannot be out of range, `address` is a classified
