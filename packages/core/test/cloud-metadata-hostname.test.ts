@@ -98,23 +98,24 @@ describe("cloud metadata hostnames score exactly as their addresses do", () => {
     }
   });
 
-  // Recorded rather than tuned. `api.metadata.cloud.ibm.com` already scored 0.50
-  // BEFORE this slice existed: `embedded_domain_in_subdomain` reads
-  // `metadata.cloud` as a domain embedded under `ibm.com`. Adding the true
-  // positive on top takes the default-mode verdict to 0.875 / critical, which is
-  // louder than the 0.75 / high the address form gets, and the pin exists so
-  // that composite is a decision someone made rather than a number that drifted.
-  //
-  // It is not corrected here: the stacking detector is out of this slice's
-  // scope, the composite verdict is not WRONG (the host is a metadata endpoint),
-  // and suppressing a pre-existing reason to protect a symmetry would be tuning
+  // Recorded rather than tuned. `api.metadata.cloud.ibm.com` used to score 0.50
+  // BEFORE this slice existed, because `embedded_domain_in_subdomain` read
+  // `metadata.cloud` as a domain embedded under `ibm.com`, and the true positive
+  // stacked on top to 0.875 / critical — louder than the 0.75 / high the address
+  // form gets. LINK-hvawpgos declined to correct that asymmetry, on the grounds
+  // that suppressing a pre-existing reason to protect a symmetry would be tuning
   // the score to match the prose.
-  it("the IBM host stacks a pre-existing embedded-domain finding", () => {
+  //
+  // LINK-vuqdzmzy removed it from the other end, and the distinction matters:
+  // `.cloud` is a 2012-round gTLD, and a window under an expansion-era suffix is
+  // measured as evidence of BENIGNITY, so the 0.50 was withdrawn on its own
+  // evidence rather than to make this number tidy. The symmetry with the address
+  // form is a side effect. The pin moves to the new value so the composite stays
+  // a decision someone made rather than a number that drifted.
+  it("the IBM host scores exactly as its address form does", () => {
     const r = inspect("http://api.metadata.cloud.ibm.com/metadata/v1/instance/");
-    expect(r.score).toBe(0.875);
-    expect(r.reasons.map((x) => x.code)).toEqual(
-      expect.arrayContaining(["ip_cloud_metadata", "embedded_domain_in_subdomain"]),
-    );
+    expect(r.score).toBe(0.75);
+    expect(r.reasons.map((x) => x.code)).toEqual(["ip_cloud_metadata"]);
   });
 
   // Case folding: the authority is case-insensitive and a URL may be written in
@@ -193,8 +194,14 @@ describe("internal-LOOKING hostnames stay silent", () => {
     const codes = codesOf("http://metadata.google.internal.evil.com/", true);
     expect(codes).not.toContain("ip_cloud_metadata");
     expect(codes).not.toContain("ssrf_cloud_metadata");
-    // Still caught — for what it actually is.
-    expect(codes).toContain("embedded_domain_in_subdomain");
+    // It used to be caught by `embedded_domain_in_subdomain` at 0.50, for what
+    // it actually is. It is not any more: the sole window here is
+    // `metadata.google`, `.google` is a 2012-round brand gTLD, and LINK-vuqdzmzy
+    // stopped scoring that class on measured evidence. This is the accepted
+    // recall cost landing on a named host, so it is asserted rather than left to
+    // be discovered — the claim THIS test makes (not a metadata endpoint) is
+    // unaffected either way.
+    expect(codes).toEqual([]);
   });
 
   it("a documented name with a PREFIX glued on is not a metadata endpoint", () => {

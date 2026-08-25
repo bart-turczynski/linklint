@@ -70,12 +70,18 @@ describe("the band the deleted companion was buying (amendment 3, §6.1.5)", () 
     expect(REASON_CODES.embedded_domain_in_subdomain.weight).toBeCloseTo(0.5, 5);
   });
 
-  it("the nine rows a raise would move are pinned at medium, so a re-raise sees them", () => {
+  it("the rows a raise would move are pinned at medium, so a re-raise sees them", () => {
     // Named, not counted from a fixture: the cost of the refused alternative is
-    // the seven rows that have ALWAYS been medium, and a future proposal has to
-    // argue with them rather than discover them.
+    // the rows that have ALWAYS been medium, and a future proposal has to argue
+    // with them rather than discover them.
+    //
+    // LINK-vuqdzmzy took one row off this list. `metadata.google.internal.evil.com`
+    // carried the code only through the window `metadata.google`, and `.google`
+    // is a 2012-round brand gTLD, which is now measured as evidence of benignity
+    // and no longer scores (§6.1.6). The count in §6.1.5's argument moves from
+    // nine to eight; the argument itself — that the weight is a single number
+    // and a raise moves every one of these at once — is untouched.
     const alwaysMedium = [
-      "http://metadata.google.internal.evil.com/",
       "https://paypal.co.uk.evil.com/",
       "https://paypal.com.login.evil.com/",
       "https://paypal.com.security-check.ru",
@@ -89,8 +95,8 @@ describe("the band the deleted companion was buying (amendment 3, §6.1.5)", () 
       expect(r.score, url).toBeCloseTo(0.5, 5);
       expect(r.severity, url).toBe("medium");
     }
-    // Plus the two this change dropped, asserted individually above.
-    expect(alwaysMedium.length + 2).toBe(9);
+    // Plus the two LINK-brsntven dropped, asserted individually above.
+    expect(alwaysMedium.length + 2).toBe(8);
   });
 
   it("login.paypal.com.account.evil.com drops 0.575/high → 0.500/medium", () => {
