@@ -7,6 +7,7 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "skipLibCheck": true,
+    "types": ["node"],
     "verbatimModuleSyntax": true,
     "resolveJsonModule": true,
     "declaration": true,
