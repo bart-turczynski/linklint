@@ -446,7 +446,8 @@ describe.each(BASHES)("install-aliases.sh under %s", (bash) => {
       expect(r.stdout).toContain("_linklint_guard()");
       expect(r.stdout).toContain("curl() { _linklint_guard curl");
       expect(r.stdout).toContain("wget() { _linklint_guard wget");
-      expect(r.stdout).toContain("--fail-on high");
+      // Single-quoted in the emitted text — see the LINK-kidprtkk block below.
+      expect(r.stdout).toContain("--fail-on 'high'");
       // Printing must not install anything.
       expect(() => readFileSync(rcFor(sb, ".zshrc"), "utf8")).toThrow();
       expect(() => readFileSync(rcFor(sb, ".profile"), "utf8")).toThrow();
@@ -456,8 +457,8 @@ describe.each(BASHES)("install-aliases.sh under %s", (bash) => {
       const sb = makeSandbox("inst-print-failon", { linklint: "absent" });
       const r = runScript(bash, INSTALLER, ["--print"], sb, { LINKLINT_FAIL_ON: "medium" });
       expect(r.status).toBe(0);
-      expect(r.stdout).toContain("--fail-on medium");
-      expect(r.stdout).not.toContain("--fail-on high");
+      expect(r.stdout).toContain("--fail-on 'medium'");
+      expect(r.stdout).not.toContain("--fail-on 'high'");
     });
   });
 
@@ -692,7 +693,10 @@ describe.each(BASHES)("install-aliases.sh under %s", (bash) => {
       expect(r.status).toBe(0);
       const inspected = sb.linklintCalls().filter((c) => c.includes("check"));
       expect(inspected).toHaveLength(1);
-      return inspected[0].slice(1);
+      const [call] = inspected;
+      if (call === undefined) throw new Error("unreachable: length asserted above");
+      // Drop argv[0] (the shim's own path); what matters is the argument structure.
+      return call.slice(1);
     }
 
     /**
