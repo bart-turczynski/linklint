@@ -4,8 +4,9 @@ import { toUnicode } from "../unicode/idna.js";
 
 /**
  * `homograph_latin_skeleton`. Detects non-ASCII registrable domains whose
- * UTS#39 confusable skeleton is pure ASCII-Latin. Detailed rationale and
- * examples live in docs/reason-codes.md.
+ * UTS#39 confusable skeleton is pure ASCII-Latin, and whose non-Latin evidence
+ * lies in the registrant-chosen label rather than in the public suffix.
+ * Detailed rationale and examples live in docs/reason-codes.md.
  */
 
 /** True when `s` contains any non-ASCII codepoint (i.e. is an IDN/Unicode host). */
@@ -32,6 +33,23 @@ export const latinSkeletonHomograph: Detector = {
     // Skip the compatibility-fold family (fullwidth/halfwidth Latin etc.): if the
     // host NFKC-folds to pure ASCII it is owned by idna_mapping_ambiguity.
     if (!hasNonAscii(host.normalize("NFKC"))) return [];
+    // The public suffix is not the registrant's to disguise (LINK-ubzfajzm). It
+    // is picked from a fixed IANA set, so a non-Latin ccTLD is a fact about the
+    // registry rather than a masquerade — yet sixteen ICANN suffixes skeleton to
+    // pure ASCII (бг→'6r', срб→'cp6', орг→'opr', рус→'pyc', and ten Norwegian
+    // municipal suffixes through æ→ae), which took every host under them,
+    // `google.бг` included, to weight-1.0 critical. Require the non-Latin
+    // evidence to sit in the label the registrant actually chose.
+    //
+    // This is only ever a NARROWING: the whole-registrable-domain skeleton test
+    // below still has to pass, so no host that is quiet today starts firing.
+    // In particular it is NOT per-label evaluation, which LINK-vtfyaizy declined
+    // 2-0 on measured evidence — `гора.рф` keeps a non-ASCII skeleton as a whole
+    // and stays quiet.
+    const suffix = ctx.publicSuffix ? toUnicode(ctx.publicSuffix.toLowerCase()) : "";
+    const registrantLabel =
+      suffix && host.endsWith(`.${suffix}`) ? host.slice(0, -(suffix.length + 1)) : host;
+    if (!hasNonAscii(registrantLabel)) return [];
 
     const skel = skeleton(host);
     // Fire only when the confusable skeleton is ENTIRELY ASCII — every character
