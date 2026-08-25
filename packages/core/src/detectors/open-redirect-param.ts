@@ -116,13 +116,19 @@ import { boundedDecode, DEFAULT_MAX_DECODE_DEPTH } from "../parse/decode.js";
  *
  * This was measured, not assumed. The wider variant — `;` split plus the name in
  * {@link REDIRECT_PARAMS}, so divergence fires too — was implemented, run, and
- * discarded: it produced **zero** verdict change across all 1 506 corpus verdicts
- * (the corpus carries no `intent://` row, so it cannot discriminate here) while
- * firing `0.40` on
+ * discarded: it produced **zero** verdict change across the corpus as it stood at
+ * the time (1 506 verdicts) while firing `0.40` on
  * `intent://example.com/deep#Intent;scheme=https;package=com.example.app;S.browser_fallback_url=…play.google.com…;end`,
- * the canonical benign app-handoff link. The false-positive class the ticket
- * flagged as unquantified is therefore real and is avoided by construction rather
- * than by an allowlist of "real" fallback hosts, which §1.1 forbids outright.
+ * the canonical benign app-handoff link. That run could not discriminate on this
+ * surface, and the reason was that the corpus then carried no `intent://` row at
+ * all — a zero from a blind instrument. `LINK-uotkpxwp` has since added five such
+ * rows, so the null result no longer describes the corpus: re-implementing the
+ * discarded variant today turns the two benign app-handoff rows red along with
+ * the SC-2 zero-false-positive and precision assertions in `test/corpus/`. The
+ * narrowing below is therefore pinned by measurement rather than argued from an
+ * absence. The false-positive class the ticket flagged as unquantified is real
+ * and is avoided by construction rather than by an allowlist of "real" fallback
+ * hosts, which §1.1 forbids outright.
  *
  * SAME reason code, SAME weight, one more input surface — no new code and no
  * `SCHEMA_VERSION` bump, for the same reason the fragment surface needed neither.

@@ -23,9 +23,16 @@ import { inspect } from "../src/index.js";
 // app's Play Store listing, a different authority by construction. The string
 // declares its type and the declaration holds — architecture.md §1.1, the same
 // reasoning that exempts an RFC 6749 authorize request. The wider variant was
-// implemented and measured before being discarded: zero change across all 1 506
-// corpus verdicts (the corpus carries no `intent://` row), and a 0.40 on the
-// canonical Play Store handoff link.
+// implemented and measured before being discarded: zero change across the corpus
+// as it stood at the time (1 506 verdicts, and it carried no `intent://` row),
+// and a 0.40 on the canonical Play Store handoff link.
+//
+// That parenthetical was the whole weakness of the measurement, and LINK-uotkpxwp
+// removed it: the corpus now carries five intent:// rows, so the zero above is a
+// record of one run rather than a description of today's corpus. Re-implementing
+// the discarded variant against the current corpus reddens the two benign
+// app-handoff rows plus the SC-2 zero-false-positive and precision assertions in
+// test/corpus/ — the narrowing is measured now, not merely reasoned.
 
 const reasonCodes = (input: string): string[] =>
   inspect(input)
