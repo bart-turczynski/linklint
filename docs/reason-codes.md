@@ -590,6 +590,51 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
   content-type spoofing observation without adding a probabilistic score, and is
   not proof of exploitation.
 
+### `https_downgrade_observed` — `LINK-emlbzwct` · resolution layer, weight 0
+
+- **Meaning:** the Layer 2 resolution enricher (`@linklint/online` redirect
+  chain) observed a hop fetched over `https:` hand the chain a `http:` target —
+  the chain left TLS for plaintext. One finding is raised **per downgrading
+  transition**, on the hop that issued it.
+- **Why it is reported at all:** the fact was already fully derivable from the
+  shipped evidence — every `resolution.chain-hop` payload carries
+  `transport.protocol` for the hop it fetched and the ordered
+  `transition.targetUrl` it was sent to — but a consumer had to reconstruct the
+  scheme sequence itself to see it. The fourth rule is *report what you can
+  determine, never silently pass*; naming a fact the artifact already contains
+  is exactly that, and costs no new observation.
+- **Why weight 0, and not as a placeholder:** a downgrade is **not deceptive**
+  under §1.1. The chain does not misrepresent itself — it plainly says `http://`
+  — and no two readers disagree about what it says. Plaintext is a
+  confidentiality and integrity problem for whoever later sends something over
+  it, which is a different question from "is this URL a lie". This code carries
+  no scoring weight and is not a candidate for one.
+- **A downgrade is a TRANSITION, never a hop's scheme.** Starting at `http://`
+  is not a downgrade: `canonicalHttpUrl` accepts an `http://` input at hop 1 and
+  a plaintext origin is an ordinary, fully supported chain start. Only a
+  transition **from** `https:` **to** `http:` counts. An `http:`→`https:`
+  upgrade, an `http:`→`http:` plaintext chain, and an `https:`→`https:` hop all
+  emit nothing.
+- **All three transition kinds:** an HTTP redirect (301/302/303/307/308), an
+  HTTP `Refresh` header, and an HTML `<meta http-equiv="refresh">` are the three
+  ways the chain moves, and a downgrade through any of them is reported
+  identically. The transition kind is recorded in the evidence payload.
+- **Observed, never refused.** The enricher does not stop the chain at a
+  downgrade and there is no option to make it. Refusal buys **no
+  confidentiality** — L0 sends no request body, no cookie jar, no credentials,
+  and strips the caller's `Referer`, so the plaintext request discloses only the
+  URL the server itself just named — while it costs **detection**, because a
+  refused hop is never fetched and `worstHop`, the open-redirect correlation and
+  the MIME evidence all read fetched hops only. Stopping would trade a real loss
+  of observation for a benefit that is not there.
+- **Keyed on the transition, not on the target hop's fetch.** The finding is
+  raised from the redirect/refresh that named the plaintext target, so a chain
+  cut short after that point — hop cap, denied authorization, transport failure
+  — still reports the downgrade it was directed into. The record states that the
+  chain was sent to plaintext, which the fetched response proves on its own.
+- **Scoring:** informational, weight 0, resolution layer. Evidence type
+  `resolution.https-downgrade`.
+
 ### `young_domain_brand_risk` — Epic M (M1b) · reputation layer, weight 0.5
 
 - **Meaning:** the Layer 3 RDAP registration-age enricher (`@linklint/online`

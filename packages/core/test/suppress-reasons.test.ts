@@ -150,7 +150,7 @@ describe("suppressReasons — DEFAULT-OFF invariant (byte-for-byte unchanged)", 
     // No suppression field anywhere; schema version unchanged.
     expect(r.reasons.every((x) => !("suppressed" in x))).toBe(true);
     expect(r.checksRun).not.toContain("suppression");
-    expect(r.schemaVersion).toBe("1.7");
+    expect(r.schemaVersion).toBe("1.8");
   });
 
   it.each(urls)("inspectAsync(%s) (no enrichers, no option) deep-equals inspect(%s)", async (url) => {

@@ -17,8 +17,9 @@ import {
  * — each carries `transport.protocol` for the hop it fetched and the ordered
  * `transition.targetUrl` it was sent to — but nothing NAMED it, so a consumer
  * had to reconstruct the scheme sequence itself to learn that a chain left TLS.
- * These tests pin the derivability and the silence BEFORE the code exists, then
- * flip only the silence assertions when it does.
+ * These tests pinned the derivability and the silence BEFORE the code existed;
+ * registering the code is what reddened the silence half, which is the proof
+ * that those assertions bite.
  *
  * Refusing the downgrade was decided against 2-1: refusal buys no
  * confidentiality (L0 sends no body, no cookies, no credentials and strips the
@@ -225,19 +226,92 @@ describe("an https -> http downgrade is derivable from the shipped chain evidenc
   });
 });
 
-describe("the downgrade is not yet NAMED by any finding", () => {
-  // PIN, THEN MUTATE. These four assertions are the silence this unit closes;
-  // the commit that adds the reason code flips them to `toContain`.
-  it.each(DOWNGRADE_CHAINS)("$kind reports no downgrade finding", async (chain) => {
+describe("the downgrade is NAMED, for all three transition kinds", () => {
+  // These four were `not.toContain` in the commit that pinned the silence, and
+  // registering the code is what reddened them — the mutation proof for the pin.
+  it.each(DOWNGRADE_CHAINS)("$kind raises the downgrade finding", async (chain) => {
     const { harness, enricher } = fixtureEnricher(chain.steps);
     const result = await inspectAsync(chain.steps[0].url, { enrichers: [enricher] });
 
-    expect(findingCodes(result)).not.toContain(DOWNGRADE_CODE);
-    expect(reasonCodes(result)).not.toContain(DOWNGRADE_CODE);
+    expect(findingCodes(result)).toContain(DOWNGRADE_CODE);
+    expect(reasonCodes(result)).toContain(DOWNGRADE_CODE);
     harness.assertExhausted();
   });
 
-  it("an https -> http -> https bounce reports no downgrade finding", async () => {
+  it("attaches the finding and its evidence to the hop that ISSUED the downgrade", async () => {
+    const chain = DOWNGRADE_CHAINS[0];
+    const { harness, enricher } = fixtureEnricher(chain.steps);
+    const result = await inspectAsync(chain.steps[0].url, { enrichers: [enricher] });
+    const outcomes = result.enrichment?.outcomes ?? [];
+
+    expect(outcomes[0]?.findings.map((finding) => finding.code)).toContain(DOWNGRADE_CODE);
+    expect(outcomes[1]?.findings.map((finding) => finding.code)).not.toContain(DOWNGRADE_CODE);
+
+    const evidence = outcomes[0]?.evidence.find(
+      (item) => item.type === "resolution.https-downgrade",
+    );
+    expect(evidence?.subject).toEqual({ kind: "url", value: "https://origin.example/start" });
+    expect(evidence?.payload).toMatchObject({
+      hop: 1,
+      targetHop: 2,
+      transitionKind: "http-redirect",
+      fromUrl: "https://origin.example/start",
+      fromScheme: "https:",
+      toUrl: "http://origin.example/landing",
+      toScheme: "http:",
+      transportProtocol: "https:",
+    });
+    harness.assertExhausted();
+  });
+
+  it("carries the transition kind of each mechanism into the evidence", async () => {
+    for (const chain of DOWNGRADE_CHAINS) {
+      const { harness, enricher } = fixtureEnricher(chain.steps);
+      const result = await inspectAsync(chain.steps[0].url, { enrichers: [enricher] });
+      const evidence = (result.enrichment?.outcomes ?? [])
+        .flatMap((outcome) => outcome.evidence)
+        .find((item) => item.type === "resolution.https-downgrade");
+      expect(evidence?.payload).toMatchObject({ transitionKind: chain.kind });
+      harness.assertExhausted();
+    }
+  });
+
+  it("is informational: weight 0, resolution layer, score and confidence untouched", async () => {
+    const chain = DOWNGRADE_CHAINS[0];
+    const { harness, enricher } = fixtureEnricher(chain.steps);
+    const result = await inspectAsync(chain.steps[0].url, { enrichers: [enricher] });
+    const reason = result.reasons.find((item) => item.code === DOWNGRADE_CODE);
+
+    // A downgrade is not deceptive: the chain does not misrepresent itself and
+    // no two readers disagree about what it says. It annotates, it never scores.
+    expect(reason?.weight).toBe(0);
+    expect(reason?.layer).toBe("resolution");
+    expect(result.score).toBe(0);
+    expect(result.severity).toBe("info");
+    expect(result.confidence).toBe(1);
+    harness.assertExhausted();
+  });
+
+  it("never stops the chain — every hop after the downgrade is still fetched", async () => {
+    const chain = DOWNGRADE_CHAINS[0];
+    const { harness, authorize, enricher } = fixtureEnricher(chain.steps);
+    const result = await inspectAsync(chain.steps[0].url, { enrichers: [enricher] });
+
+    // Observe and report. Refusal would buy no confidentiality and would cost
+    // the plaintext hop's own evidence, which only a fetch can produce.
+    expect(authorize).toHaveBeenCalledTimes(2);
+    expect(result.enrichment?.outcomes.map((outcome) => outcome.status)).toEqual([
+      "success",
+      "success",
+    ]);
+    expect(result.enrichment?.outcomes.map((outcome) => outcome.subject.value)).toEqual([
+      "https://origin.example/start",
+      "http://origin.example/landing",
+    ]);
+    harness.assertExhausted();
+  });
+
+  it("reports the bounce at the hop where it happened and keeps the rest of the chain", async () => {
     const steps = [
       {
         url: "https://origin.example/start",
@@ -258,8 +332,29 @@ describe("the downgrade is not yet NAMED by any finding", () => {
     ];
     const { harness, enricher } = fixtureEnricher(steps);
     const result = await inspectAsync(steps[0]!.url, { enrichers: [enricher] });
+    const outcomes = result.enrichment?.outcomes ?? [];
 
-    expect(findingCodes(result)).not.toContain(DOWNGRADE_CODE);
+    // Hop 1 downgraded; hop 2's re-upgrade is not a second downgrade and does
+    // not retract the first; hop 3 is terminal.
+    expect(outcomes.map((outcome) => outcome.findings.map((finding) => finding.code))).toEqual([
+      [DOWNGRADE_CODE],
+      [],
+      [],
+    ]);
+    expect(outcomes.map((outcome) => outcome.subject.value)).toEqual(steps.map((step) => step.url));
+    harness.assertExhausted();
+  });
+
+  it("reports a downgrade the chain was directed into even when it is never fetched", async () => {
+    // Keyed on the TRANSITION, not on the target hop's fetch: the redirect that
+    // named the plaintext target was itself fetched and proves the downgrade,
+    // and a refused or capped hop must not erase it.
+    const chain = DOWNGRADE_CHAINS[0];
+    const { harness, enricher } = fixtureEnricher([chain.steps[0]], { maxHops: 1 });
+    const result = await inspectAsync(chain.steps[0].url, { enrichers: [enricher] });
+
+    expect(findingCodes(result)).toContain(DOWNGRADE_CODE);
+    expect(result.enrichment?.outcomes.at(-1)?.cause?.code).toBe("hop-limit");
     harness.assertExhausted();
   });
 });

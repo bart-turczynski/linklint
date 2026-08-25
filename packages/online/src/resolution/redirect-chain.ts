@@ -85,6 +85,17 @@ interface MimeEvidence {
   readonly finding: EnricherFinding | null;
 }
 
+/**
+ * A transition that handed the chain from an `https:` hop to an `http:` target
+ * (`LINK-emlbzwct`). Raised on the hop that ISSUED the downgrade, once per
+ * downgrading transition, so an `https → http → https` bounce reports at the
+ * hop where it happened without suppressing the rest of the chain.
+ */
+interface HttpsDowngrade {
+  readonly evidence: EnrichmentEvidence;
+  readonly finding: EnricherFinding;
+}
+
 type TransitionDecision =
   | { readonly status: "terminal" }
   | { readonly status: "follow"; readonly transition: FollowTransition }
@@ -301,6 +312,7 @@ export function createRedirectChainEnricher(
         hop === worst ? offlineFindings(hop.offline, hop.hop, baseCodes) : [],
         correlation !== null && correlation.hop === hop ? correlation : null,
         mimeEvidenceFor(hop),
+        httpsDowngradeFor(hop),
       ));
       outcomes.push(...stops);
       return report(outcomes);
@@ -440,6 +452,7 @@ function hopOutcome(
   findings: EnricherFinding[],
   correlation: OpenRedirectCorrelation | null,
   mime: MimeEvidence,
+  downgrade: HttpsDowngrade | null,
 ): EnrichmentOutcome {
   const subject = { kind: "url" as const, value: hop.url };
   const provenance = declaredProvenance();
@@ -478,13 +491,86 @@ function hopOutcome(
       },
       ...(correlation === null ? [] : [correlation.evidence]),
       mime.evidence,
+      ...(downgrade === null ? [] : [downgrade.evidence]),
     ],
     findings: [
       ...findings,
       ...(correlation === null ? [] : [correlation.finding]),
       ...(mime.finding === null ? [] : [mime.finding]),
+      ...(downgrade === null ? [] : [downgrade.finding]),
     ],
   };
+}
+
+/**
+ * Name an `https:` → `http:` transition, which is derivable from the shipped
+ * `resolution.chain-hop` payloads but was never stated (`LINK-emlbzwct`).
+ *
+ * The discriminator is the TRANSITION, never a single hop's scheme: an
+ * `http://` input at hop 1 is an ordinary plaintext origin that
+ * `canonicalHttpUrl` accepts, so it is not a downgrade, and neither is an
+ * upgrade or an `https:` → `https:` hop. All three transition kinds
+ * (`http-redirect`, `http-refresh`, `html-meta-refresh`) are covered, because
+ * every one of them arrives here as the same `FollowTransition`.
+ *
+ * Keyed on the transition rather than on the target hop's fetch, so a chain cut
+ * short after the downgrade — hop cap, denied authorization, transport failure
+ * — still reports the plaintext target it was directed to. The fetched
+ * redirect/refresh response proves that on its own.
+ *
+ * The chain is never stopped and there is no option to stop it. Refusal buys no
+ * confidentiality — L0 sends no body, no cookie jar, no credentials, and strips
+ * the caller's `Referer` — while costing detection, since a refused hop is never
+ * fetched and `worstHop`, `correlateOpenRedirect` and `mimeEvidenceFor` all read
+ * fetched hops only. Informational (weight 0): a downgrade is a fact worth
+ * reporting, not a claim that the URL is deceptive.
+ */
+function httpsDowngradeFor(hop: ChainHop): HttpsDowngrade | null {
+  const transition = hop.transition;
+  if (transition === null) return null;
+  const fromScheme = schemeOf(hop.url);
+  const toScheme = schemeOf(transition.targetUrl);
+  if (fromScheme !== "https:" || toScheme !== "http:") return null;
+
+  const subject = { kind: "url" as const, value: hop.url };
+  const provenance = declaredProvenance();
+  const payload: EnrichmentPayload = {
+    hop: hop.hop,
+    targetHop: hop.hop + 1,
+    transitionKind: transition.kind,
+    fromUrl: hop.url,
+    fromScheme,
+    toUrl: transition.targetUrl,
+    toScheme,
+    transportProtocol: hop.transportEvidence.protocol ?? null,
+  };
+  return {
+    finding: {
+      code: "https_downgrade_observed",
+      detail:
+        `Hop ${hop.hop} was fetched over https and its ${transition.kind} sent the chain to the ` +
+        `plaintext target '${transition.targetUrl}' — the chain left TLS. Observed and reported, ` +
+        `never refused: refusing buys no confidentiality (no body, cookies, or credentials are ` +
+        `sent and the caller's Referer is stripped) while costing observation of the remaining ` +
+        `hops. Informational (weight 0) — a downgrade is not itself deceptive`,
+    },
+    evidence: {
+      type: "resolution.https-downgrade",
+      subject,
+      observedAt: hop.observedAt,
+      provenance,
+      freshness: FRESHNESS,
+      payload,
+    },
+  };
+}
+
+function schemeOf(url: string): string | null {
+  try {
+    return new URL(url).protocol;
+  } catch {
+    return null;
+  }
 }
 
 /**
