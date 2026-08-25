@@ -1509,6 +1509,41 @@ verified RED against the previous source. The corpus had **zero** rows in either
 direction whose window sat under an expansion-era suffix, which is why the
 harness could not see this defect for three waves.
 
+#### 6.1.7 DGArchive membership as a detection source — declined (`LINK-ylxoeubd`)
+
+**Decision — exact DGArchive membership is not bundled and does not score.** It
+is recorded here because the proposal is attractive on its detection properties
+and will otherwise recur: pre-generated DGA families match exactly, offline, at
+a very low false-positive rate, which reads as an unusually good fit for the
+charter.
+
+It is not a fit, and the reason is not the data. **List membership is
+reputation evidence, not a structural property of the string.** §1.1 admits a
+finding on three forms — a normalization delta, disagreement between conforming
+readers, or a false self-description — plus the fourth rule that reports a
+determinable-from-string property at weight `0`. A domain drawn from a DGA
+satisfies none of them: `kq3v9z7x1t.com` normalizes to itself, every conforming
+parser agrees where it points, and it claims to be nothing it is not. What
+makes it suspicious is that someone recognizes the string, which is exactly the
+watchlist rule in §6.1.2 already governs: it admits a list only as a way to
+**name** a structural anomaly the string itself exhibits, and membership is not
+such an anomaly. Bundling DGArchive
+would put claim (b) back through the door claim (a) was built to hold, so this
+belongs to the Layer 3 reputation roadmap and not to the offline pipeline.
+
+**The bundle-size budget is not the reason, contrary to how the question was
+filed.** `test/bundle-size-budget.test.ts` gates the generated confusables data
+against dataset-specific thresholds and the minified bundle against a total; a
+new dataset would answer only to the latter. The budget would have to be
+measured, not assumed, and it is not what settles this.
+
+Two premises in the original decision issue were wrong and are corrected here
+rather than left to mislead a future reader: core carries **ten** pinned
+datasets in `DATA_VERSIONS`, not the two the issue named, so a third is not the
+step-change it implied; and the issue's anchor line describes `brand_homoglyph`
+behaviour rather than anything about DGA, quoting `0.50`/`0.60` scores that the
+built package now reports as `0.80`/`0.84`.
+
 ### 6.2 IDNA / UTS-46 conformance & the normalization flag profile
 
 Every verdict that rests on *"what host is this really"* flows through
