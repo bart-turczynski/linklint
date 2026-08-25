@@ -486,6 +486,189 @@ describe("the scope-of-claim boundary is stated in one canonical place", () => {
     });
   });
 
+  // LINK-uyoocslu. The agent-gated family shipped with a gate, a weight and no
+  // scope note: §1.1 never named it, §5 listed the family bare, and every
+  // agent-gated entry in docs/reason-codes.md argued from consumer consequence
+  // while its neighbours cite this section by number. A family that cites no
+  // boundary has whatever boundary its next author assumes — and the assumption
+  // that lands is "form 2, because a browser and an LLM behave differently",
+  // which widens form 2 until it swallows the section. Pin the charter, the
+  // rejected widening, the three escalation conditions, and the per-code ruling.
+  describe("§1.1 settles the agent-mode layer", () => {
+    const start = architectureDoc.indexOf("### 1.1 Scope of claim");
+    const section = architectureDoc.slice(start, architectureDoc.indexOf("\n## 2.", start));
+    const blockStart = section.indexOf("**Agent mode, settled");
+    const openList = section.indexOf("**One boundary this section does NOT yet settle**");
+    const block = section.slice(blockStart, openList);
+
+    // Same two traps the path-layer block above documents: raw substrings match
+    // NOTHING once a sentence hard-wraps, and blockquote `> ` markers SURVIVE
+    // whitespace-flattening and land mid-sentence. Strip the markers per line,
+    // then flatten. Every assertion below runs against `flat`.
+    const flat = block.replace(/^\s*>\s?/gm, "").replace(/\s+/g, " ");
+
+    it("the block exists and the slice is not empty (anti-vacuity)", () => {
+      expect(blockStart).toBeGreaterThan(-1);
+      expect(openList).toBeGreaterThan(blockStart);
+      expect(flat.length).toBeGreaterThan(1000);
+      expect(flat).toContain("LINK-uyoocslu");
+    });
+
+    it("states the boundary question an agent-gated proposal has to answer", () => {
+      expect(flat).toContain(
+        "Does the finding name a property of the string, or a property of what one consumer " +
+          "does with the bytes **after** every reader has agreed where they came from?",
+      );
+    });
+
+    it("records the form-2 widening AS rejected, with the reason it fails", () => {
+      // The widening is the natural re-derivation, so it has to be written down
+      // as refused rather than merely absent. Form 2 is DESTINATION-scoped: its
+      // two shipped exemplars both fork on where the string resolves.
+      expect(flat).toContain("rejected");
+      expect(flat).toContain("read_A(input) !== read_B(input)");
+      expect(flat).toContain("ambiguous_authority");
+      expect(flat).toContain("ambiguous_numeric_host");
+      expect(flat).toContain("same destination");
+      // And the consequence of widening it: the section stops excluding anything.
+      expect(flat).toContain("dissolves the section");
+    });
+
+    it("routes a reader-consumption property to the fourth rule at weight 0", () => {
+      expect(flat).toContain("normalize(input) === input");
+      expect(flat).toContain("fourth rule");
+      expect(flat).toContain("determinable from the string");
+      expect(flat).toContain("weight 0");
+    });
+
+    it("states all three conditions a consequence-weighted escalation must meet", () => {
+      expect(flat).toContain("The fact is settled with the gate off");
+      expect(flat).toContain("The gate moves the weight, not the finding set");
+      expect(flat).toContain("The declaration, not an inference, fixes the consequence");
+      // The escalation that meets them, and the always-on code that settles the
+      // fact for it — the escalation is grounded only because that one is.
+      expect(flat).toContain("ssrf_cloud_metadata");
+      expect(flat).toContain("ip_cloud_metadata");
+    });
+
+    it("rules on EVERY agent-gated check, and on no code that is not one", () => {
+      // Derived from CHECKS, not from a literal list: the family shrank from
+      // five to four when api_endpoint_impersonation was deleted (LINK-eurtxkit),
+      // and a ruling table hand-maintained against a moving tree is the exact
+      // defect this block exists to close.
+      const gated = CHECKS.filter((c) => c.agentGated === true).map((c) => c.id);
+      expect(gated.length).toBeGreaterThan(0);
+      for (const id of gated) expect(flat).toContain(`| \`${id}\` |`);
+      // The deleted code must not have a live ruling row.
+      expect(flat).not.toContain("| `api_endpoint_impersonation` |");
+    });
+
+    it("quotes each ruled code's shipped weight from the registry", () => {
+      // A ruling that misquotes the weight it is ruling on argues with nothing.
+      const gated = CHECKS.filter((c) => c.agentGated === true).map((c) => c.id);
+      for (const id of gated) {
+        const weight = REASON_CODES[id as ReasonCode].weight.toFixed(2);
+        expect(flat).toContain(`| \`${id}\` | ${weight} |`);
+      }
+    });
+
+    it("marks the table as a disposition owed, not as a description of the shipped weights", () => {
+      // Three of the four ship above weight 0. Present tense here would be a
+      // claim about code that has not moved (AGENTS.md), and a reader who took
+      // the table for a description would think the work had landed.
+      expect(flat).toContain("Disposition column is what is owed");
+      expect(flat).toContain("§6.4");
+    });
+
+    it("lands credential_harvesting's inverse allowlist on the name-never-create rule", () => {
+      expect(flat).toContain("inverse watchlist");
+      expect(flat).toContain("complement");
+      expect(flat).toContain("either polarity");
+      // The precedent it has to argue with.
+      expect(flat).toContain("api_endpoint_impersonation");
+      expect(flat).toContain("LINK-eurtxkit");
+    });
+
+    it("records the data_exfiltration false positive as measured, not predicted", () => {
+      expect(flat).toContain("https://blog.example.com/download?data=report2024");
+      expect(flat).toContain("0.30");
+      // And keeps the narrow marker fix separate from the doctrine.
+      expect(flat).toContain("not a substitute for the ruling");
+    });
+
+    it("names the whole family inside THIS block, not somewhere else in §1.1", () => {
+      // Scoped deliberately: a section-wide count would be satisfied by the
+      // family table in §5 or by any earlier mention, and pass for the wrong
+      // reason — the trap the path-layer block above documents.
+      const gated = CHECKS.filter((c) => c.agentGated === true).map((c) => c.id);
+      const named = gated.filter((id) => flat.includes(`\`${id}\``));
+      expect(named.length).toBe(gated.length);
+    });
+
+    it("adds the agent-mode layer to the list of what §1.1 has settled", () => {
+      // §1.1 lists what it does NOT settle; a reader scanning for "is agent mode
+      // decided?" found a gate, a weight and silence. Bounded at the next
+      // paragraph so a later mention cannot satisfy it.
+      const openFlat = section
+        .slice(openList, section.indexOf("**The rule.**", openList))
+        .replace(/\s+/g, " ");
+      expect(openFlat.length).toBeGreaterThan(200);
+      expect(openFlat).toContain("That list is the whole of what is open");
+      expect(openFlat).toContain("the agent-mode layer");
+    });
+  });
+
+  // LINK-uyoocslu. §5 listed "Agent-gated" as a seventh detector family with no
+  // scope note, so the family read as a seventh kind of evidence rather than as
+  // a caller-declared context. The families table is asserted elsewhere in this
+  // file; what was missing is the pointer to the boundary.
+  it("§5 says what the agent-gated family may claim and points at §1.1", () => {
+    const start = architectureDoc.indexOf("## 5. Detectors");
+    const flat = architectureDoc
+      .slice(start, architectureDoc.indexOf("\n## 6.", start))
+      .replace(/\s+/g, " ");
+    expect(flat.length).toBeGreaterThan(500);
+    expect(flat).toContain("§1.1");
+    expect(flat).toContain("agentMode");
+    expect(flat).toContain("caller-declared context");
+  });
+
+  // LINK-uyoocslu. The ALSO-REQUIRED half. Non-agent entries in
+  // docs/reason-codes.md cite §1.1 by section number repeatedly; the four
+  // agent-gated entries cited it ZERO times, each substituting a "Why it's a
+  // signal" paragraph framed entirely in consumer consequence. That absence is
+  // how the family kept its unexamined charter — a reader arriving at
+  // `prompt_injection_url` had no route to the boundary.
+  describe("docs/reason-codes.md — every agent-gated entry cites §1.1", () => {
+    const gated = CHECKS.filter((c) => c.agentGated === true).flatMap((c) => c.emits);
+
+    it("there is at least one agent-gated code to check (anti-vacuity)", () => {
+      expect(gated.length).toBeGreaterThan(0);
+    });
+
+    it.each(gated)("`%s`'s entry cites architecture §1.1", (code) => {
+      const heading = `### \`${code}\``;
+      const at = reasonCodesDoc.indexOf(heading);
+      expect(at).toBeGreaterThan(-1);
+      // Bounded at the next heading of EITHER level: the last entry in a
+      // section is followed by an `## ` heading, and slicing only on `### `
+      // would swallow the whole next section into the match surface.
+      const ends = [reasonCodesDoc.indexOf("\n### ", at + 1), reasonCodesDoc.indexOf("\n## ", at + 1)]
+        .filter((i) => i > -1)
+        .sort((a, b) => a - b);
+      const next = ends[0] ?? -1;
+      const entry = reasonCodesDoc
+        .slice(at, next === -1 ? undefined : next)
+        .replace(/^\s*>\s?/gm, "")
+        .replace(/\s+/g, " ");
+      // Anti-vacuity: an empty or truncated slice would pass every match below.
+      expect(entry.length).toBeGreaterThan(400);
+      expect(entry).toContain("§1.1");
+      // The cross-reference has to carry the ruling, not just the section number.
+      expect(entry).toContain("LINK-uyoocslu");
+    });
+  });
+
   // LINK-riupozbo. Two arguments linklint had earned but never stated. Both are
   // load-bearing under challenge and both are deletable without breaking a test
   // unless pinned: the cloaking argument is the only reason offline-first is a
