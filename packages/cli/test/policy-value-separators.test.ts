@@ -283,22 +283,49 @@ describe("LINK-stuiljry — characters that legitimately occur inside one value"
  * `normalizeOptions` without routing through `normalizedList`, so it does not
  * inherit that trim.
  */
+/** A padded value whose axis reason must still FIRE. */
+const PADDED_FIRES: ReadonlyArray<readonly [string, string, string, string]> = [
+  ["--deny-tld", " com", DOTCOM, "tld_denied"],
+  ["--deny-tld", "com ", DOTCOM, "tld_denied"],
+  ["--deny-tld", "\tcom\n", DOTCOM, "tld_denied"],
+  ["--deny-host", " evil.com ", EVIL, "host_denied"],
+  ["--deny-scheme", "\tftp ", FTP, "scheme_denied"],
+];
+
+/** A padded value whose axis reason must still be CLEARED. */
+const PADDED_CLEARS: ReadonlyArray<readonly [string, string, string, string]> = [
+  ["--allow-tld", " com ", DOTCOM, "tld_not_allowlisted"],
+  ["--allow-host", " evil.com ", EVIL, "host_not_allowlisted"],
+  ["--allow-scheme", "\tftp\n", FTP, "scheme_denied"],
+  ["--idn-allow", " münchen.de ", MUNICH, "idn_host"],
+  ["--idn-allow", "\tmünchen.de\n", MUNICH, "idn_host"],
+];
+
 describe("LINK-stuiljry — surrounding whitespace on a single value still matches", () => {
-  it.each([
-    ["--deny-tld", " com", DOTCOM, "tld_denied"],
-    ["--deny-tld", "com ", DOTCOM, "tld_denied"],
-    ["--deny-tld", "\tcom\n", DOTCOM, "tld_denied"],
-    ["--deny-host", " evil.com ", EVIL, "host_denied"],
-    ["--deny-scheme", "\tftp ", FTP, "scheme_denied"],
-  ])("%s %j matches and reports %s", (flag, value, url, code) => {
-    expect(check(flag, value, url).codes).toContain(code as string);
+  it.each(PADDED_FIRES)("%s %j matches and reports %s", (flag, value, url, code) => {
+    expect(check(flag, value, url).codes).toContain(code);
   });
 
-  it.each([
-    ["--allow-tld", " com ", DOTCOM, "tld_not_allowlisted"],
-    ["--allow-host", " evil.com ", EVIL, "host_not_allowlisted"],
-    ["--allow-scheme", "\tftp\n", FTP, "scheme_denied"],
-  ])("%s %j allow-lists the value and clears %s", (flag, value, url, code) => {
-    expect(check(flag, value, url).codes).not.toContain(code as string);
+  it.each(PADDED_CLEARS)("%s %j allow-lists the value and clears %s", (flag, value, url, code) => {
+    expect(check(flag, value, url).codes).not.toContain(code);
+  });
+
+  // LINK-bsudgkfk. The exclusion this block once carried was silent: nothing
+  // failed when `--idn-allow` sat outside the padded tables, so the coverage
+  // gap outlived the premise it rested on. Derive the requirement instead —
+  // every string-valued repeatable flag the file already enumerates in `AXES`
+  // has to appear in one of the two tables above, so a new axis added there
+  // reddens here rather than waiting for a reader to notice.
+  it("pins a padded value for every string-valued repeatable flag", () => {
+    const padded = new Set([...PADDED_FIRES, ...PADDED_CLEARS].map(([flag]) => flag));
+    for (const { flag } of AXES) {
+      expect(
+        padded.has(flag),
+        `${flag} has no padded-value case. A padded single value is harmless on ` +
+          "every flag whose option routes through the core's `normalizedList` " +
+          "choke point (LINK-uxkrtcnw, LINK-qajalduf); add a row to " +
+          "PADDED_FIRES or PADDED_CLEARS rather than excluding the flag.",
+      ).toBe(true);
+    }
   });
 });
