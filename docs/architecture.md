@@ -322,7 +322,7 @@ precisely the case an allowlist gets wrong.
 ```
 linklint/
   packages/
-    core/           # linklint npm package — inspect(), 39 checks, scoring, policy, schema
+    core/           # linklint npm package — inspect(), 38 checks, scoring, policy, schema
     mcp/            # @linklint/mcp — local-only MCP server (check_url / check_domain)
     cli/            # @linklint/cli — offline CLI (linklint check / batch)
     online/         # @linklint/online — Node/server safe transport + deterministic fixtures
@@ -367,7 +367,7 @@ Runtime dependencies: `tldts` (Public Suffix List) and `tr46` (IDNA/UTS-46).
 
 4. **Normalization** — IDNA/UTS-46 normalization via `tr46`. Record deltas as informational findings (`normalization_delta`).
 
-5. **Detector execution** — run 39 independent lexical checks: 4 structural scans ahead of parsing, then 35 parsed-context detectors. The 5 agent-gated parsed detectors run only under `agentMode`. A detector failure adds `lexical:<id>` to `checksSkipped` rather than aborting the inspection. Any skipped scoring detector means the score is a lower bound, not a complete verdict.
+5. **Detector execution** — run 38 independent lexical checks: 4 structural scans ahead of parsing, then 34 parsed-context detectors. The 4 agent-gated parsed detectors run only under `agentMode`. A detector failure adds `lexical:<id>` to `checksSkipped` rather than aborting the inspection. Any skipped scoring detector means the score is a lower bound, not a complete verdict.
 
 6. **Policy layer** (optional) — apply caller-configured allow/deny rules. Policy reasons carry `weight: 0` and never change `score` or `severity`.
 
@@ -377,7 +377,7 @@ Runtime dependencies: `tldts` (Public Suffix List) and `tr46` (IDNA/UTS-46).
 
 ## 5. Detectors
 
-`packages/core/src/detectors/` contains 39 lexical checks: 4 structural scans and 35 parsed-context detectors. Parsed detectors implement:
+`packages/core/src/detectors/` contains 38 lexical checks: 4 structural scans and 34 parsed-context detectors. Parsed detectors implement:
 
 ```ts
 interface Detector {
@@ -389,7 +389,7 @@ interface Detector {
 
 Detectors emit findings only — they never read weights. The core attaches weights from the version-pinned table (`packages/core/src/scoring/weights.ts`) keyed by reason code.
 
-The 39 checks group into seven families (listed by **check id**; a single check
+The 38 checks group into seven families (listed by **check id**; a single check
 may emit several reason codes):
 
 | Family | Detectors |
@@ -400,17 +400,17 @@ may emit several reason codes):
 | **Dangerous payloads** | `dangerous_scheme`, `file_extension_tld`, `suspicious_extension`, `open_redirect_param` |
 | **Hidden characters** | `invisible_char`, `bidi_override`, `control_char`, `encoding_obfuscation`, `percent_encoding_malformed`, `low_byte_truncation`, `confusable_in_path` |
 | **Contextual signals** | `risky_tld`, `bait_tokens` |
-| **Agent-gated** | `prompt_injection_url`, `api_endpoint_impersonation`, `credential_harvesting`, `data_exfiltration`, `ssrf_cloud_metadata` |
+| **Agent-gated** | `prompt_injection_url`, `credential_harvesting`, `data_exfiltration`, `ssrf_cloud_metadata` |
 
 Informational detectors (`confusable_char`, `confusable_in_path`, `normalization_delta`, `idna_mapping_ambiguity`, `locale_case_ambiguity`, `host_length_unresolvable`, `fqdn_root_label`) have weight 0 — they annotate without raising severity. `idna_mapping_ambiguity` and `locale_case_ambiguity` each escalate to a weight-0.5 scoring code (`brand_idna_collapse`, `brand_locale_collapse`) when the alternate reading lands on a watchlist brand exactly.
 
 ## 6. Result schema
 
-Every channel returns the same `InspectResult` (schema version `1.8`):
+Every channel returns the same `InspectResult` (schema version `1.9`):
 
 ```ts
 interface InspectResult {
-  schemaVersion: '1.8';
+  schemaVersion: '1.9';
   status: 'ok' | 'invalid';
   input: string;
   parsed: ParsedUrl | null;
@@ -891,6 +891,65 @@ the watchlist already covers the major banks, card networks, crypto custody and
 tax software, and additions are gated on fold-reachability rather than fame.
 Reopen only against a concrete named gap — never by importing a list wholesale.
 
+#### 6.1.4 `api_endpoint_impersonation` — deleted (`LINK-eurtxkit`)
+
+**Decision — `api_endpoint_impersonation` and its `data/api-brands.ts` tier are
+deleted outright.** Removed in schema `1.9` / weights `1.18`. Like §6.1.2 this
+is a scope-of-claim correction, not a tuning change, and it was carried 2–1.
+
+The rule is §1.1's: claim (a) STRUCTURAL over claim (b) SEMANTIC, under which a
+watchlist may only NAME a structural anomaly and may not manufacture one on its
+own. The detector's firing condition was
+`API_BRAND_DOMAINS.get(token)` — a lookup into a hand-kept watchlist of ten
+commercial API providers — with corroboration from either an exact `api`/`apis`
+token in some host label or one of four fixed route prefixes. Both corroborating
+signals are ordinary URL syntax that any site is free to use, so neither
+supplies a structural precondition; they narrow *how often* the watchlist is
+consulted without changing *what the watchlist is doing*. The lookup was the
+finding. That is claim (b) wearing claim (a)'s clothes.
+
+The control makes it checkable. `api.openai-login.com` and `api.acme-login.com`
+are the same string shape — pure ASCII, single script, no fold, no digit, an
+`api` label and a hyphenated `<word>-login` label on a `.com` eTLD. The first
+read `0.50`/`medium` under `agentMode` and the second read `0.00`, and the only
+difference between them is that `openai` is on the list. Nothing a URL parser
+can see separates the two.
+
+**The double-score it removes.** `api.openai.com.evil.io/v1/chat/completions`
+scored `0.50`/`medium` in plain mode from `embedded_domain_in_subdomain` — a
+real registrable domain parked in another's subdomain, a structural fact stated
+once. Under `agentMode` the api detector read the SAME `openai` label and
+stacked a second `0.50` on it, taking the row to `0.75`/`high` with no
+additional evidence observed. Both modes now agree at `0.50`.
+
+**Accepted, deliberate loss of coverage.** `api.openai-com.io/`,
+`api.openai-com.io/v1/chat/completions`, `api.anthropic-com.co/v1/messages` and
+`openai-api.io` all score `0.00`/`info`. The first two are carried as *benign*
+rows in the corpus, alongside `api.openai-login.com` and its `acme` control, so
+a future widening has to argue with them. The V4e false-positive guards
+(`myproject.github.io`, `storage.googleapis.com`, `openai.example.com`, …) were
+converted from `forbidReasons` rows to plain benign rows rather than dropped —
+the claim they make is unchanged, and it no longer names a code that cannot be
+emitted.
+
+**What survives, and why it is different.** `brand_homoglyph` still reads
+`api.0penai.com/v1/chat/completions` at `0.80`/`high` in PLAIN mode, with no
+agent gate, because a digit demonstrably folds to a letter (`skel !== raw`)
+before the watchlist is consulted — the list only NAMES the target. That is the
+same survivor test §6.1.2 applied, and the same reason `brand_idna_collapse` and
+`brand_locale_collapse` stand.
+
+**Consequence for `data_exfiltration`.** It is NOT covered by this decision and
+was deliberately excluded from it. It consults no data table, so the argument
+above does not reach it; its disposition is `LINK-uyoocslu`.
+
+**Implemented (`LINK-eurtxkit`).** The detector module, `data/api-brands.ts`,
+the registry entry, the reason code, the weight, the docs entry and the corpus
+positives are all removed; the mechanical `REASON_CODES` pin in
+`packages/core/test/docs-validation.test.ts` was confirmed to redden on the
+REMOVAL before the bumps were applied, which had previously only been
+demonstrated for an addition.
+
 ### 6.2 IDNA / UTS-46 conformance & the normalization flag profile
 
 Every verdict that rests on *"what host is this really"* flows through
@@ -1240,7 +1299,7 @@ The three-layer model is a forward-compatibility contract:
 
 | Layer | Status | Description |
 |-------|--------|-------------|
-| **Lexical** (L1) | **Implemented** | Offline, deterministic, synchronous. 39 checks: 4 structural, 35 parsed (5 of them agent-gated). < 5 ms typical. |
+| **Lexical** (L1) | **Implemented** | Offline, deterministic, synchronous. 38 checks: 4 structural, 34 parsed (4 of them agent-gated). < 5 ms typical. |
 | **Resolution** (L2) | **Partial** | Exact local wrapper decoding and caller-authorized bounded redirect/refresh expansion are implemented; observed correlation/divergence and MIME evidence remain roadmap work. Every discovered target is re-inspected through L1. |
 | **Reputation** (L3) | Roadmap | Threat feeds, RDAP domain age, CT, DNS posture. Privacy-preserving by design. |
 

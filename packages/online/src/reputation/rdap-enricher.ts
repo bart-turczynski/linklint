@@ -57,7 +57,6 @@ export const RDAP_BRAND_CORROBORATION_CODES: readonly string[] = [
   "brand_homoglyph",
   "homograph_skeleton_collision",
   "homograph_latin_skeleton",
-  "api_endpoint_impersonation",
 ];
 
 const MS_PER_DAY = 86_400_000;

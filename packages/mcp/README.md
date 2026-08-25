@@ -21,8 +21,8 @@ and `status: "invalid"` as **not-checked** (do not assume safe).
 `agentMode` defaults to `false`, so disabled agent-gated checks are not reported
 as skipped and the output stays byte-identical to core `inspect(url)`. With
 `agentMode: true`, the tools pass `{ agentMode: true }` through to core and enable
-the V4 agent-family checks (`prompt_injection_url`, `api_endpoint_impersonation`,
-`credential_harvesting`, `data_exfiltration`) plus the cloud-metadata SSRF
+the V4 agent-family checks (`prompt_injection_url`, `credential_harvesting`,
+`data_exfiltration`) plus the cloud-metadata SSRF
 escalation (`ssrf_cloud_metadata`).
 
 ### Server default: `LINKLINT_AGENT_MODE`

@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { inspect } from "../src/index.js";
+import { CHECKS } from "../src/detectors/checks.js";
+import { REASON_CODES } from "../src/schema/reason-codes.js";
 import { AGENT_CORPUS } from "./corpus/corpus.js";
 
-/** The four agent-gated reason codes (the V4 family). */
+/** The three agent-gated scoring reason codes (the V4 family). */
 const AGENT_REASON_CODES = [
   "prompt_injection_url",
-  "api_endpoint_impersonation",
   "credential_harvesting",
   "data_exfiltration",
 ] as const;
@@ -73,31 +74,71 @@ describe("agentMode:true — observable channel token", () => {
   });
 });
 
-// V4b — api_endpoint_impersonation is the second agent-gated detector. Same
-// gating contract: byte-identical default, observable + fires under agentMode.
+// V4b — api_endpoint_impersonation was the second agent-gated detector and is
+// DELETED (LINK-eurtxkit, schema 1.9 / weights 1.18). Its firing condition was
+// `API_BRAND_DOMAINS.get(token)` — a watchlist lookup over contingent commercial
+// facts — corroborated only by an `api`/`apis` label or a fixed route prefix,
+// both of which are ordinary syntax. §1.1 calls that claim (b) wearing claim
+// (a)'s clothes. What follows is the deletion record: the four rows that carried
+// the argument, asserted at their POST-deletion values so a re-introduction has
+// to argue with them. (The pre-deletion values are in the commit that added
+// them.)
 const API_IMPOSTER = "https://api.openai-com.io/v1/chat/completions";
 
-describe("agentMode — api_endpoint_impersonation gating contract", () => {
-  it("default is byte-identical to agentMode:false for an impersonating host", () => {
-    expect(inspect(API_IMPOSTER, { agentMode: false })).toEqual(inspect(API_IMPOSTER));
+describe("agentMode — api_endpoint_impersonation is deleted (LINK-eurtxkit)", () => {
+  it("the code is gone from the registry and cannot be emitted", () => {
+    expect(Object.keys(REASON_CODES)).not.toContain("api_endpoint_impersonation");
+    expect(CHECKS.map((c) => c.id)).not.toContain("api_endpoint_impersonation");
   });
 
-  it("default neither fires the code nor lists it in checksSkipped / carries the agent token", () => {
-    const r = inspect(API_IMPOSTER);
-    expect(r.reasons.map((x) => x.code)).not.toContain("api_endpoint_impersonation");
-    expect(r.checksSkipped).not.toContain("lexical:api_endpoint_impersonation");
-    expect(r.checksRun).not.toContain("agent");
+  it("the former flagship impostor host now scores 0 in BOTH modes", () => {
+    for (const r of [inspect(API_IMPOSTER), inspect(API_IMPOSTER, { agentMode: true })]) {
+      expect(r.score).toBe(0);
+      expect(r.reasons).toHaveLength(0);
+      expect(r.checksSkipped).not.toContain("lexical:api_endpoint_impersonation");
+    }
   });
 
-  it("agentMode:true puts 'agent' in checksRun AND fires api_endpoint_impersonation", () => {
-    const r = inspect(API_IMPOSTER, { agentMode: true });
-    expect(r.checksRun).toContain("agent");
-    expect(r.reasons.map((x) => x.code)).toContain("api_endpoint_impersonation");
+  it("api.openai-login.com scores 0 — it was 0.50 under agentMode on the lookup alone", () => {
+    const r = inspect("https://api.openai-login.com", { agentMode: true });
+    expect(r.score).toBe(0);
+    expect(r.reasons).toHaveLength(0);
   });
 
-  it("the real provider host does NOT fire even under agentMode", () => {
-    const r = inspect("https://api.openai.com/v1/chat/completions", { agentMode: true });
-    expect(r.reasons.map((x) => x.code)).not.toContain("api_endpoint_impersonation");
+  it("api.acme-login.com — the unlisted-token CONTROL — is UNMOVED at 0", () => {
+    // It read 0 before the deletion and reads 0 after. The pair above and here
+    // is the whole point: two structurally identical hosts scored differently
+    // only because one token is on a commercial watchlist.
+    const r = inspect("https://api.acme-login.com", { agentMode: true });
+    expect(r.score).toBe(0);
+    expect(r.reasons).toHaveLength(0);
+  });
+
+  it("api.0penai.com/v1/chat/completions — the STRUCTURAL case — is UNMOVED at 0.80 in plain mode", () => {
+    // A digit demonstrably folds to a letter, so `brand_homoglyph` stands on
+    // `skel !== raw` and the watchlist only NAMES the target. Nothing the
+    // deletion touched is load-bearing here, and no agent gate is needed.
+    const r = inspect("https://api.0penai.com/v1/chat/completions");
+    expect(r.score).toBeCloseTo(0.8, 5);
+    expect(r.severity).toBe("high");
+    expect(r.reasons.map((x) => x.code)).toContain("brand_homoglyph");
+  });
+
+  it("api.openai.com.evil.io/v1/chat/completions — the DOUBLE-SCORE is gone: agent now equals plain", () => {
+    // The deleted code read the SAME `openai` label that
+    // `embedded_domain_in_subdomain` had already scored and stacked a second
+    // 0.50 on it, taking 0.50/medium to 0.75/high with no new evidence. Both
+    // modes now state the structural fact exactly once.
+    const plain = inspect("https://api.openai.com.evil.io/v1/chat/completions");
+    const agent = inspect("https://api.openai.com.evil.io/v1/chat/completions", {
+      agentMode: true,
+    });
+    expect(plain.score).toBeCloseTo(0.5, 5);
+    expect(plain.severity).toBe("medium");
+    expect(plain.reasons.map((x) => x.code)).toEqual(["embedded_domain_in_subdomain"]);
+    expect(agent.score).toBe(plain.score);
+    expect(agent.severity).toBe(plain.severity);
+    expect(agent.reasons.map((x) => x.code)).toEqual(plain.reasons.map((x) => x.code));
   });
 });
 
@@ -169,7 +210,7 @@ describe("agentMode — family-wide gating contract over the agent corpus", () =
     (r) => r.label === "deceptive" && r.options?.agentMode === true,
   );
 
-  it("the corpus exercises all four agent reason codes", () => {
+  it("the corpus exercises all three agent scoring reason codes", () => {
     const covered = new Set(deceptiveAgentRows.flatMap((r) => r.expectReasons ?? []));
     for (const code of AGENT_REASON_CODES) expect(covered).toContain(code);
   });

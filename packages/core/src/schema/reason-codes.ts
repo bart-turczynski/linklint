@@ -300,13 +300,6 @@ export const REASON_CODES = {
     summary:
       "URL carries an LLM-agent prompt-injection payload: a prompt-control query parameter (role=/system=/prompt=) or an instruction-override path segment (/ignore-previous-instructions). Agent-gated (emits only under agentMode).",
   },
-  api_endpoint_impersonation: {
-    layer: "lexical",
-    scoring: true,
-    weight: 0.5,
-    summary:
-      "Host masquerades as a known API provider's endpoint — an api-brands token (openai/anthropic/…) appears in a host label whose registrable domain is not the real provider (api.openai-com.io), optionally with a real API route path. Agent-gated (emits only under agentMode).",
-  },
   credential_harvesting: {
     layer: "lexical",
     scoring: true,

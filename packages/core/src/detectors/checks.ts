@@ -38,13 +38,12 @@ import { promptInjection } from "./prompt-injection.js";
 import { lowByteTruncation } from "./low-byte-truncation.js";
 import { fqdnRootLabel } from "./fqdn-root-label.js";
 import { hostLengthUnresolvable } from "./host-length-unresolvable.js";
-import { apiEndpointImpersonation } from "./api-endpoint-impersonation.js";
 import { credentialHarvesting } from "./credential-harvesting.js";
 import { dataExfiltration } from "./data-exfiltration.js";
 import { ssrfCloudMetadata } from "./ssrf-cloud-metadata.js";
 
 /**
- * THE single descriptor source for all 35 checks. `STRUCTURAL_SCANS`
+ * THE single descriptor source for all 38 checks. `STRUCTURAL_SCANS`
  * (structural.ts) and `DETECTORS` (registry.ts) are both DERIVED from this
  * array — add a check here once and both runtime arrays pick it up.
  *
@@ -351,15 +350,6 @@ export const CHECKS: CheckDescriptor[] = [
     skipReportable: true,
     agentGated: true,
     run: promptInjection.run,
-  },
-  {
-    id: apiEndpointImpersonation.id,
-    layer: apiEndpointImpersonation.layer,
-    phase: "parsed",
-    emits: ["api_endpoint_impersonation"],
-    skipReportable: true,
-    agentGated: true,
-    run: apiEndpointImpersonation.run,
   },
   {
     id: credentialHarvesting.id,

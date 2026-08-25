@@ -21,10 +21,10 @@ tool call — and it tells you whether the URL is _deceptive_, and **explains ex
 why**, with no network and no data leaving the machine.
 
 It generalizes one insight from hostname analysis: **if `normalize(input) !== input`,
-something may be hiding in the URL.** linklint turns that intuition into 39 deterministic
-detectors, each emitting a named, documented reason code (five — the agent-mode
-prompt-injection, API-endpoint-impersonation, credential-harvesting, data-exfiltration,
-and cloud-metadata SSRF detectors — are opt-in via `agentMode`).
+something may be hiding in the URL.** linklint turns that intuition into 38 deterministic
+detectors, each emitting a named, documented reason code (four — the agent-mode
+prompt-injection, credential-harvesting, data-exfiltration, and cloud-metadata SSRF
+detectors — are opt-in via `agentMode`).
 
 ```ts
 import { inspect } from 'linklint';
@@ -94,10 +94,10 @@ Each reason is fully self-describing:
 
 ## What linklint protects against
 
-linklint runs **39 offline detectors** grouped into the families below: 4 structural
-scans and 35 parsed-context detectors, including 5 agent-mode detectors
-(prompt-injection, API-endpoint-impersonation, credential-harvesting, data-exfiltration,
-and cloud-metadata SSRF) that are opt-in via `agentMode` and off by default. Every
+linklint runs **38 offline detectors** grouped into the families below: 4 structural
+scans and 34 parsed-context detectors, including 4 agent-mode detectors
+(prompt-injection, credential-harvesting, data-exfiltration, and
+cloud-metadata SSRF) that are opt-in via `agentMode` and off by default. Every
 example is real output. A clean URL like `https://github.com` returns `score: 0`,
 `severity: 'info'`, `reasons: []`.
 
@@ -274,7 +274,7 @@ detector logic is versioned there, not in `dataVersions`.
 
 ```ts
 interface InspectResult {
-  schemaVersion: '1.8';
+  schemaVersion: '1.9';
   status: 'ok' | 'invalid';
   input: string;
   parsed: ParsedUrl | null;        // scheme, userinfo, registrableDomain, publicSuffix,
@@ -403,7 +403,7 @@ Files and stdin skip blank lines and lines starting with `#`.
 | `--json` | Emit a JSON array of full `InspectResult` objects (no human text) |
 | `--fail-on <severity>` | Exit non-zero at/above this severity (`info`\|`low`\|`medium`\|`high`\|`critical`; default `high`) |
 | `--allow-invalid` | Treat unparseable URLs as a pass (default: fail) |
-| `--agent` | Enable the 5 agent-gated detectors (prompt-injection, API impersonation, credential-harvesting, data-exfiltration, cloud-metadata SSRF escalation) |
+| `--agent` | Enable the 4 agent-gated detectors (prompt-injection, credential-harvesting, data-exfiltration, cloud-metadata SSRF escalation) |
 | `--allow-idn` | Permit internationalized (Unicode/punycode) domains (default: block at `high`) |
 | `--idn-allow <domain>` | Exempt one registrable domain from the IDN block; repeatable |
 | `--quiet` | One line per URL |
@@ -432,7 +432,7 @@ This is a pnpm monorepo.
 
 | Path | What |
 |------|------|
-| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 39 detectors, scoring, policy, schema). |
+| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 38 detectors, scoring, policy, schema). |
 | `packages/cli` | `@linklint/cli` — the offline `linklint` command-line wrapper (`check` / `batch`). |
 | `packages/mcp` | `@linklint/mcp` — the local-only MCP server (`check_url` / `check_domain`). |
 | `docs/architecture.md` | System architecture (channels, pipeline, result contract, layers). |
@@ -458,7 +458,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) and [SECURITY.md](./SECURITY.md).
 
 ## Status & roadmap
 
-**v1 — implemented.** The lexical layer is complete: 39 offline, deterministic detectors,
+**v1 — implemented.** The lexical layer is complete: 38 offline, deterministic detectors,
 probabilistic-OR scoring, a caller-configurable policy layer, a stable versioned schema,
 and a local MCP server. Typically < 5 ms per call, zero network.
 

@@ -4,6 +4,46 @@ All notable changes to this project will be documented here.
 
 ## Unreleased
 
+- **Delete `api_endpoint_impersonation` and `packages/core/src/data/api-brands.ts`**
+  (`LINK-eurtxkit`, rescope carried 2–1). The detector fired on
+  `API_BRAND_DOMAINS.get(token)` — a lookup into a hand-kept watchlist of ten
+  commercial API providers — corroborated only by an exact `api`/`apis` token in
+  a host label or one of four fixed route prefixes. Both corroborating signals
+  are ordinary URL syntax available to any site, so neither supplies a
+  structural precondition: the watchlist lookup WAS the finding, which
+  `docs/architecture.md` §1.1 calls claim (b) wearing claim (a)'s clothes. The
+  control is `api.acme-login.com` — the same string shape as
+  `api.openai-login.com` in every respect a URL parser can see, and it always
+  read `0.00` while the `openai` row read `0.50`/`medium`. Removed with it: the
+  detector module, the data tier, the registry and descriptor entries, the
+  reason code, the weight, the `docs/reason-codes.md` entry, the
+  `docs/scoring.md` table row, and the two corpus positives (converted to benign
+  rows, not dropped, so the accepted loss of coverage is recorded). The V4e
+  false-positive guards were likewise converted from `forbidReasons` rows to
+  plain benign rows, and `api.openai-login.com` plus its `acme` control were
+  added. Check total 39 → 38, parsed 35 → 34, agent-gated 5 → 4.
+  `data_exfiltration` is deliberately NOT in scope — it consults no data table
+  and sits under `LINK-uyoocslu`. Recorded in `docs/architecture.md` §6.1.4.
+- One scored row moves DOWN, and that is the point:
+  `api.openai.com.evil.io/v1/chat/completions` was `0.50`/`medium` in plain mode
+  from `embedded_domain_in_subdomain` and `0.75`/`high` under `agentMode`,
+  because the deleted detector re-read the SAME `openai` label the structural
+  finding had already scored and stacked a second `0.50` on it. Both modes now
+  agree at `0.50`. Nothing outside the api-brand class moved: corpus precision
+  and recall stay 1.000/1.000, and `api.0penai.com/v1/chat/completions` still
+  reads `0.80`/`high` in PLAIN mode from `brand_homoglyph`, which stands on a
+  demonstrated digit-to-letter fold rather than on a list.
+- **`SCHEMA_VERSION` 1.8 → 1.9** and **`WEIGHTS_VERSION` 1.17 → 1.18**, owed by
+  the deletion above under the §6.4 bump matrix: removing a value from
+  `ReasonCode` is a change to a CLOSED, publicly exported domain, and removing
+  its weight moves the weights map. The mechanical guard in
+  `packages/core/test/docs-validation.test.ts` had only ever been demonstrated
+  to bite on an ADDITION (the 1.7 → 1.8 bump below); it was deliberately run
+  here on the REMOVAL with both stamps untouched, and failed with `removed:
+  ["api_endpoint_impersonation"]` and the instruction to bump and re-stamp. Both
+  directions of the closed domain are now known-guarded. Both constants
+  (`PINNED_SCHEMA_VERSION`, `PINNED_REASON_CODES`) are re-stamped in the same
+  commit. `ENRICHMENT_SCHEMA_VERSION` does NOT move.
 - Name the HTTPS → HTTP downgrade a resolved chain walks into
   (`https_downgrade_observed`, `LINK-emlbzwct`). The fact was already fully
   derivable from the shipped `resolution.chain-hop` payloads — each carries
