@@ -2,10 +2,14 @@
 # linklint — shell-alias installer (fail-closed).
 #
 # safe-chain-style guard: wrap URL-fetching CLIs (curl, wget) in a shell
-# function that inspects each URL argument with `linklint check` FIRST and
+# function that inspects each FETCH TARGET with `linklint check` FIRST and
 # ABORTS the fetch on any non-zero exit — threshold hit OR invalid input. Same
 # fail-closed contract as the Claude Code hook (PRD §6.1/§6.2): file:///… and
 # unparseable inputs are blocked, not just high/critical.
+#
+# A target is an argument that BEGINS with a scheme and is not sitting in a
+# value-taking option's value slot; see the emitted comment below for why an
+# option value is excluded and which options are deliberately not excluded.
 #
 # Usage:
 #   ./install-aliases.sh            # append the guard to your shell rc
@@ -42,23 +46,79 @@ FAIL_ON_LIT="'${FAIL_ON_ESC//$'\n'/ }'"
 
 read -r -d '' GUARD <<EOF || true
 # >>> linklint guard >>>
-# Inspect URL arguments with linklint before curl/wget run. Fail-closed: any
-# non-zero linklint exit (deceptive >= ${FAIL_ON_LIT}, invalid, or check error)
-# aborts the fetch. Remove this block to uninstall.
+# Inspect the FETCH TARGETS of curl/wget with linklint before the tool runs.
+# Fail-closed: any non-zero linklint exit (deceptive >= ${FAIL_ON_LIT}, invalid,
+# or check error) aborts the fetch. Remove this block to uninstall.
+#
+# A target is an argument that BEGINS with a scheme and is not sitting in an
+# option's value slot. An option VALUE — a header, a request body, a referer —
+# is not a target and is not judged: nothing is fetched from it, so a verdict
+# taken from one would be applied to a different network operation entirely.
+#
+# POSIX sh, deliberately: the installer's \`*)\` branch can route this text into
+# ~/.profile, which ksh reads, and ksh93 has no \`local\`. The names are prefixed
+# and cleared before the tool runs so nothing leaks into the interactive shell.
 _linklint_guard() {
-  local _tool="\$1"; shift
-  local _arg
-  for _arg in "\$@"; do
-    case "\$_arg" in
-      http://*|https://*|ftp://*|file://*|*://*)
-        if ! command linklint check "\$_arg" --fail-on ${FAIL_ON_LIT} >/dev/null 2>&1; then
-          printf 'linklint blocked %s: %s\\n' "\$_tool" "\$_arg" >&2
-          return 1
-        fi
-        ;;
+  _linklint_tool=\$1
+  shift
+  _linklint_skip=0
+  for _linklint_arg in "\$@"; do
+    if [ "\$_linklint_skip" = 1 ]; then
+      _linklint_skip=0
+      continue
+    fi
+    # Options that take a SEPARATE value argument. Skipping that argument is
+    # argv parsing rather than a guess: it is the option's value, so it cannot
+    # be a fetch target. Absent on purpose, so their values stay inspected:
+    # curl's \`--url\`, \`-x\`/\`--proxy\`/\`--preproxy\`, and wget's \`-B\` — each
+    # names a network endpoint. The \`--opt=value\` spelling needs no entry; it
+    # does not begin with a scheme. An option this list does not know about
+    # falls through to the scheme test below, which is the old behavior.
+    if [ "\$_linklint_tool" = curl ]; then
+      case "\$_linklint_arg" in
+        -A|-b|-c|-C|-d|-D|-e|-E|-F|-H|-K|-m|-o|-P|-Q|-r|-t|-T|-u|-U|-w|-X|-y|-Y|-z) _linklint_skip=1; continue ;;
+        --data|--data-ascii|--data-binary|--data-raw|--data-urlencode|--json) _linklint_skip=1; continue ;;
+        --form|--form-string|--header|--proxy-header|--referer|--user-agent|--write-out) _linklint_skip=1; continue ;;
+        --url=*) _linklint_arg=\${_linklint_arg#--url=} ;;
+      esac
+    elif [ "\$_linklint_tool" = wget ]; then
+      case "\$_linklint_arg" in
+        -A|-a|-C|-D|-e|-I|-i|-l|-o|-O|-P|-Q|-R|-t|-T|-U|-w|-X) _linklint_skip=1; continue ;;
+        --body-data|--body-file|--header|--post-data|--post-file) _linklint_skip=1; continue ;;
+        --referer|--user-agent|--warc-header) _linklint_skip=1; continue ;;
+      esac
+    fi
+    # BEGINS with a scheme, not merely carries \`://\` somewhere. A header value
+    # ('Origin: https://…'), a form field ('url=https://…') and a JSON body all
+    # contain \`://\` and are none of them URLs; \`linklint check\` rightly calls
+    # them unparseable, and under a fail-closed guard that killed the fetch.
+    case "\$_linklint_arg" in
+      *://*) ;;
+      *) continue ;;
     esac
+    case "\${_linklint_arg%%://*}" in
+      "" | [!A-Za-z]* | *[!A-Za-z0-9.+-]*) continue ;;
+    esac
+    command linklint check "\$_linklint_arg" --fail-on ${FAIL_ON_LIT} >/dev/null 2>&1 && continue
+    _linklint_rc=\$?
+    # Name the REAL cause. \`check\` exits 1 for "deceptive" and for "does not
+    # parse" alike, so re-run with --allow-invalid to tell them apart; a bare
+    # "linklint blocked curl: <string>" reads as an accusation against a host
+    # that may not have been judged at all.
+    if [ "\$_linklint_rc" -ne 1 ]; then
+      _linklint_why="linklint could not check it (exit \$_linklint_rc)"
+    elif command linklint check "\$_linklint_arg" --fail-on ${FAIL_ON_LIT} --allow-invalid >/dev/null 2>&1; then
+      _linklint_why="not a parseable URL, so not judged — do not assume safe"
+    else
+      _linklint_why='deceptive at or above '${FAIL_ON_LIT}
+    fi
+    printf 'linklint blocked %s (%s): %s\\n' "\$_linklint_tool" "\$_linklint_why" "\$_linklint_arg" >&2
+    unset _linklint_tool _linklint_arg _linklint_skip _linklint_rc _linklint_why
+    return 1
   done
-  command "\$_tool" "\$@"
+  set -- "\$_linklint_tool" "\$@"
+  unset _linklint_tool _linklint_arg _linklint_skip _linklint_rc _linklint_why
+  command "\$@"
 }
 curl() { _linklint_guard curl "\$@"; }
 wget() { _linklint_guard wget "\$@"; }
