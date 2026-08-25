@@ -1094,8 +1094,11 @@ instead of minting one. Absent either, this stays closed.
   documented allow-list bypass `fqdn_root_label` exists to explain. The
   narrowness is the detector: `metadata.mycorp.com`, `foo.metadata.example.com`,
   `my-instance-data.example.org` and `svc.internal` stay at `0.00`, and
-  `metadata.google.internal.evil.com` is `embedded_domain_in_subdomain`, not a
-  metadata endpoint.
+  `metadata.google.internal.evil.com` is not a metadata endpoint either. That
+  last one used to carry `embedded_domain_in_subdomain` at `0.50`; since
+  `LINK-vuqdzmzy` it carries nothing, because its only window is
+  `metadata.google` and `.google` is a 2012-round gTLD (see that code's entry
+  and architecture §6.1.6).
 
   Each row cites the vendor page it was verified against, and a name that
   appears only in third-party SSRF cheat-sheets is not shipped.
@@ -1302,22 +1305,47 @@ specified above.
   (no DNS resolution of the embedded domain — FR-D-14). All contiguous windows
   of the subdomain labels are scanned (not just suffixes), so a brand domain with
   filler labels after it — `paypal.com.login.evil.com` — is still caught.
-- **Detection & precision (SC-2):** a window whose public suffix is a **bare
-  two-letter label** is skipped. IANA reserves every two-letter TLD for an
-  ISO 3166-1 alpha-2 country code, and those codes are what the regional-
-  subdomain convention puts left of the real domain — so the window `www.eu` in
-  Sony's storefront host (`www` then `eu` then `playstation.com`) is ordinary
-  naming, not an embedded authority: nothing is hidden, every reader resolves
-  `playstation.com`, and the string makes no claim about itself that fails
-  (architecture §1.1). Skipped windows do not abort the scan, so a real embedded
-  domain further right is still reported. The test is on the suffix, not the
-  window, so a multi-label ccTLD suffix (`paypal.co.uk` left of `evil.com`)
-  still fires. **Accepted limitation:** an embedded domain under a two-letter
-  ccTLD is not detected either — a bank's `.de` domain in a subdomain is
+- **Detection & precision (SC-2):** the window has to be a registrable domain
+  *and* its public suffix has to belong to one of the two classes that carry
+  signal. Those two are a **bare legacy gTLD** (`com`, `net`, `org`, `edu`,
+  `gov`, `mil`, `int`, `arpa` — the RFC 920 set plus `int`) and a **multi-label
+  suffix under a two-letter ccTLD** (`co.uk`, `com.au`, `co.jp`). Every other
+  suffix class is skipped, on two separate grounds.
+
+  A **bare two-letter** suffix is a region code. IANA reserves every two-letter
+  TLD for an ISO 3166-1 alpha-2 country code, and those codes are what the
+  regional-subdomain convention puts left of the real domain — so the window
+  `www.eu` in Sony's storefront host (`www` then `eu` then `playstation.com`) is
+  ordinary naming, not an embedded authority: nothing is hidden, every reader
+  resolves `playstation.com`, and the string makes no claim about itself that
+  fails (architecture §1.1).
+
+  An **expansion-era** suffix — everything delegated from the 2000 round onward,
+  which covers the pre-2012 sponsored round (`.info`, `.biz`, `.travel`,
+  `.post`, `.jobs`, `.asia`) and the whole 2012 New gTLD Program including brand
+  gTLDs — is where hosting providers and internal naming conventions live, on
+  both sides of the ledger. `console.cloud.google.com` (the Google Cloud
+  Console) and `z1.web.core.windows.net` (an Azure-hosted phish) are the same
+  kind of string. Measured over four corpora, a window in this class is 2–4×
+  more common on a benign host than on a phishing one, so it is not evidence of
+  deception; architecture §6.1.6 records the measurement and the recall it
+  costs. The discriminator is the suffix's **delegation era**, which is closed
+  registry history — not a curated list of infrastructure-looking words, which
+  is what §6's self-confirming trap would be.
+
+  Skipped windows do not abort the scan, so a real embedded domain further right
+  is still reported: `appleid.apple.com.evil.tk` passes over `appleid.apple` and
+  reports `apple.com`. **Accepted limitations:** an embedded domain under a
+  two-letter ccTLD is not detected — a bank's `.de` domain in a subdomain is
   structurally indistinguishable from a `de` region label, and separating them
-  needs to know which words are brands, which is claim (b).
+  needs to know which words are brands, which is claim (b). Nor is one under an
+  expansion-era suffix with nothing to its right: `id.security` and
+  `mail.office` are attacker-chosen and are given up with the class.
 - **Example:** `https://paypal.com.spoof.info/` → real domain `spoof.info`;
-  `https://paypal.com.login.evil.com/` → real domain `evil.com`.
+  `https://paypal.com.login.evil.com/` → real domain `evil.com`;
+  `https://amazon.co.jp.evil.com/` → real domain `evil.com`.
+  `https://console.cloud.google.com/` and `https://www.tax.service.gov.uk/` do
+  **not** fire.
 
 ### `excessive_subdomain_depth` — Epic I (I3) · weight 0.15
 

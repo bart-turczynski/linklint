@@ -1243,7 +1243,9 @@ default run. It is refused on three grounds.
 
 *It is not a targeted repair.* Eleven distinct inputs across the corpora carry
 the code, and after this change **nine** of them read exactly `0.500`/`medium`
-with no companion at all. `0.500` is the medium/high boundary, so ANY raise
+with no companion at all. (`LINK-vuqdzmzy` later took `metadata.google.internal.evil.com`
+out of that set, so the live count is eight — §6.1.6. The count moved; the
+argument below did not.) `0.500` is the medium/high boundary, so ANY raise
 above it moves all nine into `high` at once — the weight is a single number and
 cannot be applied to two rows. Two of the nine are the rows this change dropped;
 the other seven were `medium` before this change too, and would newly fail a default
@@ -1302,6 +1304,136 @@ gains `--deny-tld` / `--allow-tld`. The mechanical `REASON_CODES` pin in
 two-code REMOVAL before the bumps were applied, reporting
 `{ added: [], removed: ["bait_tokens", "risky_tld"] }` — previously demonstrated
 for an addition and for a single-code removal.
+
+#### 6.1.6 FR-D-8's window suffix class — narrowed to two measured classes (`LINK-vuqdzmzy`)
+
+`embedded_domain_in_subdomain` fires on any contiguous window of subdomain
+labels that is itself an ICANN registrable domain. Which *suffix* the window
+ends in was not part of the firing condition, so `console.cloud` under
+`google.com` was read exactly like `paypal.com` under `spoof.info`. Measured
+over four external corpora, those are not the same kind of string.
+
+**The measurement — ADOPTED.** Corpora, retrieved 2026-08-25 and re-retrieved
+for this change: Cisco Umbrella top-1M (DNS resolver traffic, 998,065 hosts),
+CrUX top-1M origins snapshot `202605` (browsed pages, 998,066), Phishing.Database
+`phishing-domains-ACTIVE` (386,177) and PhishTank `online-valid` (38,754). Two
+structurally different benign corpora and two phishing corpora, because a single
+pair proves nothing about robustness. Benign hosts appearing in either phishing
+list were removed first (519 from Umbrella, 563 from CrUX).
+
+Nothing external was imported. These lists were read from gitignored scratch
+space, and no byte of any of them reached `data/`, the test corpus, or any
+committed file — the prohibition in `data/brands.ts` is scoped to *import into
+shipped data*, and §6.1.3 reached its own decline of CrUX by measuring CrUX,
+which is the precedent this follows.
+
+The rule can only fire on a host with **≥ 2 subdomain labels**, and the corpora
+differ enormously in depth (Umbrella 40.6% at-risk, CrUX 3.0%), so a
+whole-corpus rate mixes "how deep are these hostnames" with "does the rule
+discriminate". Every rate below is conditioned on that at-risk population.
+
+Likelihood ratio per host, `P(fire | phishing) / P(fire | benign)`, by the
+public-suffix class of the winning window:
+
+| window suffix class | benign CrUX vs phishDB | benign Umbrella vs phishDB | operator-deduplicated |
+|---|---|---|---|
+| multi-label ccTLD (`co.uk`, `co.jp`) | **57.87** | **10.30** | 25.78 – 117.11 |
+| bare legacy gTLD (`com`, `gov`) | **7.33** | 0.86 | 3.85 – 14.37 |
+| 2012-round gTLD (`cloud`, `news`, `apple`) | **0.26** | **0.29** | 0.44 – 0.52 |
+| pre-2012 expansion gTLD (`info`, `travel`, `post`) | **0.21** | **0.08** | 0.55 – 0.64 |
+| multi-label under a legacy gTLD (`in-addr.arpa`) | n/a | 0.00 | 0.00 |
+
+The expansion-era ratio sits below 1 in all eight benign × phishing × counting-unit
+combinations, range 0.26 – 0.52, and the class ordering is the same in all
+eight. A finding 2–4× more common on a benign host than on a phishing one is
+not evidence of deception, and under probabilistic-OR its `0.50` was dragging
+real URLs up a band.
+
+**The cut is by DELEGATION ERA, not by word.** That is what makes it shippable.
+It is not a curated list of infrastructure-looking TLDs: no per-word sub-class
+survived the measurement — of the 26 words the original report named, only
+`.host` cleared LR 1 against CrUX, and every one of its phishing hits is GoDaddy
+shared-hosting reverse DNS (`0.232.205.92.host.secureserver.net`), where the
+attacker chose nothing. A word list is the self-confirming trap this section
+warns about (`LINK-cqdrdvfu`). Nor is it "legacy gTLD only", which is what the
+original ticket proposed: `.info`, `.travel`, `.post`, `.jobs` and `.asia`
+predate the 2012 round and measure with it rather than with `.com`, so a cut
+drawn at "the 2012 round" lands in the wrong place. Delegation era is closed
+registry history — a fact that does not move with the world, which is what makes
+it admissible where a judgment call is not.
+
+**Not derivable offline, stated plainly.** Neither `tldts`'s compiled PSL nor
+anything else vendored in this repository carries a delegation date, so the
+legacy set is written down as the eight-element constant `LEGACY_GTLDS` (RFC 920
+plus `int`). It is a hand-typed list, and calling it anything else would be
+false. What keeps it out of §6's trap is not its size but its provenance: it was
+copied from delegation history, not selected by looking at which TLDs produced
+false positives, and it is finished — no future delegation can join it. The
+ccTLD half needs no list at all, reusing the two-letter IANA reservation
+`LINK-pbilvjuv` already relies on.
+
+**What it buys, measured on the shipped binary before and after.** On the
+at-risk population:
+
+| corpus | fires before | fires after | at-risk fire rate |
+|---|---|---|---|
+| Umbrella (benign) | 74,722 | 28,335 | 18.47% → 7.00% |
+| CrUX (benign) | 4,222 | 210 | 14.00% → 0.70% |
+| Phishing.Database | 5,848 | 4,286 | 11.44% → 8.38% |
+| PhishTank | 113 | 16 | 4.71% → 0.67% |
+
+The whole-rule likelihood ratio moves from 0.82 to **12.04** (CrUX vs phishDB)
+and from 0.62 to **1.20** (Umbrella vs phishDB). Against PhishTank it stays
+below 1 (0.96 and 0.10) and that is reported rather than dropped: PhishTank is
+URL-level, 78.3% of its hostnames have a single subdomain label because most of
+its entries are phishing *pages* on compromised legitimate sites, and after the
+change its firing cell holds 16 hosts. It is the instrument that disagrees, and
+it is the weakest one here.
+
+Before the change, 2,188 distinct registrable domains in the CrUX top-1M — real,
+browsed sites — owned at least one host scoring `0.50`/`medium` on this rule
+alone, among them `console.cloud.google.com`, `www.tax.service.gov.uk`,
+`n.news.naver.com`, `www.post.japanpost.jp` and Amazon's real Belgian
+storefront. Afterwards, 110 do.
+
+**Accepted recall cost, stated as `LINK-pbilvjuv` stated its own.** 1,656
+phishing hosts across the two feeds stop being scored — 3.05% of at-risk
+Phishing.Database hosts and 4.04% of at-risk PhishTank hosts — spread over 803
+distinct registrable domains. Roughly a third sit under bulk hosting whose
+naming the attacker did not choose: `windows.net` (204 hosts, Azure Static
+Websites' own `z13.web`), `duckdns.org` (113), `secureserver.net` (96, GoDaddy),
+`ovh.net`, `fastly.net`, `cprapid.com`. The rest is a long tail, and part of it
+*is* attacker-chosen: `id.security` (57), `mail.office` and its spellings (78),
+`pancakeswap.finance` (25), `login.netflix`, `account-update.amazon`. The
+original report described this cost as overwhelmingly infrastructure names; on
+this re-measurement that is an overstatement, and the honest figure is about a
+third. `metadata.google.internal.evil.com` is the case that lands inside the
+repository: its only window is `metadata.google`, so it drops from
+`0.50`/`medium` to `0.00`/`info` and is carried as a converted corpus row rather
+than deleted.
+
+The cost is smaller than a count of currently-reported windows predicts, because
+a skipped window does not abort the scan. `appleid.apple.com.evil.tk` contains
+both `appleid.apple` and `apple.com`; the `.apple` window used to win on
+position and now falls through to the `.com` window on its right. That rescues
+64 of the 85 phishing hosts whose reported window was `appleid.apple`, and is
+why the measured cost is 3.05% rather than the 3.49% the naive count gives.
+
+**No version stamp moves.** No reason code is added, renamed or removed, so
+`ReasonCode`'s closed domain is unchanged; no weight and no band moves. Under
+§6.4's matrix this is a firing-condition change reusing an existing code at an
+existing weight, which is the disposition §6.1.1 took, and it is what
+`LINK-pbilvjuv` — the previous narrowing of this same detector — did.
+
+**Implemented (`LINK-vuqdzmzy`).** `suffixCarriesSignal` replaces
+`isRegionCodeSuffix` in `src/detectors/embedded-domain.ts`, subsuming the
+region-code carve-out into the positive test; fifteen corpus rows in both
+directions land in `test/corpus/corpus.ts`, including the Azure recall-cost row;
+`test/embedded-domain-suffix-class.test.ts` was pinned to the pre-change
+behaviour one commit earlier and inverted here, with 18 of its 30 assertions
+verified RED against the previous source. The corpus had **zero** rows in either
+direction whose window sat under an expansion-era suffix, which is why the
+harness could not see this defect for three waves.
 
 ### 6.2 IDNA / UTS-46 conformance & the normalization flag profile
 

@@ -1209,6 +1209,41 @@ export const CORPUS: CorpusRow[] = [
   { input: "mailto:a%zz@b.io", label: "deceptive", minSeverity: "low", expectReasons: ["percent_encoding_malformed"], forbidReasons: ["suspicious_extension"], notes: "LINK-avefryhe sweep — a malformed escape is §1.1 form 3 in any component; scheme-agnostic and correct here" },
   { input: "ftp://files.example.com/setup.exe", label: "deceptive", expectReasons: ["suspicious_extension"], notes: "LINK-avefryhe — the gate is NOT http/https-only: an FTP executable download is exactly this detector's shape" },
   { input: "http://cdn.example.com/setup.com", label: "deceptive", expectReasons: ["suspicious_extension"], notes: "LINK-avefryhe — `com` stays in the dangerous set; the fix is a scheme gate, not a set edit" },
+
+  // ── LINK-vuqdzmzy: FR-D-8 window suffix class ───────────────────────────
+  // Before this slice the corpus had ZERO rows — in either direction — whose
+  // embedded-domain window sat under an expansion-era gTLD, so the harness
+  // could not see the change at all. These rows are the harness for it.
+  //
+  // The BENIGN side is real hostnames pulled out of the CrUX top-1M
+  // browsed-origins corpus by the LINK-kgiviycg measurement, each of which
+  // scored 0.50/medium on this rule alone. The measured likelihood ratio for a
+  // window in this class is 0.26–0.52 across both benign corpora, both phishing
+  // corpora and both counting units: it is 2–4x more common on a benign host
+  // than on a phishing one, so contributing +0.50 for it moved real URLs up a
+  // band on evidence that pointed the other way (architecture §6.1.6).
+  { input: "https://console.cloud.google.com/", label: "benign", forbidReasons: ["embedded_domain_in_subdomain"], notes: "LINK-vuqdzmzy — the Google Cloud Console; the window `console.cloud` is a 2012-round gTLD" },
+  { input: "https://www.tax.service.gov.uk/", label: "benign", forbidReasons: ["embedded_domain_in_subdomain"], notes: "LINK-vuqdzmzy — HMRC's UK tax service; the window `www.tax` is a 2012-round gTLD" },
+  { input: "https://n.news.naver.com/", label: "benign", forbidReasons: ["embedded_domain_in_subdomain"], notes: "LINK-vuqdzmzy — Naver News; `.news` is a 2012-round gTLD" },
+  { input: "https://in.search.yahoo.com/", label: "benign", forbidReasons: ["embedded_domain_in_subdomain"], notes: "LINK-vuqdzmzy — `images.search` and the `<cc>.search` family were the 2nd-largest CrUX false-positive window" },
+  { input: "https://a24.app.gree-pf.net/", label: "benign", forbidReasons: ["embedded_domain_in_subdomain"], notes: "LINK-vuqdzmzy — machine-generated tenant naming under `.app`, the shape phishing feeds are full of too" },
+  { input: "https://www.post.japanpost.jp/", label: "benign", forbidReasons: ["embedded_domain_in_subdomain"], notes: "LINK-vuqdzmzy — Japan Post. `.post` is 2011, NOT the 2012 round: a cut drawn at the 2012 round would leave this firing" },
+  { input: "https://hotel.travel.rakuten.co.jp/", label: "benign", forbidReasons: ["embedded_domain_in_subdomain"], notes: "LINK-vuqdzmzy — Rakuten Travel. `.travel` is a 2005 sponsored gTLD and measures like the 2012 round (LR 0.21), not like `.com`" },
+  { input: "https://www.amazon.com.be/", label: "benign", forbidReasons: ["embedded_domain_in_subdomain"], notes: "LINK-vuqdzmzy — Amazon's real Belgian storefront; a brand gTLD is an expansion gTLD too" },
+  { input: "https://1.2.in-addr.arpa.evil.com/", label: "benign", forbidReasons: ["embedded_domain_in_subdomain"], notes: "LINK-vuqdzmzy — the multi-label carve-out is for ccTLD suffixes; `in-addr.arpa` is reverse-DNS naming, measured LR 0.00. Kept at 4 subdomain labels so `excessive_subdomain_depth` does not confound the row" },
+
+  // The DECEPTIVE side. Two things have to stay true: the classes that carry
+  // signal keep firing, and a skipped window does not abort the scan.
+  { input: "https://appleid.apple.com.evil.tk/", label: "deceptive", expectReasons: ["embedded_domain_in_subdomain"], notes: "LINK-vuqdzmzy — `appleid.apple` (a `.apple` window) is skipped and the scan falls through to `apple.com` on its right. 85 phishDB hosts used this window; 64 of them are still caught this way" },
+  { input: "https://accounts.google.com.evil.tk/", label: "deceptive", expectReasons: ["embedded_domain_in_subdomain"], notes: "LINK-vuqdzmzy — same fall-through, `accounts.google` → `google.com`" },
+  { input: "https://amazon.co.jp.evil.com/", label: "deceptive", expectReasons: ["embedded_domain_in_subdomain"], notes: "LINK-vuqdzmzy — the most common firing window in the whole phishing corpus (475 hosts). Multi-label ccTLD, measured LR 57.87 — the class the narrowing exists to protect" },
+  { input: "https://hmrc.gov.evil.com/", label: "deceptive", expectReasons: ["embedded_domain_in_subdomain"], notes: "LINK-vuqdzmzy — bare legacy gTLD, measured LR 7.33" },
+
+  // The accepted recall cost, carried as a row rather than left in prose. This
+  // is a live Azure Static Websites phishing shape from the corpus: `z1.web` is
+  // Microsoft's own naming, and it is indistinguishable from `console.cloud`
+  // above by anything in the string.
+  { input: "https://0nedrivesafe.z27.web.core.windows.net/", label: "benign", forbidReasons: ["embedded_domain_in_subdomain"], notes: "LINK-vuqdzmzy ACCEPTED RECALL COST — a real phishing host from the Phishing.Database feed that linklint no longer scores. `z27.web` is Microsoft's Azure Static Websites naming, not an attacker's choice, and 1,656 such hosts (3.05% of at-risk phishing hosts) are given up. Labelled benign because that is what the tool now says, not because the host is" },
 ];
 
 /** agentMode:true applied to every row in the V4 agent-family block. */
@@ -1510,11 +1545,10 @@ CORPUS.push(
   },
   {
     input: "http://metadata.google.internal.evil.com/",
-    label: "deceptive",
-    minSeverity: "medium",
+    label: "benign",
     options: AGENT,
     forbidReasons: ["ip_cloud_metadata", "ssrf_cloud_metadata"],
-    notes: "LINK-hvawpgos — the suffix attack. Caught as embedded_domain_in_subdomain (0.50) for what it actually is; it must NOT be called a metadata endpoint, which is what a suffix match rather than whole-host equality would have done",
+    notes: "LINK-hvawpgos — the suffix attack: it must NOT be called a metadata endpoint, which is what a suffix match rather than whole-host equality would have done. That claim is unchanged and is what this row exists for. LINK-vuqdzmzy dropped the 0.50 that used to come with it: the only window here is `metadata.google`, and `.google` is a 2012-round brand gTLD, so this row is now the deliberate recall cost carried where the harness can see it. Converted from deceptive rather than deleted, which is the disposition §6.1.4 gave the V4e guards",
   },
   {
     input: "http://svc.internal/",
