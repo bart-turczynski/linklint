@@ -21,7 +21,7 @@
     "check": "pnpm build && pnpm typecheck && pnpm test && pnpm features"
   },
   "devDependencies": {
-    "@cucumber/cucumber": "^12.9.0",
+    "@cucumber/cucumber": "^13.2.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@types/node": "^24.13.3",
     "esbuild": "^0.28.2",
