@@ -1,7 +1,16 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 /**
  * LINK-ltyjctpf — the ratchet behind [`docs/guarantees.md`](../../../docs/guarantees.md).
@@ -41,12 +50,25 @@ const GUARANTEE_WORDS =
 /** The register quotes the claims it tracks, so it is exempt from its own budget. */
 const SELF = "docs/guarantees.md";
 
-function claimFiles(): string[] {
-  const docs = readdirSync(join(REPO_ROOT, "docs"))
+/**
+ * The `docs/` half of the sweep, taken as a function of its root so the walk
+ * itself can be pinned against a fixture tree. `docs/` is flat in this
+ * repository today, so any claim about subdirectories asserted through the
+ * live tree would be vacuous — it would pass whatever the walk does.
+ *
+ * FLAT, deliberately pinned as flat (LINK-umlssdan): this reads one directory
+ * level. A `.md` under `docs/<subdir>/` is NOT returned, and therefore cannot
+ * be budgeted either. See the sweep-shape block at the bottom of this file.
+ */
+function sweptDocs(root: string): string[] {
+  return readdirSync(root)
     .filter((name) => name.endsWith(".md"))
     .map((name) => `docs/${name}`)
-    .filter((path) => path !== SELF)
     .sort();
+}
+
+function claimFiles(): string[] {
+  const docs = sweptDocs(join(REPO_ROOT, "docs")).filter((path) => path !== SELF);
   const packages = readdirSync(join(REPO_ROOT, "packages"))
     .map((name) => `packages/${name}/README.md`)
     .filter((path) => existsSync(join(REPO_ROOT, path)))
@@ -143,5 +165,67 @@ describe("guarantee register — §G exemplar coverage", () => {
       `docs/guarantees.md §G cites ${exemplar} as a pinned precision exemplar, ` +
         "but no test mentions it. Either add the case or drop the row.",
     ).toBe(true);
+  });
+});
+
+/**
+ * LINK-umlssdan — the SHAPE of the sweep, pinned against a fixture tree.
+ *
+ * The claim budget above is the guard the rest of the repository leans on, and
+ * its coverage of `docs/` is currently total only because `docs/` happens to be
+ * flat. That is a property of the tree, not of the walk, and nothing observable
+ * through the live tree can tell the two apart. The fixture supplies the
+ * subdirectory the repository does not have, so both halves of the current
+ * behaviour are recorded rather than assumed:
+ *
+ *   (a) a `.md` in a subdirectory is INVISIBLE to the sweep — it contributes no
+ *       claim lines and the suite stays green while it does so;
+ *   (b) it cannot be rescued by hand either — naming it in the budget table
+ *       makes the budget keys differ from the scanned set, which is what
+ *       "budgets exactly the files that are scanned" reddens on.
+ */
+/**
+ * "budgets exactly the files that are scanned", evaluated against an arbitrary
+ * root — the same sorted set equality the live assertion applies to `docs/`,
+ * so the sweep-shape pins below exercise the real comparison and not a
+ * paraphrase of it.
+ */
+function budgetAccepts(keys: string[], root: string): boolean {
+  const a = [...keys].sort();
+  const b = sweptDocs(root).sort();
+  return a.length === b.length && a.every((key, i) => key === b[i]);
+}
+
+describe("guarantee register — sweep shape (LINK-umlssdan)", () => {
+  const NESTED = "docs/worklog/nested.md";
+  let fixture = "";
+
+  beforeAll(() => {
+    fixture = mkdtempSync(join(tmpdir(), "linklint-sweep-"));
+    writeFileSync(join(fixture, "top.md"), "A top-level claim: this never fires.\n");
+    mkdirSync(join(fixture, "worklog"));
+    writeFileSync(join(fixture, "worklog", "nested.md"), "A nested claim: this never fires.\n");
+  });
+
+  afterAll(() => {
+    if (fixture) rmSync(fixture, { recursive: true, force: true });
+  });
+
+  it("the fixture really has the nested file (guards a vacuous pin)", () => {
+    expect(existsSync(join(fixture, "worklog", "nested.md"))).toBe(true);
+    expect(sweptDocs(fixture)).toContain("docs/top.md");
+  });
+
+  it("FLAT: a .md in a docs/ subdirectory is invisible to the sweep", () => {
+    expect(sweptDocs(fixture)).toEqual(["docs/top.md"]);
+    expect(sweptDocs(fixture)).not.toContain(NESTED);
+  });
+
+  it("FLAT: and cannot be budgeted — the only budget that matches omits it", () => {
+    // `budgetAccepts` is the comparison the live assertion makes: the budget's
+    // key set against the scanned set, sorted, deep-equal. A budget row for the
+    // nested file is not a fix for (a) — it is a second failure.
+    expect(budgetAccepts(["docs/top.md"], fixture)).toBe(true);
+    expect(budgetAccepts(["docs/top.md", NESTED], fixture)).toBe(false);
   });
 });
