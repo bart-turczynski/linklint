@@ -10,11 +10,11 @@ import { inspect } from "../src/index.js";
  *
  *  1. the attack shapes that MUST keep firing, and
  *  2. the ordinary regional-subdomain convention (`www.eu.playstation.com`),
- *     which currently fires because `www.eu` genuinely IS an eTLD+1.
+ *     which used to fire because `www.eu` genuinely IS an eTLD+1.
  *
- * Block 2 is pinned to the CURRENT (buggy) behavior in this commit so the
- * following commit's inversion is a visible behavior change, not a new test
- * arriving green.
+ * Block 3 was pinned to the buggy behavior in the preceding commit and is
+ * inverted here, so the change is visible as an edit to an existing assertion
+ * rather than as a new test arriving green.
  */
 
 const fired = (url: string): boolean =>
@@ -65,28 +65,44 @@ describe("embedded_domain_in_subdomain — pre-existing benign guards", () => {
   });
 });
 
-// ── 3. LINK-pbilvjuv: the regional-subdomain false positive ─────────────────
-// PINNED AS-IS. Every assertion in this block is inverted by the fix commit.
-describe("LINK-pbilvjuv — regional subdomains currently misfire (pinned bug)", () => {
+// ── 3. LINK-pbilvjuv: the regional-subdomain convention is not a finding ────
+// Every assertion in this block was RED before the region-code gate landed.
+describe("LINK-pbilvjuv — regional subdomains are not embedded domains", () => {
   it.each([
     "https://www.eu.playstation.com/",
     "https://api.eu.example.com/",
     "https://www.uk.example.com/",
     "https://www.de.example.com/",
     "https://cdn.www.eu.example.co.uk/",
-  ])("%s fires embedded_domain_in_subdomain today", (url) => {
-    expect(fired(url), url).toBe(true);
+    "https://api.v2.eu.example.com/",
+    "https://static.assets.uk.example.com/",
+    "https://store.jp.example.com/",
+  ])("%s stays clean", (url) => {
+    expect(fired(url), url).toBe(false);
   });
 
-  it("Sony's real EU storefront scores 0.50/medium", () => {
+  it("Sony's real EU storefront scores 0.00/info", () => {
     const r = inspect("https://www.eu.playstation.com/");
-    expect(r.score).toBeCloseTo(0.5, 5);
-    expect(r.severity).toBe("medium");
+    expect(r.score).toBe(0);
+    expect(r.severity).toBe("info");
   });
 
-  it("a .exe path pushes the same benign host to the blocking band", () => {
+  it("a .exe path on the same host no longer reaches the blocking band", () => {
     const r = inspect("https://www.eu.playstation.com/update.exe");
-    expect(r.score).toBeCloseTo(0.75, 5);
-    expect(r.severity).toBe("high");
+    expect(r.reasons.map((x) => x.code)).not.toContain("embedded_domain_in_subdomain");
+    expect(r.severity).not.toBe("high");
+  });
+
+  it("skips the region-code window and keeps scanning to its right", () => {
+    // `www.eu` is skipped, so the real embedded `paypal.com` is still reported.
+    const detail = embeddedDetail("https://www.eu.paypal.com.evil.info/");
+    expect(detail).toContain("paypal.com");
+    expect(detail).not.toContain("www.eu");
+  });
+
+  it("a two-letter label that is NOT a public suffix never reached the gate", () => {
+    // Negative control for the gate itself: `zz` is not a TLD, so this host was
+    // clean before the fix too and proves the gate is not what silences it.
+    expect(fired("https://www.zz.example.com/")).toBe(false);
   });
 });

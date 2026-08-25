@@ -1095,6 +1095,67 @@ export const CORPUS: CorpusRow[] = [
     notes: "LINK-vwehpsdv — RFC 8215 local-use base, same shape; both NAT64 rows stay consistent",
   },
 
+  // ── LINK-pbilvjuv: the regional-subdomain convention is not a finding ────
+  // FR-D-8 flagged any subdomain window that is a well-formed eTLD+1, and
+  // `www.eu` genuinely is one. The corpus could not see this: its only
+  // near-miss guard, `cdn.assets.eu-west-1.example.com`, is HYPHENATED, so
+  // `eu-west-1` is not a public suffix and the unhyphenated shape was untested.
+  // Windows whose public suffix is a bare two-letter label are now skipped —
+  // IANA reserves every two-letter TLD for an ISO 3166-1 alpha-2 code, which is
+  // exactly what the regional convention puts left of the real domain.
+  {
+    input: "https://www.eu.playstation.com/",
+    label: "benign",
+    forbidReasons: ["embedded_domain_in_subdomain"],
+    notes: "LINK-pbilvjuv — Sony's real European storefront; the window `www.eu` is a region code",
+  },
+  {
+    input: "https://www.eu.playstation.com/update.exe",
+    label: "deceptive",
+    minSeverity: "medium",
+    expectReasons: ["suspicious_extension"],
+    forbidReasons: ["embedded_domain_in_subdomain"],
+    notes:
+      "LINK-pbilvjuv — the .exe still scores on its own, but must not stack a regional " +
+      "subdomain into the blocking band (was 0.75/high on a legitimate host)",
+  },
+  {
+    input: "https://api.eu.example.com/",
+    label: "benign",
+    forbidReasons: ["embedded_domain_in_subdomain"],
+    notes: "LINK-pbilvjuv — non-`www` left label; the gate is on the suffix, not the label",
+  },
+  {
+    input: "https://www.uk.example.com/",
+    label: "benign",
+    forbidReasons: ["embedded_domain_in_subdomain"],
+    notes: "LINK-pbilvjuv — second region code, so the fix is not `eu`-shaped",
+  },
+  {
+    input: "https://api.v2.eu.example.co.uk/",
+    label: "benign",
+    forbidReasons: ["embedded_domain_in_subdomain", "excessive_subdomain_depth"],
+    notes:
+      "LINK-pbilvjuv — legitimate deep regional host: 3 subdomain labels over a multi-level " +
+      "suffix, so no window at any length may fire",
+  },
+  {
+    input: "https://paypal.co.uk.evil.com/",
+    label: "deceptive",
+    expectReasons: ["embedded_domain_in_subdomain"],
+    notes:
+      "LINK-pbilvjuv — the far side of the carve-out: `co.uk` is a multi-label ccTLD suffix, " +
+      "not a bare region code, so this keeps firing",
+  },
+  {
+    input: "https://www.eu.paypal.com.evil.info/",
+    label: "deceptive",
+    expectReasons: ["embedded_domain_in_subdomain"],
+    notes:
+      "LINK-pbilvjuv — a skipped region-code window must not abort the scan: `www.eu` is " +
+      "passed over and the real embedded `paypal.com` to its right is still reported",
+  },
+
   // ── Imported IDN / PSL / host test vectors (E6) ─────────────────────────
   ...VECTORS,
 ];
