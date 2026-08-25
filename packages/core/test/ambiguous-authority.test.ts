@@ -17,9 +17,13 @@ describe("J1 ambiguous_authority — canonical payloads (Tsai BH US-17)", () => 
     expect(detail(r.input)).toContain("multiple_userinfo");
   });
 
-  it("fragment_in_authority (#@)", () => {
-    expect(codes("http://google.com#@evil.com/")).toContain("ambiguous_authority");
-    expect(detail("http://google.com#@evil.com/")).toContain("fragment_in_authority");
+  // `fragment_in_authority` was DELETED (LINK-ouljoseh) — all seven readers
+  // resolve `google.com` for `http://google.com#@evil.com/`, so the sub-signal
+  // asserted a disagreement that does not exist. The evidence, the named
+  // readers, and the Log4j-class payload it never matched are in
+  // `ambiguous-authority-reader-divergence.test.ts`.
+  it("fragment_in_authority is gone — a '#@' tail is not parser ambiguity", () => {
+    expect(codes("http://google.com#@evil.com/")).not.toContain("ambiguous_authority");
   });
 
   it("whitespace_in_authority (the 'curl won't fix it' bypass)", () => {
@@ -61,17 +65,23 @@ describe("J1 ambiguous_authority — canonical payloads (Tsai BH US-17)", () => 
     expect(detail("http://///evil.com")).toContain("slash_confusion");
   });
 
-  it("slash_confusion — network-path reference in path (CVE-2021-23435)", () => {
+  // The PATH branch of `slash_confusion` was DELETED (LINK-ouljoseh): all seven
+  // readers resolve `target.com` for `http://target.com/////evil.com`, and it
+  // was the branch shipping CRITICAL. The empty-authority branch above stays —
+  // WHATWG dials `evil.com` there while Go and Python dial nothing.
+  it("slash_confusion does NOT fire on a network-path reference in the path", () => {
     const r = inspect("http://target.com/////evil.com");
     expect(r.status).toBe("ok");
     expect(r.parsed?.effectiveHost).toBe("target.com");
-    expect(detail(r.input)).toContain("slash_confusion");
+    expect(codes(r.input)).not.toContain("ambiguous_authority");
   });
 
-  it("protocol_relative — //evil.com", () => {
+  // `protocol_relative` was DELETED (LINK-ouljoseh): scheme inheritance is
+  // RFC 3986 §4.2 by design and every reader lands on the same host.
+  it("protocol_relative is gone — //evil.com is a bare parse_error again", () => {
     const r = inspect("//evil.com");
     expect(r.status).toBe("invalid");
-    expect(r.reasons[0]!.detail).toContain("protocol_relative");
+    expect(r.reasons.map((x) => x.code)).not.toContain("ambiguous_authority");
   });
 
   it("multi-candidate host injection (multiple @ + whitespace)", () => {
@@ -81,9 +91,15 @@ describe("J1 ambiguous_authority — canonical payloads (Tsai BH US-17)", () => 
 
 describe("J1 — reaches >= high on its own (SC-1) and emits one reason code", () => {
   it("scores high from a single parseable payload", () => {
-    const r = inspect("http://target.com/////evil.com");
+    // Re-pointed by LINK-ouljoseh at a payload that HAS a named reader pair.
+    // The old exemplar (`http://target.com/////evil.com`) was the false path
+    // branch — all seven readers resolve `target.com` there. This one forks for
+    // real: WHATWG `new URL` reaches `good.com`, Python `urlsplit` reaches
+    // `evil.com`.
+    const r = inspect("http://good.com\\@evil.com/");
     expect(["high", "critical"]).toContain(r.severity);
     expect(r.score).toBeGreaterThan(0.5);
+    expect(r.reasons.map((x) => x.code)).toContain("ambiguous_authority");
   });
 
   it("multiple sub-signals collapse to a single ambiguous_authority reason", () => {

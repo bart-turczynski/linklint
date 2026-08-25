@@ -345,21 +345,34 @@ export const CORPUS: CorpusRow[] = [
     label: "deceptive",
     minSeverity: "high",
     expectReasons: ["ambiguous_authority"],
-    notes: "J1 multiple_userinfo — parses ok, real host is google.com",
+    notes:
+      "J1 multiple_userinfo — parses ok, real host is google.com. LINK-ouljoseh: kept, but the " +
+      "detail no longer claims a different host — five readers reach google.com and Java yields " +
+      "none, so it is accept-vs-reject, not a destination fork",
   },
   {
+    // LINK-ouljoseh: was `deceptive`/high on `fragment_in_authority`. All seven
+    // readers (WHATWG, node legacy, Python, Go, PHP, Java URI, Java URL) resolve
+    // `google.com` — `#` opens the fragment for every one of them. Converted to
+    // a benign assertion rather than deleted, so the false claim cannot return.
     input: "http://google.com#@evil.com/",
-    label: "deceptive",
-    minSeverity: "high",
-    expectReasons: ["ambiguous_authority"],
-    notes: "J1 fragment_in_authority (#@)",
+    label: "benign",
+    forbidReasons: ["ambiguous_authority"],
+    notes: "J1 fragment_in_authority RETIRED — no reader reaches evil.com",
   },
   {
+    // LINK-ouljoseh: was `deceptive`/high on `slash_confusion`'s PATH branch,
+    // and at 0.825 it was the CRITICAL shape. All seven readers resolve
+    // `target.com` with path `/////evil.com`. `ambiguous_authority` is now
+    // forbidden here; the residual score is `suspicious_extension` on the `.com`
+    // executable suffix, which was never the parser claim. The clean twin with
+    // no extension bait is in the LINK-ouljoseh block below and is score 0.
     input: "http://target.com/////evil.com",
     label: "deceptive",
-    minSeverity: "high",
-    expectReasons: ["ambiguous_authority"],
-    notes: "J1 slash_confusion — network-path reference (CVE-2021-23435)",
+    minSeverity: "medium",
+    expectReasons: ["suspicious_extension"],
+    forbidReasons: ["ambiguous_authority"],
+    notes: "J1 slash_confusion PATH branch RETIRED — all seven readers reach target.com",
   },
 
   // Deceptive — separator look-alikes (J2, weight 0.5 → medium)
@@ -475,16 +488,23 @@ export const CORPUS: CorpusRow[] = [
 
   // Invalid — structurally ambiguous but unresolvable: carries a reason, not bare parse_error
   {
+    // LINK-ouljoseh: `protocol_relative` RETIRED. Python, Go, PHP and Java URI
+    // all resolve `evil.com`; WHATWG resolves it against its base to the same
+    // host. Scheme inheritance is RFC 3986 §4.2 by design, not disagreement.
+    // linklint still cannot resolve a base-less reference, so the row stays
+    // `invalid` — it just falls back to the honest `parse_error`.
     input: "//evil.com",
     label: "invalid",
-    expectReasons: ["ambiguous_authority"],
-    notes: "J1 protocol_relative — invalid yet explained",
+    forbidReasons: ["ambiguous_authority"],
+    notes: "J1 protocol_relative RETIRED — every reader lands on the same host",
   },
   {
     input: "http://127.0.0.1:11211:80/",
     label: "invalid",
     expectReasons: ["ambiguous_authority"],
-    notes: "J1 multiple_port — invalid yet explained",
+    notes:
+      "J1 multiple_port — invalid yet explained. LINK-ouljoseh: kept, but the detail no longer " +
+      "claims a different host (no reader reaches a different machine); it is accept-vs-reject",
   },
   {
     input: "http://google。com",
@@ -1901,3 +1921,110 @@ const GCP_IPV6_METADATA_CORPUS: CorpusRow[] = [
 CORPUS.push(...GCP_IPV6_METADATA_CORPUS);
 applyAcceptanceMetadata(GCP_IPV6_METADATA_CORPUS);
 // LINK-eyjfhbzu — BLOCK END.
+// LINK-ouljoseh — BLOCK START. `ambiguous_authority`: the shapes whose
+// "different URL parsers may resolve a different host" claim was measured and
+// found false. Three sub-signals were retired (`protocol_relative`,
+// `fragment_in_authority`, and `slash_confusion`'s PATH branch) and two were
+// kept with the different-host claim removed from the detail
+// (`multiple_userinfo`, `multiple_port`).
+//
+// These rows are the standing benign guards for the retired shapes. They are
+// converted assertions, not deletions: the corpus now says out loud that these
+// strings are NOT parser-ambiguous, so re-adding a branch that fires on them
+// turns the suite red instead of quietly restoring the over-claim.
+//
+// Reader evidence for every row — seven real parsers, run 2026-08-25 — is in
+// packages/core/test/ambiguous-authority-reader-divergence.test.ts and in the
+// detector's own docblock.
+const AMBIGUOUS_AUTHORITY_FALSE_SHAPES_CORPUS: CorpusRow[] = [
+  {
+    // The named case. Python, Go, PHP and Java URI all resolve
+    // `www.example.com`; WHATWG resolves it against its base to the same host.
+    // linklint has no base, so the string is still unresolvable — but it is
+    // unresolvable, not deceptive, and `parse_error` is what says that.
+    input: "//www.example.com/a.js",
+    label: "invalid",
+    forbidReasons: ["ambiguous_authority"],
+    notes:
+      "LINK-ouljoseh — protocol-relative asset ref; RFC 3986 §4.2 scheme inheritance, by design",
+    source: "RFC 3986 §4.2 (network-path reference)",
+  },
+  ...(
+    [
+      "//ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js",
+      "//cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css",
+      "//fonts.googleapis.com/css?family=Roboto",
+    ] as const
+  ).map(
+    (input): CorpusRow => ({
+      input,
+      label: "invalid",
+      forbidReasons: ["ambiguous_authority"],
+      notes:
+        "LINK-ouljoseh — the real-world volume behind protocol_relative: ordinary asset tags. " +
+        "Unresolvable without a base, never parser-ambiguous",
+      source: "RFC 3986 §4.2 (network-path reference)",
+    }),
+  ),
+  {
+    // The path branch with no extension bait: score 0, nothing to say. The
+    // sibling row above (`http://target.com/////evil.com`) keeps its residual
+    // `suspicious_extension`, which is a different claim entirely.
+    input: "http://target.com/////evil.example/page",
+    label: "benign",
+    forbidReasons: ["ambiguous_authority"],
+    notes:
+      "LINK-ouljoseh — network-path reference in the PATH; all seven readers reach target.com",
+    source: "CVE-2021-23435 (the claim this branch cited, and did not support)",
+  },
+  {
+    input: "https://n.pr#@e.gg",
+    label: "benign",
+    forbidReasons: ["ambiguous_authority"],
+    notes:
+      "LINK-ouljoseh — Equivocal URLs Table 3 U4, re-measured. The row's own note said `# opens " +
+      "the fragment, host n.pr`, i.e. it recorded the agreement while asserting disagreement. " +
+      "All seven readers reach n.pr",
+    source: "Equivocal URLs ESORICS'22 Table 3 U4 (re-measured, LINK-ouljoseh)",
+  },
+  {
+    // The payload `fragment_in_authority` was introduced for. It has no `@`, so
+    // it never matched the branch. Recorded as an open MISS rather than left to
+    // look covered.
+    input: "ldap://exampleldap.com#.evilhost.com/a",
+    label: "benign",
+    forbidReasons: ["ambiguous_authority"],
+    notes:
+      "LINK-ouljoseh DOCUMENTED MISS — the Log4j/JNDI fragment-target shape. No `@`, so the " +
+      "retired `#@` branch never matched it; deleting that branch lost nothing here",
+    source: "Log4Shell JNDI fragment-target class (LINK-ouljoseh)",
+  },
+  // CONTROLS — the survivors. If a future edit widens the retirement into these,
+  // the block that removed the false claims also removed the true ones.
+  {
+    input: "http://good.com\\@evil.com/",
+    label: "deceptive",
+    minSeverity: "high",
+    expectReasons: ["ambiguous_authority"],
+    notes:
+      "LINK-ouljoseh CONTROL backslash — WHATWG `new URL` reaches good.com, Python `urlsplit` " +
+      "reaches evil.com. A named pair, two hosts",
+    source: "WHATWG URL §4.4 vs RFC 3986 §3.2.1 (measured)",
+  },
+  {
+    // linklint's own parse refuses a space in the host, so this is `invalid`
+    // — and per §1.1's fourth rule it still explains itself rather than
+    // collapsing to a bare `parse_error`.
+    input: "http://good.com evil.com/",
+    label: "invalid",
+    expectReasons: ["ambiguous_authority"],
+    notes:
+      "LINK-ouljoseh CONTROL whitespace_in_authority — node legacy `url.parse` reaches good.com, " +
+      "Python `urlsplit` and PHP `parse_url` reach `good.com evil.com`. Two accepting readers, " +
+      "two hosts; Tsai's glibc-NSS split",
+    source: "Tsai, A New Era of SSRF (glibc-NSS), measured",
+  },
+];
+CORPUS.push(...AMBIGUOUS_AUTHORITY_FALSE_SHAPES_CORPUS);
+applyAcceptanceMetadata(AMBIGUOUS_AUTHORITY_FALSE_SHAPES_CORPUS);
+// LINK-ouljoseh — BLOCK END.

@@ -1545,32 +1545,82 @@ specified above.
 
 ### `ambiguous_authority` — Epic J (J1) · weight 0.65
 
-- **Meaning:** the authority is structurally ambiguous enough that two URL
-  parsers would resolve it to a **different host or port** — the parser-vs-
-  requester disagreement class (Orange Tsai, _A New Era of SSRF_; Snyk/Claroty,
-  _Exploiting URL Parsing Confusion_).
+- **Meaning:** two conforming readers disagree about the authority — the parser-
+  vs-requester disagreement class (Orange Tsai, _A New Era of SSRF_; Snyk/Claroty,
+  _Exploiting URL Parsing Confusion_). §1.1 form 2 is destination-scoped, so each
+  sub-signal below states which kind of disagreement it has: **different host**
+  (two readers accept and dial different places) or **accept-vs-reject** (one
+  reader resolves a host, another refuses the string). The `detail` says which,
+  per sub-signal, and no longer asserts different-host across the board.
 - **Why it's a signal:** deception by construction, not a soft heuristic — a high
   weight. A flagship fit for the MCP "check before you fetch" surface: an agent
   is warned the string is ambiguous _before_ the request fires.
-- **Sub-signals** (named in `detail`; one reason code regardless of how many fire):
-  - `multiple_userinfo` — more than one `@` (`foo@evil.com:80@google.com`).
-  - `fragment_in_authority` — a `#@…` tail (`google.com#@evil.com`).
-  - `whitespace_in_authority` — whitespace inside the authority
-    (`foo@127.0.0.1 @google.com` — the "curl won't fix it" bypass).
-  - `multiple_port` — more than one `:` port separator (`127.0.0.1:11211:80`);
-    IPv6 `[::1]:8080` is unaffected.
-  - `backslash` — a `\` browsers fold to `/` (`http:\\google.com`, `https:/\…`).
-  - `slash_confusion` — empty authority / 3+ slashes after the scheme
-    (`http:///`, `http://///`) or a network-path reference in the path
-    (`http://target.com/////evil.com`, CVE-2021-23435).
-  - `protocol_relative` — a scheme-relative `//` authority (`//evil.com`).
+- **Sub-signals** (named in `detail`; one reason code regardless of how many fire).
+  Each different-host entry names the pair of readers that fork, measured
+  2026-08-25 against WHATWG `new URL`, Node legacy `url.parse`, Python
+  `urlsplit`, Go `net/url`, PHP `parse_url`, Java `URI` and Java `URL`:
+  - `backslash` — **different host.** A `\` the WHATWG parser folds to `/`
+    (`http:\\google.com`, `https:/\…`). For `http://good.com\@evil.com/` WHATWG
+    reaches `good.com` (§4.4 folds the `\`, so `@evil.com/` is path) and Python
+    `urlsplit` reaches `evil.com` (RFC 3986 keeps `\` in userinfo, so the last
+    `@` wins).
+  - `whitespace_in_authority` — **different host.** Whitespace inside the
+    authority (the "curl won't fix it" bypass). For
+    `http://127.0.0.1 foo.google.com/` Node legacy `url.parse` reaches
+    `127.0.0.1` while Python `urlsplit` reaches `127.0.0.1 foo.google.com` —
+    Tsai's glibc-NSS split, where the validator and the resolver see different
+    hosts.
+  - `slash_confusion` — **different host.** An empty authority: 3+ slashes after
+    the scheme (`http:///`, `http://///`). For `https:///evil.com` WHATWG
+    reaches `evil.com` while Go `net/url` reads host `""` and path `/evil.com`.
+    On a non-special scheme (`foo://///////bar.com/`) WHATWG also yields an empty
+    host, so that sub-case is accept-vs-reject only.
+  - `multiple_userinfo` — **accept-vs-reject.** More than one `@`
+    (`foo@evil.com:80@google.com`). WHATWG, Node legacy, Python, Go and PHP all
+    reach `google.com`; Java `URI.getHost()` returns `null` and Java
+    `URL.getHost()` returns `""`. The WHATWG URL Standard names the last `@` as
+    the boundary while RFC 3986 §3.2.1 excludes `@` from userinfo — a genuine
+    standards fork, but between one host and no host. No reader reaches
+    `evil.com`.
+  - `multiple_port` — **accept-vs-reject.** More than one `:` port separator
+    (`127.0.0.1:11211:80`); IPv6 `[::1]:8080` is unaffected. WHATWG, Node legacy,
+    Go and Java `URL` reject it; Python `urlsplit` reads `127.0.0.1` and PHP
+    `parse_url` reads `127.0.0.1:11211`. No reader reaches a different machine or
+    port. It is kept because it is what stops this string from collapsing to a
+    bare `parse_error` (§1.1's fourth rule).
+- **Retired sub-signals (`LINK-ouljoseh`).** Three shapes shipped under the
+  different-host claim and could not produce a single pair of readers that
+  disagree, so they were removed:
+  - `protocol_relative` (`//evil.com`) — Python, Go, PHP and Java `URI` all
+    resolve the same host, and WHATWG resolves the reference against its base to
+    that same host. Scheme inheritance is RFC 3986 §4.2 by design. It was also
+    the highest-volume shape on the web: every protocol-relative asset tag.
+  - `slash_confusion`'s **path** branch (`http://target.com/////evil.com`, cited
+    to CVE-2021-23435) — all seven readers resolve `target.com`. This was the
+    branch reaching `critical`, and it also fired on ordinary generated paths
+    such as `https://example.com/////static/app.js`.
+  - `fragment_in_authority` (`google.com#@evil.com`) — all seven readers resolve
+    `google.com`; `#` opens the fragment for every one of them. Its motivating
+    Log4j-class payload, `ldap://exampleldap.com#.evilhost.com/a`, has no `@` and
+    so did not match the branch: that case is an **open miss**, recorded here
+    rather than left looking covered.
 - **Scope:** fires only when the input declares itself a URL (explicit scheme or
   `//` form). Bare scheme-less input (`google.com/abc`) is out of scope — it
   would over-trigger on benign typos (SC-2).
 - **Result shape:** a parseable-but-ambiguous URL stays `status: "ok"` and adds
   this scoring reason; an unresolvable-but-ambiguous one is `status: "invalid"`
   yet now carries this reason instead of a bare `parse_error`.
-- **Scoring:** scoring, weight 0.65.
+- **Scoring:** scoring, weight 0.65. The weight did not move under
+  `LINK-ouljoseh` and the reason is worth stating: 0.65 is §1.1's price for a
+  different-host fork, and it is now carried by three sub-signals that each name
+  such a fork rather than by seven of which four could not. The residual is that
+  `multiple_userinfo` and `multiple_port` ride the same 0.65 while §1.1 prices
+  accept-vs-reject at 0.3 (`ambiguous_numeric_host`); lowering the shared weight
+  would under-score the different-host shapes instead, so separating them needs a
+  distinct reason code and a `SCHEMA_VERSION` bump. Open, not settled.
+- **Example:** `http://good.com\@evil.com/` (backslash),
+  `https:///evil.com` (slash_confusion), `http://foo@evil.com:80@google.com/`
+  (multiple_userinfo).
 
 ### `separator_lookalike` — Epic J (J2) · weight 0.5
 
