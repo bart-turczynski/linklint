@@ -396,12 +396,32 @@ Files and stdin skip blank lines and lines starting with `#`.
 | `--agent` | Enable the 4 agent-gated detectors (prompt-injection, credential-harvesting, data-exfiltration, cloud-metadata SSRF escalation) |
 | `--allow-idn` | Permit internationalized (Unicode/punycode) domains (default: block at `high`) |
 | `--idn-allow <domain>` | Exempt one registrable domain from the IDN block; repeatable |
-| `--deny-tld <tld>` | Report a weight-0 `tld_denied` for this TLD; repeatable |
-| `--allow-tld <tld>` | Report a weight-0 `tld_not_allowlisted` for any other TLD; repeatable |
 | `--quiet` | One line per URL |
 | `--no-color` | Disable ANSI color |
 | `--offline` | Reserved no-op in v1 (accepted and ignored) |
 | `--help` / `--version` | Print help / version and exit |
+
+**Policy flags** are caller-supplied judgment, reported at weight `0`: they
+annotate the verdict and never move the deception score. linklint ships no
+built-in high-abuse TLD, host or port list, so this is where that judgment
+lives. Each is the CLI form of the identically-named `inspect()` option, and
+every `<value>` flag is repeatable.
+
+| Flag | Effect |
+|------|--------|
+| `--deny-tld <tld>` | Report `tld_denied` for this TLD |
+| `--allow-tld <tld>` | Report `tld_not_allowlisted` for any other TLD |
+| `--deny-host <host>` | Report `host_denied` for this registrable domain (covers its subdomains) |
+| `--allow-host <host>` | Report `host_not_allowlisted` for any other registrable domain |
+| `--deny-scheme <scheme>` | Report `scheme_denied` for this scheme (e.g. `javascript`) |
+| `--allow-scheme <scheme>` | Report `scheme_denied` for any other scheme (e.g. an https-only policy) |
+| `--deny-port <port>` | Report `port_denied` for this explicit port; the value must be an integer `0`–`65535` |
+| `--deny-non-standard-ports` | Report `port_denied` for any explicit port that is not the scheme's default |
+
+```sh
+linklint check --deny-host bit.ly https://bit.ly/3xAmPl3
+linklint check --allow-scheme https --deny-non-standard-ports https://vendor.io:8443/
+```
 
 Exit codes: `0` all URLs below the `--fail-on` threshold and none invalid (or allowed),
 `1` any URL at/above the threshold or any invalid URL (unless `--allow-invalid`), `2` usage error.

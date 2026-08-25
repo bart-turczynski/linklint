@@ -35,10 +35,26 @@ Flags:
   --allow-idn           permit internationalized (Unicode/punycode) domains
                         (default: IDNs are blocked at 'high')
   --idn-allow <domain>  exempt a registrable domain from the IDN block (repeatable)
-  --deny-tld <tld>      report a weight-0 tld_denied for this TLD (repeatable)
-  --allow-tld <tld>     report a weight-0 tld_not_allowlisted for any other TLD
-                        (repeatable). linklint ships no built-in high-abuse TLD
-                        list; these two flags are where that judgment lives.
+
+Policy flags — caller-supplied judgment, reported at weight 0. Each annotates
+the verdict with a policy reason and never moves the deception score. linklint
+ships no built-in high-abuse TLD, host or port list; these flags are where that
+judgment lives. All the <value> forms are repeatable.
+
+  --deny-tld <tld>      report tld_denied for this TLD
+  --allow-tld <tld>     report tld_not_allowlisted for any other TLD
+  --deny-host <host>    report host_denied for this registrable domain
+                        (covers its subdomains)
+  --allow-host <host>   report host_not_allowlisted for any other registrable
+                        domain
+  --deny-scheme <s>     report scheme_denied for this scheme (e.g. javascript)
+  --allow-scheme <s>    report scheme_denied for any other scheme (e.g. https)
+  --deny-port <port>    report port_denied for this explicit port (0-65535)
+  --deny-non-standard-ports
+                        report port_denied for any explicit port that is not
+                        the scheme's default (http 80, https 443, ftp 21,
+                        ws 80, wss 443)
+
   --offline             reserved no-op in v1 (accepted and ignored)
   --help                print this help and exit
   --version             print version and exit
@@ -136,10 +152,22 @@ function runInspections(
     // IDNs are blocked by default; --allow-idn opts out, --idn-allow exempts hosts.
     ...(options.allowIdn ? { idnPolicy: "allow" as const } : {}),
     ...(options.idnAllowlist.length > 0 ? { idnAllowlist: options.idnAllowlist } : {}),
-    // Caller-owned TLD judgment. Both emit weight-0 policy reasons, so they
-    // annotate the verdict without moving the deception score.
+    // The caller-owned policy channel, in the axis order `InspectOptions`
+    // declares. Every one emits a weight-0 reason, so they annotate the verdict
+    // without moving the deception score.
+    //
+    // Each key is added only when the caller actually set the flag: the core
+    // treats a PRESENT key as "policy configured" (even an empty list), which
+    // puts `policy` in `checksRun`. Spreading unconditionally would make every
+    // default run report a policy channel it never asked for.
     ...(options.denyTlds.length > 0 ? { denyTlds: options.denyTlds } : {}),
     ...(options.allowTlds.length > 0 ? { allowTlds: options.allowTlds } : {}),
+    ...(options.denyHosts.length > 0 ? { denyHosts: options.denyHosts } : {}),
+    ...(options.allowHosts.length > 0 ? { allowHosts: options.allowHosts } : {}),
+    ...(options.allowSchemes.length > 0 ? { allowSchemes: options.allowSchemes } : {}),
+    ...(options.denySchemes.length > 0 ? { denySchemes: options.denySchemes } : {}),
+    ...(options.denyPorts.length > 0 ? { denyPorts: options.denyPorts } : {}),
+    ...(options.denyNonStandardPorts ? { denyNonStandardPorts: true } : {}),
   };
 
   if (options.json) {
