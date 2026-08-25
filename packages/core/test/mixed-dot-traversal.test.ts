@@ -4,15 +4,12 @@ import { inspect } from "../src/index.js";
 /**
  * LINK-dpahotkg — the encoded double-dot path segment, all four spellings.
  *
- * PIN COMMIT. Everything in this file asserts what the detector does TODAY,
- * including the part that is wrong, so the next commit has to change an
- * executable statement rather than an opinion.
- *
  * The WHATWG URL Standard enumerates a "double-dot path segment" by name and by
  * exhaustive list: `..`, `.%2e`, `%2e.`, `%2e%2e`, ASCII case-insensitive. Every
- * conforming parser pops the parent for all four. `encoding_obfuscation`
- * implements the fourth and omits the second and third, so three of the four
- * spellings the standard names score 0 / info / no reasons.
+ * conforming parser pops the parent for all four. `encoding_obfuscation` used to
+ * implement the fourth and omit the second and third, so three of the four
+ * spellings the standard names scored 0 / info / no reasons. It now implements
+ * the whole enumeration, segment-bounded.
  *
  * This is architecture §1.1's path rule applied, not widened: the divergence is
  * enumerated by the URL standard itself, so it is a property of the string and
@@ -55,16 +52,22 @@ describe("SPEC — every WHATWG double-dot spelling pops the parent (ground trut
   });
 });
 
-describe("THE GAP (pinned as-is) — three of the four spellings are silent today", () => {
+describe("THE GAP, CLOSED — all three mixed spellings now fire", () => {
   it.each([
     ["https://example.com/a/.%2e/admin"],
     ["https://example.com/a/%2e./admin"],
     ["https://example.com/a/.%2E/admin"],
-  ])("%s scores 0 / info / no reasons", (url) => {
+    ["https://example.com/a/%2E./admin"],
+  ])("%s scores 0.35 / medium and names the traversal", (url) => {
     const r = inspect(url);
-    expect(r.score).toBe(0);
-    expect(r.severity).toBe("info");
-    expect(r.reasons).toEqual([]);
+    expect(r.score).toBe(0.35);
+    expect(r.severity).toBe("medium");
+    expect(r.reasons.map((x) => x.code)).toEqual(["encoding_obfuscation"]);
+    expect(detail(url)).toContain("encoded '..' traversal");
+  });
+
+  it("the bare `..` spelling stays unflagged — it is honest, and every reader agrees", () => {
+    expect(inspect("https://example.com/a/../admin").reasons).toEqual([]);
   });
 });
 
@@ -88,25 +91,46 @@ describe("MUST NOT REGRESS — the fourth spelling already fires", () => {
 });
 
 /**
- * PRE-EXISTING INCONSISTENCY, pinned before it is decided. The shipped `%2e%2e`
- * rule is a substring match, so it fires on a segment that merely contains the
- * pair — a filename that decodes to `file..txt`, which no conforming parser
- * treats as a traversal. Pinned here so the next commit's decision about it is
- * visible as a diff.
+ * THE PRE-EXISTING INCONSISTENCY, DECIDED. The shipped `%2e%2e` rule was a
+ * substring match while the new mixed-dot rule is segment-bounded, and leaving
+ * two matching disciplines in one detector was not an option. All four
+ * spellings are now segment-bounded, for the reason §1.1 gives: a segment that
+ * merely CONTAINS `%2e%2e` is a traversal to nobody. It becomes one only if
+ * something decodes the escape and then re-splits the path — application code
+ * below the URL layer, which §1.1 puts out of scope. The pinned FP
+ * `/docs/file%2e%2etxt` therefore stops firing, and so does `/a/.%2e%2e/admin`,
+ * a spelling that is not on the standard's list at all.
+ *
+ * Where the substring form was carrying a composite like `/%2e%2e%2fadmin`, the
+ * encoded-separator signal still fires and is the honest one — its lean on
+ * servers that decode `%2F` is §1.1's documented, in-scope lean, and it was
+ * never this signal's claim to make. The verdict code is unchanged there; only
+ * the redundant second detail string goes away.
  */
-describe("PRE-EXISTING — the shipped %2e%2e rule is substring-based", () => {
-  it("fires on an encoded-dot FILENAME that no parser pops", () => {
-    const url = "https://example.com/docs/file%2e%2etxt";
+describe("DECIDED — one matching discipline: all four spellings are segment-bounded", () => {
+  it("no longer fires on an encoded-dot FILENAME that no parser pops", () => {
+    const r = inspect("https://example.com/docs/file%2e%2etxt");
+    expect(r.score).toBe(0);
+    expect(r.reasons).toEqual([]);
+  });
+
+  it("no longer fires on `.%2e%2e`, which is not on the standard's list", () => {
+    expect(inspect("https://example.com/a/.%2e%2e/admin").reasons).toEqual([]);
+  });
+
+  it("the composite keeps its verdict via the encoded-separator signal, not this one", () => {
+    const url = "https://example.com/%2e%2e%2fadmin";
     expect(codes(url)).toContain("encoding_obfuscation");
-    expect(detail(url)).toContain("encoded '..' traversal");
+    expect(detail(url)).toContain("encoded path separator");
+    expect(detail(url)).not.toContain("traversal");
   });
 });
 
 /**
  * GUARDS against the rejected alternative. A substring rule for the mixed
  * spellings — `/\.%2e|%2e\./i` — hits all four of these, none of which any
- * parser pops. They are green today and stay green after the fix, so across the
- * shipped diff they are CONTROLS, not proof. What they are proof of is the
+ * parser pops. They were green before the fix and stay green after it, so across
+ * the shipped diff they are CONTROLS, not proof. What they are proof of is the
  * design choice: mutate the detector to the substring form and all four go red,
  * which is the measurement that rejected it.
  *

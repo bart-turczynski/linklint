@@ -22,6 +22,40 @@ const OVERLONG_UTF8 =
   /%[cC][01]%[89aAbB][0-9a-fA-F]|%[eE]0%[89][0-9a-fA-F]%[89aAbB][0-9a-fA-F]|%[fF]0%8[0-9a-fA-F]%[89aAbB][0-9a-fA-F]%[89aAbB][0-9a-fA-F]/;
 
 /**
+ * An encoded WHATWG **double-dot path segment** (`LINK-dpahotkg`). The URL
+ * Standard enumerates the double-dot segment by name and by exhaustive list —
+ * `..`, `.%2e`, `%2e.`, `%2e%2e`, ASCII case-insensitive — and every conforming
+ * parser pops the parent for all four. The bare `..` is honest: every reader
+ * agrees it is a traversal and nothing is concealed. The three encoded
+ * spellings resolve as a traversal while reading as literal text, which is
+ * architecture §1.1 form 1 (`normalize(input) !== input`); against a reader that
+ * string-matches only the unencoded spelling it is also form 2. The spellings
+ * come from the standard, so no server behavior is assumed.
+ *
+ * **Matched per segment, anchored — this is the whole design.** A segment that
+ * is exactly one of these IS `..` to every conforming reader, so it can never be
+ * a filename. A substring match reaches ordinary filenames that no parser pops:
+ * `/files/report%2e.pdf`, `/dl/My%20File%2e.txt`, `/pkg/lodash%2e.min.js`,
+ * `/x/.%2ehidden/file`, `/docs/file%2e%2etxt`. It also mis-reads
+ * `/a/.%2e%2e/admin`, which is not on the standard's list and which Node leaves
+ * un-popped. Measured over 13 encoded-dot benign paths, the substring form
+ * produced 4 false positives and the segment-bounded form produced 0, with both
+ * catching 3 of 3 attack spellings.
+ *
+ * A `%2e%2e` embedded in a longer segment used to fire here. It no longer does:
+ * it becomes a traversal only if something decodes the escape and then re-splits
+ * the path, which is application code below the URL layer and out of scope per
+ * §1.1. Where such a path also carries an encoded separator
+ * (`/%2e%2e%2fadmin`), the encoded-separator signal still fires and is the
+ * honest one — its lean on servers that decode `%2F` is the documented,
+ * in-scope lean, and it is not this signal's claim to make.
+ *
+ * Single-dot segments (`.`, `%2e`) are deliberately absent: they resolve to the
+ * same directory, so nothing about the destination changes.
+ */
+const ENCODED_DOUBLE_DOT_SEGMENT = /^(?:\.%2e|%2e\.|%2e%2e)$/i;
+
+/**
  * FR-D-10 — percent-encoding obfuscation. Scoring. Deliberately narrow to avoid
  * flagging the legitimate encoding common in query strings (e.g. an encoded
  * `redirect_uri`). Flags only the high-signal cases:
@@ -30,7 +64,8 @@ const OVERLONG_UTF8 =
  *  - triple-or-deeper nesting (≥3 percent-decode passes to reach a stable form);
  *  - an overlong UTF-8 sequence whose canonical form is a one-byte char;
  *  - an encoded control character anywhere;
- *  - an encoded path separator or `..` traversal in the path.
+ *  - an encoded path separator in the path, or a path segment that is one of
+ *    the WHATWG standard's encoded double-dot spellings.
  */
 export const encodingObfuscation: Detector = {
   id: "encoding_obfuscation",
@@ -64,7 +99,8 @@ export const encodingObfuscation: Detector = {
     }
 
     if (/%2f|%5c/i.test(ctx.path)) signals.push("encoded path separator");
-    if (/%2e%2e/i.test(ctx.path)) signals.push("encoded '..' traversal");
+    if (ctx.path.split("/").some((segment) => ENCODED_DOUBLE_DOT_SEGMENT.test(segment)))
+      signals.push("encoded '..' traversal");
 
     if (signals.length === 0) return [];
     return [

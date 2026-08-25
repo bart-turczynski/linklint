@@ -1613,3 +1613,99 @@ const OPEN_REDIRECT_GATE_CORPUS: CorpusRow[] = [
 CORPUS.push(...OPEN_REDIRECT_GATE_CORPUS);
 applyAcceptanceMetadata(OPEN_REDIRECT_GATE_CORPUS);
 // LINK-cvcjgewz — BLOCK END.
+
+// LINK-dpahotkg — BLOCK START. Encoded double-dot path segments, all four
+// WHATWG spellings. The standard enumerates a "double-dot path segment" as
+// exactly `..`, `.%2e`, `%2e.`, `%2e%2e`, ASCII case-insensitive, and every
+// conforming parser pops the parent for all four. The bare `..` is honest and
+// stays unflagged; the three encoded spellings hide the traversal behind
+// percent-encoding and are architecture §1.1 form 1. Matching is
+// segment-bounded, so a segment that merely CONTAINS an encoded dot is a
+// filename and stays silent.
+const ENCODED_DOUBLE_DOT_CORPUS: CorpusRow[] = [
+  // Deceptive (SC-1) — the spellings the detector used to miss entirely.
+  {
+    input: "https://example.com/a/.%2e/admin",
+    label: "deceptive",
+    expectReasons: ["encoding_obfuscation"],
+    notes: "LINK-dpahotkg: WHATWG double-dot spelling 2 of 4 — Node resolves this to /admin",
+  },
+  {
+    input: "https://example.com/a/%2e./admin",
+    label: "deceptive",
+    expectReasons: ["encoding_obfuscation"],
+    notes: "LINK-dpahotkg: WHATWG double-dot spelling 3 of 4 — Node resolves this to /admin",
+  },
+  {
+    input: "https://example.com/a/.%2E/admin",
+    label: "deceptive",
+    expectReasons: ["encoding_obfuscation"],
+    notes: "LINK-dpahotkg: the enumeration is ASCII case-insensitive, so uppercase hex is the same segment",
+  },
+  {
+    input: "https://cdn.example.net/assets/%2E./config/secrets",
+    label: "deceptive",
+    expectReasons: ["encoding_obfuscation"],
+    notes: "LINK-dpahotkg: same spelling reached from a second host and a deeper path",
+  },
+  {
+    input: "https://example.com/a/%2e%2e/admin",
+    label: "deceptive",
+    expectReasons: ["encoding_obfuscation"],
+    notes: "LINK-dpahotkg: spelling 4 of 4 — already shipped, pinned here so the segment-bounding change cannot drop it",
+  },
+  // Benign (SC-2) — encoded dots that are filenames, not segments. A substring
+  // rule hits every one of these; a segment-bounded rule cannot, because a
+  // segment that IS `.%2e` is `..` to every reader and so is never a filename.
+  {
+    input: "https://example.com/files/report%2e.pdf",
+    label: "benign",
+    forbidReasons: ["encoding_obfuscation"],
+    notes: "LINK-dpahotkg guard: decodes to report..pdf — a filename; no parser pops it",
+  },
+  {
+    input: "https://example.com/dl/My%20File%2e.txt",
+    label: "benign",
+    forbidReasons: ["encoding_obfuscation"],
+    notes: "LINK-dpahotkg guard: an encoded space beside an encoded dot is still just a filename",
+  },
+  {
+    input: "https://example.com/pkg/lodash%2e.min.js",
+    label: "benign",
+    forbidReasons: ["encoding_obfuscation"],
+    notes: "LINK-dpahotkg guard: package filename with an encoded dot",
+  },
+  {
+    input: "https://example.com/x/.%2ehidden/file",
+    label: "benign",
+    forbidReasons: ["encoding_obfuscation"],
+    notes: "LINK-dpahotkg guard: the segment is `.%2ehidden`, a dotfile name — the traversal spelling is a PREFIX of it, which is exactly what segment-bounding rejects",
+  },
+  {
+    input: "https://example.com/docs/file%2e%2etxt",
+    label: "benign",
+    forbidReasons: ["encoding_obfuscation"],
+    notes: "LINK-dpahotkg: the shipped %2e%2e rule was substring-based and fired here; decodes to file..txt, which no conforming parser pops, so this is a false positive the segment-bounding removes",
+  },
+  {
+    input: "https://example.com/repo/tree/main/%2egithub/workflows",
+    label: "benign",
+    forbidReasons: ["encoding_obfuscation"],
+    notes: "LINK-dpahotkg guard: an encoded LEADING dot is a dotfile directory, not a double-dot segment",
+  },
+  {
+    input: "https://example.com/a/.%2e%2e/admin",
+    label: "benign",
+    forbidReasons: ["encoding_obfuscation"],
+    notes: "LINK-dpahotkg guard: `.%2e%2e` is NOT on the WHATWG list — Node leaves the path at /a/.%2e%2e/admin, so there is no traversal to report",
+  },
+  {
+    input: "https://example.com/static/jquery%2emin%2ejs",
+    label: "benign",
+    forbidReasons: ["encoding_obfuscation"],
+    notes: "LINK-dpahotkg guard: encoded dots inside a bundle name",
+  },
+];
+CORPUS.push(...ENCODED_DOUBLE_DOT_CORPUS);
+applyAcceptanceMetadata(ENCODED_DOUBLE_DOT_CORPUS);
+// LINK-dpahotkg — BLOCK END.

@@ -1304,6 +1304,46 @@ specified above.
   `https://example.com/?redir=a%2Fb` stays silent, because an encoded `/` inside
   a query *value* is the legitimate encoding this code is deliberately narrow
   enough to avoid flagging.
+- **The encoded `..` signal covers the whole WHATWG enumeration
+  (`LINK-dpahotkg`):** the URL Standard defines a *double-dot path segment* by
+  exhaustive list — `..`, `.%2e`, `%2e.`, `%2e%2e`, ASCII case-insensitive — and
+  every conforming parser pops the parent for all four. Node resolves
+  `https://example.com/a/.%2e/admin` to `/admin`. The bare `..` stays unflagged
+  because it is honest — every reader agrees it is a traversal and nothing is
+  concealed. The three encoded spellings read as literal text and resolve as a
+  traversal, which is architecture §1.1 form 1; against a filter that
+  string-matches only `..`, it is also form 2. The spellings come from the
+  standard, so no assumption about any server is involved. This code used to
+  implement the fourth spelling and omit the second and third, so
+  `https://example.com/a/%2e./admin` scored `0.00` while
+  `https://example.com/a/%2e%2e/admin` scored `0.35` — an enumeration
+  inconsistency, not a widened claim.
+- **Why the match is segment-bounded rather than a substring:** a segment that
+  *is* `.%2e` is `..` to every conforming reader, so it is not a filename and
+  the anchored form cannot reach one. Measured over 13 benign encoded-dot paths,
+  the substring form `/\.%2e|%2e\./i` produced 4 false positives —
+  `/files/report%2e.pdf`, `/dl/My%20File%2e.txt`, `/pkg/lodash%2e.min.js`,
+  `/x/.%2ehidden/file` — while the segment-bounded form produced 0. Both caught
+  3 of 3 attack spellings, so the anchoring costs no recall.
+- **`%2e%2e` is segment-bounded too, so one discipline covers all four
+  spellings (`LINK-dpahotkg`):** that signal was a substring match until this
+  ticket. `https://example.com/docs/file%2e%2etxt` decodes to `file..txt`, a
+  filename no conforming parser pops, and it no longer fires; the same goes for
+  `https://example.com/a/.%2e%2e/admin`, a spelling absent from the standard's
+  list, which Node leaves un-popped. Measured across the corpus the change moved
+  exactly one pre-existing row, and only its `detail`:
+  `https://example.com/%2e%2e%2f%2e%2e%2fadmin` keeps `0.35`/`medium` and keeps
+  this code, dropping the traversal phrase and retaining
+  `encoded path separator`. That is the accurate signal there — a `%2e%2e%2f`
+  run is a single segment to a conforming parser and becomes a traversal only
+  where something decodes `%2F` first, which is the encoded-separator signal's
+  own documented lean and not this one's claim to make.
+- **Out of scope for the path signals, and stated non-goals rather than gaps**
+  (architecture §1.1): `..;/` and bare `;` path parameters, and an extension
+  after a dynamic segment (web cache deception). Every conforming reader agrees
+  on those strings and they make no false claim about themselves; they become
+  attacks only in front of a particular servlet container or cache
+  configuration, which is application code below the URL layer.
 - **Example:** `https://evil.com/redirect%2F..%2Fadmin` (encoded `/` in the path)
   or `https://evil.com/%252e%252e` (double-encoded `..`).
 
