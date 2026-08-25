@@ -58,14 +58,27 @@ describe("data_exfiltration — conservative: benign shapes do NOT fire (agentMo
     ).not.toContain("data_exfiltration");
   });
 
-  it("a short data= value (boundary: name is a marker but value short) STILL fires by name", () => {
+  it("a short exfil= value (boundary: name is a marker but value short) STILL fires by name", () => {
     // The exfil-marker NAME path fires on ANY non-empty value, independent of
     // length — a short value is sufficient. Documents that boundary explicitly.
-    expect(agentCodes("https://collect.example.com/?data=x")).toContain("data_exfiltration");
+    expect(agentCodes("https://collect.example.com/?exfil=x")).toContain("data_exfiltration");
   });
 
-  it("an empty exfil-marker value (data=) does NOT fire", () => {
-    expect(agentCodes("https://collect.example.com/?data=")).not.toContain("data_exfiltration");
+  it("an empty exfil-marker value (exfil=) does NOT fire", () => {
+    expect(agentCodes("https://collect.example.com/?exfil=")).not.toContain("data_exfiltration");
+  });
+
+  it("`data` is NOT a marker — it is an ordinary English word (LINK-uyoocslu)", () => {
+    // It read 0.30/medium here on the parameter NAME alone. The value path is
+    // untouched: an actual dump under a `data=` name is still caught by length
+    // and opaqueness, which are properties of the value.
+    expect(agentCodes("https://blog.example.com/download?data=report2024")).not.toContain(
+      "data_exfiltration",
+    );
+    expect(agentCodes("https://collect.example.com/?data=x")).not.toContain("data_exfiltration");
+    expect(agentCodes(`https://collect.example.com/?data=${OPAQUE_BLOB}`)).toContain(
+      "data_exfiltration",
+    );
   });
 
   it("a short opaque token under a non-marker name does NOT fire (below length floor)", () => {

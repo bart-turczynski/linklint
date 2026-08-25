@@ -142,6 +142,101 @@ that shipped rule. The standards-enumeration line keeps it and still excludes
 `..;`: §2.2 *names* the reserved-versus-encoded distinction the string is
 playing on, while no standard assigns `;` in a segment any meaning at all.
 
+**Agent mode, settled: a declared context re-weights, it does not re-charter**
+(`LINK-uyoocslu`). The four `agentGated` detectors — `prompt_injection_url`,
+`credential_harvesting`, `data_exfiltration`, `ssrf_cloud_metadata` — shipped
+with a gate, a weight and no scope note. This section did not name the family,
+§5 listed it without one, and `docs/reason-codes.md` argues each entry from
+consumer consequence ("an agent that follows such a link can be walked through
+an OAuth handshake on an impostor host") where its neighbours cite this section
+by number. A family that cites no boundary has whatever boundary its next author
+assumes. The question that decides an agent-gated proposal is this one:
+
+> Does the finding name a property of the string, or a property of what one
+> consumer does with the bytes **after** every reader has agreed where they came
+> from?
+
+*Form 2 is destination-scoped, and stretching it is the failure mode.* The
+tempting move — reading `read_A(input) !== read_B(input)` as "a browser and an
+LLM behave differently" — is recorded here as **rejected**. Form 2's
+disagreement is about *where the string resolves*: `ambiguous_authority` has two
+parsers reaching two hosts, `ambiguous_numeric_host` has one reader refusing
+what another dials. A browser and an agent both fetching
+`https://example.com/?q=ignore+previous+instructions` reach the same destination
+and receive the same bytes; they diverge in what they do with the text
+afterwards. Widening form 2 to "any two consumers behave differently" does not
+admit one detector, it dissolves the section — combosquatting, `..;/`, web cache
+deception and a 64-character label can each be restated as one consumer
+behaving differently from another, and claim (b) walks back in through the door
+claim (a) was built to hold.
+
+*The three forms do not reach a reader-consumption property; the fourth rule
+does.* An override phrase in a query value is not hidden
+(`normalize(input) === input`), is not disputed (every conforming parser agrees
+where the URL goes), and is not a false self-description (the string is exactly
+the parameter it says it is). It is still **determinable from the string**,
+which is what the fourth rule above exists for: report it at **weight 0** and
+let the caller — who declared the context — act on it. That makes agent mode a
+**reporting** channel by charter and a scoring one only by exception, and puts
+the burden on the proposal that wants to score.
+
+*What justifies a consequence-weighted escalation.* One shape carries that
+burden, and `ssrf_cloud_metadata` is its only instance. Three conditions, all
+required:
+
+1. **The fact is settled with the gate off.** The firing condition is a
+   claim-(a) string property already reported without `agentMode` — here a
+   whole-host equality test against an IANA-reserved literal and the
+   vendor-published names for it, emitted at `0.75` by `ip_cloud_metadata` in
+   either mode. The escalation inherits that grounding; it does not supply one.
+2. **The gate moves the weight, not the finding set.** Both modes state the same
+   fact about the same string, and the gate says how hard an already-settled
+   fact should land. A detector that *exists only* under the gate fails this
+   condition, and the failure is diagnostic: there the gate is doing the
+   epistemic work, and the caller's declaration is being spent to license a
+   finding claim (a) does not support.
+3. **The declaration, not an inference, fixes the consequence.** `agentMode` is
+   asserted by the caller, so the dual-use population — cloud-init, IaC, a log
+   scanner naming the endpoint — is separated by what the caller said about
+   itself rather than by linklint guessing what a URL is for. Escalating on a
+   guess about the consumer is claim (b) pointed at the caller instead of at the
+   site.
+
+*The per-code ruling* (`LINK-uyoocslu`). Three of the four ship above weight 0
+today, so the Disposition column is what is owed, not a description of the
+shipped table. A weight is a scoring surface with its own version stamp (§6.4)
+and moves under its own decision.
+
+| Code | Weight | Ruling | Disposition |
+|---|---|---|---|
+| `ssrf_cloud_metadata` | 1.00 | **Grounded** — meets all three conditions above | keep as shipped |
+| `prompt_injection_url` | 0.50 | none of the three forms — a post-resolution reader property | report at **weight 0** |
+| `data_exfiltration` | 0.30 | none of the three forms; the overlong-token branch flags a string that is well-formed, agreed-upon and honest about itself | report at **weight 0** |
+| `credential_harvesting` | 0.35 | fires on an OAuth shape **and** the host's absence from a list of real identity providers — an inverse watchlist | **re-ground**: drop the list, report the flow shape at **weight 0** for every host |
+
+`credential_harvesting` is the one the deletion record already decided.
+`api_endpoint_impersonation` was deleted in schema `1.9` (`LINK-eurtxkit`)
+because its firing condition was `API_BRAND_DOMAINS.get(token)` — a contingent
+commercial fact — corroborated only by ordinary syntax. Inverting the list does
+not change what it is: a set of registrable domains whose *complement* creates
+the finding is a watchlist creating findings, and the name-never-create rule
+below forbids that in either polarity. Incompleteness cuts the other way here,
+too. DynaPhish's finding that any fixed reference list is inherently incomplete
+is a precision argument for the watchlist and a false-positive argument against
+an allowlist, because a self-hosted Keycloak, a Gitea instance and a corporate
+`login.acme.com` all carry the shape and are all off the list — and whether
+`auth0.com` is an identity provider next year is a fact about the world. What
+survives the cut is the string fact underneath: this URL carries an
+authorization-code or token-flow shape. That is true of `github.com` as well,
+and saying so at weight 0 costs nothing.
+
+`data_exfiltration` carries a demonstrated false positive rather than a
+predicted one: `https://blog.example.com/download?data=report2024` read
+`0.30`/`medium` under agent mode on nothing but the ordinary English word `data`
+in a parameter name — the spelling Microsoft's own link rewriter puts into every
+URL it touches. That marker is dropped here (`LINK-uyoocslu`); the weight is
+not, and the marker fix is not a substitute for the ruling above.
+
 **One boundary this section does NOT yet settle** — do not read an answer into
 the silence:
 
@@ -152,9 +247,9 @@ the silence:
   whether it is in scope is open (`LINK-mgnbgicq`).
 
 That list is the whole of what is open. What this section settles, and what
-should therefore not be re-filed: well-formed-but-unusable strings and the path
-layer, both above; the watchlist's name-never-create rule, combosquatting, and
-the reading of a clean result, all below.
+should therefore not be re-filed: well-formed-but-unusable strings, the path
+layer and the agent-mode layer, all above; the watchlist's name-never-create
+rule, combosquatting, and the reading of a clean result, all below.
 
 **The rule.** The brand watchlist (`data/brands.ts`) may only be consulted to
 **NAME** a structural anomaly that was already detected independently. It may
@@ -401,6 +496,13 @@ may emit several reason codes):
 | **Hidden characters** | `invisible_char`, `bidi_override`, `control_char`, `encoding_obfuscation`, `percent_encoding_malformed`, `low_byte_truncation`, `confusable_in_path` |
 | **Contextual signals** | `risky_tld`, `bait_tokens` |
 | **Agent-gated** | `prompt_injection_url`, `credential_harvesting`, `data_exfiltration`, `ssrf_cloud_metadata` |
+
+**Agent-gated is a caller-declared context, not a seventh kind of evidence.**
+Those four run only when `InspectOptions.agentMode` is set, and §1.1 settles what
+they may claim: a property of what one consumer does with the bytes after every
+reader has agreed where they came from is reportable but not chartered to score,
+and a consequence-weighted escalation requires a fact that is already settled
+with the gate off. The per-code ruling lives in §1.1 (`LINK-uyoocslu`).
 
 Informational detectors (`confusable_char`, `confusable_in_path`, `normalization_delta`, `idna_mapping_ambiguity`, `locale_case_ambiguity`, `host_length_unresolvable`, `fqdn_root_label`) have weight 0 — they annotate without raising severity. `idna_mapping_ambiguity` and `locale_case_ambiguity` each escalate to a weight-0.5 scoring code (`brand_idna_collapse`, `brand_locale_collapse`) when the alternate reading lands on a watchlist brand exactly.
 

@@ -4,12 +4,21 @@ import { CHECKS } from "../src/detectors/checks.js";
 import { REASON_CODES } from "../src/schema/reason-codes.js";
 import { AGENT_CORPUS } from "./corpus/corpus.js";
 
-/** The three agent-gated scoring reason codes (the V4 family). */
+/**
+ * The agent-gated reason codes that exist ONLY under the gate (the V4 family).
+ * `ssrf_cloud_metadata` is agent-gated too but is deliberately not here: it is
+ * an ESCALATION of a code that fires in either mode, so the byte-identical-
+ * default assertions below (which demand the code be absent with the gate off)
+ * apply to it in a different shape — see the grounded-escalation block.
+ */
 const AGENT_REASON_CODES = [
   "prompt_injection_url",
   "credential_harvesting",
   "data_exfiltration",
 ] as const;
+
+/** Every agent-gated check id, derived — the family shrank from five to four. */
+const GATED_CHECK_IDS = CHECKS.filter((c) => c.agentGated === true).map((c) => c.id);
 
 /**
  * V4a — the agentMode observability contract (Option B). agentMode is an explicit
@@ -239,6 +248,121 @@ describe("agentMode — family-wide gating contract over the agent corpus", () =
       for (const code of row.expectReasons ?? []) expect(onCodes).toContain(code);
     },
   );
+});
+
+// LINK-uyoocslu — the charter (architecture §1.1, "Agent mode, settled"). Three
+// facts about the family that the doctrine leans on and nothing asserted:
+//
+//  1. The family is exactly four checks. The ruling table in §1.1 is written
+//     against that number; it was five until LINK-eurtxkit.
+//  2. `ssrf_cloud_metadata` is GROUNDED because it is an escalation — the fact
+//     it reports is settled with the gate OFF, by `ip_cloud_metadata` at 0.75,
+//     and the gate moves the weight rather than the finding set. If the always-on
+//     code ever stops firing, the escalation stops being grounded and the §1.1
+//     ruling silently becomes false.
+//  3. The other three exist ONLY under the gate. That is the diagnostic §1.1
+//     names: the gate, not a string property, is doing the epistemic work.
+describe("agentMode — the family is exactly the four §1.1 rules on", () => {
+  it("four agent-gated checks, and the deleted fifth is not among them", () => {
+    expect(GATED_CHECK_IDS).toEqual([
+      "prompt_injection_url",
+      "credential_harvesting",
+      "data_exfiltration",
+      "ssrf_cloud_metadata",
+    ]);
+    expect(GATED_CHECK_IDS).not.toContain("api_endpoint_impersonation");
+  });
+
+  it("every gated check's reason code is a real registry code", () => {
+    for (const id of CHECKS.filter((c) => c.agentGated === true).flatMap((c) => c.emits)) {
+      expect(Object.keys(REASON_CODES)).toContain(id);
+    }
+  });
+});
+
+describe("agentMode — ssrf_cloud_metadata is a GROUNDED escalation (LINK-uyoocslu)", () => {
+  // Both spellings: the IANA-reserved literal and the vendor-published name
+  // that LINK-hvawpgos added. §1.1 rules on both together.
+  const ENDPOINTS = [
+    "http://169.254.169.254/latest/meta-data/",
+    "http://metadata.google.internal/computeMetadata/v1/",
+  ];
+
+  it.each(ENDPOINTS)("the underlying fact is reported with the gate OFF: %s", (url) => {
+    const off = inspect(url);
+    expect(off.reasons.map((r) => r.code)).toContain("ip_cloud_metadata");
+    expect(off.score).toBeCloseTo(0.75, 5);
+    expect(off.severity).toBe("high");
+    // Condition 1 of the escalation charter: nothing about the gate is needed
+    // to settle WHAT this address is.
+    expect(off.reasons.map((r) => r.code)).not.toContain("ssrf_cloud_metadata");
+  });
+
+  it.each(ENDPOINTS)("the gate adds weight, not a new subject: %s", (url) => {
+    const off = inspect(url);
+    const on = inspect(url, { agentMode: true });
+    // Condition 2: the finding set grows by exactly the escalation code, and
+    // every reason the default verdict carried is still carried.
+    const added = on.reasons.map((r) => r.code).filter((c) => !off.reasons.some((o) => o.code === c));
+    expect(added).toEqual(["ssrf_cloud_metadata"]);
+    for (const r of off.reasons) expect(on.reasons.map((x) => x.code)).toContain(r.code);
+    expect(on.score).toBe(1);
+    expect(on.severity).toBe("critical");
+  });
+
+  it("the other three gated codes exist ONLY under the gate — the contrast §1.1 draws", () => {
+    const onlyGated: Array<[string, string]> = [
+      ["prompt_injection_url", INJECTION],
+      ["credential_harvesting", CRED_HARVEST],
+      ["data_exfiltration", EXFIL],
+    ];
+    for (const [code, url] of onlyGated) {
+      // Nothing at all is reported with the gate off: the gate is not
+      // re-weighting a settled fact, it is creating the finding.
+      expect(inspect(url).reasons.map((r) => r.code)).not.toContain(code);
+      expect(inspect(url, { agentMode: true }).reasons.map((r) => r.code)).toContain(code);
+    }
+  });
+});
+
+// LINK-uyoocslu — the narrow marker fix, which is independent of the doctrine.
+// `data` is an ordinary English word and a very common parameter name; it sat in
+// EXFIL_MARKER_PARAMS beside `exfil`/`beacon`/`dump`/`leak`/`payload`, and a
+// plain download link scored 0.30/medium under agent mode on nothing else.
+describe("data_exfiltration — the `data` marker false positive (LINK-uyoocslu)", () => {
+  const FP = "https://blog.example.com/download?data=report2024";
+
+  it("an ordinary `data=` parameter does not fire, in either mode", () => {
+    for (const r of [inspect(FP), inspect(FP, { agentMode: true })]) {
+      expect(r.reasons.map((x) => x.code)).not.toContain("data_exfiltration");
+      expect(r.score).toBe(0);
+      expect(r.severity).toBe("info");
+    }
+  });
+
+  it("the Safelinks spelling `&data=05|01` does not fire either", () => {
+    // Microsoft's link rewriter puts `data=` in every URL it touches; the
+    // repository's own online fixtures carry the shape.
+    const url = "https://nam01.safelinks.protection.outlook.com/?url=https%3A%2F%2Fexample.com%2F&data=05%7C01";
+    expect(inspect(url, { agentMode: true }).reasons.map((x) => x.code)).not.toContain(
+      "data_exfiltration",
+    );
+  });
+
+  it("the remaining markers are untouched — this is a set edit, not a disable", () => {
+    for (const marker of ["exfil", "beacon", "dump", "leak", "payload"]) {
+      const r = inspect(`https://collect.example.com/p?${marker}=secret`, { agentMode: true });
+      expect(r.reasons.map((x) => x.code)).toContain("data_exfiltration");
+    }
+  });
+
+  it("the overlong-opaque-token branch is untouched", () => {
+    const blob = "A1b2C3d4E5f6G7h8".repeat(16);
+    const r = inspect(`https://collect.example.com/p?data=${blob}`, { agentMode: true });
+    // Still caught — by LENGTH and OPAQUENESS, which is a property of the value
+    // rather than of the parameter's English name.
+    expect(r.reasons.map((x) => x.code)).toContain("data_exfiltration");
+  });
 });
 
 describe("agentMode — invalid-input path is unaffected", () => {

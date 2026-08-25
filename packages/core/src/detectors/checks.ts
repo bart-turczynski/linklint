@@ -48,8 +48,8 @@ import { ssrfCloudMetadata } from "./ssrf-cloud-metadata.js";
  * array — add a check here once and both runtime arrays pick it up.
  *
  * Order matches today's runtime order exactly: the 4 structural scans first
- * (STRUCTURAL_SCANS order), then the 31 parsed detectors (DETECTORS order) —
- * the last five of which are `agentGated` and run only when
+ * (STRUCTURAL_SCANS order), then the 34 parsed detectors (DETECTORS order) —
+ * the last four of which are `agentGated` and run only when
  * `InspectOptions.agentMode` is true.
  * Each descriptor reuses the existing detector object / scan thunk's `run`;
  * detector logic is unchanged. `skipReportable: true` for every check (a

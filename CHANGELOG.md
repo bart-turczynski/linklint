@@ -4,6 +4,17 @@ All notable changes to this project will be documented here.
 
 ## Unreleased
 
+### Changed
+
+- `data_exfiltration` no longer treats the bare word `data` as an exfiltration
+  marker. `?data=report2024` on an ordinary download link scored 0.30/medium;
+  it now scores 0.00. Package-semantics only under §6.4 — no `SCHEMA_VERSION`,
+  `WEIGHTS_VERSION` or `DataVersions` move, because the result *contract* is
+  unchanged and the code, its weight and its other five markers all remain.
+  All 841 corpus verdicts were compared in both modes before and after: the
+  removed false-positive class is the only difference (`LINK-uyoocslu`).
+
+
 - **New `TRANSPORT_SCHEMA_VERSION` (`1.0`) and a runtime registry for the
   `@linklint/online/transport` outcome surface.** `TransportCauseCode` (30
   values) and `TlsObservationCauseCode` (18) were TypeScript unions and nothing

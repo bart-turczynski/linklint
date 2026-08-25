@@ -1736,3 +1736,64 @@ const ENCODED_DOUBLE_DOT_CORPUS: CorpusRow[] = [
 CORPUS.push(...ENCODED_DOUBLE_DOT_CORPUS);
 applyAcceptanceMetadata(ENCODED_DOUBLE_DOT_CORPUS);
 // LINK-dpahotkg — BLOCK END.
+
+// LINK-uyoocslu — BLOCK START. The `data` exfil marker, dropped.
+//
+// `data` sat in EXFIL_MARKER_PARAMS beside `exfil`, `beacon`, `dump`, `leak` and
+// `payload`. Those five are coined or repurposed terms that do not turn up as
+// ordinary parameter names; `data` is an ordinary English word and one of the
+// most common parameter names on the web, so the set was a vocabulary rather
+// than a marker set at that one entry. A plain download link read 0.30/medium
+// under agentMode on the name alone.
+//
+// The rows below are the FP class and its controls, kept as one contiguous
+// block: the benign rows are the finding, and the deceptive rows are what has
+// to keep firing for the edit to be a set edit rather than a disable. All run
+// under `{ agentMode: true }` — with the gate off none of them could fire at
+// all, so a corpus row without it would prove nothing about this change.
+//
+// The doctrine question — whether data_exfiltration should score at all — is
+// SEPARATE and is ruled on in architecture.md §1.1 ("Agent mode, settled").
+// This block is the narrow marker fix and does not implement that ruling.
+const DATA_MARKER_CORPUS: CorpusRow[] = [
+  {
+    input: "https://blog.example.com/download?data=report2024",
+    label: "benign",
+    options: AGENT,
+    forbidReasons: ["data_exfiltration"],
+    notes: "LINK-uyoocslu — the measured FP: an ordinary download link read 0.30/medium under agentMode on the parameter NAME alone, with a short, plainly non-opaque value",
+  },
+  // The Safelinks spelling — `...outlook.com/?url=…&data=05%7C01&reserved=0`,
+  // which Microsoft's rewriter puts into every URL it touches and which this
+  // repository's own online fixtures carry — is deliberately NOT a row here. It
+  // scores 0.76 on its wrapper shape (`open_redirect_param`), so a benign row
+  // would be asserting something false about it and a deceptive row would
+  // "pass" without saying anything about this marker. The narrow claim — that
+  // `data=` alone does not add `data_exfiltration` to it — is pinned by code in
+  // packages/core/test/agent-mode-contract.test.ts, where it can be scoped to
+  // the one reason code.
+  {
+    input: "https://api.example.com/v1/records?data=2024-01&format=json",
+    label: "benign",
+    options: AGENT,
+    forbidReasons: ["data_exfiltration"],
+    notes: "LINK-uyoocslu — `data=` as an ordinary API filter; the value is short and readable, which is the whole class the name-only path could not distinguish",
+  },
+  {
+    input: `https://collect.example.com/p?data=${"A1b2C3d4E5f6G7h8".repeat(16)}`,
+    label: "deceptive",
+    options: AGENT,
+    expectReasons: ["data_exfiltration"],
+    notes: "LINK-uyoocslu CONTROL — a real dump under a `data=` name is still caught, by the overlong-opaque-token branch. The branch keys on the VALUE, so dropping the name changes nothing here: this is the row that makes the edit a set edit and not a disable",
+  },
+  {
+    input: "https://collect.example.com/p?beacon=secret",
+    label: "deceptive",
+    options: AGENT,
+    expectReasons: ["data_exfiltration"],
+    notes: "LINK-uyoocslu CONTROL — the five surviving markers are untouched; `beacon` is not an ordinary parameter name",
+  },
+];
+CORPUS.push(...DATA_MARKER_CORPUS);
+applyAcceptanceMetadata(DATA_MARKER_CORPUS);
+// LINK-uyoocslu — BLOCK END.
