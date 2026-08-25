@@ -106,9 +106,13 @@ four, and Node does — `https://example.com/a/b/.%2e/admin` resolves to
 `/a/admin`. A segment that reads as literal text and resolves as a traversal is
 form 1, `normalize(input) !== input`; against a reader that implements only the
 unencoded spelling it is form 2. No assumption about any server is needed,
-because the standard supplies the spellings. Today `encoding_obfuscation`
-matches `%2e%2e` only; the mixed spellings are the in-scope half and are tracked
-as `LINK-dpahotkg`, which is a detector change and not this boundary.
+because the standard supplies the spellings. `encoding_obfuscation` matches all four
+spellings the standard enumerates, each anchored to a whole path segment
+(`LINK-dpahotkg`). The anchoring is part of the boundary rather than a tuning
+choice: `%2e%2e` inside a longer segment is a traversal to no conforming reader,
+and becomes one only if something decodes the escape and then re-splits the
+path — application code below the URL layer, which is the far side of the line
+this section draws.
 
 *Out of scope — `..;/` and bare path parameters.* Node leaves
 `https://example.com/a/..;/admin` at `/a/..;/admin`, and every conforming reader
