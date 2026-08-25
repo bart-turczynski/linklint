@@ -212,6 +212,12 @@ Concretely, linklint is not:
   is served there. The core opens no network connections at all.
 - **A replacement for the rest of your defenses.** It is one cheap, explainable,
   offline signal to compose with others — not a perimeter.
+- **A URL cleaner or rewriter.** There is no `sanitize()`: you get a verdict about
+  the string you passed in, not an edited copy of it, and tracking parameters come
+  back untouched wherever linklint hands a URL back. Removing `utm_*`, `fbclid` and
+  friends would mean asserting which query keys do not affect the resource a URL
+  addresses, which no standard settles — a stated non-goal, argued in full at
+  [`docs/architecture.md` §1.1](./docs/architecture.md).
 
 ### Known gaps
 
