@@ -58,8 +58,8 @@ tracks.
 | `docs/online-runtime-boundary.md` | 10 |
 | `docs/online-source-contract.md` | 14 |
 | `docs/raw-url-tokenization-spike.md` | 1 |
-| `docs/reason-codes.md` | 83 |
-| `docs/redirect-chain-resolution.md` | 4 |
+| `docs/reason-codes.md` | 87 |
+| `docs/redirect-chain-resolution.md` | 8 |
 | `docs/safe-transport.md` | 11 |
 | `docs/scoring.md` | 6 |
 | `docs/tracker-hygiene.md` | 3 |
@@ -258,6 +258,7 @@ that the reason fires at each limit and that the reason list is not empty.
 | F12 | A caller header value carrying CR, LF, or NUL is never forwarded to any HTTP port, caller-supplied ports included | `docs/safe-transport.md` | `packages/online/test/node-transport-headers.test.ts` |
 | F13 | A caller header value the built-in HTTP/1.1 adapter cannot put on the wire ends the attempt as `incomplete` / `http-malformed` before the request is sent, and the cause never quotes the refused value; the sendable set is Latin-1, so `Accept-Language: de-DE, fr;q=0.9` and any value containing `ü` still reach the destination byte for byte | `docs/safe-transport.md` | `packages/online/test/node-transport-headers.test.ts` |
 | F14 | A source is never constructed under terms it cannot honor and never silently downgraded to a weaker default — every reputation factory takes a required `terms` argument and runs `assertSourceTermsAccepted` before the enricher exists; the gate is terms-only and never demands a feed credential to construct a query-side enricher | `docs/online-source-contract.md`, `docs/online-runtime-boundary.md`, `docs/online-composition-root.md`, `packages/online/README.md` | `packages/online/test/contract/terms-gate-wiring.test.ts` |
+| F15 | An HTTPS-to-HTTP downgrade is reported at weight 0 and the chain is not stopped: the finding is keyed on the transition, not on a hop's own scheme, so a plaintext origin is not a downgrade, and a hop-capped or authorization-denied chain still reports the plaintext target it was directed into | `docs/redirect-chain-resolution.md`, `docs/reason-codes.md` | `packages/online/test/https-downgrade.test.ts` |
 
 **F10 is scoped to the built-ins, deliberately.** It is a claim about
 `createNodeSafeTransport()`'s own connector and HTTP port, not about a
