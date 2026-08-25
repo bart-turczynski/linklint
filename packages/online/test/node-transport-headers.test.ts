@@ -249,6 +249,68 @@ describe("typed port failures reach the outcome contract", () => {
     if (outcome.status === "incomplete") expect(outcome.cause.code).toBe("http-malformed");
     harness.assertExhausted();
   });
+
+  /**
+   * The contrast, and why typing the failure inside the adapter is worth doing
+   * rather than leaving to the layer above. An HTTP port that rejects with a raw
+   * Node error is not an escaped exception at the session boundary — it becomes
+   * `http-error`. But `http-error` is what a socket fault reports, so the caller
+   * cannot tell "your header is not sendable, fix it" from "the destination
+   * misbehaved, retry". That collapse is the defect this unit removes.
+   */
+  it("would report a raw Node error as the generic http-error", async () => {
+    const url = "https://origin.example/start";
+    const harness = new TransportFixtureHarness({
+      startTime: "2026-07-17T12:00:00.000Z",
+      resolver: [
+        {
+          hostname: "origin.example",
+          outcome: { value: [{ address: "93.184.216.34", family: 4, ttlSeconds: 60 }] },
+        },
+      ],
+      connector: [
+        {
+          expect: {
+            protocol: "https:",
+            hostname: "origin.example",
+            address: "93.184.216.34",
+            port: 443,
+            serverName: "origin.example",
+          },
+          outcome: {
+            value: {
+              id: "c1",
+              protocol: "https:",
+              remoteAddress: "93.184.216.34",
+              remotePort: 443,
+              tls: {
+                authorized: true,
+                serverName: "origin.example",
+                peerDnsNames: ["origin.example"],
+              },
+            },
+          },
+        },
+      ],
+    });
+    const invalidChar = Object.assign(new TypeError("Invalid character in header content"), {
+      code: "ERR_INVALID_CHAR",
+    });
+    const transportSession = createSafeTransport({
+      resolver: harness.resolver,
+      connector: harness.connector,
+      http: { request: () => Promise.reject(invalidChar) },
+      clock: harness.clock,
+    }).createSession();
+
+    const outcome = await transportSession.fetch({
+      url,
+      authorization: { kind: "destination-fetch", url },
+    });
+
+    expect(outcome.status).toBe("incomplete");
+    if (outcome.status === "incomplete") expect(outcome.cause.code).toBe("http-error");
+  });
 });
 
 describe("synchronous connect throws (live loopback)", () => {
