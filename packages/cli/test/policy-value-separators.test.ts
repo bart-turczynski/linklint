@@ -66,6 +66,8 @@ const DOTCOM = "https://a.example.com/";
 const EVIL = "https://sub.evil.com/";
 const FTP = "ftp://files.example.com/";
 const MUNICH = "https://münchen.de/";
+/** The one URL with an explicit port, so `--deny-port` has something to match. */
+const PORTED = "https://example.com:8080/";
 
 /** One repeatable value flag with two values that are each correct on their own. */
 interface Axis {
@@ -239,14 +241,101 @@ describe("LINK-stuiljry — a joined value is refused, not silently voided", () 
 
 describe("LINK-stuiljry — --deny-port is told about separators, not about its range", () => {
   it.each(SEPARATORS)("--deny-port joined by $name reports the separator", ({ char, named }) => {
-    expect(() =>
-      parseCli(["check", "--deny-port", `80${char}8080`, "https://example.com:8080/"]),
-    ).toThrow(`(a ${named} is not a value separator`);
+    expect(() => parseCli(["check", "--deny-port", `80${char}8080`, PORTED])).toThrow(
+      `(a ${named} is not a value separator`,
+    );
   });
 
   it("--deny-port still reports its range problem when there is no separator", () => {
     expect(() => parseCli(["check", "--deny-port", "99999", DOTCOM])).toThrow(
       /invalid --deny-port value: 99999 \(expected an integer 0-65535\)/,
+    );
+  });
+});
+
+/**
+ * LINK-patktxpv — padding on `--deny-port`, PINNED AS IT BEHAVES TODAY.
+ *
+ * This block is written before the fix, so it describes the defect rather than
+ * the intent: `--deny-port " 8080 "` is a usage error while the same padding on
+ * every other repeatable value flag is harmless. The cause is ordering, not
+ * judgment — `parsePort` runs on the raw argv string and its `/^\d{1,5}$/` sees
+ * the padding, so the core's `normalizedList` trim never gets the chance.
+ *
+ * It is LOUD, not a fail-open: exit 2 and a message. That is the opposite of
+ * the `idnAllowlist` and `suppressReasons` defects, which were silent. What
+ * makes it worth inverting is that two prose sites assert the tolerant behavior
+ * over a block that lists this flag (`packages/cli/src/cli.ts` help text,
+ * `packages/cli/README.md`), and both are false today for this one flag.
+ *
+ * The rest of the block is CONTROLS, and they must read identically after the
+ * inversion. Trimming padding must not weaken the separator screen: `trim` and
+ * `\s` are the same set in the language, which is exactly why LINK-stuiljry
+ * could call the screen "the padding trimming cannot reach because it is in the
+ * middle". These cases are what turns that from an argument into a measurement.
+ */
+
+/** Every separator, joining two ports that are each valid alone. */
+const PORT_JOINED: ReadonlyArray<readonly [string, string]> = [
+  ["80 443", "a space"],
+  ["80,443", "a comma"],
+  ["80;443", "a semicolon"],
+  ["80|443", "a vertical bar"],
+];
+
+describe("LINK-patktxpv — padding on --deny-port, pinned before the fix", () => {
+  it("DEFECT: a padded port value is refused, unlike the same padding elsewhere", () => {
+    expect(() => parseCli(["check", "--deny-port", " 8080 ", PORTED])).toThrow(
+      "invalid --deny-port value:  8080  (expected an integer 0-65535)",
+    );
+    // The control that makes it a defect rather than a policy: identical
+    // padding on a sibling flag matches, because `denyTlds` reaches the core's
+    // trim as a string and `denyPorts` does not.
+    expect(check("--deny-tld", " com ", DOTCOM).codes).toContain("tld_denied");
+  });
+
+  it("DEFECT: end to end it is loud — exit 2, nothing inspected, no silent void", () => {
+    const c = collectors();
+    expect(run(["check", "--json", "--deny-port", " 8080 ", PORTED], c.out, c.err)).toBe(2);
+    expect(c.outLines).toEqual([]);
+    expect(c.errLines.join("\n")).toContain("expected an integer 0-65535");
+  });
+
+  it("GAP: the derived padded-value guard does not reach --deny-port today", () => {
+    // `AXES` is the guard's domain, and it excludes the port flag. Nothing
+    // fails while the padded case above is missing, which is why the defect
+    // could sit here unpinned next to seven flags that are pinned.
+    expect(AXES.map((axis) => axis.flag)).not.toContain("--deny-port");
+  });
+
+  it.each(PORT_JOINED)(
+    "CONTROL: --deny-port %j stays refused as %s, with the repeatable-form remedy",
+    (joined, named) => {
+      expect(() => parseCli(["check", "--deny-port", joined, PORTED])).toThrow(
+        `invalid --deny-port value: ${joined} (${named} is not a value separator — ` +
+          "repeat the flag once per value: --deny-port 80 --deny-port 443)",
+      );
+    },
+  );
+
+  it("CONTROL: padding AROUND an interior separator does not launder it", () => {
+    // The case that would break if a fix trimmed and then screened the trimmed
+    // value only to hand the RAW one on, or trimmed hard enough to reach inside.
+    expect(() => parseCli(["check", "--deny-port", " 80 443 ", PORTED])).toThrow(
+      "invalid --deny-port value:  80 443  (a space is not a value separator — " +
+        "repeat the flag once per value: --deny-port 80 --deny-port 443)",
+    );
+  });
+
+  it("CONTROL: a padded value that is out of range still gets the range advice", () => {
+    expect(() => parseCli(["check", "--deny-port", " 99999 ", PORTED])).toThrow(
+      "invalid --deny-port value:  99999  (expected an integer 0-65535)",
+    );
+  });
+
+  it("CONTROL: a padded value that is not a number at all still gets the range advice", () => {
+    expect(() => parseCli(["check", "--deny-port", " nope ", PORTED])).toThrow(
+      "invalid --deny-port value:  nope  (expected an integer 0-65535)",
     );
   });
 });
