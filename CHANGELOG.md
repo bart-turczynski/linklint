@@ -4,7 +4,94 @@ All notable changes to this project will be documented here.
 
 ## Unreleased
 
+### Removed — BREAKING (package API + result contract)
+
+- **Delete `risky_tld` and `bait_tokens`, the whole "Contextual signals"
+  detector family.** `SCHEMA_VERSION` `1.9` → `1.10`, `WEIGHTS_VERSION` `1.18` →
+  `1.19` (`LINK-brsntven`, architecture §6.1.5). Both created a *scoring*
+  finding from curated membership alone: `risky_tld` was a public-suffix
+  presence check plus `RISKY_TLDS.has(tld)` over sixteen high-abuse registries,
+  and `bait_tokens` counted distinct members of a seventeen-word English lexicon
+  across host and path. §1.1's name-never-create rule says a curated table may
+  NAME a structural anomaly and may not CREATE one, and neither detector did
+  anything else. `mycompany.tk` and `secure-account-verify-login.com` each read
+  `0.15`/`low` and now read `0.00`/`info`.
+- **Not re-grounded at weight 0, unlike `credential_harvesting`.** §6.1.4's test
+  is to strip the world-claim and ask what string fact remains. For `risky_tld`
+  the residue is "the public suffix is `tk`", which `parsed` already carries;
+  for `bait_tokens` it is "the host contains English words". The weight-0 slot
+  for the TLD judgment already belongs to the caller (`denyTlds` → `tld_denied`).
+- **Breaking package change on top of the schema bump.** `RISKY_TLDS` and
+  `isRiskyTld` were public exports asserted by `public-api-contract.test.ts`, as
+  were the `riskyTld` and `baitTokens` detectors on `linklint/experimental`. All
+  four are gone. `packages/core/src/data/risky-tlds.ts` is renamed
+  `data/file-extension-tlds.ts`; `FILE_EXTENSION_TLDS` / `isFileExtensionTld`
+  are unchanged and still exported.
+- **`DataVersions.riskyTlds` is RENAMED, not deleted** — to
+  `DataVersions.fileExtensionTlds`, value carried forward unchanged. It is the
+  only pin covering `FILE_EXTENSION_TLDS`, a live weight-`0.4` scoring table, and
+  dropping the field would strand it against NFR-DATA-1. `SCHEMA_VERSION` owns
+  the rename because `DataVersions` is part of the serialized result (§6.4).
+  Swept through `tools/check-upstream.ts`, `tools/README.md` and
+  `tests/unit/check-upstream.test.ts`, which name the stamp as the exemplar
+  curated snapshot.
+- **Delete `packages/core/src/data/oauth-providers.ts`.** It existed only to
+  gate `credential_harvesting` off on twenty-one curated identity providers — an
+  inverse watchlist, the api-brands structure run backwards, forbidden in either
+  polarity.
+
 ### Changed
+
+- **The three agent-mode dispositions §1.1 recorded as *owed* are shipped.**
+  `prompt_injection_url` `0.50` → `0`, `data_exfiltration` `0.30` → `0`,
+  `credential_harvesting` `0.35` → `0` (`LINK-brsntven`, applying
+  `LINK-uyoocslu`). All three still REPORT under `agentMode`, with their full
+  detail strings; none of them scores. `credential_harvesting` now reports the
+  authorization-code / token-flow shape for **every** host, `github.com`
+  included, and its detail no longer asserts that the host is not a real
+  provider. The consequence, stated in §1.1 and asserted in
+  `packages/core/test/semantic-tier-retirement.test.ts`: **agent mode can no
+  longer raise a score above what plain mode gives, except through
+  `ssrf_cloud_metadata`** — the one gated code whose underlying fact is settled
+  with the gate off.
+- **`embedded_domain_in_subdomain` deliberately stays at `0.50`.** Two rows
+  cross the shipped `--fail-on high` default on this change
+  (`login.paypal.com.account.evil.com` and `login.paypal.com.evil.tk`, both
+  `0.575`/`high` → `0.500`/`medium`), because the detector sits EXACTLY on the
+  medium/high edge and its only companion was a `0.15` contextual signal.
+  Raising the weight was measured and refused: eleven distinct corpus inputs
+  carry the code and eight of them sit at exactly `0.500` with no companion, so
+  any raise pushes eight rows across the default threshold to restore two. See
+  §6.1.5 for the full argument; both rows are pinned at their new bands so a
+  future re-raise has to argue with them.
+- **CLI: new `--deny-tld <tld>` and `--allow-tld <tld>`, both repeatable.**
+  `packages/cli/src/args.ts` shipped zero policy flags, so "the caller supplies
+  the TLD judgment" — §1.1's answer, and the reason `risky_tld` could go — was
+  not true in practice for the tool's main surface. They emit the existing
+  weight-0 `tld_denied` / `tld_not_allowlisted` policy codes and never move the
+  deception score. Both policy summaries in `schema/reason-codes.ts`, which
+  named the deleted detector, are rewritten.
+- **Corpus: four benign rows added on free-registry TLDs** (`mycompany.tk`,
+  `.ml`, `.xyz`, `.top`). The corpus had **none**, which is why `risky_tld`'s
+  false-positive surface was invisible to the harness and the measured cost of
+  deleting it read as zero for the wrong reason. The `bait_tokens` FP guards were
+  CONVERTED from `forbidReasons` rows to plain benign rows rather than dropped —
+  same disposition §6.1.4 gave the V4e guards — and the two deceptive rows that
+  existed only to exercise the deleted detectors were removed, so recall stays
+  `1.000`. Precision and recall are `1.000` / `1.000` before and after; every
+  corpus verdict was diffed in both modes and the only differences are the six
+  rows named in §6.1.5.
+- **Docs.** `docs/architecture.md` §5 loses the whole "Contextual signals"
+  family (seven families → six, 38 checks → 36, 34 parsed → 32); §1.1's
+  disposition table is restated from *owed* to shipped, with its weight-quoting
+  drift guard unchanged and now demanding `0.00` on three rows; §6.1.5 is the new
+  deletion record. `docs/reason-codes.md` replaces both entries with deletion
+  notes. `docs/scoring.md`: 40 scoring codes → 35, 17 zero-weight → 20.
+- The mechanical `REASON_CODES` pin in
+  `packages/core/test/docs-validation.test.ts` was confirmed RED on this
+  two-code removal before the bumps were applied —
+  `{ added: [], removed: ["bait_tokens", "risky_tld"] }` — which had previously
+  been demonstrated for an addition and for a single-code removal.
 
 - `data_exfiltration` no longer treats the bare word `data` as an exfiltration
   marker. `?data=report2024` on an ordinary download link scored 0.30/medium;

@@ -21,8 +21,8 @@ something may be hiding in the URL.**
 
 Built-in inspection implements lexical (Layer 1) detection only:
 homograph/confusable analysis, script-mixing, invisible/bidi characters,
-userinfo deception, IP obfuscation, embedded-domain subdomains, risky TLDs,
-percent-encoding obfuscation, and dangerous schemes. The package also ships the
+userinfo deception, IP obfuscation, embedded-domain subdomains,
+file-extension TLDs, percent-encoding obfuscation, and dangerous schemes. The package also ships the
 pure `inspectAsync()` orchestration/contracts for caller-supplied resolution and
 reputation work; concrete network transports and provider adapters remain
 roadmap and do not enter this package.

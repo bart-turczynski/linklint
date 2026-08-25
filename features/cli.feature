@@ -9,7 +9,7 @@ Feature: linklint CLI (end-to-end against the built binary)
     And the CLI output contains "INFO"
 
   Scenario: check a high-risk URL exits 1
-    When I run the CLI with "check https://www.gооgle.com@bad.tk/login --no-color"
+    When I run the CLI with "check https://a.b.c.d.paypal.com.evil-login.tk/ --no-color"
     Then the CLI exit code is 1
     And the CLI output contains "HIGH"
 

@@ -173,11 +173,17 @@ describe("agentMode — credential_harvesting gating contract", () => {
     expect(r.reasons.map((x) => x.code)).toContain("credential_harvesting");
   });
 
-  it("a known OAuth provider host does NOT fire even under agentMode", () => {
+  // CONVERTED (LINK-brsntven). The inverse provider allowlist is gone, so the
+  // claim is inverted: a real provider carries the same shape and is reported
+  // for it, at weight 0. The gating contract itself is unchanged — the code is
+  // still silent without agentMode, asserted above.
+  it("a known OAuth provider host reports the same shape, at weight 0", () => {
     const r = inspect("https://github.com/login/oauth/authorize?client_id=abc", {
       agentMode: true,
     });
-    expect(r.reasons.map((x) => x.code)).not.toContain("credential_harvesting");
+    expect(r.reasons.map((x) => x.code)).toContain("credential_harvesting");
+    expect(r.reasons.find((x) => x.code === "credential_harvesting")?.weight).toBe(0);
+    expect(r.score).toBe(0);
   });
 });
 
@@ -215,11 +221,20 @@ describe("agentMode — data_exfiltration gating contract", () => {
 // agent codes never appear in checksSkipped). With agentMode ON the row's
 // expected agent reason fires and checksRun carries "agent".
 describe("agentMode — family-wide gating contract over the agent corpus", () => {
+  // LINK-brsntven took the three non-escalation codes to weight 0, so their
+  // corpus rows are now labelled `info` rather than `deceptive`. The gating
+  // contract is about which reasons appear in which mode and is orthogonal to
+  // the weight, so the row selection widens to both labels rather than
+  // narrowing to the one remaining deceptive code — narrowing would have
+  // silently stopped exercising three quarters of the family.
   const deceptiveAgentRows = AGENT_CORPUS.filter(
-    (r) => r.label === "deceptive" && r.options?.agentMode === true,
+    (r) =>
+      (r.label === "deceptive" || r.label === "info") &&
+      r.options?.agentMode === true &&
+      (r.expectReasons?.length ?? 0) > 0,
   );
 
-  it("the corpus exercises all three agent scoring reason codes", () => {
+  it("the corpus exercises all three agent reporting reason codes", () => {
     const covered = new Set(deceptiveAgentRows.flatMap((r) => r.expectReasons ?? []));
     for (const code of AGENT_REASON_CODES) expect(covered).toContain(code);
   });
@@ -311,6 +326,9 @@ describe("agentMode — ssrf_cloud_metadata is a GROUNDED escalation (LINK-uyooc
   });
 
   it("the other three gated codes exist ONLY under the gate — the contrast §1.1 draws", () => {
+    // Still true, and since LINK-brsntven it no longer costs anything: the three
+    // report at weight 0, so a finding that exists only under the gate can no
+    // longer spend the caller's declaration to move a score.
     const onlyGated: Array<[string, string]> = [
       ["prompt_injection_url", INJECTION],
       ["credential_harvesting", CRED_HARVEST],

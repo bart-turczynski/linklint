@@ -96,11 +96,11 @@ export const EMBARRASSMENT_CORPUS: EmbarrassmentEntry[] = [
   },
   {
     input: "https://login.paypal.com.evil.tk",
-    why: "same embedded-domain trick, on a risky TLD",
+    why: "same embedded-domain trick; the `.tk` used to add a risky_tld top-up, and since LINK-brsntven the embedded domain carries the entry on its own (0.575/high -> 0.500/medium)",
   },
   {
     input: "https://paypa1-secure-login.com",
-    why: "leetspeak fold in the first token plus a secure+login pretext; since LINK-lippdgpn the fold itself scores via brand_homoglyph rather than only incidentally via bait_tokens",
+    why: "leetspeak fold in the first token plus a secure+login pretext; since LINK-lippdgpn the fold itself scores via brand_homoglyph, and since LINK-brsntven the pretext adds nothing at all (0.83/critical -> 0.80/high, carried entirely by the fold)",
   },
 
   // ---------------------------------------------------------------------

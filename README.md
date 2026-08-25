@@ -21,7 +21,7 @@ tool call — and it tells you whether the URL is _deceptive_, and **explains ex
 why**, with no network and no data leaving the machine.
 
 It generalizes one insight from hostname analysis: **if `normalize(input) !== input`,
-something may be hiding in the URL.** linklint turns that intuition into 38 deterministic
+something may be hiding in the URL.** linklint turns that intuition into 36 deterministic
 detectors, each emitting a named, documented reason code (four — the agent-mode
 prompt-injection, credential-harvesting, data-exfiltration, and cloud-metadata SSRF
 detectors — are opt-in via `agentMode`).
@@ -94,8 +94,8 @@ Each reason is fully self-describing:
 
 ## What linklint protects against
 
-linklint runs **38 offline detectors** grouped into the families below: 4 structural
-scans and 34 parsed-context detectors, including 4 agent-mode detectors
+linklint runs **36 offline detectors** grouped into the families below: 4 structural
+scans and 32 parsed-context detectors, including 4 agent-mode detectors
 (prompt-injection, credential-harvesting, data-exfiltration, and
 cloud-metadata SSRF) that are opt-in via `agentMode` and off by default. Every
 example is real output. A clean URL like `https://github.com` returns `score: 0`,
@@ -109,7 +109,7 @@ authority is somewhere else.
 | Example | Reason code(s) | Why it's deceptive |
 |---------|----------------|--------------------|
 | `https://paypal.com@evil.com/login` | `userinfo_present` | `paypal.com` is a **username** — the real host is `evil.com`. |
-| `https://paypal.com.login.evil.tk/` | `embedded_domain_in_subdomain`, `risky_tld` | `paypal.com` is a **subdomain label**; the registrable domain is `evil.tk`. |
+| `https://paypal.com.login.evil.tk/` | `embedded_domain_in_subdomain` | `paypal.com` is a **subdomain label**; the registrable domain is `evil.tk`. |
 | `https://google.com#@evil.com` | `ambiguous_authority` | Fragment-in-authority — parsers disagree on the real host. |
 | `http://2130706433/` | `ip_obfuscation`, `ip_loopback` | Decimal-encoded `127.0.0.1` — an IP wearing a disguise that resolves to loopback. |
 | `http://169.254.169.254/` | `ip_cloud_metadata` (+ `ssrf_cloud_metadata` under `agentMode`) | Literal cloud instance-metadata endpoint — the canonical SSRF credential-theft target. Lands `high` by default; **blocks (`critical`) under `agentMode`**, where a fetch is in flight. |
@@ -167,16 +167,6 @@ What **is** caught is the structural half of the same attack: `g00gle.com` and
 | filename with U+202E | `bidi_override` | RTL override flips `gpj.exe` to render as `exe.jpg`. |
 | `http://127.0.0.1:6379/%0D%0ASLAVEOF` | `control_char` | Encoded CRLF/TAB/NUL used for protocol smuggling. |
 | `https://example.com%2F@evil.com` | `encoding_obfuscation` | Percent-encoding hiding structural characters or nested decoding. |
-
-### 6. Contextual low-weight signals
-
-| Example | Reason code(s) | Why it's a signal |
-|---------|----------------|-------------------|
-| `https://promo.tk/` | `risky_tld` | High-abuse / free-registration TLD. |
-| `https://secure-account-verify-login.com` | `bait_tokens` | Multiple stacked phishing-bait keywords. |
-
-These carry low weight on their own — they're designed to **combine** with stronger
-signals via the scoring model below.
 
 ## What linklint does not do
 
@@ -274,7 +264,7 @@ detector logic is versioned there, not in `dataVersions`.
 
 ```ts
 interface InspectResult {
-  schemaVersion: '1.9';
+  schemaVersion: '1.10';
   status: 'ok' | 'invalid';
   input: string;
   parsed: ParsedUrl | null;        // scheme, userinfo, registrableDomain, publicSuffix,
@@ -406,6 +396,8 @@ Files and stdin skip blank lines and lines starting with `#`.
 | `--agent` | Enable the 4 agent-gated detectors (prompt-injection, credential-harvesting, data-exfiltration, cloud-metadata SSRF escalation) |
 | `--allow-idn` | Permit internationalized (Unicode/punycode) domains (default: block at `high`) |
 | `--idn-allow <domain>` | Exempt one registrable domain from the IDN block; repeatable |
+| `--deny-tld <tld>` | Report a weight-0 `tld_denied` for this TLD; repeatable |
+| `--allow-tld <tld>` | Report a weight-0 `tld_not_allowlisted` for any other TLD; repeatable |
 | `--quiet` | One line per URL |
 | `--no-color` | Disable ANSI color |
 | `--offline` | Reserved no-op in v1 (accepted and ignored) |
@@ -432,7 +424,7 @@ This is a pnpm monorepo.
 
 | Path | What |
 |------|------|
-| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 38 detectors, scoring, policy, schema). |
+| `packages/core` | The `linklint` npm package — source of truth (`inspect()`, 36 detectors, scoring, policy, schema). |
 | `packages/cli` | `@linklint/cli` — the offline `linklint` command-line wrapper (`check` / `batch`). |
 | `packages/mcp` | `@linklint/mcp` — the local-only MCP server (`check_url` / `check_domain`). |
 | `docs/architecture.md` | System architecture (channels, pipeline, result contract, layers). |
@@ -458,7 +450,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) and [SECURITY.md](./SECURITY.md).
 
 ## Status & roadmap
 
-**v1 — implemented.** The lexical layer is complete: 38 offline, deterministic detectors,
+**v1 — implemented.** The lexical layer is complete: 36 offline, deterministic detectors,
 probabilistic-OR scoring, a caller-configurable policy layer, a stable versioned schema,
 and a local MCP server. Typically < 5 ms per call, zero network.
 

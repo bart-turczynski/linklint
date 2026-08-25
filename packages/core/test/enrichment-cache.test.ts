@@ -232,7 +232,7 @@ describe("enrichment cache — per-source TTLs are independent", () => {
     const longLived = new CountingEnricher(
       "rep",
       "reputation",
-      [{ code: "risky_tld", detail: "reputation signal" }],
+      [{ code: "excessive_subdomain_depth", detail: "reputation signal" }],
       1000,
     );
 
@@ -252,7 +252,7 @@ describe("enrichment cache — per-source TTLs are independent", () => {
     const b = new CountingEnricher(
       "rep",
       "reputation",
-      [{ code: "risky_tld", detail: "reputation signal" }],
+      [{ code: "excessive_subdomain_depth", detail: "reputation signal" }],
       1000,
       "shared",
     );
@@ -261,7 +261,7 @@ describe("enrichment cache — per-source TTLs are independent", () => {
     expect(a.calls).toBe(1);
     expect(b.calls).toBe(1);
     expect(r.reasons.some((x) => x.code === "ip_private")).toBe(true);
-    expect(r.reasons.some((x) => x.code === "risky_tld")).toBe(true);
+    expect(r.reasons.some((x) => x.code === "excessive_subdomain_depth")).toBe(true);
   });
 });
 

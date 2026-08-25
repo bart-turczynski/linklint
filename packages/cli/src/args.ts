@@ -32,6 +32,15 @@ export interface CheckOptions {
   allowIdn: boolean;
   /** Registrable domains to exempt from the default IDN block (`--idn-allow`, repeatable). */
   idnAllowlist: string[];
+  /**
+   * TLDs the caller refuses (`--deny-tld`, repeatable). Emits the weight-0
+   * `tld_denied` policy reason. This is the caller's judgment channel: linklint
+   * ships no curated high-abuse TLD list of its own (LINK-brsntven), so a caller
+   * who wants `.tk` to matter says so here.
+   */
+  denyTlds: string[];
+  /** TLDs the caller permits (`--allow-tld`, repeatable). Emits `tld_not_allowlisted` for anything else. */
+  allowTlds: string[];
 }
 
 /** A fully-parsed CLI invocation. */
@@ -67,6 +76,8 @@ export function parseCli(argv: readonly string[]): ParsedCli {
         agent: { type: "boolean", default: false },
         "allow-idn": { type: "boolean", default: false },
         "idn-allow": { type: "string", multiple: true },
+        "deny-tld": { type: "string", multiple: true },
+        "allow-tld": { type: "string", multiple: true },
         help: { type: "boolean", default: false },
         version: { type: "boolean", default: false },
       },
@@ -105,6 +116,8 @@ export function parseCli(argv: readonly string[]): ParsedCli {
     agent: values.agent,
     allowIdn: values["allow-idn"],
     idnAllowlist: values["idn-allow"] ?? [],
+    denyTlds: values["deny-tld"] ?? [],
+    allowTlds: values["allow-tld"] ?? [],
   };
 
   if (command === "batch") {

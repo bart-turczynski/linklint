@@ -214,9 +214,9 @@ describe("README detector count matches the computed total", () => {
     const parsed = CHECKS.filter((c) => c.phase === "parsed").length;
     const agentGated = CHECKS.filter((c) => c.agentGated === true).length;
 
-    expect(total).toBe(38);
+    expect(total).toBe(36);
     expect(structural).toBe(4);
-    expect(parsed).toBe(34);
+    expect(parsed).toBe(32);
     expect(agentGated).toBe(4);
     expect(DETECTORS.length).toBe(parsed);
     expect(STRUCTURAL_SCANS.length).toBe(structural);
@@ -270,7 +270,7 @@ describe("README detector count matches the computed total", () => {
       `contains ${total} lexical checks: ${structural} structural scans and ${parsed} ` +
         "parsed-context detectors",
     );
-    expect(architectureDoc).toContain(`The ${total} checks group into seven families`);
+    expect(architectureDoc).toContain(`The ${total} checks group into six families`);
     expect(architectureDoc).toContain(
       `${total} checks: ${structural} structural, ${parsed} parsed (${agentGated} of them agent-gated)`,
     );
@@ -283,12 +283,12 @@ describe("README detector count matches the computed total", () => {
 });
 
 describe("docs/architecture.md detector families cover every check", () => {
-  // The families table claims to group "the 38 checks", and every cell is a
+  // The families table claims to group "the 36 checks", and every cell is a
   // CHECK ID (not a reason code — one check may emit several). It had drifted to
   // 32 of 37: ip_classification, ambiguous_numeric_host, homograph_latin_skeleton,
   // locale_case_collapse, and idn_host were all missing. Pin it to the registry.
   it("every check id appears in the families table", () => {
-    const tableStart = architectureDoc.indexOf("The 38 checks group into seven families");
+    const tableStart = architectureDoc.indexOf("The 36 checks group into six families");
     expect(tableStart).toBeGreaterThan(-1);
     const table = architectureDoc.slice(tableStart, architectureDoc.indexOf("## 6."));
 
@@ -572,12 +572,39 @@ describe("the scope-of-claim boundary is stated in one canonical place", () => {
       }
     });
 
-    it("marks the table as a disposition owed, not as a description of the shipped weights", () => {
-      // Three of the four ship above weight 0. Present tense here would be a
-      // claim about code that has not moved (AGENTS.md), and a reader who took
-      // the table for a description would think the work had landed.
-      expect(flat).toContain("Disposition column is what is owed");
+    it("marks the table as SHIPPED, and names the change that shipped it", () => {
+      // LINK-brsntven. The table used to be a statement of what was owed, with
+      // three of the four shipping above weight 0. It now describes the code, so
+      // present tense is finally a true claim about what the code does
+      // (AGENTS.md). The assertion is inverted rather than dropped: the failure
+      // it guards against has flipped from "claims work that has not landed" to
+      // "still reads as owed after it landed".
+      expect(flat).not.toContain("Disposition column is what is owed");
+      expect(flat).toContain("**shipped**");
+      expect(flat).toContain("LINK-brsntven");
       expect(flat).toContain("§6.4");
+    });
+
+    it("the three re-grounded codes are quoted at 0.00, which is the drift guard biting", () => {
+      // The weight-quoting assertion above reads each ruled code's weight from
+      // REASON_CODES and demands the table match it. That guard is unchanged and
+      // is what forced these three rows to be rewritten; assert the post-change
+      // values directly so the guard's OUTPUT is pinned and not merely its
+      // mechanism. A revert of any of the three weights turns both red.
+      for (const id of ["prompt_injection_url", "credential_harvesting", "data_exfiltration"]) {
+        expect(REASON_CODES[id as ReasonCode].weight).toBe(0);
+        expect(flat).toContain(`| \`${id}\` | 0.00 |`);
+      }
+      // And the one grounded escalation still scores, or the charter is empty.
+      expect(REASON_CODES.ssrf_cloud_metadata.weight).toBeCloseTo(1, 5);
+      expect(flat).toContain("| `ssrf_cloud_metadata` | 1.00 |");
+    });
+
+    it("states the consequence: agent mode cannot out-score plain mode", () => {
+      expect(flat).toContain(
+        "agent mode can no longer raise a score above what plain mode gives",
+      );
+      expect(flat).toContain("ssrf_cloud_metadata");
     });
 
     it("lands credential_harvesting's inverse allowlist on the name-never-create rule", () => {
@@ -906,14 +933,17 @@ describe("the ReasonCode registry is pinned to the SCHEMA_VERSION it registered 
   // `api_endpoint_impersonation` from the registry with `SCHEMA_VERSION` left at
   // `1.8` turned this red with `{ added: [], removed: ["api_endpoint_impersonation"] }`
   // before the bump was applied. Both directions of the closed domain are guarded.
-  const PINNED_SCHEMA_VERSION = "1.9";
+  // Re-confirmed on a MULTI-code removal (LINK-brsntven): dropping `risky_tld`
+  // and `bait_tokens` with `SCHEMA_VERSION` left at `1.9` turned this red with
+  // `{ added: [], removed: ["bait_tokens", "risky_tld"] }` in the commit before
+  // the bump.
+  const PINNED_SCHEMA_VERSION = "1.10";
 
   /** Every `REASON_CODES` key as of `PINNED_SCHEMA_VERSION`, sorted. */
   const PINNED_REASON_CODES: readonly string[] = [
   "ambiguous_authority",
   "ambiguous_numeric_host",
   "ascii_homoglyph",
-  "bait_tokens",
   "bidi_override",
   "brand_homoglyph",
   "brand_idna_collapse",
@@ -957,7 +987,6 @@ describe("the ReasonCode registry is pinned to the SCHEMA_VERSION it registered 
   "port_denied",
   "prompt_injection_url",
   "punycode_malformed",
-  "risky_tld",
   "scheme_denied",
   "separator_lookalike",
   "ssrf_cloud_metadata",

@@ -109,21 +109,31 @@ describe("encoding_obfuscation", () => {
   });
 });
 
-describe("file_extension_tld (J6) owns .zip/.mov, sharper than risky_tld", () => {
-  it("a bare filename host flags file_extension_tld, not risky_tld", () => {
+describe("file_extension_tld (J6) is the only TLD-shaped scoring signal", () => {
+  it("a bare filename host flags file_extension_tld on the masquerade structure", () => {
     const r = inspect("https://invoice.zip/");
     const codes = r.reasons.map((x) => x.code);
     expect(codes).toContain("file_extension_tld");
-    expect(codes).not.toContain("risky_tld");
     expect(["medium", "high", "critical"]).toContain(r.severity);
   });
 });
 
-describe("risky_tld is low and only matters in combination", () => {
-  it("a bare risky TLD is low severity", () => {
+// Converted from the `risky_tld` coverage row (LINK-brsntven). The claim the
+// old test made — ".tk is a signal" — is exactly the world-claim that was
+// deleted; what must hold now is the opposite, and it is worth asserting
+// because it is what a future re-proposal would break.
+describe("a curated high-abuse TLD is NOT a finding on its own", () => {
+  it("a bare .tk host scores 0 with no reasons at all", () => {
     const r = inspect("https://promo.tk/");
-    expect(r.reasons.map((x) => x.code)).toContain("risky_tld");
-    expect(r.severity).toBe("low");
+    expect(r.score).toBe(0);
+    expect(r.severity).toBe("info");
+    expect(r.reasons).toEqual([]);
+  });
+
+  it("the caller's own deny-list is where that judgment lives, at weight 0", () => {
+    const r = inspect("https://promo.tk/", { denyTlds: ["tk"] });
+    expect(r.reasons.map((x) => x.code)).toEqual(["tld_denied"]);
+    expect(r.score).toBe(0);
   });
 });
 

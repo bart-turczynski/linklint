@@ -202,7 +202,7 @@ describe("inspectAsync — confidence aggregation (FR-SCORE-2b)", () => {
   it("takes the MINIMUM confidence across multiple contributing findings", async () => {
     const low: EnricherFinding = { ...PRIVATE_IP_FINDING, confidence: 0.4 };
     const mid: EnricherFinding = {
-      code: "risky_tld",
+      code: "excessive_subdomain_depth",
       detail: "reputation signal",
       confidence: 0.7,
     };

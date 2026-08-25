@@ -133,8 +133,19 @@ describe("prompt_injection_url — conservative: near-miss benign inputs do NOT 
 });
 
 describe("prompt_injection_url — weight", () => {
-  it("is weight 0.5", () => {
+  // LINK-brsntven applied §1.1's ruling: an override phrase in a query value is
+  // not hidden, is not disputed, and is not a false self-description — it is a
+  // property of what one consumer does with the bytes AFTER every reader has
+  // agreed where they came from. Reportable under the fourth rule, not scorable.
+  it("is weight 0 — it reports, it does not score", () => {
     const r = inspect("https://example.com/agent?role=system", { agentMode: true });
-    expect(r.reasons.find((x) => x.code === "prompt_injection_url")!.weight).toBeCloseTo(0.5, 5);
+    expect(r.reasons.find((x) => x.code === "prompt_injection_url")!.weight).toBe(0);
+    expect(r.score).toBe(0);
+    expect(r.severity).toBe("info");
+  });
+
+  it("agent mode cannot raise the score above plain mode for this shape", () => {
+    const url = "https://example.com/agent?role=system";
+    expect(inspect(url, { agentMode: true }).score).toBe(inspect(url).score);
   });
 });

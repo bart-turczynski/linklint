@@ -3,20 +3,21 @@ import * as data from "../src/data.js";
 import * as experimental from "../src/experimental.js";
 import { inspect } from "../src/index.js";
 import { DATA_VERSIONS } from "../src/data/versions.js";
+import { CHECKS } from "../src/detectors/checks.js";
 import { SCHEMA_VERSION } from "../src/schema/base.js";
 import { REASON_CODES, type ReasonCode } from "../src/schema/reason-codes.js";
 import { WEIGHTS_VERSION } from "../src/scoring/weights.js";
 
 /**
- * LINK-brsntven — PIN, then mutate.
+ * LINK-brsntven — PIN, then mutate. The post-change half.
  *
- * This file is written BEFORE the retirement lands and asserts exactly what the
- * retirement moves: the two membership-only detectors firing, the band the
- * companion signal was buying, the three agent-gated weights §1.1 owes a
- * disposition for, the `DataVersions` field name, the two public data exports,
- * and both version stamps. Every assertion here is expected to go RED when the
- * change is applied, and each one is then rewritten to the post-change value.
- * A pin that does not redden proved nothing.
+ * Every assertion in this file was written BEFORE the retirement, asserting the
+ * old value, and was watched go RED when the change landed (16 of 18 reddened;
+ * the two that did not are noted where they appear). Each is now rewritten to
+ * the post-change value, so the file keeps working as the standing guard over
+ * exactly the surface the retirement moved.
+ *
+ * The decision record is architecture §6.1.5.
  */
 
 function verdict(input: string, options?: Parameters<typeof inspect>[1]) {
@@ -29,125 +30,172 @@ function verdict(input: string, options?: Parameters<typeof inspect>[1]) {
   };
 }
 
-describe("PIN — the two membership-only detectors fire today", () => {
-  it("`risky_tld` is a suffix-presence check plus a set lookup and nothing else", () => {
+describe("the two membership-only detectors are gone", () => {
+  it("neither code is registered, so neither can be emitted", () => {
+    const codes = Object.keys(REASON_CODES);
+    expect(codes).not.toContain("risky_tld");
+    expect(codes).not.toContain("bait_tokens");
+  });
+
+  it("neither check is in the CHECKS registry", () => {
+    const ids = CHECKS.map((c) => c.id);
+    expect(ids).not.toContain("risky_tld");
+    expect(ids).not.toContain("bait_tokens");
+  });
+
+  it("`mycompany.tk` — the string risky_tld scored 0.15 on — is silent", () => {
     const r = verdict("https://mycompany.tk");
-    expect(r.codes).toContain("risky_tld");
-    expect(r.score).toBeCloseTo(0.15, 5);
-    expect(r.severity).toBe("low");
+    expect(r.codes).toEqual([]);
+    expect(r.score).toBe(0);
+    expect(r.severity).toBe("info");
   });
 
-  it("`bait_tokens` fires on a stacked-keyword host", () => {
+  it("`secure-account-verify-login.com` — bait_tokens' own example — is silent", () => {
     const r = verdict("https://secure-account-verify-login.com");
-    expect(r.codes).toContain("bait_tokens");
-    expect(r.score).toBeCloseTo(0.15, 5);
-    expect(r.severity).toBe("low");
-  });
-
-  it("both are registered as SCORING codes at 0.15", () => {
-    expect(REASON_CODES.risky_tld.scoring).toBe(true);
-    expect(REASON_CODES.risky_tld.weight).toBeCloseTo(0.15, 5);
-    expect(REASON_CODES.bait_tokens.scoring).toBe(true);
-    expect(REASON_CODES.bait_tokens.weight).toBeCloseTo(0.15, 5);
+    expect(r.codes).toEqual([]);
+    expect(r.score).toBe(0);
+    expect(r.severity).toBe("info");
   });
 });
 
-describe("PIN — the band the companion signal is buying (amendment 3)", () => {
-  // `embedded_domain_in_subdomain` sits EXACTLY on the medium/high edge, so
-  // these three rows are `high` only because a 0.15 contextual signal tops them
-  // up. Deleting that signal drops each of them one band.
-  it("embedded_domain_in_subdomain is the 0.50 tier", () => {
+describe("the band the deleted companion was buying (amendment 3, §6.1.5)", () => {
+  // This assertion did NOT redden, and that is the decision: the measured
+  // alternative was to raise `embedded_domain_in_subdomain` above the medium/high
+  // edge, which moves all eleven rows carrying the code — eight of them from
+  // exactly 0.500/medium across the shipped `--fail-on high` default — to
+  // restore three. The weight stays where the rest of its tier sits.
+  it("embedded_domain_in_subdomain stays at 0.50, the medium/high edge", () => {
     expect(REASON_CODES.embedded_domain_in_subdomain.weight).toBeCloseTo(0.5, 5);
   });
 
-  it("login.paypal.com.account.evil.com is 0.575/high via bait_tokens", () => {
+  it("login.paypal.com.account.evil.com drops 0.575/high → 0.500/medium", () => {
     const r = verdict("https://login.paypal.com.account.evil.com/");
-    expect(r.codes.sort()).toEqual(["bait_tokens", "embedded_domain_in_subdomain"]);
-    expect(r.score).toBeCloseTo(0.575, 5);
-    expect(r.severity).toBe("high");
-  });
-
-  it("login.paypal.com.evil.tk is 0.575/high via risky_tld", () => {
-    const r = verdict("https://login.paypal.com.evil.tk");
-    expect(r.codes.sort()).toEqual(["embedded_domain_in_subdomain", "risky_tld"]);
-    expect(r.score).toBeCloseTo(0.575, 5);
-    expect(r.severity).toBe("high");
-  });
-
-  it("paypa1-secure-login.com is 0.83/critical via bait_tokens", () => {
-    const r = verdict("https://paypa1-secure-login.com");
-    expect(r.score).toBeCloseTo(0.83, 5);
-    expect(r.severity).toBe("critical");
-  });
-
-  it("a.b.c.d.paypal.com.evil-login.tk stacks all three", () => {
-    const r = verdict("https://a.b.c.d.paypal.com.evil-login.tk/");
-    expect(r.codes.sort()).toEqual([
-      "embedded_domain_in_subdomain",
-      "excessive_subdomain_depth",
-      "risky_tld",
-    ]);
-    expect(r.score).toBeCloseTo(0.63875, 5);
-    expect(r.severity).toBe("high");
-  });
-});
-
-describe("PIN — the three dispositions §1.1 owes are NOT shipped yet", () => {
-  const owed: [ReasonCode, number][] = [
-    ["prompt_injection_url", 0.5],
-    ["data_exfiltration", 0.3],
-    ["credential_harvesting", 0.35],
-  ];
-
-  it.each(owed)("`%s` still scores at %s", (code, weight) => {
-    expect(REASON_CODES[code].scoring).toBe(true);
-    expect(REASON_CODES[code].weight).toBeCloseTo(weight, 5);
-  });
-
-  it("prompt_injection_url moves the score under agentMode", () => {
-    const r = verdict("https://example.com/?q=ignore+previous+instructions", { agentMode: true });
-    expect(r.codes).toContain("prompt_injection_url");
+    expect(r.codes).toEqual(["embedded_domain_in_subdomain"]);
     expect(r.score).toBeCloseTo(0.5, 5);
     expect(r.severity).toBe("medium");
   });
 
-  it("credential_harvesting is gated OFF by the inverse provider allowlist", () => {
+  it("login.paypal.com.evil.tk drops 0.575/high → 0.500/medium", () => {
+    const r = verdict("https://login.paypal.com.evil.tk");
+    expect(r.codes).toEqual(["embedded_domain_in_subdomain"]);
+    expect(r.score).toBeCloseTo(0.5, 5);
+    expect(r.severity).toBe("medium");
+  });
+
+  it("paypa1-secure-login.com drops 0.83/critical → 0.80/high, carried by the fold", () => {
+    const r = verdict("https://paypa1-secure-login.com");
+    expect(r.codes).toContain("brand_homoglyph");
+    expect(r.score).toBeCloseTo(0.8, 5);
+    expect(r.severity).toBe("high");
+  });
+
+  it("a.b.c.d.paypal.com.evil-login.tk drops 0.63875 → 0.575 and stays high", () => {
+    const r = verdict("https://a.b.c.d.paypal.com.evil-login.tk/");
+    expect(r.codes.sort()).toEqual([
+      "embedded_domain_in_subdomain",
+      "excessive_subdomain_depth",
+    ]);
+    expect(r.score).toBeCloseTo(0.575, 5);
+    expect(r.severity).toBe("high");
+  });
+});
+
+describe("the three dispositions §1.1 owed are shipped", () => {
+  const ruled: ReasonCode[] = ["prompt_injection_url", "data_exfiltration", "credential_harvesting"];
+
+  it.each(ruled)("`%s` reports at weight 0 and no longer scores", (code) => {
+    expect(REASON_CODES[code].scoring).toBe(false);
+    expect(REASON_CODES[code].weight).toBe(0);
+  });
+
+  it("prompt_injection_url still REPORTS under agentMode, moving no score", () => {
+    const r = verdict("https://example.com/?q=ignore+previous+instructions", { agentMode: true });
+    expect(r.codes).toContain("prompt_injection_url");
+    expect(r.weights.prompt_injection_url).toBe(0);
+    expect(r.score).toBe(0);
+    expect(r.severity).toBe("info");
+  });
+
+  it("all four agent-gated codes stay gated — silent without agentMode", () => {
+    expect(verdict("https://example.com/?q=ignore+previous+instructions").codes).not.toContain(
+      "prompt_injection_url",
+    );
+  });
+
+  it("credential_harvesting reports the flow shape for EVERY host, github.com included", () => {
     const impostor =
       "https://evil.com/oauth/authorize?response_type=code&client_id=x&redirect_uri=https://evil.com/cb";
     const provider =
       "https://github.com/login/oauth/authorize?response_type=code&client_id=x&redirect_uri=https://x/cb";
+    // The inverse provider allowlist is gone: both sides of it now report.
     expect(verdict(impostor, { agentMode: true }).codes).toContain("credential_harvesting");
-    // The allowlist half — this is the inverse watchlist the retirement drops.
-    expect(verdict(provider, { agentMode: true }).codes).not.toContain("credential_harvesting");
+    expect(verdict(provider, { agentMode: true }).codes).toContain("credential_harvesting");
+    expect(verdict(provider, { agentMode: true }).weights.credential_harvesting).toBe(0);
   });
 
-  it("data_exfiltration scores its overlong-token branch under agentMode", () => {
+  it("credential_harvesting's detail no longer claims the host is not a provider", () => {
+    const detail =
+      inspect(
+        "https://github.com/login/oauth/authorize?response_type=code&client_id=x&redirect_uri=https://x/cb",
+        { agentMode: true },
+      ).reasons.find((r) => r.code === "credential_harvesting")?.detail ?? "";
+    expect(detail).not.toContain("not a known OAuth");
+    expect(detail).not.toContain("non-allowlisted");
+    expect(detail).toContain("github.com");
+  });
+
+  it("data_exfiltration reports its marker branch at weight 0", () => {
     const r = verdict("https://collect.example.com/p?exfil=secretdata", { agentMode: true });
     expect(r.codes).toContain("data_exfiltration");
-    expect(r.weights.data_exfiltration).toBeCloseTo(0.3, 5);
+    expect(r.weights.data_exfiltration).toBe(0);
+    expect(r.score).toBe(0);
+  });
+
+  it("ssrf_cloud_metadata — the one grounded escalation — is untouched at 1.00", () => {
+    expect(REASON_CODES.ssrf_cloud_metadata.weight).toBeCloseTo(1, 5);
+    expect(REASON_CODES.ssrf_cloud_metadata.scoring).toBe(true);
+  });
+
+  it("agent mode can no longer raise a score above what plain mode gives", () => {
+    // The charter in one assertion: with ssrf_cloud_metadata the sole exception,
+    // a declared context re-weights nothing it has not already settled.
+    for (const url of [
+      "https://example.com/?q=ignore+previous+instructions",
+      "https://collect.example.com/p?exfil=secretdata",
+      "https://evil.com/oauth/authorize?response_type=code&client_id=x&redirect_uri=https://evil.com/cb",
+    ]) {
+      expect(inspect(url, { agentMode: true }).score).toBe(inspect(url).score);
+    }
   });
 });
 
-describe("PIN — the data stamp and the public exports", () => {
-  it("`DataVersions` carries `riskyTlds` and no `fileExtensionTlds`", () => {
-    expect(DATA_VERSIONS).toHaveProperty("riskyTlds");
-    expect(DATA_VERSIONS).not.toHaveProperty("fileExtensionTlds");
+describe("the data stamp and the public exports", () => {
+  it("`DataVersions.riskyTlds` is RENAMED, not deleted", () => {
+    // FILE_EXTENSION_TLDS lives in the same module and this is its only pin;
+    // deleting the field would strand a live weight-0.4 scoring table with no
+    // version stamp, against NFR-DATA-1.
+    expect(DATA_VERSIONS).not.toHaveProperty("riskyTlds");
+    expect(DATA_VERSIONS).toHaveProperty("fileExtensionTlds");
+    expect(DATA_VERSIONS.fileExtensionTlds).toBe("2026-06-19");
   });
 
-  it("`linklint/data` exports RISKY_TLDS beside FILE_EXTENSION_TLDS", () => {
-    expect(Object.keys(data)).toContain("RISKY_TLDS");
+  it("`linklint/data` drops RISKY_TLDS and keeps FILE_EXTENSION_TLDS", () => {
+    expect(Object.keys(data)).not.toContain("RISKY_TLDS");
     expect(Object.keys(data)).toContain("FILE_EXTENSION_TLDS");
   });
 
-  it("`linklint/experimental` exports the two detectors", () => {
-    expect(Object.keys(experimental)).toContain("riskyTld");
-    expect(Object.keys(experimental)).toContain("baitTokens");
+  it("`linklint/experimental` drops both detector exports", () => {
+    expect(Object.keys(experimental)).not.toContain("riskyTld");
+    expect(Object.keys(experimental)).not.toContain("baitTokens");
   });
 });
 
-describe("PIN — both version stamps, before the one bump for the lot", () => {
-  it("SCHEMA_VERSION is 1.9 and WEIGHTS_VERSION is 1.18", () => {
-    expect(SCHEMA_VERSION).toBe("1.9");
-    expect(WEIGHTS_VERSION).toBe("1.18");
+describe("one bump for the lot", () => {
+  // This assertion also did not redden until the bump commit, which is the
+  // point: the removal was committed first so the mechanical REASON_CODES pin
+  // in docs-validation.test.ts could be seen to demand it.
+  it("SCHEMA_VERSION 1.9 → 1.10 and WEIGHTS_VERSION 1.18 → 1.19", () => {
+    expect(SCHEMA_VERSION).toBe("1.10");
+    expect(WEIGHTS_VERSION).toBe("1.19");
   });
 });
