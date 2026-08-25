@@ -245,18 +245,60 @@ in a parameter name — the spelling Microsoft's own link rewriter puts into eve
 URL it touches. That marker is dropped here (`LINK-uyoocslu`); the weight is
 not, and the marker fix is not a substitute for the ruling above.
 
-**One boundary this section does NOT yet settle** — do not read an answer into
-the silence:
+**Reserved special-use names, settled: report, never score** (`LINK-mgnbgicq`).
+`svc.internal`, `foo.invalid`, `home.arpa` and the rest of the RFC 6761 set make
+no false claim and provoke no disagreement, so they satisfy **none** of the three
+forms and they do **not** score. The framing that left this open — "the same
+string names different machines on different networks", i.e. context-dependence —
+was the wrong axis, and it is recorded here as rejected: it is false of
+`.invalid` and `.alt`, which name nothing on any network anywhere, and it is
+false in the other direction of `.localhost`, which RFC 6761 §6.3 MANDATES to
+resolve to loopback and which is therefore the least context-dependent name in
+the set. Context-dependence was never the property they share.
 
-- **Context-dependent names.** `svc.internal`, `home.arpa` and the rest of the
-  RFC 6761 set make no false claim and provoke no disagreement; the same string
-  simply names different machines on different networks. That is "not the same
-  thing everywhere", which is a different property from "not itself", and
-  whether it is in scope is open (`LINK-mgnbgicq`).
+What they do share is a fact fixed by a naming authority, uniform across the
+whole set, and settleable offline for all time: each is **reserved, never
+delegated in the global DNS root, never publicly resolvable**. That puts them
+under the fourth rule, not under the three forms. `foo.invalid` is exactly the
+shape the fourth rule's worked case has — well-formed, universally agreed, honest
+about itself, and guaranteed never to work — so staying silent on it was the same
+inconsistency `host_length_unresolvable` was written to close. The sharpened
+form: `192.168.1.1` scores `0.20` because a literal addressing a private network
+is worth mentioning, while `svc.internal` scores `0.00` — a name reserved for
+that exact purpose, saying nothing at all.
 
-That list is the whole of what is open. What this section settles, and what
+`special_use_name` therefore reports at **weight 0** (schema `1.11`; `WEIGHTS_VERSION`
+does not move, because a weight of 0 adds no scoring surface). Three boundaries
+travel with it:
+
+- **Suffixes only; the example DOMAINS are excluded.** RFC 6761 §6.5 reserves
+  `.example` *and* `example.com`/`.net`/`.org`, but those are second-level
+  reservations under a **delegated** TLD and they resolve — `example.com`'s
+  public suffix is `com`. The line is "TLD-level reservation, never delegated"
+  versus "second-level reservation under a delegated TLD", and it is not
+  fastidiousness: roughly a quarter of the labeled corpus uses one of those hosts
+  as a neutral stand-in.
+- **Where a scoring code already names the host, the informational one
+  suppresses itself.** `metadata.google.internal` sits under `.internal` and
+  already carries `ip_cloud_metadata` at `0.75`. The fourth rule's trigger is a
+  `0.00` with no reasons, so a host that already carries a finding is owed
+  nothing — and the predicate would be false where it landed, since that host's
+  whole hazard is that it *does* resolve. The suppression reads the same table
+  the scoring codes read, so the two cannot drift.
+- **`.onion` label syntax is a separate, still-open question.** A v3 address is a
+  56-character base32 pubkey plus checksum, so `ab.onion` announces a Tor
+  identity it cannot be — form 3, and therefore **scoring**-eligible. Deciding it
+  inside a weight-0 code would settle a scoring question by smuggling. Not
+  decided here.
+
+This also does **not** decide `LINK-qqwfpxvu` sideways. The axis rejected there
+was *authority-fixed content licenses SCORING*. Nothing here scores: weight 0
+defeats the deception objection and RFC-fixed content defeats the durability
+objection, **both** are required, and neither suffices alone.
+
+Nothing in this section is open. What this section settles, and what
 should therefore not be re-filed: well-formed-but-unusable strings, the path
-layer and the agent-mode layer, all above; the watchlist's name-never-create
+layer, the agent-mode layer and the reserved special-use names, all above; the watchlist's name-never-create
 rule, combosquatting, and the reading of a clean result, all below.
 
 **The rule.** The brand watchlist (`data/brands.ts`) may only be consulted to
@@ -425,7 +467,7 @@ precisely the case an allowlist gets wrong.
 ```
 linklint/
   packages/
-    core/           # linklint npm package — inspect(), 36 checks, scoring, policy, schema
+    core/           # linklint npm package — inspect(), 37 checks, scoring, policy, schema
     mcp/            # @linklint/mcp — local-only MCP server (check_url / check_domain)
     cli/            # @linklint/cli — offline CLI (linklint check / batch)
     online/         # @linklint/online — Node/server safe transport + deterministic fixtures
@@ -470,7 +512,7 @@ Runtime dependencies: `tldts` (Public Suffix List) and `tr46` (IDNA/UTS-46).
 
 4. **Normalization** — IDNA/UTS-46 normalization via `tr46`. Record deltas as informational findings (`normalization_delta`).
 
-5. **Detector execution** — run 36 independent lexical checks: 4 structural scans ahead of parsing, then 32 parsed-context detectors. The 4 agent-gated parsed detectors run only under `agentMode`. A detector failure adds `lexical:<id>` to `checksSkipped` rather than aborting the inspection. Any skipped scoring detector means the score is a lower bound, not a complete verdict.
+5. **Detector execution** — run 37 independent lexical checks: 4 structural scans ahead of parsing, then 33 parsed-context detectors. The 4 agent-gated parsed detectors run only under `agentMode`. A detector failure adds `lexical:<id>` to `checksSkipped` rather than aborting the inspection. Any skipped scoring detector means the score is a lower bound, not a complete verdict.
 
 6. **Policy layer** (optional) — apply caller-configured allow/deny rules. Policy reasons carry `weight: 0` and never change `score` or `severity`.
 
@@ -480,7 +522,7 @@ Runtime dependencies: `tldts` (Public Suffix List) and `tr46` (IDNA/UTS-46).
 
 ## 5. Detectors
 
-`packages/core/src/detectors/` contains 36 lexical checks: 4 structural scans and 32 parsed-context detectors. Parsed detectors implement:
+`packages/core/src/detectors/` contains 37 lexical checks: 4 structural scans and 33 parsed-context detectors. Parsed detectors implement:
 
 ```ts
 interface Detector {
@@ -492,12 +534,12 @@ interface Detector {
 
 Detectors emit findings only — they never read weights. The core attaches weights from the version-pinned table (`packages/core/src/scoring/weights.ts`) keyed by reason code.
 
-The 36 checks group into six families (listed by **check id**; a single check
+The 37 checks group into six families (listed by **check id**; a single check
 may emit several reason codes):
 
 | Family | Detectors |
 |--------|-----------|
-| **Authority spoofing** | `userinfo_present`, `embedded_domain_in_subdomain`, `ambiguous_authority`, `ip_obfuscation`, `ip_classification`, `ambiguous_numeric_host`, `separator_lookalike`, `excessive_subdomain_depth`, `host_length_unresolvable`, `fqdn_root_label` |
+| **Authority spoofing** | `userinfo_present`, `embedded_domain_in_subdomain`, `ambiguous_authority`, `ip_obfuscation`, `ip_classification`, `ambiguous_numeric_host`, `separator_lookalike`, `excessive_subdomain_depth`, `host_length_unresolvable`, `special_use_name`, `fqdn_root_label` |
 | **Homographs & confusables** | `mixed_script`, `confusable_char`, `ascii_homoglyph`, `punycode_malformed`, `normalization_delta`, `idna_mapping_ambiguity`, `locale_case_collapse`, `homograph_latin_skeleton`, `idn_host` |
 | **Brand impersonation** | `brand_homoglyph`, `homograph_skeleton_collision` |
 | **Dangerous payloads** | `dangerous_scheme`, `file_extension_tld`, `suspicious_extension`, `open_redirect_param` |
@@ -518,15 +560,15 @@ whole in the same change (§6.1.5). Both created a scoring finding from curated
 membership alone, which is the one thing the name-never-create rule forbids, and
 neither left a string fact to re-ground at weight 0.
 
-Informational detectors (`confusable_char`, `confusable_in_path`, `normalization_delta`, `idna_mapping_ambiguity`, `locale_case_ambiguity`, `host_length_unresolvable`, `fqdn_root_label`) have weight 0 — they annotate without raising severity. `idna_mapping_ambiguity` and `locale_case_ambiguity` each escalate to a weight-0.5 scoring code (`brand_idna_collapse`, `brand_locale_collapse`) when the alternate reading lands on a watchlist brand exactly.
+Informational detectors (`confusable_char`, `confusable_in_path`, `normalization_delta`, `idna_mapping_ambiguity`, `locale_case_ambiguity`, `host_length_unresolvable`, `special_use_name`, `fqdn_root_label`) have weight 0 — they annotate without raising severity. `idna_mapping_ambiguity` and `locale_case_ambiguity` each escalate to a weight-0.5 scoring code (`brand_idna_collapse`, `brand_locale_collapse`) when the alternate reading lands on a watchlist brand exactly.
 
 ## 6. Result schema
 
-Every channel returns the same `InspectResult` (schema version `1.10`):
+Every channel returns the same `InspectResult` (schema version `1.11`):
 
 ```ts
 interface InspectResult {
-  schemaVersion: '1.10';
+  schemaVersion: '1.11';
   status: 'ok' | 'invalid';
   input: string;
   parsed: ParsedUrl | null;
@@ -1610,7 +1652,7 @@ The three-layer model is a forward-compatibility contract:
 
 | Layer | Status | Description |
 |-------|--------|-------------|
-| **Lexical** (L1) | **Implemented** | Offline, deterministic, synchronous. 36 checks: 4 structural, 32 parsed (4 of them agent-gated). < 5 ms typical. |
+| **Lexical** (L1) | **Implemented** | Offline, deterministic, synchronous. 37 checks: 4 structural, 33 parsed (4 of them agent-gated). < 5 ms typical. |
 | **Resolution** (L2) | **Partial** | Exact local wrapper decoding and caller-authorized bounded redirect/refresh expansion are implemented; observed correlation/divergence and MIME evidence remain roadmap work. Every discovered target is re-inspected through L1. |
 | **Reputation** (L3) | Roadmap | Threat feeds, RDAP domain age, CT, DNS posture. Privacy-preserving by design. |
 

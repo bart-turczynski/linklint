@@ -3,6 +3,7 @@ import { WEIGHTS_VERSION } from "../scoring/weights.js";
 import { CONFUSABLES_VERSION } from "./confusables.js";
 import { CLOUD_METADATA_VERSION } from "./cloud-metadata.js";
 import { IP_RANGES_VERSION } from "./ip-ranges.js";
+import { SPECIAL_USE_NAMES_VERSION } from "./special-use-names.js";
 
 /**
  * Version stamps for every reproducibility-relevant data/algorithm source used
@@ -26,6 +27,9 @@ export const DATA_VERSIONS: DataVersions = {
   cloudMetadata: CLOUD_METADATA_VERSION,
   // Literal-IP range buckets, generated from the IANA special-purpose registries.
   ipRanges: IP_RANGES_VERSION,
+  // Curated reserved special-use names (RFC 6761 and successors). LIVING: .alt
+  // arrived in 2023, .internal in 2024, so this is a snapshot, not a constant.
+  specialUseNames: SPECIAL_USE_NAMES_VERSION,
   // Curated brand watchlist: registrable domains + keywords.
   brands: "2026-07-26-watchlist",
   weights: WEIGHTS_VERSION,

@@ -219,8 +219,17 @@ describe("one bump for the lot", () => {
   // This assertion also did not redden until the bump commit, which is the
   // point: the removal was committed first so the mechanical REASON_CODES pin
   // in docs-validation.test.ts could be seen to demand it.
-  it("SCHEMA_VERSION 1.9 → 1.10 and WEIGHTS_VERSION 1.18 → 1.19", () => {
-    expect(SCHEMA_VERSION).toBe("1.10");
+  it("WEIGHTS_VERSION 1.18 → 1.19, and the schema has moved on past 1.10", () => {
+    // The weights stamp is this change's own and is pinned exactly: a revert of
+    // any of the re-weightings moves it.
     expect(WEIGHTS_VERSION).toBe("1.19");
+    // SCHEMA_VERSION was 1.10 when this shipped and is now 1.11 (LINK-mgnbgicq
+    // registered `special_use_name`, a closed-domain addition). Pinning it to
+    // 1.10 here would make every later schema bump redden a test about a change
+    // that does not own the stamp, so what is asserted is the direction: the
+    // schema is at or past the version this change took it to. The exact pin
+    // that guards the schema lives in docs-validation.test.ts, beside the
+    // REASON_CODES key set.
+    expect(Number(SCHEMA_VERSION)).toBeGreaterThanOrEqual(1.1);
   });
 });

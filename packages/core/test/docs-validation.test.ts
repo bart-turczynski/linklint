@@ -214,9 +214,9 @@ describe("README detector count matches the computed total", () => {
     const parsed = CHECKS.filter((c) => c.phase === "parsed").length;
     const agentGated = CHECKS.filter((c) => c.agentGated === true).length;
 
-    expect(total).toBe(36);
+    expect(total).toBe(37);
     expect(structural).toBe(4);
-    expect(parsed).toBe(32);
+    expect(parsed).toBe(33);
     expect(agentGated).toBe(4);
     expect(DETECTORS.length).toBe(parsed);
     expect(STRUCTURAL_SCANS.length).toBe(structural);
@@ -283,12 +283,12 @@ describe("README detector count matches the computed total", () => {
 });
 
 describe("docs/architecture.md detector families cover every check", () => {
-  // The families table claims to group "the 36 checks", and every cell is a
+  // The families table claims to group "the 37 checks", and every cell is a
   // CHECK ID (not a reason code — one check may emit several). It had drifted to
   // 32 of 37: ip_classification, ambiguous_numeric_host, homograph_latin_skeleton,
   // locale_case_collapse, and idn_host were all missing. Pin it to the registry.
   it("every check id appears in the families table", () => {
-    const tableStart = architectureDoc.indexOf("The 36 checks group into six families");
+    const tableStart = architectureDoc.indexOf("The 37 checks group into six families");
     expect(tableStart).toBeGreaterThan(-1);
     const table = architectureDoc.slice(tableStart, architectureDoc.indexOf("## 6."));
 
@@ -393,7 +393,12 @@ describe("the scope-of-claim boundary is stated in one canonical place", () => {
     const start = architectureDoc.indexOf("### 1.1 Scope of claim");
     const section = architectureDoc.slice(start, architectureDoc.indexOf("\n## 2.", start));
     const blockStart = section.indexOf("**The path layer, settled");
-    const openList = section.indexOf("**One boundary this section does NOT yet settle**");
+    // LINK-mgnbgicq closed the last open boundary, so the heading these blocks
+    // used to end at ("**One boundary this section does NOT yet settle**") is
+    // gone. They now end at the settlement that replaced it — the slice bounds
+    // are unchanged in intent, and the anti-vacuity assertions below still fail
+    // if the delimiter stops matching.
+    const openList = section.indexOf("**Reserved special-use names, settled");
     const block = section.slice(blockStart, openList);
 
     // EVERY match below runs against whitespace-flattened text. The boundary
@@ -469,10 +474,10 @@ describe("the scope-of-claim boundary is stated in one canonical place", () => {
       expect(flat.match(/stated non-goal and not a gap/g)?.length).toBeGreaterThanOrEqual(2);
     });
 
-    it("the open-boundary list no longer reads as if the path were unaddressed", () => {
-      // §1.1 listed only what it does NOT settle. A reader scanning for "is the
-      // path decided?" found a principle and an open list, and concluded it was
-      // open. The list must now say what IS settled and name the path layer.
+    it("the settles-list names the path layer, and nothing is left open", () => {
+      // §1.1 once listed only what it does NOT settle. A reader scanning for "is
+      // the path decided?" found a principle and an open list, and concluded it
+      // was open. The list must say what IS settled and name the path layer.
       // Bounded at the next paragraph, or "the path layer" could be satisfied
       // by any later mention in the section.
       const openFlat = section
@@ -480,7 +485,12 @@ describe("the scope-of-claim boundary is stated in one canonical place", () => {
         .replace(/\s+/g, " ");
       expect(openFlat.length).toBeGreaterThan(200);
       expect(openFlat).toContain("RFC 6761");
-      expect(openFlat).toContain("That list is the whole of what is open");
+      // CONVERTED (LINK-mgnbgicq): this read "That list is the whole of what is
+      // open" while a list of open boundaries existed. The last entry is now
+      // decided, so the sentence that survives has to say so — an empty open
+      // list left un-narrated is exactly how a settled question reopens.
+      expect(openFlat).toContain("Nothing in this section is open");
+      expect(openFlat).not.toContain("does NOT yet settle");
       expect(openFlat).toContain("the path layer");
       expect(openFlat).toContain("should therefore not be re-filed");
     });
@@ -498,7 +508,12 @@ describe("the scope-of-claim boundary is stated in one canonical place", () => {
     const start = architectureDoc.indexOf("### 1.1 Scope of claim");
     const section = architectureDoc.slice(start, architectureDoc.indexOf("\n## 2.", start));
     const blockStart = section.indexOf("**Agent mode, settled");
-    const openList = section.indexOf("**One boundary this section does NOT yet settle**");
+    // LINK-mgnbgicq closed the last open boundary, so the heading these blocks
+    // used to end at ("**One boundary this section does NOT yet settle**") is
+    // gone. They now end at the settlement that replaced it — the slice bounds
+    // are unchanged in intent, and the anti-vacuity assertions below still fail
+    // if the delimiter stops matching.
+    const openList = section.indexOf("**Reserved special-use names, settled");
     const block = section.slice(blockStart, openList);
 
     // Same two traps the path-layer block above documents: raw substrings match
@@ -640,8 +655,107 @@ describe("the scope-of-claim boundary is stated in one canonical place", () => {
         .slice(openList, section.indexOf("**The rule.**", openList))
         .replace(/\s+/g, " ");
       expect(openFlat.length).toBeGreaterThan(200);
-      expect(openFlat).toContain("That list is the whole of what is open");
+      expect(openFlat).toContain("Nothing in this section is open");
       expect(openFlat).toContain("the agent-mode layer");
+    });
+  });
+
+  // LINK-mgnbgicq. §1.1 carried a heading — "One boundary this section does NOT
+  // yet settle" — whose single entry was the RFC 6761 set, framed as
+  // CONTEXT-DEPENDENT names. That framing was the wrong axis and had to be
+  // replaced rather than merely answered: it is false of `.invalid` and `.alt`
+  // (no referent anywhere) and false in the other direction of `.localhost`
+  // (RFC 6761 §6.3 mandates loopback). A settlement that leaves the rejected
+  // framing standing is one a re-derivation walks straight back into.
+  describe("§1.1 settles the reserved special-use names", () => {
+    const start = architectureDoc.indexOf("### 1.1 Scope of claim");
+    const section = architectureDoc.slice(start, architectureDoc.indexOf("\n## 2.", start));
+    const blockStart = section.indexOf("**Reserved special-use names, settled");
+    const block = section.slice(blockStart, section.indexOf("**The rule.**", blockStart));
+    const flat = block.replace(/^\s*>\s?/gm, "").replace(/\s+/g, " ");
+
+    it("the block exists and the slice is not empty (anti-vacuity)", () => {
+      expect(blockStart).toBeGreaterThan(-1);
+      expect(flat.length).toBeGreaterThan(1000);
+      expect(flat).toContain("LINK-mgnbgicq");
+    });
+
+    it("the old open-boundary heading is GONE, not merely answered elsewhere", () => {
+      expect(section).not.toContain("One boundary this section does NOT yet settle");
+    });
+
+    it("states the uniform predicate verbatim, and the DETECTOR states the same one", () => {
+      // The predicate is the whole claim. Getting it wrong ships a false one, so
+      // the doc and the code are pinned to the same string rather than to two
+      // paraphrases that drift.
+      const predicate =
+        "reserved, never delegated in the global DNS root, never publicly resolvable";
+      expect(flat).toContain(predicate);
+      expect(inspect("https://foo.invalid/").reasons[0]?.detail).toContain(predicate);
+    });
+
+    it("records CONTEXT-DEPENDENCE as the REJECTED framing, with both counterexamples", () => {
+      expect(flat).toContain("rejected");
+      // False in one direction: names with no referent anywhere.
+      expect(flat).toContain("`.invalid`");
+      expect(flat).toContain("`.alt`");
+      // False in the other: RFC 6761 §6.3 mandates loopback for `.localhost`.
+      expect(flat).toContain("least context-dependent name");
+    });
+
+    it("routes the class to the FOURTH RULE at weight 0, not to the three forms", () => {
+      expect(flat).toContain("none** of the three forms");
+      expect(flat).toContain("fourth rule");
+      expect(flat).toContain("weight 0");
+      expect(REASON_CODES.special_use_name.weight).toBe(0);
+      expect(REASON_CODES.special_use_name.scoring).toBe(false);
+    });
+
+    it("says WEIGHTS_VERSION does not move, and it did not", () => {
+      expect(flat).toContain("`WEIGHTS_VERSION`");
+      expect(flat).toContain("does not move");
+      expect(WEIGHTS_VERSION).toBe("1.19");
+      // And the schema DID move, because a new reason code is a closed-domain
+      // change (§6.4). Both halves or the sentence is half-true.
+      expect(flat).toContain("schema `1.11`");
+      expect(SCHEMA_VERSION).toBe("1.11");
+    });
+
+    it("excludes the example DOMAINS, and states the reasoning that draws the line", () => {
+      expect(flat).toContain("second-level");
+      expect(flat).toContain("delegated");
+      expect(flat).toContain("`example.com`");
+      // The doc's claim, checked against the code rather than trusted.
+      for (const host of ["example.com", "example.net", "example.org"]) {
+        expect(inspect(`https://${host}/`).reasons.map((r) => r.code)).not.toContain(
+          "special_use_name",
+        );
+      }
+      expect(inspect("https://foo.example/").reasons.map((r) => r.code)).toContain(
+        "special_use_name",
+      );
+    });
+
+    it("pins the cloud-metadata collision decision, and the code implements it", () => {
+      expect(flat).toContain("suppresses itself");
+      expect(flat).toContain("metadata.google.internal");
+      const codes = inspect("http://metadata.google.internal/").reasons.map((r) => r.code);
+      expect(codes).toContain("ip_cloud_metadata");
+      expect(codes).not.toContain("special_use_name");
+    });
+
+    it("carves out `.onion` label syntax as OUT of scope and still open", () => {
+      // It is form 3 and therefore SCORING-eligible. A weight-0 code must not be
+      // read as having decided it.
+      expect(flat).toContain("`.onion`");
+      expect(flat).toContain("form 3");
+      expect(flat).toContain("Not decided here.");
+    });
+
+    it("says it does not decide LINK-qqwfpxvu sideways, and why both halves are needed", () => {
+      expect(flat).toContain("LINK-qqwfpxvu");
+      expect(flat).toContain("Nothing here scores");
+      expect(flat).toContain("neither suffices alone");
     });
   });
 
@@ -937,7 +1051,11 @@ describe("the ReasonCode registry is pinned to the SCHEMA_VERSION it registered 
   // and `bait_tokens` with `SCHEMA_VERSION` left at `1.9` turned this red with
   // `{ added: [], removed: ["bait_tokens", "risky_tld"] }` in the commit before
   // the bump.
-  const PINNED_SCHEMA_VERSION = "1.10";
+  // Re-confirmed AGAIN on a single addition (LINK-mgnbgicq): registering
+  // `special_use_name` with `SCHEMA_VERSION` left at `1.10` turned this red with
+  // `{ added: ["special_use_name"], removed: [] }` before the bump to `1.11`.
+  // Four confirmations now, across both directions and both cardinalities.
+  const PINNED_SCHEMA_VERSION = "1.11";
 
   /** Every `REASON_CODES` key as of `PINNED_SCHEMA_VERSION`, sorted. */
   const PINNED_REASON_CODES: readonly string[] = [
@@ -989,6 +1107,7 @@ describe("the ReasonCode registry is pinned to the SCHEMA_VERSION it registered 
   "punycode_malformed",
   "scheme_denied",
   "separator_lookalike",
+  "special_use_name",
   "ssrf_cloud_metadata",
   "suspicious_extension",
   "tld_denied",

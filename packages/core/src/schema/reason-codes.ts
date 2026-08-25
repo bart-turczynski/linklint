@@ -203,6 +203,13 @@ export const REASON_CODES = {
     summary:
       "Hostname exceeds a DNS length limit (label > 63 octets or host > 253) and cannot resolve. Informational: nothing is disguised, it simply will not work.",
   },
+  special_use_name: {
+    layer: "lexical",
+    scoring: false,
+    weight: 0,
+    summary:
+      "Host sits under a reserved special-use name (.invalid, .internal, .localhost, .onion, home.arpa, …) — reserved, never delegated in the global DNS root, never publicly resolvable. Informational: nothing is disguised and no reader disagrees.",
+  },
   low_byte_truncation: {
     layer: "lexical",
     scoring: true,
