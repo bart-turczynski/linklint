@@ -46,6 +46,7 @@ import { lookup as dnsLookup, type LookupAllOptions, type LookupAddress } from "
 import {
   Agent as HttpAgent,
   request as httpRequest,
+  type ClientRequest,
   type IncomingHttpHeaders,
   type IncomingMessage,
 } from "node:http";
@@ -213,43 +214,58 @@ class NodeRdapHttpClient implements RdapHttpClient {
 
     return new Promise<RdapHttpResponse>((resolve, reject) => {
       let settled = false;
-      const clientRequest = dispatch(
-        {
-          protocol: url.protocol,
-          hostname: unbracket(url.hostname),
-          port: url.port === "" ? (secure ? 443 : 80) : Number(url.port),
-          path: `${url.pathname}${url.search}`,
-          method: "GET",
-          headers: this.requestHeaders(conditional),
-          agent,
-          // The address gate. Node connects to exactly the answers this returns,
-          // and it returns none that the policy refused.
-          lookup: this.policedLookup(),
-          // The tight seam for the header-byte budget: llhttp stops parsing at
-          // this bound, so an oversized head never finishes being buffered, and
-          // the limit belongs to this boundary rather than to whatever
-          // `--max-http-header-size` the host process was launched with.
-          maxHeaderSize: this.policy.maxResponseHeaderBytes,
-          signal,
-        },
-        (response: IncomingMessage) => {
-          void this.readResponse(response).then(
-            (value) => {
-              if (settled) return;
-              settled = true;
-              resolve(value);
-            },
-            (error: unknown) => fail(error),
-          );
-        },
-      );
-
+      let clientRequest: ClientRequest | undefined;
       const fail = (error: unknown): void => {
         if (settled) return;
         settled = true;
-        clientRequest.destroy();
+        clientRequest?.destroy();
         reject(error);
       };
+
+      try {
+        clientRequest = dispatch(
+          {
+            protocol: url.protocol,
+            hostname: host,
+            port: url.port === "" ? (secure ? 443 : 80) : Number(url.port),
+            path: `${url.pathname}${url.search}`,
+            method: "GET",
+            headers: this.requestHeaders(conditional),
+            agent,
+            // The address gate. Node connects to exactly the answers this
+            // returns, and it returns none that the policy refused.
+            lookup: this.policedLookup(),
+            // The tight seam for the header-byte budget: llhttp stops parsing
+            // at this bound, so an oversized head never finishes being
+            // buffered, and the limit belongs to this boundary rather than to
+            // whatever `--max-http-header-size` the host process was launched
+            // with.
+            maxHeaderSize: this.policy.maxResponseHeaderBytes,
+            signal,
+          },
+          (response: IncomingMessage) => {
+            void this.readResponse(response).then(
+              (value) => {
+                if (settled) return;
+                settled = true;
+                resolve(value);
+              },
+              (error: unknown) => fail(error),
+            );
+          },
+        );
+      } catch (error) {
+        // `http.request` validates the port, the option shape and the whole
+        // header block SYNCHRONOUSLY, inside the `ClientRequest` constructor,
+        // so these throws happen before the request object exists and can never
+        // reach the `error` listener attached below. Without this catch the
+        // executor turns them into a rejection carrying a raw Node error —
+        // untyped, and quoting a message this client never inspected. Routed
+        // through the same mapper as every asynchronous failure instead
+        // (LINK-fnvzqwiq).
+        fail(requestFailure(error));
+        return;
+      }
 
       clientRequest.once("error", (error: unknown) => fail(requestFailure(error)));
       clientRequest.end();
@@ -337,6 +353,25 @@ class NodeRdapHttpClient implements RdapHttpClient {
     // caller cannot name the header — a source declaring
     // `credentials: { kind: "none" }` must have no seam through which one could
     // be added.
+    //
+    // NO VALUE VALIDATION HAPPENS HERE, and that is a decision rather than an
+    // omission (LINK-fnvzqwiq). `mirrors/mirror-http-node.ts` does screen its
+    // header map before dispatch, but it accepts a free-form map from the
+    // caller: it has header NAMES to check against an RFC 9110 token, and a
+    // credential-bearing value whose refusal must name the field it came from.
+    // Neither applies here. Both names are fixed literals, and both values are
+    // reported by a single failure that never quotes either one.
+    //
+    // What a local check would add is a second copy of Node's accepted request-
+    // header charset, in a file that is not its author. Node is: it rejects the
+    // block synchronously in the `ClientRequest` constructor, before the agent
+    // is asked for a socket, so a poisoned validator already fails at this
+    // boundary rather than at the wire — `send` catches that throw and maps it
+    // to `http-malformed`. A copy narrower than Node's would refuse a validator
+    // a provider is entitled to issue (`ü` is legal, `Ā` is not, and that line
+    // is Latin-1, not the CR/LF/NUL shape a splitting guard checks); a copy
+    // wider than Node's would be dead code. Either way it can drift, and the
+    // authority it would be duplicating is the one that already runs.
     return {
       accept: RDAP_ACCEPT,
       "accept-encoding": RDAP_ACCEPT_ENCODING,
@@ -446,6 +481,13 @@ function requestFailure(error: unknown): unknown {
       return new RdapHttpFailure("http-reset");
     case "HPE_HEADER_OVERFLOW":
       return new RdapHttpFailure("response-headers-too-large");
+    case "ERR_INVALID_CHAR":
+    case "ERR_INVALID_HTTP_TOKEN":
+      // Node's own verdict on the request header block, raised synchronously.
+      // The detail is fixed rather than derived: Node's message quotes the
+      // field name, and this boundary reports a code and a bounded detail
+      // rather than anything it did not author.
+      return new RdapHttpFailure("http-malformed", "invalid request header");
     default:
       if (isCertificateError(code)) return new RdapHttpFailure("tls-certificate");
       if (code !== null && code.startsWith("ERR_TLS")) return new RdapHttpFailure("tls-handshake");
