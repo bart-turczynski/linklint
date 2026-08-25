@@ -218,6 +218,17 @@ Core-generated degradation codes currently include:
 
 These are operational states, not malicious or benign verdicts.
 
+`ENRICHMENT_SCHEMA_VERSION` stamps that framework list and the report shape
+around it. It does not stamp the source-specific `cause.code` values an adapter
+supplies: a source owns its own cause vocabulary and versions it itself. The
+`@linklint/online` transport surface is the worked example — a `blocked` or
+`incomplete` `SafeFetchOutcome` reaches a redirect-chain outcome with its
+`TransportCause.code` copied through verbatim, and that vocabulary is enumerated
+and stamped under `TRANSPORT_SCHEMA_VERSION` in
+[`docs/safe-transport.md`](safe-transport.md), not here. A consumer branching on
+`cause.code` therefore reads the framework list above for framework states and
+the producing source's own registry for everything else.
+
 ## Subject-aware scoring and suppression
 
 The `subject` on a structured outcome is also the subject of every finding in

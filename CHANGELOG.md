@@ -4,6 +4,48 @@ All notable changes to this project will be documented here.
 
 ## Unreleased
 
+- **New `TRANSPORT_SCHEMA_VERSION` (`1.0`) and a runtime registry for the
+  `@linklint/online/transport` outcome surface.** `TransportCauseCode` (30
+  values) and `TlsObservationCauseCode` (18) were TypeScript unions and nothing
+  else: erased at build time, so a consumer could not enumerate them, check a
+  deserialized value against them, or detect that one had moved. The only
+  runtime code sets in the package were `STABLE_OPERATION_CODES` (13 of 30) and
+  `STABLE_OBSERVE_CODES` (7 of 18) — module-private proper subsets that map an
+  adapter's `error.code`, not registries of the domain.
+  `packages/online/src/transport/outcome-registry.ts` now exports all six closed
+  domains of the subpath (`TRANSPORT_OUTCOME_STATUSES`, `TRANSPORT_CAUSE_CODES`,
+  `TLS_OBSERVATION_OUTCOME_STATUSES`, `TLS_OBSERVATION_CAUSE_CODES`,
+  `TLS_CERTIFICATE_DEFECTS`, `CERTIFICATE_ASSURANCE_LEVELS`) as frozen sorted
+  arrays with matching type guards, and `docs/safe-transport.md` publishes the
+  same six enumerations — which is what makes them CLOSED under the §6.4 rule
+  that closedness is decided by the documented registry rather than the
+  TypeScript annotation. The two adapter-mapping subsets keep their narrower job
+  and are pinned as subsets.
+- **The stamp is new rather than folded into `ENRICHMENT_SCHEMA_VERSION`.** That
+  stamp owns core's structured enrichment report and its FRAMEWORK cause
+  vocabulary; `schema/enrich.ts` states that adapters supply their own
+  source-specific `EnrichmentCause.code` values and that the framework union
+  covers only orchestration, cache, governor, and provider-call states. Transport
+  causes reach a report through exactly that adapter channel
+  (`redirect-chain.ts` copies `outcome.cause.code` verbatim), so folding them in
+  would widen a core-owned stamp over a vocabulary core disclaims and cannot see
+  — and the dependency arrow forbids it anyway, since `@linklint/online` depends
+  on `linklint` and not the reverse. `SCHEMA_VERSION` stays put: a transport
+  outcome is not part of the serialized `InspectResult`. Recorded honestly: no
+  runtime code branches on `TRANSPORT_SCHEMA_VERSION` and no version-checking
+  validator ships with it, because there is no caller for one. It is a
+  consumer-facing declaration whose only in-repo reader is its pin test.
+- The guard is the §6.4 mechanical pattern, not a prose grep:
+  `packages/online/test/transport-outcome-registry.test.ts` checks in the six
+  sorted key sets beside the stamp and asserts added/removed empty plus version
+  equality, and it was proved to bite in BOTH directions before landing — RED on
+  adding a cause value with the stamp left at `1.0`
+  (`{ added: ["quic-handshake"], removed: [] }`) and RED on removing one
+  (`{ added: [], removed: ["http-reset"] }`). It also pins the doc enumeration
+  against the exported one, pins both adapter subsets as proper subsets, and
+  pins `retryableTransportCause` in `redirect-chain.ts` — which re-lists ten
+  transport cause codes by hand behind a `code: string` parameter and would have
+  answered `false` for a renamed code with nothing red.
 - **Delete `api_endpoint_impersonation` and `packages/core/src/data/api-brands.ts`**
   (`LINK-eurtxkit`, rescope carried 2–1). The detector fired on
   `API_BRAND_DOMAINS.get(token)` — a lookup into a hand-kept watchlist of ten

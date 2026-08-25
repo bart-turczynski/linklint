@@ -2,6 +2,19 @@ export {
   classifyTransportAddress,
 } from "./address.js";
 export {
+  CERTIFICATE_ASSURANCE_LEVELS,
+  isTlsObservationCauseCode,
+  isTlsObservationOutcomeStatus,
+  isTransportCauseCode,
+  isTransportOutcomeStatus,
+  TLS_CERTIFICATE_DEFECTS,
+  TLS_OBSERVATION_CAUSE_CODES,
+  TLS_OBSERVATION_OUTCOME_STATUSES,
+  TRANSPORT_CAUSE_CODES,
+  TRANSPORT_OUTCOME_STATUSES,
+  TRANSPORT_SCHEMA_VERSION,
+} from "./outcome-registry.js";
+export {
   DEFAULT_TRANSPORT_POLICY,
   resolveTransportPolicy,
   type TransportPolicy,

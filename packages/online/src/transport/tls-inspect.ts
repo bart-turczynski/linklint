@@ -16,6 +16,7 @@
  */
 
 import { addressesEqual } from "./address.js";
+import { isTlsObservationCauseCode } from "./outcome-registry.js";
 import { normalizeTlsCertificate, TlsCertificateAnalysisError } from "./tls-certificate.js";
 import { pinDestination } from "./pin.js";
 import type { ClockPort, ResolverPort } from "./types.js";
@@ -256,6 +257,12 @@ function observeCause(error: ObserveError): TlsObservationCause["code"] {
   return "tls-handshake";
 }
 
+/**
+ * The subset of {@link TLS_OBSERVATION_CAUSE_CODES} an adapter may assert
+ * directly through `error.code`. Deliberately proper, under the same rule as
+ * `STABLE_OPERATION_CODES` in `safe-transport.ts`, and pinned as a subset by
+ * `test/transport-outcome-registry.test.ts`.
+ */
 const STABLE_OBSERVE_CODES = new Set<TlsObservationCause["code"]>([
   "dns-not-found",
   "dns-timeout",
@@ -269,9 +276,8 @@ const STABLE_OBSERVE_CODES = new Set<TlsObservationCause["code"]>([
 function stableCode(error: unknown): TlsObservationCause["code"] | null {
   if (typeof error !== "object" || error === null || !("code" in error)) return null;
   const code = error.code;
-  return typeof code === "string" && STABLE_OBSERVE_CODES.has(code as TlsObservationCause["code"])
-    ? (code as TlsObservationCause["code"])
-    : null;
+  if (!isTlsObservationCauseCode(code)) return null;
+  return STABLE_OBSERVE_CODES.has(code) ? code : null;
 }
 
 function unbracket(hostname: string): string {

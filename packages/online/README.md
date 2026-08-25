@@ -25,6 +25,20 @@ const outcome = await session.fetch({
 });
 ```
 
+The outcome statuses and cause vocabularies a caller branches on are enumerated
+at runtime from the same subpath, stamped by `TRANSPORT_SCHEMA_VERSION`
+(currently `1.0`), and published in
+[`docs/safe-transport.md`](../../docs/safe-transport.md). A value added to or
+removed from one of them moves the stamp.
+
+```ts
+import {
+  isTransportCauseCode,
+  TRANSPORT_CAUSE_CODES,
+  TRANSPORT_SCHEMA_VERSION,
+} from "@linklint/online/transport";
+```
+
 The `@linklint/online/resolution` subpath exposes shipped local embedded-wrapper
 decoding. It recognizes only exact, version-pinned Microsoft Safe Links and
 Proofpoint URL Defense formats, applies mandatory length/nesting bounds, and
