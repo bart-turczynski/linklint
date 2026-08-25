@@ -67,10 +67,11 @@ docs — an earlier example hook was broken and failed **open**):
 ## Shell-alias installer (curl / wget)
 
 `enforcement/install-aliases.sh` appends a safe-chain-style guard to your shell
-rc that wraps `curl` and `wget`: each URL argument is inspected with
-`linklint check` first, and **any non-zero exit aborts the fetch** — threshold
-hit *or* invalid input, so `file:///…` and unparseable inputs are blocked too,
-not just `high`/`critical`.
+rc that wraps `curl` and `wget`: each **fetch target** among the arguments is
+inspected with `linklint check` first, and **any non-zero exit aborts the
+fetch** — threshold hit *or* invalid input, so `file:///…` and unparseable
+targets are blocked too, not just `high`/`critical`. What counts as a target,
+and what is left alone, is spelled out below.
 
 ```bash
 ./enforcement/install-aliases.sh --print   # review the guard first
@@ -83,15 +84,64 @@ It exits `1` — not the hook's `2` — when `linklint` is absent from `PATH` or
 the rc file cannot be written; the exit codes are not shared between the two
 wrappers because only the hook's `2` carries a blocking meaning.
 
-Two scope limits worth stating plainly, since the wrapper is a shell function
-and not an interceptor:
+The emitted function is POSIX sh, not bash: the installer's fallback branch
+routes any shell that is not bash or zsh into `~/.profile`, which ksh reads,
+and ksh93 has no `local`.
 
-- Only arguments containing `://` are inspected. A scheme-less argument such as
-  `curl example.com` reaches the tool uninspected, as does `command curl …`,
-  which bypasses the function by design.
-- This wraps **interactive** shell use — it is intentionally not a system-wide
+### What counts as a fetch target
+
+The guard judges an argument when it **begins** with a scheme *and* is not
+sitting in a value-taking option's value slot. Both halves matter, and the
+second is argv parsing rather than a guess — the argument after `-H`, `-d` or
+`-e` is that option's value, so it is not something curl will fetch.
+
+A header, a request body, a referer and a user agent routinely carry `://`
+without being URLs, and `linklint check` reports such a string as invalid
+rather than deceptive. Before `LINK-dwapcooy` the match was a bare `*://*`
+containment test, so `curl -H 'Origin: https://app.example.com' -d '{}'
+https://api.example.com/v1` aborted at the header — a fail-closed guard turning
+an unparseable *option value* into a veto over a perfectly ordinary call.
+`curl -e 'https://gοogle.com' https://example.com/api` was the sharpest shape:
+a deceptive **referer** vetoed a benign **destination**, and nothing is fetched
+from a referer.
+
+Options whose value **is** a network endpoint are deliberately left out of that
+skip list, so they stay inspected: curl's `--url` (both `--url X` and
+`--url=X`), `-x`/`--proxy`/`--preproxy`, and wget's `-B`.
+
+When the guard does block, the message names the cause rather than only the
+string — `deceptive at or above 'high'`, `not a parseable URL, so not judged`,
+or `linklint could not check it (exit N)`. The bare form read as an accusation
+against a host that had not been judged at all.
+
+### Scope limits worth stating plainly
+
+The wrapper is a shell function, not an interceptor. It under-mediates in three
+directions and over-mediates in one:
+
+- **Scheme-less arguments are not inspected.** `curl example.com` reaches the
+  tool unjudged — and curl then fetches **http://**example.com, since it
+  defaults a scheme-less operand to HTTP and guesses another scheme only from a
+  host-name prefix such as `ftp.`. `command curl …` likewise bypasses the
+  function by design. Widening to cover this was decided against in
+  `LINK-dkfsxrpc`: measured against real curl argv tokens, the narrowest
+  defensible widening still blocks 20–32% of ordinary non-URL arguments, and
+  the benefit has no matching measurement.
+- **Redirects are not revalidated.** The guard sees the argument you typed, and
+  `curl -L` / `wget` following a `3xx` happens inside the tool, past the shell
+  function. This is the same blindness the Claude Code hook has, for the same
+  reason: per-hop revalidation is roadmap, not v1.
+- **This wraps interactive shell use** — it is intentionally not a system-wide
   interception (see non-goals below). A script or program that does not source
   the rc file is unmediated.
+- **A URL in an option's value slot is not inspected**, which is the
+  over-mediation direction traded away above. `curl -e <deceptive-url>` and
+  `curl -H 'Referer: <deceptive-url>'` reach the tool; the destination is still
+  judged. The option list the guard skips is curl's and wget's separately —
+  `-d` is curl's request body but wget's `--debug`, `-H` is curl's header but
+  wget's `--span-hosts` — so a shared list would have skipped the URL that
+  follows a value-less wget flag. An option neither list knows about falls
+  through to the scheme test.
 
 ## MCP
 

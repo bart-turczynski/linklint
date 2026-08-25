@@ -22,10 +22,13 @@
  *     PreToolUse JSON on stdin, and that a `2` (and its stderr) actually
  *     denies the tool call, are properties of Claude Code, not of this repo.
  *     Only the script's side of that contract is pinned here.
- *   - WebFetch's redirect following. The hook sees the ORIGINAL URL only
- *     (docs/enforcement.md §"The hook sees only the original URL"); what the
- *     tool does after the hook allows is out of reach. The proxy pinned below
- *     is that the hook makes exactly one CLI call, for exactly that URL.
+ *   - Redirect following, on EITHER wrapper. The hook sees the ORIGINAL URL
+ *     only (docs/enforcement.md §"The hook sees only the original URL"); what
+ *     the tool does after the hook allows is out of reach. The shell guard has
+ *     the same blindness for `curl -L` — it judges the argument you typed, and
+ *     the `3xx` chain is followed inside curl, past the shell function. The
+ *     proxy pinned below, for both, is that exactly one CLI call is made, for
+ *     exactly the argument given.
  *   - A real interactive login shell sourcing a real rc file. The installer is
  *     driven into a temp `HOME`/`ZDOTDIR` and the emitted guard is sourced
  *     explicitly; nothing here touches the developer's own rc files.
@@ -655,9 +658,14 @@ describe.each(BASHES)("install-aliases.sh under %s", (bash) => {
     });
 
     /**
-     * Also a scope limitation: the guard's `case` only matches arguments that
-     * carry a `://`, so a scheme-less argument (`curl example.com`, which curl
-     * itself resolves to https://) reaches the tool uninspected.
+     * Also a scope limitation, and the one LINK-dkfsxrpc decided 2-0 to leave
+     * alone: the guard only judges arguments that begin with a scheme, so a
+     * scheme-less argument reaches the tool uninspected.
+     *
+     * `curl example.com` fetches **http://**example.com, not https — curl
+     * defaults a scheme-less operand to HTTP and guesses another scheme only
+     * from a host-name prefix such as `ftp.`. An earlier version of this
+     * comment said https, which understates what the uninspected fetch does.
      */
     it("does not inspect a scheme-less argument", () => {
       const sb = makeSandbox("guard-schemeless", { linklint: "fake", linklintExit: 1, fetchStubs: true });
@@ -822,69 +830,141 @@ const DECEPTIVE_TARGET = "https://paypa1-secure-login.example.net.verify-account
 
 describe("the emitted guard's argument selection (LINK-dwapcooy)", () => {
   /**
-   * THE DEFECT, PINNED AS IT SHIPS. The `case` carries a `*://*` catch-all —
-   * which also makes its four leading `http://*|https://*|ftp://*|file://*`
-   * alternatives dead — so it matches `://` ANYWHERE in a token rather than
-   * tokens that ARE fetch targets. `linklint check` exits 1 on the resulting
-   * unparseable strings and the guard is fail-closed, so ordinary API-call
-   * idioms die before curl is reached.
+   * WAS THE DEFECT. The `case` used to carry a `*://*` catch-all — which also
+   * made its four leading `http://*|https://*|ftp://*|file://*` alternatives
+   * dead — so it matched `://` ANYWHERE in a token rather than tokens that ARE
+   * fetch targets. `linklint check` exits 1 on the resulting unparseable
+   * strings and the guard is fail-closed, so ordinary API-call idioms died
+   * before curl was reached.
    *
-   * These three run against the REAL CLI, so the verdicts are the ones a user
-   * gets. They are expected to FLIP to "fetches" when the guard learns to tell
-   * a target from an option value.
+   * These run against the REAL CLI, so the verdicts are the ones a user gets.
+   * Each command's own destination is benign, so reaching the tool is the
+   * correct outcome for all of them.
    */
   it.each([
     ["a header value", `curl -H 'Origin: https://app.example.com' -d '{}' https://api.example.com/v1`],
     ["a urlencoded form field", `curl --data-urlencode 'url=https://target.example' https://api.example.com`],
     ["a form body", `curl -d 'callback=https://app.example/cb' https://api.example.com`],
+    ["a referer header", `curl -H 'Referer: https://example.com' https://api.example.com`],
     ["a referer", `curl -e ${JSON.stringify(HOMOGLYPH_HOST)} 'https://example.com/api'`],
-  ])("PINNED DEFECT — %s aborts the fetch even though it is not a fetch target", (_label, cmd) => {
-    const sb = fetchSandbox("optval-block");
+    ["a JSON body carrying a URL", `curl --json '{"cb":"https://app.example/cb"}' https://api.example.com`],
+    ["a user agent", `curl -A 'bot/1.0 (+https://bot.example)' https://api.example.com`],
+  ])("%s no longer aborts the fetch, because it is not a fetch target", (_label, cmd) => {
+    const sb = fetchSandbox("optval-allow");
     const r = underGuard(sb, cmd);
-    expect(r.status).toBe(1);
-    expect(r.stderr).toContain("linklint blocked curl");
-    expect(sb.fetchCalls()).toHaveLength(0);
+    expect(r.status).toBe(0);
+    expect(r.stderr).not.toContain("linklint blocked");
+    expect(sb.fetchCalls()).toHaveLength(1);
   });
 
   /**
-   * The sharpest one, stated as its own assertion because it is not merely
-   * over-inspection: the verdict is taken from a REFERER and applied to a
-   * DESTINATION. Nothing is ever fetched from a referer.
+   * The sharpest one, stated as its own assertion because it was not merely
+   * over-inspection: the verdict was taken from a REFERER and applied to a
+   * DESTINATION, and the loop aborted before the destination was inspected at
+   * all. Nothing is ever fetched from a referer.
    */
-  it("PINNED DEFECT — a deceptive referer vetoes a benign destination", () => {
+  it("does not let a deceptive referer veto a benign destination", () => {
     const sb = fetchSandbox("optval-referer");
     const r = underGuard(sb, `curl -e ${JSON.stringify(HOMOGLYPH_HOST)} 'https://example.com/api'`);
+    expect(r.status).toBe(0);
+    expect(sb.fetchCalls()).toHaveLength(1);
+    // The destination — and only the destination — was judged.
+    const inspected = sb.linklintCalls().filter((c) => c.includes("check"));
+    expect(inspected).toHaveLength(1);
+    expect(inspected[0]).toContain("https://example.com/api");
+    expect(inspected.flat()).not.toContain(HOMOGLYPH_HOST);
+  });
+
+  /**
+   * The same homoglyph host as a DESTINATION is still refused, so the referer
+   * case above is narrowing rather than a hole: the string did not become
+   * acceptable, its position stopped being a fetch.
+   */
+  it("still refuses that same homoglyph host when it IS the destination", () => {
+    const sb = fetchSandbox("optval-homoglyph-target");
+    const r = underGuard(sb, `curl ${JSON.stringify(HOMOGLYPH_HOST)}`);
     expect(r.status).toBe(1);
     expect(sb.fetchCalls()).toHaveLength(0);
-    // The destination was never even reached by the loop.
-    expect(sb.linklintCalls().some((c) => c.includes("https://example.com/api"))).toBe(false);
   });
 
   /**
-   * MISATTRIBUTION, pinned separately from the match. The block message names
-   * the argument and nothing else, so `Origin: https://app.example.com` reads
-   * as "app.example.com is deceptive" when the actual finding is "this string
-   * does not parse as a URL".
+   * MISATTRIBUTION, asserted separately from the match. `linklint check` exits
+   * 1 for "deceptive" and for "does not parse" alike, so a message that names
+   * only the argument reads as an accusation against a host that may not have
+   * been judged at all. The guard now re-runs with `--allow-invalid` on the
+   * failure path to tell the two apart, and says which it is.
    */
-  it("PINNED DEFECT — the block message names no cause, so it reads as an accusation", () => {
-    const sb = fetchSandbox("optval-message");
-    const r = underGuard(sb, `curl -H 'Origin: https://app.example.com' https://api.example.com/v1`);
-    expect(r.stderr).toContain("linklint blocked curl: Origin: https://app.example.com");
-    expect(r.stderr).not.toMatch(/parse/i);
+  describe("the block message names the real cause", () => {
+    it("says 'deceptive' for a host the CLI actually graded", () => {
+      const sb = fetchSandbox("why-deceptive");
+      const r = underGuard(sb, `curl ${JSON.stringify(DECEPTIVE_TARGET)}`);
+      expect(r.stderr).toContain("linklint blocked curl (deceptive at or above high)");
+      expect(r.stderr).toContain(DECEPTIVE_TARGET);
+      expect(r.stderr).not.toMatch(/parseable/i);
+    });
+
+    it("says 'not a parseable URL' for a target the CLI refused to judge", () => {
+      const sb = fetchSandbox("why-invalid");
+      // Scheme-prefixed, so it IS treated as a target, but it has no authority.
+      const r = underGuard(sb, `curl 'http://'`);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain("linklint blocked curl (not a parseable URL, so not judged");
+      expect(r.stderr).not.toMatch(/deceptive/i);
+      expect(sb.fetchCalls()).toHaveLength(0);
+    });
+
+    it("says so, and still blocks, when the CLI itself could not run", () => {
+      const sb = makeSandbox("why-error", { linklint: "fake", linklintExit: 3, fetchStubs: true });
+      const r = underGuard(sb, "curl https://example.com/ok");
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain("linklint blocked curl (linklint could not check it (exit 3))");
+      expect(sb.fetchCalls()).toHaveLength(0);
+    });
+
+    /** The extra `--allow-invalid` probe runs only on the failure path. */
+    it("costs no second CLI call when the target passes", () => {
+      const sb = makeSandbox("why-nocost", { linklint: "fake", linklintExit: 0, fetchStubs: true });
+      expect(underGuard(sb, "curl https://example.com/ok").status).toBe(0);
+      expect(sb.linklintCalls().filter((c) => c.includes("check"))).toHaveLength(1);
+    });
   });
 
   /**
-   * THE OTHER HALF OF THE PIN — what has to keep working. Narrowing the match
-   * is only correct if a real fetch target is still inspected and still
-   * blocked, whatever position or option carries it.
+   * The scheme test is a PREFIX test, not a containment test, and the prefix
+   * has to look like a scheme — `[A-Za-z][A-Za-z0-9+.-]*` — or the token is an
+   * option value, a query string or a JSON blob rather than a target.
+   */
+  describe("only a scheme-prefixed token is treated as a target", () => {
+    it.each([
+      ["a header value", "Origin: https://app.example.com"],
+      ["a form field", "url=https://target.example"],
+      ["a JSON body", '{"cb":"https://app.example/cb"}'],
+      ["an authority-relative reference", "//evil.example/x"],
+      ["a bare `://`", "://evil.example"],
+    ])("does not judge %s when it reaches the loop unguarded by a flag", (_label, token) => {
+      const sb = makeSandbox("prefix", { linklint: "fake", linklintExit: 1, fetchStubs: true });
+      // `--fake-flag` is in no skip list, so the token is examined on its own.
+      const r = underGuard(sb, `curl --fake-flag ${JSON.stringify(token)} https://example.com/ok`);
+      expect(r.status).toBe(1); // the benign-looking destination is still judged
+      expect(sb.linklintCalls().filter((c) => c.includes("check")).flat()).not.toContain(token);
+    });
+  });
+
+  /**
+   * THE OTHER HALF — what narrowing may not break. A real fetch target has to
+   * stay inspected and stay blocked, whatever position or option carries it.
    */
   describe("targets stay inspected", () => {
     it.each([
       ["a bare deceptive URL", `curl ${JSON.stringify(DECEPTIVE_TARGET)}`],
       ["a deceptive URL behind an output flag", `curl -o out.txt ${JSON.stringify(DECEPTIVE_TARGET)}`],
+      ["a deceptive URL behind a header", `curl -H 'X-A: b' ${JSON.stringify(DECEPTIVE_TARGET)}`],
       ["a deceptive URL behind --url", `curl --url ${JSON.stringify(DECEPTIVE_TARGET)}`],
-      ["an invalid scheme", `curl file:///etc/passwd`],
+      ["a deceptive URL behind --url=", `curl --url=${DECEPTIVE_TARGET}`],
+      ["a deceptive URL behind a proxy, which stays inspected", `curl -x http://p.example:3128 ${JSON.stringify(DECEPTIVE_TARGET)}`],
+      ["a dangerous scheme", `curl file:///etc/passwd`],
       ["a deceptive URL passed to wget", `wget ${JSON.stringify(DECEPTIVE_TARGET)}`],
+      ["a deceptive URL wget reaches behind a header", `wget --header 'X-A: b' ${JSON.stringify(DECEPTIVE_TARGET)}`],
     ])("blocks %s", (_label, cmd) => {
       const sb = fetchSandbox("target-block");
       const r = underGuard(sb, cmd);
@@ -896,12 +976,53 @@ describe("the emitted guard's argument selection (LINK-dwapcooy)", () => {
       ["a benign URL", `curl https://example.com/ok`],
       ["a benign URL behind an output flag", `curl -o out.txt https://example.com/ok`],
       ["a benign URL with bundled short flags", `curl -sSL https://example.com/ok`],
+      ["a benign URL after a value-less flag", `curl -L https://example.com/ok`],
+      ["a benign URL passed to wget", `wget -q https://example.com/ok`],
     ])("lets %s through", (_label, cmd) => {
       const sb = fetchSandbox("target-allow");
       const r = underGuard(sb, cmd);
       expect(r.status).toBe(0);
       expect(sb.fetchCalls()).toHaveLength(1);
     });
+
+    /**
+     * The skip list is PER TOOL because the same short flag means different
+     * things in each: `-d` is curl's request body but wget's `--debug`, `-H`
+     * is curl's header but wget's `--span-hosts`. A shared list would have
+     * skipped the URL that follows a value-less wget flag.
+     */
+    it.each([
+      ["wget -d", `wget -d ${JSON.stringify(DECEPTIVE_TARGET)}`],
+      ["wget -H", `wget -H ${JSON.stringify(DECEPTIVE_TARGET)}`],
+      ["wget -b", `wget -b ${JSON.stringify(DECEPTIVE_TARGET)}`],
+      ["wget -F", `wget -F ${JSON.stringify(DECEPTIVE_TARGET)}`],
+    ])("still inspects the URL after %s, which takes no value", (_label, cmd) => {
+      const sb = fetchSandbox("wget-valueless");
+      const r = underGuard(sb, cmd);
+      expect(r.status).toBe(1);
+      expect(sb.fetchCalls()).toHaveLength(0);
+    });
+
+    /** Every remaining argument is examined; the loop does not stop at the first. */
+    it("inspects a target that follows several skipped option values", () => {
+      const sb = fetchSandbox("target-late");
+      const r = underGuard(sb, `curl -H 'A: https://x.example' -e 'https://y.example' -d 'z=https://q.example' ${JSON.stringify(DECEPTIVE_TARGET)}`);
+      expect(r.status).toBe(1);
+      const inspected = sb.linklintCalls().filter((c) => c.includes("check"));
+      expect(inspected[0]).toContain(DECEPTIVE_TARGET);
+      expect(sb.fetchCalls()).toHaveLength(0);
+    });
+  });
+
+  /**
+   * The guard's names must not survive into the interactive shell — an rc
+   * function that leaks `_linklint_arg` would collide with the user's own.
+   */
+  it("leaves none of its own variables set in the calling shell", () => {
+    const sb = makeSandbox("guard-noleak", { linklint: "fake", linklintExit: 0, fetchStubs: true });
+    const r = underGuard(sb, "curl https://example.com/ok; set | grep -c '^_linklint_[a-z]*=' || true");
+    expect(r.status).toBe(0);
+    expect(r.stdout.trim().split("\n").pop()).toBe("0");
   });
 });
 
@@ -910,48 +1031,54 @@ describe.skipIf(POSIX_SHELLS.length === 0)("the emitted guard under a non-bash r
    * The installer routes fish, ksh, tcsh — every shell that is not bash or zsh
    * — into `~/.profile`, and its own header comment leans on that routing when
    * it argues the baked `--fail-on` literal is safe "in POSIX sh too". The text
-   * it emits declares `local`, which is a bash/zsh/ash extension and is absent
-   * from ksh93.
+   * it emitted declared `local`, which is a bash/zsh/ash extension POSIX does
+   * not define and ksh93 does not carry.
    *
-   * PINNED AS IT SHIPS: under ksh the guard does not merely warn. `local _tool`
-   * fails, `$_tool` is left unset, and the trailing `command "$_tool" "$@"`
-   * tries to execute the empty string — so a BENIGN fetch dies too. dash and
-   * `/bin/sh` carry `local` as an extension and are unaffected, which is why a
-   * dash-only check would have called this fine.
+   * WHAT THAT COST, measured against /bin/ksh (ksh93u+) rather than assumed:
+   * `local _tool` failed, `$_tool` was left unset, and the trailing
+   * `command "$_tool" "$@"` tried to execute the empty string — so a BENIGN
+   * fetch died with 126 and nothing was fetched. dash and `/bin/sh` carry
+   * `local` as an extension and were unaffected, which is why a dash-only
+   * check would have called this fine.
    */
-  it.each(POSIX_SHELLS)("%s: reports whether the guard's `local` survives", (shell) => {
+  it.each(POSIX_SHELLS)("%s: runs the guard and lets a benign target through", (shell) => {
     const sb = fetchSandbox("posix-benign");
     const r = underGuard(sb, "curl https://example.com/ok", shell);
     // ksh93 reports `local: not found` on stderr yet still exits 0 from the
-    // rest of the function, so the exit status alone cannot answer this.
-    const probe = spawnSync(shell, ["-c", "f() { local x=1; }; f"], { encoding: "utf8" });
-    const hasLocal = probe.status === 0 && probe.stderr.trim() === "";
-    if (hasLocal) {
-      expect(r.status).toBe(0);
-      expect(sb.fetchCalls()).toHaveLength(1);
-    } else {
-      // PINNED DEFECT: `local` is not POSIX, so the whole guard collapses here.
-      expect(r.stderr).toContain("local: not found");
-      expect(r.status).not.toBe(0);
-      expect(sb.fetchCalls()).toHaveLength(0);
-    }
+    // rest of the function, so the exit status alone would not have caught it.
+    expect(r.stderr).not.toContain("local: not found");
+    expect(r.status).toBe(0);
+    expect(sb.fetchCalls()).toHaveLength(1);
   });
 
   it.each(POSIX_SHELLS)("%s: still refuses a deceptive target", (shell) => {
     const sb = fetchSandbox("posix-deny");
     const r = underGuard(sb, `curl ${JSON.stringify(DECEPTIVE_TARGET)}`, shell);
     expect(r.status).toBe(1);
+    expect(r.stderr).toContain("linklint blocked curl");
     expect(sb.fetchCalls()).toHaveLength(0);
+  });
+
+  it.each(POSIX_SHELLS)("%s: does not judge an option value", (shell) => {
+    const sb = fetchSandbox("posix-optval");
+    const r = underGuard(sb, `curl -H 'Origin: https://app.example.com' https://example.com/ok`, shell);
+    expect(r.status).toBe(0);
+    expect(sb.fetchCalls()).toHaveLength(1);
   });
 
   /**
    * The source-level half, so a machine with no ksh cannot go green on a
    * regression the way a bash-5-only CI run could mask the array bug above.
+   * `local` is the one that bit; the others are the bashisms nearest to hand
+   * in a rewrite of this function.
    */
-  it("PINNED DEFECT — the emitted guard declares `local`, which POSIX does not define", () => {
+  it("keeps bash-only syntax out of the emitted guard", () => {
     const sb = makeSandbox("posix-source", { linklint: "absent" });
     const r = runScript(INSTALLER_BASH, INSTALLER, ["--print"], sb);
     expect(r.status).toBe(0);
-    expect(r.stdout).toMatch(/^\s*local\s/m);
+    const code = r.stdout.split("\n").filter((line) => !line.trimStart().startsWith("#"));
+    for (const bashism of [/^\s*local\s/, /^\s*declare\s/, /\[\[/, /\$\(\(/, /==/, /\+=/, /<<</]) {
+      expect(code.filter((line) => bashism.test(line))).toEqual([]);
+    }
   });
 });
