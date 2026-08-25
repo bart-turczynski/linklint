@@ -1207,20 +1207,27 @@ export const AGENT_CORPUS: CorpusRow[] = [
     notes: "V4 instruction-override path segment (/ignore-previous-instructions)",
   },
 
-  // ── Deceptive — api_endpoint_impersonation (weight 0.5 → medium) ────────
+  // ── api_endpoint_impersonation is DELETED (LINK-eurtxkit) ───────────────
+  // The two rows below were its flagship POSITIVES. They now score 0, and they
+  // stay in the corpus as benign so the accepted, deliberate loss of coverage is
+  // recorded rather than quietly dropped — the same disposition §6.1.2 gave the
+  // three deleted brand near-miss codes.
+  //
+  // `api.openai-com.io` is pure ASCII, single script, no fold, no digit: nothing
+  // a URL parser can see distinguishes it from `api.acme-com.io`. It read
+  // 0.50/medium only because `openai` sits on a commercial watchlist and `acme`
+  // does not — claim (b) wearing claim (a)'s clothes (§1.1).
   {
     input: "https://api.openai-com.io/",
-    label: "deceptive",
+    label: "benign",
     options: AGENT,
-    expectReasons: ["api_endpoint_impersonation"],
-    notes: "V4 api host masquerade — brand token 'openai' on eTLD+1 openai-com.io; the 'api' label is the corroborating signal",
+    notes: "LINK-eurtxkit — was a V4b positive (0.50/medium); the finding was a watchlist lookup over contingent commercial facts, corroborated only by the ordinary 'api' label, so it now scores 0",
   },
   {
     input: "https://api.openai-com.io/v1/chat/completions",
-    label: "deceptive",
+    label: "benign",
     options: AGENT,
-    expectReasons: ["api_endpoint_impersonation"],
-    notes: "V4 api masquerade ESCALATION — same impostor host + a real API route path (/v1/chat/completions)",
+    notes: "LINK-eurtxkit — was the V4b route ESCALATION; a fixed route prefix is ordinary syntax and corroborates nothing structural, so it now scores 0",
   },
 
   // ── Deceptive — credential_harvesting (weight 0.35 → medium) ────────────
@@ -1274,43 +1281,63 @@ export const AGENT_CORPUS: CorpusRow[] = [
   },
 
   // ── Benign / info under agentMode (Step 2) — MUST stay score 0 ──────────
-  // api_endpoint_impersonation latent FP classes. github.io is a brand-owned
-  // platform eTLD+1; the brand-word subdomain has no corroborating api signal.
+  // These were the V4e FP guards for api_endpoint_impersonation, carried as
+  // `forbidReasons` rows. The code is deleted (LINK-eurtxkit), so naming it
+  // would forbid something that can no longer be emitted. They are CONVERTED,
+  // not dropped: a benign row already asserts score 0 / severity info, which is
+  // the claim these shapes were always making. They stay so that any future
+  // detector reaching for `api`-labelled or brand-word hosts has to argue with
+  // the whole class, not just with the one that was deleted.
   {
     input: "https://myproject.github.io/",
     label: "benign",
     options: AGENT,
-    forbidReasons: ["api_endpoint_impersonation"],
-    notes: "V4e FP guard — GitHub Pages site (eTLD+1 github.io); no api label / route ⇒ must not fire",
+    notes: "GitHub Pages site (eTLD+1 github.io) — a brand-owned platform domain must score 0 under agentMode",
   },
   {
     input: "https://raw.githubusercontent.com/owner/repo/main/file.txt",
     label: "benign",
     options: AGENT,
-    forbidReasons: ["api_endpoint_impersonation"],
-    notes: "V4e FP guard — raw content host (legit github-owned eTLD+1 githubusercontent.com)",
+    notes: "raw content host (legit github-owned eTLD+1 githubusercontent.com) must score 0 under agentMode",
   },
   {
     input: "https://storage.googleapis.com/my-bucket/object.json",
     label: "benign",
     options: AGENT,
-    forbidReasons: ["api_endpoint_impersonation"],
-    notes: "V4e FP guard — GCS object on legit eTLD+1 googleapis.com (real-provider short-circuit)",
+    notes: "GCS object on legit eTLD+1 googleapis.com must score 0 under agentMode",
   },
   {
     input: "https://fonts.googleapis.com/css?family=Roboto",
     label: "benign",
     options: AGENT,
-    forbidReasons: ["api_endpoint_impersonation"],
-    notes: "V4e FP guard — Google Fonts on legit eTLD+1 googleapis.com",
+    notes: "Google Fonts on legit eTLD+1 googleapis.com must score 0 under agentMode",
   },
   {
     input: "https://openai.example.com/blog",
     label: "benign",
     options: AGENT,
-    forbidReasons: ["api_endpoint_impersonation"],
-    notes: "V4e FP guard — brand word 'openai' in an unrelated subdomain (eTLD+1 example.com); no api label / route ⇒ must not fire",
+    notes: "brand word 'openai' in an unrelated subdomain (eTLD+1 example.com) must score 0 under agentMode",
   },
+  // Added with the deletion (LINK-eurtxkit): the shapes the rescope argument
+  // turns on. `api.openai-login.com` read 0.50/medium purely because `openai` is
+  // on a watchlist; `api.acme-login.com` is its structural twin and always read
+  // 0. Both must now read 0, and the pair is the standing demonstration that the
+  // deleted finding tracked a commercial fact rather than a property of the URL.
+  {
+    input: "https://api.openai-login.com",
+    label: "benign",
+    options: AGENT,
+    notes: "LINK-eurtxkit — was 0.50/medium under agentMode; structurally indistinguishable from api.acme-login.com below, which always read 0",
+  },
+  {
+    input: "https://api.acme-login.com",
+    label: "benign",
+    options: AGENT,
+    notes: "LINK-eurtxkit CONTROL — same shape as the row above with an unlisted token; read 0 before the deletion and after it",
+  },
+  // `api.openai-com.io/v1/chat/completions` — the `api`-label-plus-route shape
+  // asked for alongside these — is already carried above, converted in place
+  // from the V4b route-escalation positive it used to be.
 
   // credential_harvesting latent FP classes — legitimate OAuth client flows.
   {

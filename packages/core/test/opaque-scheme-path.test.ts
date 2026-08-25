@@ -137,9 +137,10 @@ describe("LINK-avefryhe — the other ctx.path readers on opaque bodies", () => 
     ]);
   });
 
-  // bait_tokens, credential_harvesting and api_endpoint_impersonation all bail
-  // on `!ctx.host`, and an opaque scheme has no host at all — structurally
-  // unreachable, pinned here so the guard cannot be dropped unnoticed.
+  // bait_tokens and credential_harvesting both bail on `!ctx.host`, and an
+  // opaque scheme has no host at all — structurally unreachable, pinned here so
+  // the guard cannot be dropped unnoticed. (api_endpoint_impersonation carried a
+  // third case here until it was deleted under LINK-eurtxkit.)
   it("bait_tokens cannot reach an opaque body (no host)", () => {
     expect(codes("mailto:secure-login-verify-account@bank.com")).not.toContain("bait_tokens");
     expect(codes("tel:login-verify-secure-account-update")).not.toContain("bait_tokens");
@@ -149,15 +150,6 @@ describe("LINK-avefryhe — the other ctx.path readers on opaque bodies", () => 
   it("credential_harvesting cannot reach an opaque body (no host)", () => {
     expect(codes("mailto:a@b.com/oauth/authorize/", true)).not.toContain("credential_harvesting");
     expect(codes("about:/oauth2/token/x", true)).not.toContain("credential_harvesting");
-  });
-
-  it("api_endpoint_impersonation cannot reach an opaque body (no host)", () => {
-    expect(codes("mailto:openai@x/v1/messages", true)).not.toContain(
-      "api_endpoint_impersonation",
-    );
-    // The body even shaped as a real API route with a brand token in it: the
-    // brand token must come from a HOST LABEL, and an opaque body has none.
-    expect(codes("about:/v1/messages/openai", true)).not.toContain("api_endpoint_impersonation");
   });
 
   // The remaining four read the path as TEXT, not as a filesystem path. Their

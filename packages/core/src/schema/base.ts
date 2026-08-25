@@ -11,7 +11,7 @@
  * 1.1→1.2 added `pslSnapshot`, and 1.2→1.3 added the optional structured
  * `enrichment` report (all backward-compatible field additions).
  */
-export const SCHEMA_VERSION = "1.8" as const;
+export const SCHEMA_VERSION = "1.9" as const;
 
 /**
  * Conceptual inspection layers. v1 implements `lexical` only.

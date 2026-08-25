@@ -32,7 +32,6 @@ import { fqdnRootLabel } from "./fqdn-root-label.js";
 import { hostLengthUnresolvable } from "./host-length-unresolvable.js";
 import { excessiveSubdomainDepth } from "./excessive-subdomain-depth.js";
 import { promptInjection } from "./prompt-injection.js";
-import { apiEndpointImpersonation } from "./api-endpoint-impersonation.js";
 import { credentialHarvesting } from "./credential-harvesting.js";
 import { dataExfiltration } from "./data-exfiltration.js";
 import { ssrfCloudMetadata } from "./ssrf-cloud-metadata.js";
@@ -85,7 +84,6 @@ export {
   fqdnRootLabel,
   excessiveSubdomainDepth,
   promptInjection,
-  apiEndpointImpersonation,
   credentialHarvesting,
   dataExfiltration,
   ssrfCloudMetadata,

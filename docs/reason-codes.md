@@ -1648,41 +1648,12 @@ specified above.
   `https://example.com/ignore-previous-instructions` (all only under `agentMode`).
 - **Scoring:** scoring, weight 0.5.
 
-### `api_endpoint_impersonation` — V4b · weight 0.5 · **agent-gated**
-
-- **Meaning:** the host **masquerades as a known API provider's endpoint**. A
-  token from the SEPARATE **api-brands tier** (`openai`, `anthropic`,
-  `googleapis`, `cohere`, `mistral`, `huggingface`, `stripe`, `twilio`,
-  `sendgrid`, `github`) appears as an exact, separator-delimited **host label**
-  while the **registrable domain (eTLD+1) is NOT** one of that provider's
-  legitimate domains — the `api.openai-com.io` shape (label `openai-com` →
-  token `openai`, but the eTLD+1 is `openai-com.io`, not `openai.com`).
-- **Escalation:** when the **path** also matches a known API route prefix
-  (`/v1/messages`, `/v1/chat/completions`, `/v1/completions`, `/v1/responses`)
-  the detail notes that the host looks like a real API endpoint **and** the path
-  looks like a real API call. Same code, same weight — only the detail sharpens.
-- **Why it's a signal:** in agent / tool-use contexts an API client pointed at a
-  look-alike endpoint leaks requests (and any keys) to an impostor. It is a
-  separate tier from the curated brand watchlist because the match shape is an
-  exact label-token membership test plus an exact eTLD+1 legitimacy check, not
-  the curated list's edit-distance / keyword machinery.
-- **Agent-gated (opt-in):** emits **only** when `inspect()` is called with
-  `{ agentMode: true }` (CLI: `--agent`). With agent mode off it is not
-  evaluated and never appears in `checksSkipped`. The default verdict is
-  byte-identical to before this detector existed.
-- **Conservative by construction:** the real provider on its own domain never
-  fires (exact eTLD+1 skip); matching is set membership over separator-split
-  labels (no substring scans, no regex backtracking). A brand-token match also
-  requires a **corroborating API-endpoint signal** before firing — either an
-  `api`-ish host label (an exact `api`/`apis` token in some label) **or** a path
-  that matches a known API route prefix. This keeps `api.openai-com.io` firing
-  while sparing brand-owned platform hosts on sibling eTLD+1s
-  (`myproject.github.io`) and hosts that merely contain a brand word in an
-  unrelated subdomain (`openai.example.com`).
-- **Example:** `https://api.openai-com.io/v1/chat/completions`,
-  `https://api.anthropic-com.co/v1/messages` (both only under `agentMode`). The
-  real `https://api.openai.com/v1/chat/completions` does **not** fire.
-- **Scoring:** scoring, weight 0.5.
+> **`api_endpoint_impersonation` (V4b) was deleted** in schema `1.9` / weights
+> `1.18` (`LINK-eurtxkit`). It fired on an api-brands watchlist lookup
+> (`API_BRAND_DOMAINS.get(token)`) corroborated only by an `api`/`apis` host
+> label or a fixed route prefix — both ordinary syntax — so the finding tracked
+> a contingent commercial fact rather than a structural property of the URL.
+> See `docs/architecture.md` §1.1 for the rule and §6.1.4 for the record.
 
 ### `credential_harvesting` — V4c · weight 0.35 · **agent-gated**
 
