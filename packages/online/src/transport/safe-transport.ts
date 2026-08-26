@@ -8,6 +8,7 @@ import {
 import { destinationHeaders, sameOriginRefererValue } from "./headers.js";
 import { isTransportCauseCode } from "./outcome-registry.js";
 import { pinDestination } from "./pin.js";
+import { effectivePort } from "./port.js";
 import {
   resolveTransportPolicy,
   type TransportPolicy,
@@ -464,11 +465,6 @@ async function wrapOperation<T>(phase: OperationPhase, promise: Promise<T>): Pro
     if (error instanceof OperationError || error instanceof BudgetError) throw error;
     throw new OperationError(phase, error);
   }
-}
-
-function effectivePort(url: URL): number {
-  if (url.port !== "") return Number(url.port);
-  return url.protocol === "https:" ? 443 : 80;
 }
 
 function unbracket(hostname: string): string {
