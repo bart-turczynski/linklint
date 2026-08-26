@@ -150,10 +150,10 @@ describe("suppressReasons — DEFAULT-OFF invariant (byte-for-byte unchanged)", 
     // No suppression field anywhere; schema version unchanged.
     expect(r.reasons.every((x) => !("suppressed" in x))).toBe(true);
     expect(r.checksRun).not.toContain("suppression");
-    // The schema moved to 1.11 (LINK-mgnbgicq registered `special_use_name`).
+    // The schema moved to 1.12 (LINK-lquravtj registered `idna_protocol_violation`).
     // "Byte-for-byte unchanged" is a claim about the DEFAULT PATH vs the option,
     // never about the version stamp, which moves under §6.4 on its own schedule.
-    expect(r.schemaVersion).toBe("1.11");
+    expect(r.schemaVersion).toBe("1.12");
   });
 
   it.each(urls)("inspectAsync(%s) (no enrichers, no option) deep-equals inspect(%s)", async (url) => {

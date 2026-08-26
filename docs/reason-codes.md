@@ -1759,6 +1759,67 @@ specified above.
   (`empty_ace_payload`), `https://xn--99999999a.com/` (`punycode_overflow`),
   `https://xn--a-.com/` (`non_canonical_encoding`).
 
+### `idna_protocol_violation` — T2.5 · weight 0.35
+
+- **Meaning:** a host label decodes cleanly and is still not permitted under
+  RFC 5892 (IDNA2008) — it carries a DISALLOWED code point, breaks a
+  CONTEXTJ/CONTEXTO contextual rule, or stacks combining marks past any
+  orthographic use.
+- **Why it's a signal:** a protocol violation is a deterministic offline
+  observation with no judgment call in it — either RFC 5892 permits the code
+  point in that position or it does not. A registry operating under IDNA2008
+  does not issue such a label, so a well-formed ACE encoding of one is the
+  output of a deliberate encoder run. Nobody types `xn--g6h` by accident.
+- **Wider than `punycode_malformed`, deliberately.** That code needs the ACE to
+  fail DECODING. This one fires on the opposite shape: the ACE is well formed,
+  it round-trips, and the U-label it yields is still unregistrable. That is the
+  spelling that travels — a raw `♥` or `·` fails `parse()`'s host-character rule
+  and returns `invalid`, and a raw ZWNJ is already `invisible_char` at weight 1,
+  so the ACE form is the one that reached a parsed detector unremarked.
+- **Rules applied** (the `detail` names the one that fired):
+  - **DISALLOWED** — a non-ASCII Symbol, Punctuation or Separator code point
+    (RFC 5892 §2.1 admits letters, marks and decimal digits), plus the exception
+    table F.4 entries that are letters (`U+0640` ARABIC TATWEEL, `U+07FA`,
+    `U+3031`–`U+3035`, `U+303B`) or marks (`U+302E`, `U+302F`).
+  - **CONTEXTJ** (A.1/A.2) — `U+200C` ZWNJ or `U+200D` ZWJ outside its permitted
+    joining context. Delegated to `tr46`'s `checkJoiners`, so the Virama and
+    Joining_Type exemptions are the library's rather than a local rewrite
+    (FR-LIB-1).
+  - **CONTEXTO** (A.3–A.7) — `·` outside Catalan `l·l`, Greek keraia `͵` not
+    followed by Greek, Hebrew geresh `׳` / gershayim `״` not preceded by Hebrew,
+    katakana middle dot `・` in a label with no kana or Han.
+  - **CONTEXTO** (A.8/A.9) — `U+0660`–`U+0669` sharing a label with
+    `U+06F0`–`U+06F9`. In a pure-Arabic label this is fresh coverage:
+    `mixed_script` sees a single script and stays quiet.
+  - **Stacked combining marks** — a run longer than 4 on one base character.
+    Vietnamese uses two, Devanagari and Thai reach three or four; five is the
+    stacking-diacritic ("Zalgo") shape rather than an orthography.
+- **Precision:** scoped to non-ASCII code points, so the LDH hyphen and the
+  parser's own ASCII rules stay outside it. The five CONTEXTO code points are
+  tested against their rule rather than blocklisted, so `col·labora`, `α͵β`,
+  `א׳ב`, `א״ב` and `ア・イ` stay clean. A label whose ACE fails to decode is left
+  to `punycode_malformed`, so the two do not double-flag.
+- **Version drift:** the DISALLOWED test is a positive membership test on
+  Symbol/Punctuation/Separator rather than the complement of RFC 5892's
+  letters-and-digits set. Under the complement, a code point assigned in a newer
+  Unicode release than the running runtime's ICU would read as unassigned and so
+  as DISALLOWED — a false positive on the older Node in the matrix, the
+  CJK-Extension-J shape recorded in `docs/architecture.md` §6.2. Under the
+  positive test the same drift yields silence, which is the safe direction.
+- **Weight 0.35, argued from the table:** above `punycode_malformed` (0.20) — a
+  malformed ACE label is routinely a truncation or a copy-paste accident,
+  whereas a valid ACE label encoding a DISALLOWED code point took a working
+  encoder. Below `separator_lookalike` (0.50) and `control_char` (0.60), which
+  actively misdirect a parser about where the host ends; this code names a
+  structural anomaly without, on its own, naming a victim. It shares 0.35 with
+  `encoding_obfuscation`, its closest peer in kind, and lands `medium`: it
+  stacks with `mixed_script` / `brand_*` when the label is also an
+  impersonation, and does not trip the default `--fail-on high` gate alone.
+- **Example:** `https://xn--g6h.example.com/` (`U+2665`),
+  `https://xn--abcd-176a.example.com/` (ZWNJ, CONTEXTJ),
+  `https://xn--ab-0ea.example.com/` (middle dot, CONTEXTO),
+  `https://xn--1ca40idaefg.example.com/` (5 stacked marks).
+
 ### `ambiguous_authority` — Epic J (J1) · weight 0.65
 
 - **Meaning:** two conforming readers disagree about the authority — the parser-

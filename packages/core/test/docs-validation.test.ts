@@ -214,9 +214,9 @@ describe("README detector count matches the computed total", () => {
     const parsed = CHECKS.filter((c) => c.phase === "parsed").length;
     const agentGated = CHECKS.filter((c) => c.agentGated === true).length;
 
-    expect(total).toBe(37);
+    expect(total).toBe(38);
     expect(structural).toBe(4);
-    expect(parsed).toBe(33);
+    expect(parsed).toBe(34);
     expect(agentGated).toBe(4);
     expect(DETECTORS.length).toBe(parsed);
     expect(STRUCTURAL_SCANS.length).toBe(structural);
@@ -288,7 +288,7 @@ describe("docs/architecture.md detector families cover every check", () => {
   // 32 of 37: ip_classification, ambiguous_numeric_host, homograph_latin_skeleton,
   // locale_case_collapse, and idn_host were all missing. Pin it to the registry.
   it("every check id appears in the families table", () => {
-    const tableStart = architectureDoc.indexOf("The 37 checks group into six families");
+    const tableStart = architectureDoc.indexOf("The 38 checks group into six families");
     expect(tableStart).toBeGreaterThan(-1);
     const table = architectureDoc.slice(tableStart, architectureDoc.indexOf("## 6."));
 
@@ -714,11 +714,26 @@ describe("the scope-of-claim boundary is stated in one canonical place", () => {
     it("says WEIGHTS_VERSION does not move, and it did not", () => {
       expect(flat).toContain("`WEIGHTS_VERSION`");
       expect(flat).toContain("does not move");
-      expect(WEIGHTS_VERSION).toBe("1.19");
+      // `1.19` was the live stamp when `special_use_name` landed. The prose's
+      // claim is that THIS change did not move it, which an equality against the
+      // live stamp cannot express once any later change legitimately does
+      // (LINK-lquravtj took it to `1.20`, a scoring code at weight 0.35). Assert
+      // the direction, the same resolution semantic-tier-retirement.test.ts
+      // already reached for SCHEMA_VERSION.
+      expect(Number.parseFloat(WEIGHTS_VERSION)).toBeGreaterThanOrEqual(1.19);
       // And the schema DID move, because a new reason code is a closed-domain
       // change (§6.4). Both halves or the sentence is half-true.
+      //
+      // `1.11` is the version `special_use_name` REGISTERED under — a fact about
+      // the past, so the prose keeps the literal. The equality against the LIVE
+      // stamp was wrong to pair with it: it asserted that no reason code has been
+      // added since, which every later code makes false (LINK-lquravtj added
+      // `idna_protocol_violation` at `1.12`). Assert the ordering instead, which
+      // is the half that stays true. The strong guard for "a new code moves the
+      // schema" is the PINNED_REASON_CODES block below, which is the one the
+      // test's own comment calls the guard that bites.
       expect(flat).toContain("schema `1.11`");
-      expect(SCHEMA_VERSION).toBe("1.11");
+      expect(Number.parseFloat(SCHEMA_VERSION)).toBeGreaterThanOrEqual(1.11);
     });
 
     it("excludes the example DOMAINS, and states the reasoning that draws the line", () => {
@@ -1185,7 +1200,7 @@ describe("the ReasonCode registry is pinned to the SCHEMA_VERSION it registered 
   // `special_use_name` with `SCHEMA_VERSION` left at `1.10` turned this red with
   // `{ added: ["special_use_name"], removed: [] }` before the bump to `1.11`.
   // Four confirmations now, across both directions and both cardinalities.
-  const PINNED_SCHEMA_VERSION = "1.11";
+  const PINNED_SCHEMA_VERSION = "1.12";
 
   /** Every `REASON_CODES` key as of `PINNED_SCHEMA_VERSION`, sorted. */
   const PINNED_REASON_CODES: readonly string[] = [
@@ -1216,6 +1231,7 @@ describe("the ReasonCode registry is pinned to the SCHEMA_VERSION it registered 
   "https_downgrade_observed",
   "idn_host",
   "idna_mapping_ambiguity",
+  "idna_protocol_violation",
   "invisible_char",
   "ip_cloud_metadata",
   "ip_link_local",

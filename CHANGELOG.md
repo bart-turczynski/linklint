@@ -4,6 +4,29 @@ All notable changes to this project will be documented here.
 
 ## Unreleased
 
+### Added — result contract (`SCHEMA_VERSION` `1.11` → `1.12`)
+
+- **New scoring reason code `idna_protocol_violation`, weight `0.35`**
+  (`LINK-lquravtj`, T2.5). A host label that decodes cleanly and is still not
+  permitted under RFC 5892 (IDNA2008): a DISALLOWED code point, a
+  CONTEXTJ/CONTEXTO rule violation, or a run of more than four combining marks
+  on one base character.
+- **This is strictly wider than `punycode_malformed`, which is why it is its own
+  code.** That detector fires when an `xn--` label fails to DECODE. These labels
+  decode, round-trip, and are still unregistrable — and that is the spelling
+  that travels, because a raw `♥` or `·` fails `parse()`'s host-character rule
+  and returns `invalid`, while a raw ZWNJ is already `invisible_char` at weight
+  1. Before this change `https://xn--g6h.example.com/` read `0.00`/`info` with
+  only `normalization_delta`; it now reads `0.35`/`medium`.
+- **`WEIGHTS_VERSION` moves `1.19` → `1.20`**, because a scoring code with a
+  non-zero weight does add scoring surface.
+- **Mixed number systems were already covered and were left alone** — with one
+  exception found while verifying it. `٠۱example.com` reaches `1.00` via
+  `mixed_script`, but that only holds when the digits sit beside another script.
+  RFC 5892 A.8/A.9 also forbids the two Arabic digit blocks from sharing a
+  label, and in a pure-Arabic label `mixed_script` sees one script and stays
+  quiet, so that case is newly covered here.
+
 ### Added — result contract (`SCHEMA_VERSION` `1.10` → `1.11`)
 
 - **New weight-0 informational reason code `special_use_name`**

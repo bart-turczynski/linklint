@@ -24,6 +24,7 @@ import { idnHost } from "./idn-host.js";
 import { openRedirectParam } from "./open-redirect-param.js";
 import { suspiciousExtension } from "./suspicious-extension.js";
 import { punycodeMalformed } from "./punycode-malformed.js";
+import { idnaProtocolViolation } from "./idna-protocol-violation.js";
 import { percentEncodingMalformed } from "./percent-encoding-malformed.js";
 import { lowByteTruncation } from "./low-byte-truncation.js";
 import { fqdnRootLabel } from "./fqdn-root-label.js";
@@ -75,6 +76,7 @@ export {
   openRedirectParam,
   suspiciousExtension,
   punycodeMalformed,
+  idnaProtocolViolation,
   percentEncodingMalformed,
   lowByteTruncation,
   hostLengthUnresolvable,
