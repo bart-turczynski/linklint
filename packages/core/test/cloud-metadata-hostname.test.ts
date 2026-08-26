@@ -345,7 +345,14 @@ describe("docs/reason-codes.md reproduces the hostname table", () => {
   // two — the address-table check greps every 2-column row after the
   // `ip_cloud_metadata` heading, so a second 2-column table there would break it.
   it("lists exactly the rows in CLOUD_METADATA_HOSTNAMES, in order", () => {
-    const section = doc.slice(doc.search(/^### `ip_cloud_metadata`/m));
+    // Bounded at the next h3 (LINK-tviundio) for the reason the comment above
+    // predicted: an unbounded slice makes this grep a claim about every later
+    // section of the document as well as this one.
+    const start = doc.search(/^### `ip_cloud_metadata`/m);
+    const ends = [doc.indexOf("\n### ", start + 1), doc.indexOf("\n## ", start + 1)].filter(
+      (i) => i !== -1,
+    );
+    const section = doc.slice(start, ends.length === 0 ? undefined : Math.min(...ends));
     const rows = [
       ...section.matchAll(/^\s*\|\s*`([^`]+)`\s*\|\s*([^|]+?)\s*\|\s*`([^`]+)`\s*\|\s*$/gm),
     ].map((m) => ({ hostname: m[1] as string, provider: m[2] as string, address: m[3] as string }));

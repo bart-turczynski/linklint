@@ -28,6 +28,20 @@ function documentedCodes(markdown: string): string[] {
   return [...markdown.matchAll(DOC_CODE_RE)].map((m) => m[1] as string);
 }
 
+/**
+ * One h3 section of a document: from the matched heading to the next h3 or h2,
+ * whichever comes first. A slice that runs to end-of-file makes every table
+ * grep inside it a claim about the whole rest of the document.
+ */
+function sectionOf(markdown: string, heading: RegExp): string {
+  const start = markdown.search(heading);
+  if (start === -1) return "";
+  const ends = [markdown.indexOf("\n### ", start + 1), markdown.indexOf("\n## ", start + 1)].filter(
+    (i) => i !== -1,
+  );
+  return markdown.slice(start, ends.length === 0 ? undefined : Math.min(...ends));
+}
+
 describe("docs/reason-codes.md stays in sync with the REASON_CODES registry", () => {
   const registryCodes = Object.keys(REASON_CODES) as ReasonCode[];
   const docCodes = documentedCodes(reasonCodesDoc);
@@ -69,7 +83,11 @@ describe("docs/reason-codes.md stays in sync with the REASON_CODES registry", ()
   //    row lands in code while the doc keeps quietly claiming the old set — the
   //    same stale-documentation failure the README detector count hit.
   it("the endpoint table reproduces CLOUD_METADATA_ENDPOINTS exactly", () => {
-    const section = reasonCodesDoc.slice(reasonCodesDoc.search(/^### `ip_cloud_metadata`/m));
+    // Bounded at the next h3 (LINK-tviundio). The slice used to run to the end
+    // of the file, so the grep below claimed every 2-column backtick-keyed row
+    // anywhere downstream — any later section that happened to use one turned
+    // this red for a reason that has nothing to do with the endpoint list.
+    const section = sectionOf(reasonCodesDoc, /^### `ip_cloud_metadata`/m);
     expect(section.length).toBeGreaterThan(0);
 
     // Rows look like: | `169.254.169.254/32` | AWS / Azure / … |

@@ -1,16 +1,62 @@
 import type { Layer } from "./types.js";
 
 /**
- * Reason-code registry — the single source of truth for every code linklint can
- * emit. Detectors reference codes from here; the core attaches the `weight` from
- * this table (detectors never supply their own weight). See docs/reason-codes.md.
+ * Correlation families — the URL feature each reason code reads (LINK-tviundio).
  *
- * Informational codes (`scoring: false`) always carry weight 0 and never move
- * the score (FR-D-15/16). They annotate; they do not flag.
+ * `Layer` answers *where in the pipeline* a code comes from. It does not answer
+ * *what evidence the code rests on*, and those are different questions: one
+ * Cyrillic code point in `apple.com` raises six lexical-layer codes off a single
+ * character. Reading those six as six findings overstates the case, so the
+ * registry names the feature instead of leaving a reader to infer independence
+ * from the layer.
+ *
+ * The placement rule, the tie-break for a code that reads two features at once,
+ * and the worked cases behind this partition are in `docs/reason-codes.md`
+ * under "Correlation families". That section is the normative statement; the
+ * one-line descriptions here are its index. Families cut ACROSS layers on
+ * purpose — `url_scheme` holds a lexical detector, a resolution observation and
+ * a policy verdict, because a triager who has seen one has seen the feature the
+ * other two rest on.
+ *
+ * This metadata is registry-only. It is not a field on the serialized
+ * `InspectResult`, so `SCHEMA_VERSION` does not move for it; a surface that
+ * wants to group `reasons[]` reads it from the exported registry by code.
  */
+export const REASON_FAMILIES = {
+  character_identity:
+    "Which characters the authority is actually spelled with, as against the letters a reader takes them for.",
+  idn_form:
+    "Whether the host is already in its normalized ASCII form, and whether that form is a well-formed encoding of a permitted name.",
+  percent_escapes: "The percent-escape sequences in the URL string.",
+  decoded_bytes:
+    "What a downstream reader ends up with after decoding or narrowing a code point that is not rendered as itself.",
+  authority_delimiters: "Where a parser decides the authority ends and the host begins.",
+  host_label_arrangement: "How the labels left of the registrable domain are arranged.",
+  address_literal: "The host is an address literal, and which range it lands in.",
+  dns_name_status: "What the DNS would do with the name, independent of how it looks.",
+  url_scheme: "Which scheme the request ends up speaking.",
+  file_shape: "Whether the URL is dressed as a downloadable file.",
+  query_payload: "What the path and query carry as a payload for whatever consumes them.",
+  response_content: "What a fetched response's bytes turn out to be.",
+  reputation_listing: "Whether the exact URL appears in a caller-owned mirror snapshot.",
+  policy_tld: "The host's TLD, weighed against the caller's own lists.",
+  policy_host: "The host's registrable domain, weighed against the caller's own lists.",
+  policy_port: "The explicit port, weighed against the caller's own list.",
+  parse_failure: "The input did not parse, so no other feature could be read.",
+} as const;
+
+/** Union of every declared correlation family. */
+export type ReasonFamily = keyof typeof REASON_FAMILIES;
+
 export interface ReasonCodeMeta {
   /** Inspection layer the code belongs to. v1 codes are all `lexical`. */
   layer: Layer;
+  /**
+   * Correlation family — the URL feature this code reads. Two codes sharing a
+   * family are two readings of one feature rather than independent evidence.
+   * See {@link REASON_FAMILIES}.
+   */
+  family: ReasonFamily;
   /** Whether the code contributes to the risk score. */
   scoring: boolean;
   /** Version-pinned weight in [0,1]. Always 0 for informational codes. */
@@ -19,10 +65,19 @@ export interface ReasonCodeMeta {
   summary: string;
 }
 
+/**
+ * Reason-code registry — the single source of truth for every code linklint can
+ * emit. Detectors reference codes from here; the core attaches the `weight` from
+ * this table (detectors never supply their own weight). See docs/reason-codes.md.
+ *
+ * Informational codes (`scoring: false`) always carry weight 0 and never move
+ * the score (FR-D-15/16). They annotate; they do not flag.
+ */
 export const REASON_CODES = {
   // ── Informational (weight 0) ────────────────────────────────────────────
   fqdn_root_label: {
     layer: "lexical",
+    family: "dns_name_status",
     scoring: false,
     weight: 0,
     summary:
@@ -30,24 +85,28 @@ export const REASON_CODES = {
   },
   normalization_delta: {
     layer: "lexical",
+    family: "idn_form",
     scoring: false,
     weight: 0,
     summary: "Host differs from its normalized/ACE form (any IDN triggers this).",
   },
   confusable_char: {
     layer: "lexical",
+    family: "character_identity",
     scoring: false,
     weight: 0,
     summary: "One or more host characters are confusable with another script.",
   },
   confusable_in_path: {
     layer: "lexical",
+    family: "character_identity",
     scoring: false,
     weight: 0,
     summary: "One or more path/query characters are confusable with another script.",
   },
   idna_mapping_ambiguity: {
     layer: "lexical",
+    family: "character_identity",
     scoring: false,
     weight: 0,
     summary:
@@ -55,6 +114,7 @@ export const REASON_CODES = {
   },
   locale_case_ambiguity: {
     layer: "lexical",
+    family: "character_identity",
     scoring: false,
     weight: 0,
     summary:
@@ -64,54 +124,63 @@ export const REASON_CODES = {
   // ── Scoring ─────────────────────────────────────────────────────────────
   mixed_script: {
     layer: "lexical",
+    family: "character_identity",
     scoring: true,
     weight: 1,
     summary: "A single host label mixes characters from multiple scripts.",
   },
   invisible_char: {
     layer: "lexical",
+    family: "decoded_bytes",
     scoring: true,
     weight: 1,
     summary: "Invisible, zero-width, or control characters appear in the URL.",
   },
   bidi_override: {
     layer: "lexical",
+    family: "decoded_bytes",
     scoring: true,
     weight: 1,
     summary: "Bidirectional/RTL override characters appear in the URL.",
   },
   userinfo_present: {
     layer: "lexical",
+    family: "authority_delimiters",
     scoring: true,
     weight: 0.5,
     summary: "Authority is hidden behind userinfo (e.g. paypal.com@evil.com).",
   },
   ip_obfuscation: {
     layer: "lexical",
+    family: "address_literal",
     scoring: true,
     weight: 0.4,
     summary: "Host is an obfuscated IP (decimal/octal/hex/dotless).",
   },
   ip_loopback: {
     layer: "lexical",
+    family: "address_literal",
     scoring: true,
     weight: 0.2,
     summary: "Host is a literal loopback IP (127.0.0.0/8, ::1).",
   },
   ip_private: {
     layer: "lexical",
+    family: "address_literal",
     scoring: true,
     weight: 0.2,
     summary: "Host is a literal private/internal IP (RFC 1918, fc00::/7).",
   },
   ip_link_local: {
     layer: "lexical",
+    family: "address_literal",
     scoring: true,
     weight: 0.2,
     summary: "Host is a literal link-local IP (169.254.0.0/16, fe80::/10).",
   },
   ip_cloud_metadata: {
     layer: "lexical",
+    family: "address_literal",
     scoring: true,
     weight: 0.75,
     summary:
@@ -119,6 +188,7 @@ export const REASON_CODES = {
   },
   ssrf_cloud_metadata: {
     layer: "lexical",
+    family: "address_literal",
     scoring: true,
     weight: 1,
     summary:
@@ -126,12 +196,14 @@ export const REASON_CODES = {
   },
   ip_reserved: {
     layer: "lexical",
+    family: "address_literal",
     scoring: true,
     weight: 0.2,
     summary: "Host is a literal reserved/special-use IP (0/8, CGNAT, multicast, 240/4).",
   },
   ambiguous_numeric_host: {
     layer: "lexical",
+    family: "address_literal",
     scoring: true,
     weight: 0.3,
     summary:
@@ -139,12 +211,14 @@ export const REASON_CODES = {
   },
   embedded_domain_in_subdomain: {
     layer: "lexical",
+    family: "host_label_arrangement",
     scoring: true,
     weight: 0.5,
     summary: "A domain-looking label sequence sits left of the real registrable domain.",
   },
   file_extension_tld: {
     layer: "lexical",
+    family: "file_shape",
     scoring: true,
     weight: 0.4,
     summary:
@@ -152,24 +226,28 @@ export const REASON_CODES = {
   },
   encoding_obfuscation: {
     layer: "lexical",
+    family: "percent_escapes",
     scoring: true,
     weight: 0.35,
     summary: "Percent-encoding hides structural characters or is multiply nested.",
   },
   dangerous_scheme: {
     layer: "lexical",
+    family: "url_scheme",
     scoring: true,
     weight: 0.9,
     summary: "Scheme can execute or embed content (javascript:, data:, etc.).",
   },
   punycode_malformed: {
     layer: "lexical",
+    family: "idn_form",
     scoring: true,
     weight: 0.2,
     summary: "Host has an xn-- label that does not decode to a valid IDN.",
   },
   idna_protocol_violation: {
     layer: "lexical",
+    family: "idn_form",
     scoring: true,
     weight: 0.35,
     summary:
@@ -177,6 +255,7 @@ export const REASON_CODES = {
   },
   percent_encoding_malformed: {
     layer: "lexical",
+    family: "percent_escapes",
     scoring: true,
     weight: 0.2,
     summary:
@@ -184,6 +263,7 @@ export const REASON_CODES = {
   },
   header_shaped_token: {
     layer: "lexical",
+    family: "decoded_bytes",
     scoring: true,
     weight: 0.5,
     summary:
@@ -191,6 +271,7 @@ export const REASON_CODES = {
   },
   best_fit_mapping: {
     layer: "lexical",
+    family: "decoded_bytes",
     scoring: true,
     weight: 0.5,
     summary:
@@ -198,6 +279,7 @@ export const REASON_CODES = {
   },
   ambiguous_authority: {
     layer: "lexical",
+    family: "authority_delimiters",
     scoring: true,
     weight: 0.65,
     summary:
@@ -205,6 +287,7 @@ export const REASON_CODES = {
   },
   separator_lookalike: {
     layer: "lexical",
+    family: "character_identity",
     scoring: true,
     weight: 0.5,
     summary:
@@ -212,6 +295,7 @@ export const REASON_CODES = {
   },
   control_char: {
     layer: "lexical",
+    family: "decoded_bytes",
     scoring: true,
     weight: 0.6,
     summary:
@@ -219,6 +303,7 @@ export const REASON_CODES = {
   },
   host_length_unresolvable: {
     layer: "lexical",
+    family: "dns_name_status",
     scoring: false,
     weight: 0,
     summary:
@@ -226,6 +311,7 @@ export const REASON_CODES = {
   },
   special_use_name: {
     layer: "lexical",
+    family: "dns_name_status",
     scoring: false,
     weight: 0,
     summary:
@@ -233,6 +319,7 @@ export const REASON_CODES = {
   },
   low_byte_truncation: {
     layer: "lexical",
+    family: "decoded_bytes",
     scoring: true,
     weight: 0.6,
     summary:
@@ -240,6 +327,7 @@ export const REASON_CODES = {
   },
   ascii_homoglyph: {
     layer: "lexical",
+    family: "character_identity",
     scoring: true,
     weight: 0.2,
     summary:
@@ -247,6 +335,7 @@ export const REASON_CODES = {
   },
   brand_homoglyph: {
     layer: "lexical",
+    family: "character_identity",
     scoring: true,
     weight: 0.8,
     summary:
@@ -254,6 +343,7 @@ export const REASON_CODES = {
   },
   homograph_skeleton_collision: {
     layer: "lexical",
+    family: "character_identity",
     scoring: true,
     weight: 0.5,
     summary:
@@ -261,6 +351,7 @@ export const REASON_CODES = {
   },
   brand_locale_collapse: {
     layer: "lexical",
+    family: "character_identity",
     scoring: true,
     weight: 0.5,
     summary:
@@ -268,6 +359,7 @@ export const REASON_CODES = {
   },
   brand_idna_collapse: {
     layer: "lexical",
+    family: "character_identity",
     scoring: true,
     weight: 0.5,
     summary:
@@ -275,6 +367,7 @@ export const REASON_CODES = {
   },
   idn_host: {
     layer: "lexical",
+    family: "idn_form",
     scoring: true,
     weight: 0.7,
     summary:
@@ -282,6 +375,7 @@ export const REASON_CODES = {
   },
   homograph_latin_skeleton: {
     layer: "lexical",
+    family: "character_identity",
     scoring: true,
     weight: 1,
     summary:
@@ -289,6 +383,7 @@ export const REASON_CODES = {
   },
   open_redirect_param: {
     layer: "lexical",
+    family: "query_payload",
     scoring: true,
     weight: 0.4,
     summary:
@@ -296,6 +391,7 @@ export const REASON_CODES = {
   },
   suspicious_extension: {
     layer: "lexical",
+    family: "file_shape",
     scoring: true,
     weight: 0.5,
     summary:
@@ -303,6 +399,7 @@ export const REASON_CODES = {
   },
   excessive_subdomain_depth: {
     layer: "lexical",
+    family: "host_label_arrangement",
     scoring: true,
     weight: 0.15,
     summary:
@@ -310,6 +407,7 @@ export const REASON_CODES = {
   },
   prompt_injection_url: {
     layer: "lexical",
+    family: "query_payload",
     scoring: false,
     weight: 0,
     summary:
@@ -317,6 +415,7 @@ export const REASON_CODES = {
   },
   credential_harvesting: {
     layer: "lexical",
+    family: "query_payload",
     scoring: false,
     weight: 0,
     summary:
@@ -324,6 +423,7 @@ export const REASON_CODES = {
   },
   data_exfiltration: {
     layer: "lexical",
+    family: "query_payload",
     scoring: false,
     weight: 0,
     summary:
@@ -333,6 +433,7 @@ export const REASON_CODES = {
   // ── Resolution (Layer 2 observed corroboration, weight 0) ────────────────
   open_redirect_observed: {
     layer: "resolution",
+    family: "query_payload",
     scoring: false,
     weight: 0,
     summary:
@@ -340,6 +441,7 @@ export const REASON_CODES = {
   },
   content_type_mismatch: {
     layer: "resolution",
+    family: "response_content",
     scoring: false,
     weight: 0,
     summary:
@@ -347,6 +449,7 @@ export const REASON_CODES = {
   },
   https_downgrade_observed: {
     layer: "resolution",
+    family: "url_scheme",
     scoring: false,
     weight: 0,
     summary:
@@ -356,6 +459,7 @@ export const REASON_CODES = {
   // ── Reputation (Layer 3 source-attributed, conjunctive) ──────────────────
   young_domain_brand_risk: {
     layer: "reputation",
+    family: "character_identity",
     scoring: true,
     weight: 0.5,
     summary:
@@ -363,6 +467,7 @@ export const REASON_CODES = {
   },
   malware_url_listed: {
     layer: "reputation",
+    family: "reputation_listing",
     scoring: true,
     weight: 1,
     summary:
@@ -370,6 +475,7 @@ export const REASON_CODES = {
   },
   verified_phish_listed: {
     layer: "reputation",
+    family: "reputation_listing",
     scoring: true,
     weight: 1,
     summary:
@@ -379,6 +485,7 @@ export const REASON_CODES = {
   // ── Policy (caller-configured, weight 0) ─────────────────────────────────
   tld_denied: {
     layer: "policy",
+    family: "policy_tld",
     scoring: false,
     weight: 0,
     summary:
@@ -386,6 +493,7 @@ export const REASON_CODES = {
   },
   tld_not_allowlisted: {
     layer: "policy",
+    family: "policy_tld",
     scoring: false,
     weight: 0,
     summary:
@@ -393,6 +501,7 @@ export const REASON_CODES = {
   },
   host_denied: {
     layer: "policy",
+    family: "policy_host",
     scoring: false,
     weight: 0,
     summary:
@@ -400,6 +509,7 @@ export const REASON_CODES = {
   },
   host_not_allowlisted: {
     layer: "policy",
+    family: "policy_host",
     scoring: false,
     weight: 0,
     summary:
@@ -407,6 +517,7 @@ export const REASON_CODES = {
   },
   scheme_denied: {
     layer: "policy",
+    family: "url_scheme",
     scoring: false,
     weight: 0,
     summary:
@@ -414,6 +525,7 @@ export const REASON_CODES = {
   },
   port_denied: {
     layer: "policy",
+    family: "policy_port",
     scoring: false,
     weight: 0,
     summary:
@@ -423,6 +535,7 @@ export const REASON_CODES = {
   // ── Meta ────────────────────────────────────────────────────────────────
   parse_error: {
     layer: "lexical",
+    family: "parse_failure",
     scoring: false,
     weight: 0,
     summary: "Input is not a parseable URL or hostname.",
@@ -440,6 +553,23 @@ export function reasonMeta(code: ReasonCode): ReasonCodeMeta {
 /** The weight the core attaches for a given code. */
 export function weightFor(code: ReasonCode): number {
   return REASON_CODES[code].weight;
+}
+
+/** The correlation family a code belongs to. See {@link REASON_FAMILIES}. */
+export function familyFor(code: ReasonCode): ReasonFamily {
+  return REASON_CODES[code].family;
+}
+
+/**
+ * The codes that read a given feature, in registry order.
+ *
+ * The grouping surface: a caller rendering `reasons[]` uses this to say "one
+ * feature, four readings" instead of listing four findings that look separate.
+ */
+export function codesInFamily(family: ReasonFamily): ReasonCode[] {
+  return (Object.keys(REASON_CODES) as ReasonCode[]).filter(
+    (code) => REASON_CODES[code].family === family,
+  );
 }
 
 /**

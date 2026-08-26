@@ -2430,3 +2430,134 @@ exactly `["lexical"]`.
   reason when the input is structurally ambiguous (see above); `parse_error` is
   the fallback when no detector explains the failure.
 - **Scoring:** weight 0.
+
+## Correlation families
+
+`Layer` says where in the pipeline a code came from. It does not say what
+evidence the code rests on, and a triager needs the second answer more than the
+first. Take `apple.com` with CYRILLIC SMALL LETTER A (U+0430) in place of its
+leading `a`. That one code point returns six reasons:
+
+| Reason | Weight |
+| --- | --- |
+| `homograph_latin_skeleton` | 1.00 |
+| `mixed_script` | 1.00 |
+| `idn_host` | 0.70 |
+| `homograph_skeleton_collision` | 0.50 |
+| `confusable_char` | 0.00 |
+| `normalization_delta` | 0.00 |
+
+Six lines, one substituted character. The score absorbs the redundancy —
+probabilistic-OR saturates, and a weight-1.00 code lands the verdict on its own
+— but the explanation does not. A reader counting lines sees four scoring
+findings where the evidence is one edit. `paypa1.com` does the same in
+miniature: one ASCII digit, `brand_homoglyph` plus `ascii_homoglyph`.
+
+So each entry in `REASON_CODES` declares a `family` beside its `layer`
+(`LINK-tviundio`). A family names one FEATURE of the URL. Two codes in one
+family are two readings of that feature rather than two pieces of evidence, and
+that has two consumers: a surface rendering `reasons[]` can present them as one
+finding with several readings, and anyone re-deriving weights is on notice that
+the codes are dependent. The measured spread inside `character_identity` is
+already wide — `brand_homoglyph` at a likelihood ratio of 314 against
+`ascii_homoglyph` at 2.41 — so treating the two as independent evidence about
+the same substituted character double-counts one of them.
+
+### The placement rule
+
+A code belongs to the family of the feature its detector reads to decide
+whether to fire.
+
+- **Proof of sharing.** Find an edit that changes one feature: one code point
+  substituted, one code point escaped, one label added. If that edit can raise
+  both codes, they read the same feature and share a family. The Cyrillic `a`
+  above proves it for six codes at once.
+- **Proof of separation.** If raising the second code takes a further edit to a
+  different feature, the two do not share a family. `brand_homoglyph` and
+  `punycode_malformed` are the worked case: no single edit raises both, because
+  a broken `xn--` label is pure ASCII and carries no look-alike.
+- **Sharing does not require co-firing.** `encoding_obfuscation` and
+  `percent_encoding_malformed` read one feature — the percent-escape sequence —
+  to opposite conclusions, so one escape raises one of them rather than both.
+  They are still dependent: the second tells a reader nothing the first did not
+  already rest on. Mutual exclusion is a strong form of dependence, not an
+  absence of one.
+- **Tie-break, for an edit that changes two features at once.** Escaping a CR
+  both introduces an escape and puts a control byte in the decoded string, which
+  is why `/x?a=1%0d%0aHost:%20evil` raises `encoding_obfuscation`,
+  `control_char` and `header_shaped_token` together. Place such a code by the
+  feature that carries the deception — the one that makes the finding a finding
+  rather than a fact. An escape on its own is a fact, so `header_shaped_token`
+  is placed on the strength of the HTTP token it needs and lands in
+  `decoded_bytes`. A structural character hidden behind an escape is itself the
+  finding, so `encoding_obfuscation` stays in `percent_escapes`. Each half is
+  reachable alone, which is how the tie-break gets checked: `/a%2fb` raises
+  `encoding_obfuscation` with no control byte in sight, and a raw CR raises
+  `control_char` with no escape in sight.
+- **The feature decides, not the channel.** `scheme_denied` is a caller policy
+  verdict, `dangerous_scheme` is a lexical detector and
+  `https_downgrade_observed` is a resolution-time observation; all three read the
+  scheme, so all three sit in `url_scheme`. Families cut across `Layer` by
+  construction. `young_domain_brand_risk` is the same shape from the reputation
+  side: it fires only when a lexical brand code already did, so it is placed with
+  them in `character_identity` rather than given an age family of its own.
+- **A family of one is an ordinary outcome.** `response_content` holds a single
+  code. That records a feature with one reading so far, not a code left
+  unplaced.
+
+Placing a new code: state the feature it reads in one clause. If an existing
+family names that feature, join it. If the clause needs the word "and", apply
+the tie-break and keep the half that carries the deception. Otherwise add the
+family id to `REASON_FAMILIES` in
+`packages/core/src/schema/reason-codes.ts` with its one-line description, and
+add its row below. `packages/core/test/reason-code-families.test.ts` stays red
+until the registry and this table agree.
+
+The three `policy_*` families are the remainder of the rule rather than an
+exception to it: a TLD, a registrable domain and a port are features that no
+detector reads as its deciding one today, so the caller's lists are their only
+readers.
+
+### The partition
+
+17 families over the 59 registered codes. The `Reads` column restates each
+family's registry description word for word, and the drift guard fails if the
+two diverge.
+
+| Family | Reads | Codes |
+| --- | --- | --- |
+| `character_identity` | Which characters the authority is actually spelled with, as against the letters a reader takes them for. | `confusable_char`, `confusable_in_path`, `idna_mapping_ambiguity`, `locale_case_ambiguity`, `mixed_script`, `separator_lookalike`, `ascii_homoglyph`, `brand_homoglyph`, `homograph_skeleton_collision`, `brand_locale_collapse`, `brand_idna_collapse`, `homograph_latin_skeleton`, `young_domain_brand_risk` |
+| `idn_form` | Whether the host is already in its normalized ASCII form, and whether that form is a well-formed encoding of a permitted name. | `normalization_delta`, `punycode_malformed`, `idna_protocol_violation`, `idn_host` |
+| `percent_escapes` | The percent-escape sequences in the URL string. | `encoding_obfuscation`, `percent_encoding_malformed` |
+| `decoded_bytes` | What a downstream reader ends up with after decoding or narrowing a code point that is not rendered as itself. | `invisible_char`, `bidi_override`, `header_shaped_token`, `best_fit_mapping`, `control_char`, `low_byte_truncation` |
+| `authority_delimiters` | Where a parser decides the authority ends and the host begins. | `userinfo_present`, `ambiguous_authority` |
+| `host_label_arrangement` | How the labels left of the registrable domain are arranged. | `embedded_domain_in_subdomain`, `excessive_subdomain_depth` |
+| `address_literal` | The host is an address literal, and which range it lands in. | `ip_obfuscation`, `ip_loopback`, `ip_private`, `ip_link_local`, `ip_cloud_metadata`, `ssrf_cloud_metadata`, `ip_reserved`, `ambiguous_numeric_host` |
+| `dns_name_status` | What the DNS would do with the name, independent of how it looks. | `fqdn_root_label`, `host_length_unresolvable`, `special_use_name` |
+| `url_scheme` | Which scheme the request ends up speaking. | `dangerous_scheme`, `https_downgrade_observed`, `scheme_denied` |
+| `file_shape` | Whether the URL is dressed as a downloadable file. | `file_extension_tld`, `suspicious_extension` |
+| `query_payload` | What the path and query carry as a payload for whatever consumes them. | `open_redirect_param`, `prompt_injection_url`, `credential_harvesting`, `data_exfiltration`, `open_redirect_observed` |
+| `response_content` | What a fetched response's bytes turn out to be. | `content_type_mismatch` |
+| `reputation_listing` | Whether the exact URL appears in a caller-owned mirror snapshot. | `malware_url_listed`, `verified_phish_listed` |
+| `policy_tld` | The host's TLD, weighed against the caller's own lists. | `tld_denied`, `tld_not_allowlisted` |
+| `policy_host` | The host's registrable domain, weighed against the caller's own lists. | `host_denied`, `host_not_allowlisted` |
+| `policy_port` | The explicit port, weighed against the caller's own list. | `port_denied` |
+| `parse_failure` | The input did not parse, so no other feature could be read. | `parse_error` |
+
+### What the family does not change
+
+The family is registry metadata, reachable as `REASON_CODES[code].family`,
+`familyFor(code)` and `codesInFamily(family)` from `@linklint/core`. It is not a
+field on the serialized `InspectResult` and adds no value to a serialized closed
+domain, so `SCHEMA_VERSION` stays where it is — architecture §6.4 scopes that
+stamp to the serialized result contract, and nothing serialized moved. No weight
+and no band moved either, so `WEIGHTS_VERSION` stays put.
+
+Aggregation is unchanged: probabilistic-OR over the scoring codes, one term per
+code, as before. Whether a combiner should discount redundancy inside a family
+is a separate question, and the taxonomy is deliberately shipped without
+answering it — grouping the explanation is the payoff that stands on its own.
+
+The corpus's per-row `detectorFamilies` metadata in
+`packages/core/test/corpus/corpus.ts` is unrelated despite the name: it holds the
+reason codes a row expects or forbids, not a family id.

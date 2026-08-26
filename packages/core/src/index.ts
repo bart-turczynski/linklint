@@ -83,10 +83,14 @@ export {
 // Reason-code registry + scoring reference data
 export {
   REASON_CODES,
+  REASON_FAMILIES,
+  codesInFamily,
+  familyFor,
   reasonMeta,
   weightFor,
   type ReasonCode,
   type ReasonCodeMeta,
+  type ReasonFamily,
 } from "./schema/reason-codes.js";
 export { WEIGHTS, WEIGHTS_VERSION, severityForScore } from "./scoring/weights.js";
 
