@@ -368,6 +368,81 @@ export const CORPUS: CorpusRow[] = [
     forbidReasons: ["header_shaped_token"],
     notes: "T2.4 guard: encoded SP present, value is not host-shaped",
   },
+  // T2.1 (LINK-bmnluefn): Windows ANSI best-fit mappings reachable from a path or
+  // query. `WideCharToMultiByte` without `WC_NO_BEST_FIT_CHARS` substitutes an
+  // ASCII character from a published per-codepage table, so a code point inert
+  // to a URL parser becomes a path separator, a quote or a query delimiter in
+  // the consuming process (Tsai, WorstFit, Black Hat EU 2024; CVE-2024-4577).
+  {
+    input: "https://example.com/path\u00a5win",
+    label: "deceptive",
+    expectReasons: ["best_fit_mapping"],
+    notes: "T2.1: U+00A5 -> backslash under codepage 932 (JIS X 0201 puts the yen sign at 0x5C)",
+  },
+  {
+    input: "https://example.com/path\u20a9win",
+    label: "deceptive",
+    expectReasons: ["best_fit_mapping"],
+    notes: "T2.1: U+20A9 -> backslash under codepage 949 (KS X 1003 puts the won sign at 0x5C)",
+  },
+  {
+    input: "https://example.com/path\uff3cwin",
+    label: "deceptive",
+    expectReasons: ["best_fit_mapping"],
+    notes: "T2.1: U+FF3C fullwidth reverse solidus -> backslash",
+  },
+  {
+    input: "https://example.com/?p=\u00a5share",
+    label: "deceptive",
+    expectReasons: ["best_fit_mapping"],
+    notes: "T2.1: the substitution introduces a segment boundary inside a query value",
+  },
+  {
+    input: "https://example.com/?q=\uff02x\uff02",
+    label: "deceptive",
+    expectReasons: ["best_fit_mapping"],
+    notes: "T2.1: U+FF02 -> a double quote, which closes a quoted argument in a command line",
+  },
+  // T2.1 precision guards. The first three are the character used for what it
+  // is; the next two are the character sitting in non-ASCII prose, which is the
+  // neighbourhood `separator-lookalike.ts` protects when it excludes path and
+  // query on purpose. These are what show the gate is on the PLACEMENT.
+  {
+    input: "https://example.com/?price=\u00a51000",
+    label: "benign",
+    forbidReasons: ["best_fit_mapping"],
+    notes: "T2.1 guard: a currency sign beside digits is a price, not a separator",
+  },
+  {
+    input: "https://example.com/?price=1000\u00a5",
+    label: "benign",
+    forbidReasons: ["best_fit_mapping"],
+    notes: "T2.1 guard: same, trailing — no ASCII letter beside the substitution",
+  },
+  {
+    input: "https://example.com/?price=\uffe51200&x=1",
+    label: "benign",
+    forbidReasons: ["best_fit_mapping"],
+    notes: "T2.1 guard: fullwidth yen beside digits",
+  },
+  {
+    input: "https://example.com/\u8a18\u4e8b\uff0fhtml",
+    label: "benign",
+    forbidReasons: ["best_fit_mapping", "separator_lookalike"],
+    notes: "T2.1 guard: a fullwidth solidus inside CJK prose stays quiet, so the path/query exclusion recorded in separator-lookalike.ts is undisturbed",
+  },
+  {
+    input: "https://example.com/\u8a18\u4e8b\u3002html",
+    label: "benign",
+    forbidReasons: ["best_fit_mapping", "separator_lookalike"],
+    notes: "T2.1 guard: U+3002 has an exact representation in codepages 932/949/950, so it is not a best-fit source at all — the counterexample separator-lookalike.ts cites",
+  },
+  {
+    input: "https://example.com/?title=\u201chello\u201d",
+    label: "benign",
+    forbidReasons: ["best_fit_mapping"],
+    notes: "T2.1 guard: curly quotes best-fit to a double quote and are ordinary orthography, so they are outside the table",
+  },
   // T2.14 (LINK-woxuwnks): malformed percent-encoding — §1.1 claim (a) form 3
   // (false self-description). Both shapes of the defect, priced identically;
   // the rationale for NOT splitting them is in docs/reason-codes.md.

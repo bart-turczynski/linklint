@@ -510,7 +510,7 @@ precisely the case an allowlist gets wrong.
 ```
 linklint/
   packages/
-    core/           # linklint npm package — inspect(), 39 checks, scoring, policy, schema
+    core/           # linklint npm package — inspect(), 40 checks, scoring, policy, schema
     mcp/            # @linklint/mcp — local-only MCP server (check_url / check_domain)
     cli/            # @linklint/cli — offline CLI (linklint check / batch)
     online/         # @linklint/online — Node/server safe transport + deterministic fixtures
@@ -555,7 +555,7 @@ Runtime dependencies: `tldts` (Public Suffix List) and `tr46` (IDNA/UTS-46).
 
 4. **Normalization** — IDNA/UTS-46 normalization via `tr46`. Record deltas as informational findings (`normalization_delta`).
 
-5. **Detector execution** — run 39 independent lexical checks: 4 structural scans ahead of parsing, then 35 parsed-context detectors. The 4 agent-gated parsed detectors run only under `agentMode`. A detector failure adds `lexical:<id>` to `checksSkipped` rather than aborting the inspection. Any skipped scoring detector means the score is a lower bound, not a complete verdict.
+5. **Detector execution** — run 40 independent lexical checks: 4 structural scans ahead of parsing, then 36 parsed-context detectors. The 4 agent-gated parsed detectors run only under `agentMode`. A detector failure adds `lexical:<id>` to `checksSkipped` rather than aborting the inspection. Any skipped scoring detector means the score is a lower bound, not a complete verdict.
 
 6. **Policy layer** (optional) — apply caller-configured allow/deny rules. Policy reasons carry `weight: 0` and never change `score` or `severity`.
 
@@ -565,7 +565,7 @@ Runtime dependencies: `tldts` (Public Suffix List) and `tr46` (IDNA/UTS-46).
 
 ## 5. Detectors
 
-`packages/core/src/detectors/` contains 39 lexical checks: 4 structural scans and 35 parsed-context detectors. Parsed detectors implement:
+`packages/core/src/detectors/` contains 40 lexical checks: 4 structural scans and 36 parsed-context detectors. Parsed detectors implement:
 
 ```ts
 interface Detector {
@@ -577,7 +577,7 @@ interface Detector {
 
 Detectors emit findings only — they never read weights. The core attaches weights from the version-pinned table (`packages/core/src/scoring/weights.ts`) keyed by reason code.
 
-The 39 checks group into six families (listed by **check id**; a single check
+The 40 checks group into six families (listed by **check id**; a single check
 may emit several reason codes):
 
 | Family | Detectors |
@@ -586,7 +586,7 @@ may emit several reason codes):
 | **Homographs & confusables** | `mixed_script`, `confusable_char`, `ascii_homoglyph`, `punycode_malformed`, `normalization_delta`, `idna_mapping_ambiguity`, `idna_protocol_violation`, `locale_case_collapse`, `homograph_latin_skeleton`, `idn_host` |
 | **Brand impersonation** | `brand_homoglyph`, `homograph_skeleton_collision` |
 | **Dangerous payloads** | `dangerous_scheme`, `file_extension_tld`, `suspicious_extension`, `open_redirect_param`, `header_shaped_token` |
-| **Hidden characters** | `invisible_char`, `bidi_override`, `control_char`, `encoding_obfuscation`, `percent_encoding_malformed`, `low_byte_truncation`, `confusable_in_path` |
+| **Hidden characters** | `invisible_char`, `bidi_override`, `control_char`, `encoding_obfuscation`, `percent_encoding_malformed`, `low_byte_truncation`, `confusable_in_path`, `best_fit_mapping` |
 | **Agent-gated** | `prompt_injection_url`, `credential_harvesting`, `data_exfiltration`, `ssrf_cloud_metadata` |
 
 **Agent-gated is a caller-declared context, not a sixth kind of evidence.**
@@ -626,11 +626,11 @@ reached, not what the code does today; `packages/core/src/data/` and
 
 ## 6. Result schema
 
-Every channel returns the same `InspectResult` (schema version `1.13`):
+Every channel returns the same `InspectResult` (schema version `1.14`):
 
 ```ts
 interface InspectResult {
-  schemaVersion: '1.13';
+  schemaVersion: '1.14';
   status: 'ok' | 'invalid';
   input: string;
   parsed: ParsedUrl | null;
@@ -2044,7 +2044,7 @@ The three-layer model is a forward-compatibility contract:
 
 | Layer | Status | Description |
 |-------|--------|-------------|
-| **Lexical** (L1) | **Implemented** | Offline, deterministic, synchronous. 39 checks: 4 structural, 35 parsed (4 of them agent-gated). < 5 ms typical. |
+| **Lexical** (L1) | **Implemented** | Offline, deterministic, synchronous. 40 checks: 4 structural, 36 parsed (4 of them agent-gated). < 5 ms typical. |
 | **Resolution** (L2) | **Partial** | Exact local wrapper decoding and caller-authorized bounded redirect/refresh expansion are implemented; observed correlation/divergence and MIME evidence remain roadmap work. Every discovered target is re-inspected through L1. |
 | **Reputation** (L3) | Roadmap | Threat feeds, RDAP domain age, CT, DNS posture. Privacy-preserving by design. |
 

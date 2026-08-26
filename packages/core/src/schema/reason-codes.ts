@@ -189,6 +189,13 @@ export const REASON_CODES = {
     summary:
       "Path or query carries an HTTP request-line or header field-line token in wire form (an encoded space before an HTTP-version token, or a field name plus an encoded space plus a value from that field's own grammar), so a component re-emitting the request target undecoded writes a second line on the wire.",
   },
+  best_fit_mapping: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.5,
+    summary:
+      "Path or query carries a code point that a Windows ANSI best-fit conversion (WideCharToMultiByte without WC_NO_BEST_FIT_CHARS) replaces with an ASCII delimiter \u2014 a backslash, quote, pipe or slash \u2014 placed between name-shaped tokens, so the consuming process reads a boundary the URL does not declare.",
+  },
   ambiguous_authority: {
     layer: "lexical",
     scoring: true,
