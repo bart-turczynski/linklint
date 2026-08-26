@@ -79,6 +79,7 @@ that moved them.
 | `docs/layer3-reputation-model.md` | 12 |
 | `docs/local-workflow.md` | 3 |
 | `docs/locale-case-mapping.md` | 4 |
+| `docs/naming.md` | 0 |
 | `docs/online-composition-root.md` | 1 |
 | `docs/online-roadmap.md` | 12 |
 | `docs/online-runtime-boundary.md` | 10 |
