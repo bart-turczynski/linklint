@@ -182,6 +182,13 @@ export const REASON_CODES = {
     summary:
       "A '%' is not followed by two hex digits (RFC 3986 \u00a72.4), so the string declares a percent-escape it does not carry.",
   },
+  header_shaped_token: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.5,
+    summary:
+      "Path or query carries an HTTP request-line or header field-line token in wire form (an encoded space before an HTTP-version token, or a field name plus an encoded space plus a value from that field's own grammar), so a component re-emitting the request target undecoded writes a second line on the wire.",
+  },
   ambiguous_authority: {
     layer: "lexical",
     scoring: true,

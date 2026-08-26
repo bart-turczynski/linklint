@@ -27,6 +27,7 @@ import { punycodeMalformed } from "./punycode-malformed.js";
 import { idnaProtocolViolation } from "./idna-protocol-violation.js";
 import { percentEncodingMalformed } from "./percent-encoding-malformed.js";
 import { lowByteTruncation } from "./low-byte-truncation.js";
+import { headerShapedToken } from "./header-shaped-token.js";
 import { fqdnRootLabel } from "./fqdn-root-label.js";
 import { hostLengthUnresolvable } from "./host-length-unresolvable.js";
 import { specialUseName } from "./special-use-name.js";
@@ -79,6 +80,7 @@ export {
   idnaProtocolViolation,
   percentEncodingMalformed,
   lowByteTruncation,
+  headerShapedToken,
   hostLengthUnresolvable,
   specialUseName,
   fqdnRootLabel,

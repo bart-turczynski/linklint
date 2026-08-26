@@ -35,6 +35,7 @@ import { percentEncodingMalformed } from "./percent-encoding-malformed.js";
 import { excessiveSubdomainDepth } from "./excessive-subdomain-depth.js";
 import { promptInjection } from "./prompt-injection.js";
 import { lowByteTruncation } from "./low-byte-truncation.js";
+import { headerShapedToken } from "./header-shaped-token.js";
 import { fqdnRootLabel } from "./fqdn-root-label.js";
 import { hostLengthUnresolvable } from "./host-length-unresolvable.js";
 import { specialUseName } from "./special-use-name.js";
@@ -43,12 +44,12 @@ import { dataExfiltration } from "./data-exfiltration.js";
 import { ssrfCloudMetadata } from "./ssrf-cloud-metadata.js";
 
 /**
- * THE single descriptor source for all 38 checks. `STRUCTURAL_SCANS`
+ * THE single descriptor source for all 39 checks. `STRUCTURAL_SCANS`
  * (structural.ts) and `DETECTORS` (registry.ts) are both DERIVED from this
  * array — add a check here once and both runtime arrays pick it up.
  *
  * Order matches today's runtime order exactly: the 4 structural scans first
- * (STRUCTURAL_SCANS order), then the 34 parsed detectors (DETECTORS order) —
+ * (STRUCTURAL_SCANS order), then the 35 parsed detectors (DETECTORS order) —
  * the last four of which are `agentGated` and run only when
  * `InspectOptions.agentMode` is true.
  * Each descriptor reuses the existing detector object / scan thunk's `run`;
@@ -307,6 +308,14 @@ export const CHECKS: CheckDescriptor[] = [
     emits: ["low_byte_truncation"],
     skipReportable: true,
     run: lowByteTruncation.run,
+  },
+  {
+    id: headerShapedToken.id,
+    layer: headerShapedToken.layer,
+    phase: "parsed",
+    emits: ["header_shaped_token"],
+    skipReportable: true,
+    run: headerShapedToken.run,
   },
   {
     id: hostLengthUnresolvable.id,
