@@ -1,5 +1,5 @@
 import type { InspectOptions } from "../../src/index.js";
-import type { CorpusRow } from "./corpus.js";
+import type { CorpusLabel, CorpusRow } from "./corpus.js";
 
 /**
  * IDN handling defaults to `"block"` (a non-ASCII registrable domain emits the
@@ -15,6 +15,144 @@ const ALLOW_IDN: InspectOptions = { idnPolicy: "allow" };
 const TAB = String.fromCodePoint(0x09);
 const CR = String.fromCodePoint(0x0d);
 const LF = String.fromCodePoint(0x0a);
+
+/** One realistic multilingual URL and why it is a near-miss for T2.3. */
+export interface RealisticMultilingualUrl {
+  readonly input: string;
+  /** `benign` = no reasons at all; `info` = weight-0 reasons only. Both score 0. */
+  readonly label: Extract<CorpusLabel, "benign" | "info">;
+  readonly notes: string;
+  readonly options?: InspectOptions;
+}
+
+/**
+ * T2.3 — the realistic-multilingual set (`LINK-ibwuayzo`, widened by
+ * `LINK-dhtmcqva`). Ordinary Japanese, Chinese, Korean, Russian and Greek URLs
+ * whose code points ARE truncation-reachable but are NOT sandwiched between two
+ * ASCII alphanumerics: 有 上 下 名 載 all narrow to a dangerous byte and all of
+ * them appear in everyday CJK URLs, which is the false-positive class that
+ * killed the naive "flag every truncation-reachable code point" rule. If a
+ * future weight or scope change makes `low_byte_truncation` fire on a row here,
+ * that is the CJK regression, not a win. See `LINK-tyjxigyc` before widening.
+ *
+ * **This array is the definition of "realistic multilingual URLs" for this
+ * detector, and it exists so no prose has to quote a count.** Both pins read it:
+ * the corpus rows below are generated from it, and
+ * `packages/core/test/low-byte-truncation.test.ts` asserts the same members stay
+ * quiet and reports the size. Before `LINK-dhtmcqva` the two pins covered
+ * different subsets — 5 rows here, 6 in the unit test, 7 distinct — while three
+ * separate prose sites claimed a measured 17, so the widest claim was the one
+ * nothing executed. Add a URL here and both pins widen together.
+ */
+export const REALISTIC_MULTILINGUAL_URLS: readonly RealisticMultilingualUrl[] = [
+  // ── Japanese ──────────────────────────────────────────────────────────────
+  {
+    input: "https://example.jp/data下載.zip",
+    label: "benign",
+    notes: "下載 ('download'): 下 is truncation-reachable but its neighbour is CJK, not ASCII",
+  },
+  {
+    input: "https://example.jp/PDF版ダウンロード.pdf",
+    label: "benign",
+    notes: "ASCII 'PDF' abutting kanji — the kanji's other neighbour is katakana",
+  },
+  {
+    input: "https://example.jp/お問い合わせ/フォーム.html",
+    label: "benign",
+    notes: "お問い合わせ/フォーム: a kana run, no ASCII on either side",
+  },
+  {
+    input: "https://example.jp/検索?q=京都駅",
+    label: "benign",
+    notes: "検索?q=京都駅: the query value abuts '=', not an alphanumeric",
+  },
+  {
+    input: "https://例え.テスト/ページ.html",
+    label: "info",
+    options: ALLOW_IDN,
+    notes: "例え.テスト: a Japanese IDN host with a kana path (normalization_delta only)",
+  },
+  // ── Chinese ───────────────────────────────────────────────────────────────
+  {
+    input: "https://example.cn/下載/index.html",
+    label: "benign",
+    notes: "pure-CJK path segment — no ASCII sandwich",
+  },
+  {
+    input: "https://example.cn/file名.pdf",
+    label: "benign",
+    notes: "名 (U+540D -> CR) preceded by ASCII but followed by '.', not an alphanumeric",
+  },
+  {
+    input: "https://example.cn/上传/img001.jpg",
+    label: "benign",
+    notes: "上传 ('upload'): 上 is truncation-reachable, neighbours are '/' and CJK",
+  },
+  {
+    input: "https://example.cn/img001上传.jpg",
+    label: "benign",
+    notes: "上 follows the ASCII digit '1' — one ASCII neighbour is not a sandwich",
+  },
+  {
+    input: "https://example.cn/新闻/2026/头条.html",
+    label: "benign",
+    notes: "新闻/2026/头条: an ASCII date segment between two CJK segments",
+  },
+  {
+    input: "https://example.cn/搜索?q=北京大学",
+    label: "benign",
+    notes: "搜索?q=北京大学: a CJK query value",
+  },
+  // ── Korean ────────────────────────────────────────────────────────────────
+  {
+    input: "https://example.kr/한국어/x.pdf",
+    label: "benign",
+    notes: "한국어: a Hangul run, neighbours are '/' on both sides",
+  },
+  {
+    input: "https://example.kr/게시판/글쓰기.do",
+    label: "benign",
+    notes: "게시판/글쓰기.do: Hangul segments with an ASCII extension",
+  },
+  {
+    input: "https://example.kr/검색?q=서울시청",
+    label: "benign",
+    notes: "검색?q=서울시청: a Hangul query value",
+  },
+  // ── Russian ───────────────────────────────────────────────────────────────
+  {
+    input: "https://пример.рф/путь/файл.pdf",
+    label: "info",
+    options: ALLOW_IDN,
+    notes: "пример.рф: a Cyrillic IDN host and a Cyrillic path (weight-0 reasons only)",
+  },
+  {
+    input: "https://example.ru/каталог/товары.html",
+    label: "info",
+    notes: "каталог/товары: a Cyrillic run on an ASCII host",
+  },
+  {
+    input: "https://example.ru/поиск?q=Москва",
+    label: "info",
+    notes: "поиск?q=Москва: a Cyrillic query value",
+  },
+  // ── Greek ─────────────────────────────────────────────────────────────────
+  {
+    input: "https://example.gr/προϊόντα/κατάλογος.pdf",
+    label: "info",
+    notes: "προϊόντα/κατάλογος: a Greek run, including a diaeresis and accents",
+  },
+  {
+    input: "https://example.gr/αναζήτηση?q=Αθήνα",
+    label: "info",
+    notes: "αναζήτηση?q=Αθήνα: a Greek query value with an initial capital",
+  },
+  {
+    input: "https://example.gr/2026κατάλογος.pdf",
+    label: "info",
+    notes: "2026κατάλογος: κ follows the ASCII digit '6' and is followed by Greek",
+  },
+];
 
 /**
  * E6 — shared IDN / PSL / host test vectors imported from the canonical sources
@@ -183,48 +321,20 @@ export const VECTORS: CorpusRow[] = [
     source: "ECMA-262 line terminators / corpus verify list V9",
   },
 
-  // ── T2.3 benign guard (LINK-ibwuayzo) — real multilingual URLs whose code
-  // points ARE truncation-reachable but are NOT sandwiched between ASCII
-  // alphanumerics. These are the false-positive class that killed the naive
-  // "flag every truncation-reachable code point" rule: 有 上 下 名 載 all narrow
-  // to a dangerous byte, and all of them appear in ordinary CJK URLs. If a future
-  // weight or scope change makes low_byte_truncation fire here, that is the CJK
-  // regression, not a win. See LINK-tyjxigyc before widening.
-  {
-    input: "https://example.jp/data\u4E0B\u8F09.zip",
-    label: "benign",
-    forbidReasons: ["low_byte_truncation"],
-    notes: "下載 ('download'): 下 is truncation-reachable but its neighbour is CJK, not ASCII",
-    source: "T2.3 realistic-URL measurement",
-  },
-  {
-    input: "https://example.cn/\u4E0B\u8F09/index.html",
-    label: "benign",
-    forbidReasons: ["low_byte_truncation"],
-    notes: "pure-CJK path segment — no ASCII sandwich",
-    source: "T2.3 realistic-URL measurement",
-  },
-  {
-    input: "https://example.cn/file\u540D.pdf",
-    label: "benign",
-    forbidReasons: ["low_byte_truncation"],
-    notes: "名 (U+540D -> CR) preceded by ASCII but followed by '.', not an alphanumeric",
-    source: "T2.3 realistic-URL measurement",
-  },
-  {
-    input: "https://example.cn/\u4E0A\u4F20/img001.jpg",
-    label: "benign",
-    forbidReasons: ["low_byte_truncation"],
-    notes: "上传 ('upload'): 上 is truncation-reachable, neighbours are '/' and CJK",
-    source: "T2.3 realistic-URL measurement",
-  },
-  {
-    input: "https://example.jp/PDF\u7248\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9.pdf",
-    label: "benign",
-    forbidReasons: ["low_byte_truncation"],
-    notes: "ASCII 'PDF' abutting kanji — the kanji's other neighbour is katakana",
-    source: "T2.3 realistic-URL measurement",
-  },
+  // ── T2.3 benign guard (LINK-ibwuayzo) — generated from
+  // REALISTIC_MULTILINGUAL_URLS above, which is the same array the detector's
+  // own unit test pins. Editing that array is the only way to change this
+  // block, so the corpus pin and the unit pin cannot cover different subsets.
+  ...REALISTIC_MULTILINGUAL_URLS.map(
+    (entry): CorpusRow => ({
+      input: entry.input,
+      label: entry.label,
+      ...(entry.options === undefined ? {} : { options: entry.options }),
+      forbidReasons: ["low_byte_truncation"],
+      notes: entry.notes,
+      source: "T2.3 realistic-multilingual set",
+    }),
+  ),
 
   // ── PSL vectors — wildcard / exception / multi-level (must stay benign) ────
   {

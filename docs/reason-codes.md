@@ -1721,7 +1721,12 @@ specified above.
   URLs. The guard makes this a claim about the **string**: CJK clusters with CJK
   or sits beside punctuation, so a lone non-ASCII code point wedged between two
   ASCII alphanumerics is itself the structural anomaly, and every reader can check
-  it. Measured: 17/17 realistic multilingual URLs (JP/CN/KR/RU/GR) stay quiet.
+  it. The measurement is executable rather than quoted:
+  the realistic-multilingual set is `REALISTIC_MULTILINGUAL_URLS` in
+  `packages/core/test/corpus/vectors.ts`, and
+  `packages/core/test/low-byte-truncation.test.ts` pins every member quiet and
+  reports the derived counts. This page states the property; the test states the
+  size, because a size written here rots (`LINK-dhtmcqva`).
 - **Why 0.6:** parity with `control_char`, which catches the direct form of the
   identical attack. This variant is strictly harder to see, so parity is the
   defensible floor; pricing it higher would assert it is worse than an actual
