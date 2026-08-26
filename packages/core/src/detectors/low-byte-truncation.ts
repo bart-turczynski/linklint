@@ -82,10 +82,16 @@ function scan(name: string, value: string): string[] {
  * assigned code points narrow to CR/LF, ~1,167 to `/`, ~1,167 to `@`, and 492 of
  * the whitespace set are everyday CJK — 上 下 不 有 而 名 同 看 國 程 載 選 尋 among
  * them. Flagging on reachability alone would flag 下載 ("download") and a large
- * share of real Chinese and Japanese URLs. Measured 2026-07-26: with the guard,
- * 17/17 realistic multilingual URLs (JP/CN/KR/RU/GR) stay quiet and 1/220 corpus
- * URLs fires — `g<U+200D>oogle.com`, an already-known attack whose ZWJ has low
- * byte 0x0D. CJK clusters with CJK or sits beside punctuation; a lone non-ASCII
+ * share of real Chinese and Japanese URLs. The guard is measured rather than
+ * asserted, and the measurement is executable rather than quoted:
+ * the realistic-multilingual set is `REALISTIC_MULTILINGUAL_URLS` in
+ * `packages/core/test/corpus/vectors.ts`, and
+ * `packages/core/test/low-byte-truncation.test.ts` pins every member quiet and
+ * reports the derived counts — which JP/CN/KR/RU/GR URLs are covered, which
+ * corpus rows fire, and that the only rows this code carries on its own are the
+ * two fixtures written for it. Sizes belong in that test output, not in a
+ * sentence: three restated ones had gone stale by `LINK-dhtmcqva`.
+ * CJK clusters with CJK or sits beside punctuation; a lone non-ASCII
  * code point wedged between two ASCII alphanumerics is the anomaly, and it is a
  * property of the string that every reader can check.
  *
