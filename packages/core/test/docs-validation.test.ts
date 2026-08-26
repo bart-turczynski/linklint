@@ -1420,3 +1420,48 @@ describe("the SCHEMA_VERSION bump matrix is stated once and its contradictions a
     expect(changelog).toContain("0.1.0-dev.0");
   });
 });
+
+// LINK-ixfbtimb — "pure ASCII-Latin" is a term of art, and it does NOT mean
+// ASCII letters. `docs/reason-codes.md` defines it as the Basic Latin block,
+// digits included; the README table and the registry summary published the bare
+// phrase, so a reader who met either first inferred a letters-only test. That
+// misreading already cost a cycle: it made `homograph_latin_skeleton` firing on
+// a digit-bearing skeleton look like an obvious bug, and produced a proposed
+// ASCII-letters guard that measurement then rejected. Pin the qualifier at each
+// of the three sites, and pin the behavior it describes, so the prose and the
+// code cannot drift back apart.
+describe("the ASCII-Latin definition is stated wherever the phrase is published", () => {
+  const QUALIFIER = "Basic Latin block, digits included";
+  const flat = (text: string) => text.replace(/\s+/g, " ");
+
+  // Each site hard-wraps — the registry summary is a wrapped TS string literal,
+  // and both markdown sites wrap mid-sentence — so the matches run against
+  // whitespace-flattened text. Verified to bite by dropping the qualifier from
+  // one site at a time: each removal reddens this test.
+  const sites: ReadonlyArray<readonly [string, string]> = [
+    ["docs/reason-codes.md", reasonCodesDoc],
+    ["README.md", readme],
+    [
+      "REASON_CODES.homograph_latin_skeleton.summary",
+      REASON_CODES.homograph_latin_skeleton.summary,
+    ],
+  ];
+
+  it.each(sites)("%s publishes the phrase with its definition", (_name, text) => {
+    const source = flat(text);
+    expect(source).toContain("pure ASCII-Latin");
+    expect(source).toContain(QUALIFIER);
+  });
+
+  it("the definition matches what the detector implements: a digit-bearing skeleton blocks", () => {
+    // `б` folds to `6` under the UTS#39 confusable table, so `бг.com` skeletons
+    // to `6r.com` — pure Basic Latin, not pure ASCII letters. Under the
+    // letters-only reading this host would not fire at all.
+    const result = inspect("https://бг.com/", { idnPolicy: "allow" });
+    const finding = result.reasons.find((r) => r.code === "homograph_latin_skeleton");
+    expect(finding).toBeDefined();
+    expect(finding?.detail).toContain("'6r.com'");
+    expect(result.score).toBe(1);
+    expect(result.severity).toBe("critical");
+  });
+});

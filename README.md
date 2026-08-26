@@ -121,7 +121,7 @@ authority is somewhere else.
 | Example | Reason code(s) | Why it's deceptive |
 |---------|----------------|--------------------|
 | `https://раypal.com` | `homograph_skeleton_collision`, `mixed_script`, `confusable_char` | Cyrillic `р`/`а` rendered identically to Latin — reads as `paypal.com`. |
-| `https://сһаѕе.com` (all-Cyrillic) | `homograph_latin_skeleton` | Non-Latin host whose confusable skeleton is **pure ASCII-Latin** (`chase.com`) — masquerades as an ASCII domain, no brand list needed. **Blocks.** |
+| `https://сһаѕе.com` (all-Cyrillic) | `homograph_latin_skeleton` | Non-Latin host whose confusable skeleton is **pure ASCII-Latin** — the Basic Latin block, digits included (`chase.com`) — masquerades as an ASCII domain, no brand list needed. **Blocks.** |
 | `https://g00gle.com` | `brand_homoglyph`, `ascii_homoglyph` | ASCII digit look-alikes (`00` → `oo`) folding exactly onto `google.com`. |
 | `https://xn--abc.com/` | `punycode_malformed` | A punycode label that doesn't decode to a valid IDN. |
 | any IDN | `normalization_delta`, `idna_mapping_ambiguity` | Flags that the Unicode form differs from the ACE/punycode form, or maps differently under IDNA2003 vs. UTS-46. |

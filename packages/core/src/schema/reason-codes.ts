@@ -285,7 +285,7 @@ export const REASON_CODES = {
     scoring: true,
     weight: 1,
     summary:
-      "Non-Latin registrable domain whose UTS#39 confusable skeleton is pure ASCII-Latin — a whole-label homograph masquerading as an ASCII domain (сһаѕе.com→chase.com), no brand list needed.",
+      "Non-Latin registrable domain whose UTS#39 confusable skeleton is pure ASCII-Latin (the Basic Latin block, digits included) — a whole-label homograph masquerading as an ASCII domain (сһаѕе.com→chase.com), no brand list needed.",
   },
   open_redirect_param: {
     layer: "lexical",
