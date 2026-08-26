@@ -3,7 +3,7 @@
 > Version-pinned (`dataVersions.weights`). Source of truth:
 > `packages/core/src/schema/reason-codes.ts` (weights) and
 > `packages/core/src/scoring/` (aggregation + bands). Current weights version:
-> **1.20**.
+> **1.21**.
 
 ## Aggregation — probabilistic OR (FR-SCORE-1a)
 
@@ -152,7 +152,7 @@ signal. Reserved for patterns with no legitimate use.
 
 ### Scoring codes
 
-The **36** codes that carry a non-zero weight and therefore move the score. `Layer`
+The **37** codes that carry a non-zero weight and therefore move the score. `Layer`
 is the code's registry layer; `(agent)` marks a code emitted only by an
 agent-gated check, which stays silent unless the caller opts in via `agentMode`.
 
@@ -176,6 +176,7 @@ agent-gated check, which stays silent unless the caller opts in via `agentMode`.
 | `brand_locale_collapse`        | 0.50   | lexical    |
 | `embedded_domain_in_subdomain` | 0.50   | lexical    |
 | `homograph_skeleton_collision` | 0.50   | lexical    |
+| `header_shaped_token`          | 0.50   | lexical    |
 | `separator_lookalike`          | 0.50   | lexical    |
 | `suspicious_extension`         | 0.50   | lexical    |
 | `userinfo_present`             | 0.50   | lexical    |

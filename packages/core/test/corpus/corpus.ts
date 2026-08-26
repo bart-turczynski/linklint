@@ -307,6 +307,67 @@ export const CORPUS: CorpusRow[] = [
     forbidReasons: ["idna_protocol_violation"],
     notes: "T2.5 guard: 4 combining marks — exactly at the limit, so silent",
   },
+  // T2.4 (LINK-dyqyhtgo): header-shaped tokens in path/query — the Kettle 2022
+  // response-queue-poisoning payload, which is entirely a URL. Each row pairs a
+  // header/request-line token with the percent-encoded wire separator that puts
+  // it in wire position; `control_char` is forbidden on every one of them,
+  // because %20 is deliberately outside its set and that exclusion is the whole
+  // reason this code exists.
+  {
+    input: "https://example.com/a%20HTTP/1.1",
+    label: "deceptive",
+    expectReasons: ["header_shaped_token"],
+    forbidReasons: ["control_char"],
+    notes: "T2.4: encoded SP + HTTP-version token — the request-line shape (RFC 9112 §3)",
+  },
+  {
+    input: "https://example.com/?x=Host:%20evil.com",
+    label: "deceptive",
+    expectReasons: ["header_shaped_token"],
+    forbidReasons: ["control_char"],
+    notes: "T2.4: Host field line with a host-shaped value",
+  },
+  {
+    input: "https://example.com/?x=Transfer-Encoding:%20chunked",
+    label: "deceptive",
+    expectReasons: ["header_shaped_token"],
+    forbidReasons: ["control_char"],
+    notes: "T2.4: Transfer-Encoding field line with a registered transfer coding",
+  },
+  {
+    input: "https://example.com/?x=Content-Length:%200",
+    label: "deceptive",
+    expectReasons: ["header_shaped_token"],
+    forbidReasons: ["control_char"],
+    notes: "T2.4: Content-Length field line with a decimal value",
+  },
+  // T2.4 precision guards: the bare token, the form-encoder spelling, and two
+  // rows that DO carry the encoded separator but whose value falls outside the
+  // field's grammar. These are what show the gate is on the COMBINATION.
+  {
+    input: "https://example.com/?q=Host:",
+    label: "benign",
+    forbidReasons: ["header_shaped_token"],
+    notes: "T2.4 guard: bare token, no encoded separator — the docs-search shape",
+  },
+  {
+    input: "https://example.com/?q=Transfer-Encoding%3A+chunked",
+    label: "benign",
+    forbidReasons: ["header_shaped_token"],
+    notes: "T2.4 guard: a form encoder writes `+` for SP, which is not an SP byte",
+  },
+  {
+    input: "https://example.com/?title=Expect:%20the%20unexpected",
+    label: "benign",
+    forbidReasons: ["header_shaped_token"],
+    notes: "T2.4 guard: encoded SP present, value outside the Expect grammar",
+  },
+  {
+    input: "https://example.com/?owner=Host:%20John%20Smith",
+    label: "benign",
+    forbidReasons: ["header_shaped_token"],
+    notes: "T2.4 guard: encoded SP present, value is not host-shaped",
+  },
   // T2.14 (LINK-woxuwnks): malformed percent-encoding — §1.1 claim (a) form 3
   // (false self-description). Both shapes of the defect, priced identically;
   // the rationale for NOT splitting them is in docs/reason-codes.md.

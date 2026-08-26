@@ -214,9 +214,9 @@ describe("README detector count matches the computed total", () => {
     const parsed = CHECKS.filter((c) => c.phase === "parsed").length;
     const agentGated = CHECKS.filter((c) => c.agentGated === true).length;
 
-    expect(total).toBe(38);
+    expect(total).toBe(39);
     expect(structural).toBe(4);
-    expect(parsed).toBe(34);
+    expect(parsed).toBe(35);
     expect(agentGated).toBe(4);
     expect(DETECTORS.length).toBe(parsed);
     expect(STRUCTURAL_SCANS.length).toBe(structural);
@@ -288,7 +288,7 @@ describe("docs/architecture.md detector families cover every check", () => {
   // 32 of 37: ip_classification, ambiguous_numeric_host, homograph_latin_skeleton,
   // locale_case_collapse, and idn_host were all missing. Pin it to the registry.
   it("every check id appears in the families table", () => {
-    const tableStart = architectureDoc.indexOf("The 38 checks group into six families");
+    const tableStart = architectureDoc.indexOf("The 39 checks group into six families");
     expect(tableStart).toBeGreaterThan(-1);
     const table = architectureDoc.slice(tableStart, architectureDoc.indexOf("## 6."));
 
@@ -1199,8 +1199,11 @@ describe("the ReasonCode registry is pinned to the SCHEMA_VERSION it registered 
   // Re-confirmed AGAIN on a single addition (LINK-mgnbgicq): registering
   // `special_use_name` with `SCHEMA_VERSION` left at `1.10` turned this red with
   // `{ added: ["special_use_name"], removed: [] }` before the bump to `1.11`.
-  // Four confirmations now, across both directions and both cardinalities.
-  const PINNED_SCHEMA_VERSION = "1.12";
+  // Re-confirmed a FIFTH time (LINK-dyqyhtgo): registering `header_shaped_token`
+  // with `SCHEMA_VERSION` left at `1.12` turned this red with
+  // `{ added: ["header_shaped_token"], removed: [] }` before the bump to `1.13`.
+  // Five confirmations now, across both directions and both cardinalities.
+  const PINNED_SCHEMA_VERSION = "1.13";
 
   /** Every `REASON_CODES` key as of `PINNED_SCHEMA_VERSION`, sorted. */
   const PINNED_REASON_CODES: readonly string[] = [
@@ -1223,6 +1226,7 @@ describe("the ReasonCode registry is pinned to the SCHEMA_VERSION it registered 
   "excessive_subdomain_depth",
   "file_extension_tld",
   "fqdn_root_label",
+  "header_shaped_token",
   "homograph_latin_skeleton",
   "homograph_skeleton_collision",
   "host_denied",

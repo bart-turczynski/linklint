@@ -1825,6 +1825,75 @@ specified above.
   `https://xn--ab-0ea.example.com/` (middle dot, CONTEXTO),
   `https://xn--1ca40idaefg.example.com/` (5 stacked marks).
 
+### `header_shaped_token` — T2.4 · weight 0.50
+
+- **Meaning:** the path or query carries an HTTP **request-line** or **header
+  field-line** token in its wire form, reached through a percent-encoded wire
+  separator — an encoded space in front of an `HTTP/1.1` version token, a field
+  name followed by an encoded space and a value from that field's own grammar,
+  or an encoded line break sitting directly in front of a field name.
+- **Why it's a signal:** James Kettle's 2022 response-queue-poisoning work is the
+  strongest case a URL linter gets, because the disclosed payload is entirely a
+  URL — no body, no header, no method, just a link. RFC 9112 §3 fixes the request
+  line as `method SP request-target SP HTTP-version CRLF`, and RFC 3986 §2.1
+  requires a space inside a URI to be percent-encoded precisely because it is
+  that delimiter. So a request target carrying `%20HTTP/1.1` reads as one target
+  and, to a component that writes it onto the wire undecoded, becomes a target
+  plus a version token plus a fresh line. The divergence is enumerated by the
+  standards themselves, which is the line §1.1 draws for the path layer.
+- **Why `control_char` does not already cover it:** that code (0.60) catches the
+  percent-encoded CR, LF, TAB and NUL forms, and its entry below states the
+  exclusion outright — an encoded **space** (`%20`) is not a control character
+  and does not flag there. The exclusion is right for that code and leaves this
+  shape uncovered, since SP is the byte the request-line grammar delimits on.
+  Where an encoded CRLF is also present the two co-fire, and this code supplies
+  what a byte scan has no way to say: *which* header the injected line declares.
+- **The gate is a combination, because the bare token is ordinary text.**
+  `Host:` turns up in a documentation search, an article slug, an event listing.
+  No arm fires on a token alone:
+  - **Request-line shape** — `%20` or `%09` immediately followed by an
+    HTTP-version token (`HTTP/1.1`, `HTTP%2f1.0`). RFC 9112 §2.3 fixes that
+    token's spelling, and little else puts one directly behind an encoded space.
+  - **Field-line shape** — a field name, a colon (literal or `%3a`), one or more
+    encoded space/tab, **and** a value inside that field's own grammar: a
+    host-shaped value for `Host`, decimal digits for `Content-Length`, a
+    registered transfer coding for `Transfer-Encoding`, `100-continue` for
+    `Expect`.
+  - **CRLF-introduced field line** — an encoded CR or LF directly in front of a
+    field name and its colon. Here the encoded line break is the second signal,
+    so the value grammar is not required.
+- **Precision (SC-2), measured:** `?q=Host:` stays quiet — there is no encoded
+  separator. `?q=Transfer-Encoding%3A+chunked` stays quiet, because a form
+  encoder writes `+` for a space and `+` is not a space byte outside
+  `application/x-www-form-urlencoded`, while the payload needs a real `%20`.
+  `?title=Expect:%20the%20unexpected` and `?owner=Host:%20John%20Smith` stay
+  quiet even though the encoded separator is there, because prose falls outside
+  the field's value grammar. Measured against the shipped corpora: **0** of the
+  233 non-deceptive `corpus.ts` rows, 0 of the 70 URL fixtures in `vectors.ts`,
+  0 of `known-false-positives.ts` and 0 of `embarrassment.ts` fire.
+- **Scope:** path and query only. A fragment is stripped before a request target
+  is built, so a header-shaped token there reaches no wire, and claiming
+  otherwise would widen the code past what the string settles.
+- **Weight 0.50, argued from the table:** below `control_char` (0.60), which is
+  the same attack with the injected byte itself present — that code needs no
+  token to be sure, and this one sits one inference further from the wire. Above
+  `encoding_obfuscation` (0.35) and `idna_protocol_violation` (0.35), which name
+  an encoding step or a protocol violation without naming a mechanism; this names
+  the mechanism and the field. 0.50 is `separator_lookalike`'s weight, its
+  closest peer in kind — a token that misdirects a reader about where a
+  structural boundary falls. It lands `medium`: reviewable, stacking with
+  `control_char` and `encoding_obfuscation` on the full payload, and not tripping
+  the default `--fail-on high` gate alone, which is the right call while the
+  residual false positives above are narrowed rather than eliminated. A blocker
+  weight (1.0) is not earned — the encoded space travels only if something
+  downstream re-emits the target undecoded, and that is a property of one
+  deployment rather than of the string.
+- **Example:** `https://example.com/a%20HTTP/1.1` (request-line shape),
+  `https://example.com/?x=Host:%20evil.com` (Host field line),
+  `https://example.com/?x=Transfer-Encoding:%20chunked`,
+  `https://example.com/?x=Content-Length:%200`,
+  `https://example.com/?x=Expect:%20100-continue`.
+
 ### `ambiguous_authority` — Epic J (J1) · weight 0.65
 
 - **Meaning:** two conforming readers disagree about the authority — the parser-

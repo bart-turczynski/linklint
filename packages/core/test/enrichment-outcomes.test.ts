@@ -184,7 +184,7 @@ describe("K6 — representative L/M/O structured evidence", () => {
     const serialized = JSON.stringify(result.enrichment);
     const roundTripped: unknown = JSON.parse(serialized);
 
-    expect(result.schemaVersion).toBe("1.12");
+    expect(result.schemaVersion).toBe("1.13");
     expect(result.enrichment?.schemaVersion).toBe("1.0");
     expect(isEnrichmentReport(roundTripped)).toBe(true);
     expect(roundTripped).toEqual(result.enrichment);

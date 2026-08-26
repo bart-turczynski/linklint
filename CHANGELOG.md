@@ -4,6 +4,38 @@ All notable changes to this project will be documented here.
 
 ## Unreleased
 
+### Added — result contract (`SCHEMA_VERSION` `1.12` → `1.13`)
+
+- **New scoring reason code `header_shaped_token`, weight `0.50`**
+  (`LINK-dyqyhtgo`, T2.4). The path or query carries an HTTP request-line or
+  header field-line token in wire form, reached through a percent-encoded wire
+  separator. Kettle's 2022 response-queue-poisoning payload is the motivating
+  case, and it is the strongest one a URL linter gets: the disclosed payload is
+  entirely a URL.
+- **`control_char` was not already covering this, by design.** Its entry in
+  `docs/reason-codes.md` states the exclusion outright — an encoded space
+  (`%20`) is not a control character and does not flag there — and `%20` is
+  exactly the byte the RFC 9112 request-line grammar delimits on. Before this
+  change `https://example.com/a%20HTTP/1.1` and
+  `https://example.com/?x=Host:%20evil.com` both read `0.00`/`info` with an
+  EMPTY reason list; they now read `0.50`/`medium`. Where an encoded CRLF is
+  also present the two co-fire, and the new code adds what the byte scan cannot
+  say: which header the injected line declares.
+- **The gate is a combination, not a bare token.** Three arms, each needing a
+  percent-encoded wire separator adjacent to the token, and the field-line arm
+  needing a third thing — a value from that field's own grammar (host-shaped for
+  `Host`, digits for `Content-Length`, a registered transfer coding for
+  `Transfer-Encoding`, `100-continue` for `Expect`). Measured false-positive
+  profile: **0** of the 233 non-deceptive `corpus.ts` rows fire, 0 of the 70 URL
+  fixtures in `vectors.ts`, 0 of `known-false-positives.ts`, 0 of
+  `embarrassment.ts`. `?q=Host:`, `?q=Transfer-Encoding%3A+chunked`,
+  `?title=Expect:%20the%20unexpected` and `?owner=Host:%20John%20Smith` are
+  pinned quiet in the corpus as the controls.
+- **`WEIGHTS_VERSION` moves `1.20` → `1.21`**, because a scoring code with a
+  non-zero weight adds scoring surface.
+- **Scoped to path and query.** A fragment is stripped before a request target
+  is built, so a header-shaped token there reaches no wire.
+
 ### Added — result contract (`SCHEMA_VERSION` `1.11` → `1.12`)
 
 - **New scoring reason code `idna_protocol_violation`, weight `0.35`**

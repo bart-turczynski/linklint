@@ -1,29 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { inspect } from "../src/index.js";
+import { REASON_CODES } from "../src/schema/reason-codes.js";
 
-// LINK-dyqyhtgo (T2.4) — COMMIT 1 of 2. This file pins the gap OPEN.
+// LINK-dyqyhtgo (T2.4) — COMMIT 2 of 2. The previous commit pinned this gap
+// OPEN: each payload below returned 0.00/info with an EMPTY reason list, which
+// under docs/architecture.md §1.1's fourth rule asserts "there is nothing to say
+// about this URL". The diff of this file carries the before and the after.
 //
-// James Kettle's 2022 response-queue-poisoning work is the strongest possible
-// case for a URL linter, because the disclosed payload is entirely a URL: the
-// path and query carry an encoded SP followed by an HTTP-version token, or an
-// encoded CRLF followed by a header field line, so a component that writes the
-// request target onto the wire without re-encoding emits two requests where the
-// caller wrote one.
+// James Kettle's 2022 response-queue-poisoning work is the strongest case a URL
+// linter gets, because the disclosed payload is entirely a URL. RFC 9112 §3
+// fixes the request line as `method SP request-target SP HTTP-version CRLF`,
+// and RFC 3986 §2.1 requires a space inside a URI to be percent-encoded
+// precisely because it is that delimiter — so `%20HTTP/1.1` in a request target
+// reads as one target and becomes two lines to anything that re-emits it
+// undecoded.
 //
-// As of this commit linklint says nothing about any of the payload rows below:
-// score 0.00, severity `info`, and an EMPTY reason list — which under §1.1's
-// fourth rule asserts "there is nothing to say about this URL".
+// `control_char` (0.60) covers the neighbouring shape and is excluded from this
+// one deliberately: docs/reason-codes.md states that "an encoded **space**
+// (`%20`) is not a control character and never flags" there. The exclusion is
+// asserted on every payload row below, because it is the reason this code
+// exists rather than an accident of ordering.
 //
-// `control_char` covers the neighbouring case and cannot reach these. Its own
-// entry in docs/reason-codes.md states the exclusion outright: "an encoded
-// **space** (`%20`) is not a control character and never flags". The encoded SP
-// is exactly the byte the request-line grammar delimits on, so the one shape
-// `control_char` deliberately skips is the one this ticket is about.
-//
-// The next commit registers `header_shaped_token` and turns the payload
-// assertions red, then rewrites them. The control assertions below do NOT
-// change in either commit: they are the false-positive profile, and they are
-// what proves the rule gates on the COMBINATION rather than on the bare token.
+// The CONTROLS section is the false-positive profile and did NOT change across
+// the two commits. It is what shows the gate is on the COMBINATION — a token
+// plus a percent-encoded wire separator plus, for a field line, a value from
+// that field's own grammar — rather than on the bare token.
 
 /** The two URLs the gap matrix quotes verbatim, plus the rest of the family. */
 const PAYLOADS: ReadonlyArray<readonly [string, string]> = [
@@ -35,10 +36,10 @@ const PAYLOADS: ReadonlyArray<readonly [string, string]> = [
 ];
 
 /**
- * Benign rows that must stay quiet in BOTH commits. Each carries a
- * header-shaped token WITHOUT the encoded wire separator that would put it in
- * request-line or field-line position, or with a value outside the field's own
- * grammar — a docs search, a blog slug, an event listing.
+ * Benign rows that stay quiet. Each carries a header-shaped token WITHOUT the
+ * encoded wire separator that would put it in request-line or field-line
+ * position, or with a value outside the field's own grammar — a docs search, a
+ * blog slug, an event listing.
  */
 const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ["https://example.com/?q=Host:", "bare token, no encoded separator — the docs-search shape"],
@@ -59,31 +60,67 @@ const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ],
 ];
 
-describe("header-shaped tokens are NOT detected yet (LINK-dyqyhtgo, pre-fix)", () => {
-  it.each(PAYLOADS)("%s (%s) scores 0.00 with an EMPTY reason list", (url) => {
+describe("header-shaped tokens in path/query are detected (LINK-dyqyhtgo)", () => {
+  it.each(PAYLOADS)("%s (%s) reaches 0.50/medium on this code alone", (url) => {
     const r = inspect(url);
     expect(r.status).toBe("ok");
-    expect(r.score).toBe(0);
-    expect(r.severity).toBe("info");
-    expect(r.reasons).toEqual([]);
+    expect(r.score).toBe(0.5);
+    expect(r.severity).toBe("medium");
+    expect(r.reasons.map((x) => x.code)).toEqual(["header_shaped_token"]);
   });
 
-  it("control_char cannot reach them — %20 is excluded from it by design", () => {
+  it("control_char stays out of it — %20 is excluded from that code by design", () => {
     for (const [url] of PAYLOADS) {
       const codes = inspect(url).reasons.map((x) => x.code);
       expect(codes).not.toContain("control_char");
     }
   });
+
+  it("the detail names the wire shape that fired, not just the token", () => {
+    const reqLine = inspect("https://example.com/a%20HTTP/1.1").reasons[0]!;
+    expect(reqLine.detail).toContain("request-line shape");
+    const hostLine = inspect("https://example.com/?x=Host:%20evil.com").reasons[0]!;
+    expect(hostLine.detail).toContain("'host:'");
+    expect(hostLine.detail).toContain("host-shaped value");
+  });
+
+  it("registers at weight 0.50 as a scoring lexical code", () => {
+    expect(REASON_CODES.header_shaped_token).toMatchObject({
+      layer: "lexical",
+      scoring: true,
+      weight: 0.5,
+    });
+  });
 });
 
-describe("the encoded-CRLF neighbour is ALREADY covered — verified, then left alone", () => {
-  // Re-derived rather than trusted. An encoded CRLF in the path or query is
-  // `control_char` at 0.60 today, with `encoding_obfuscation` alongside it, so
-  // the new code is additive on this row rather than the thing that finds it.
-  it("an encoded CRLF payload already reaches 0.74/high", () => {
+describe("the encoded-CRLF neighbour composes rather than being replaced", () => {
+  // Re-derived rather than trusted. An encoded CRLF in the path or query was
+  // already `control_char` at 0.60 with `encoding_obfuscation` alongside it, so
+  // this code is additive on that row rather than the thing that finds it — and
+  // it adds what a byte scan has no way to say: which header the line declares.
+  it("an encoded CRLF payload keeps control_char and gains this code", () => {
     const r = inspect("https://example.com/?x=Host:%20evil.com%0d%0a");
-    expect(r.severity).toBe("high");
-    expect(r.reasons.map((x) => x.code)).toContain("control_char");
+    const codes = r.reasons.map((x) => x.code);
+    expect(codes).toContain("control_char");
+    expect(codes).toContain("header_shaped_token");
+    // 0.74 -> 0.87: the row was already `high` on control_char +
+    // encoding_obfuscation; this code stacks onto it rather than replacing it.
+    expect(r.severity).toBe("critical");
+  });
+
+  it("the full Kettle-shaped payload stacks to critical", () => {
+    const r = inspect("https://example.com/%20HTTP/1.1%0d%0aHost:%20evil.com");
+    expect(r.severity).toBe("critical");
+    expect(r.reasons.map((x) => x.code)).toContain("header_shaped_token");
+  });
+
+  it("an encoded line break in front of a field name fires without a value grammar", () => {
+    // Arm 3: here the encoded CRLF is the second signal, so `Host:` needs no
+    // host-shaped value behind it.
+    const detail = inspect("https://example.com/?x=%0d%0aHost:anything").reasons.find(
+      (r) => r.code === "header_shaped_token",
+    )?.detail;
+    expect(detail).toContain("encoded line break");
   });
 });
 
@@ -92,5 +129,20 @@ describe("benign header-shaped text stays quiet (false-positive controls)", () =
     const r = inspect(url);
     expect(r.status).toBe("ok");
     expect(r.reasons.map((x) => x.code)).not.toContain("header_shaped_token");
+  });
+
+  it("a fragment is out of scope — it is stripped before a request target exists", () => {
+    const codes = inspect("https://example.com/#%20HTTP/1.1").reasons.map((x) => x.code);
+    expect(codes).not.toContain("header_shaped_token");
+  });
+
+  it("a surface with no percent-escape at all cannot match any arm", () => {
+    for (const url of [
+      "https://example.com/HTTP/1.1",
+      "https://example.com/?x=Host:evil.com",
+      "https://example.com/",
+    ]) {
+      expect(inspect(url).reasons.map((x) => x.code), url).not.toContain("header_shaped_token");
+    }
   });
 });
