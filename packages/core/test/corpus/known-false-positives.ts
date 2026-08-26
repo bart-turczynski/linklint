@@ -55,7 +55,29 @@ export interface KnownFalsePositive {
   why: string;
   /** The issue tracking the exposure. Required — an untracked FP is just a bug. */
   issue: string;
-  /** The verdict measured when the entry was filed, for the reader's orientation. */
+  /**
+   * The verdict as it stands TODAY, kept current — not a filing-time snapshot.
+   *
+   * `band-narration.test.ts` reads the `<score>/<band>` pair out of this text and
+   * compares it against a fresh `inspect(input)`, so the field turns red as soon as
+   * the number moves. That coupling is the point rather than an accident of the
+   * guard's reach. This register's own `it.fails` assertion flips only when an entry
+   * reaches score 0, so a PARTIAL fix — 0.40 dropping to 0.20 — leaves it silent: the
+   * score is still non-zero, the inner assertion still throws, which is what `it.fails`
+   * expects, and the test stays green while the exposure has visibly shrunk.
+   * A coupled `observed` reports that movement, and the movement is what a reader of
+   * a register of unfixed defects came here to learn: is this getting better?
+   *
+   * Why the record-vs-claim doctrine does NOT exempt this field. It has the surface
+   * grammar of a record, and `band-narration.test.ts` could mark it historical to
+   * quiet the guard — resist that. The register holds entries that STILL score; the
+   * moment one goes quiet the maintainer promotes it to a benign corpus row and
+   * deletes it from here. So a reader takes this line as a statement about what
+   * linklint says now, and a snapshot left to drift in that position misorients
+   * instead of orienting. It is also precisely the sort of figure nobody re-derives:
+   * `LINK-fodmjqdp` closed on one stale total that had rotted in four places at once.
+   * A register of unfixed defects wants its numbers live. Leave it coupled.
+   */
   observed: string;
 }
 

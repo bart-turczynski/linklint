@@ -68,8 +68,8 @@
  *
  * ## A note on `observed` in `known-false-positives.ts`
  *
- * That field is documented as "the verdict measured when the entry was filed",
- * which sounds like a record. It is coupled here anyway, because the register
+ * That field has the surface grammar of a record, and its own doc comment
+ * (LINK-tcrgkllv) says why it is coupled here rather than exempted: the register
  * only ever holds entries that still score — its own test tells the maintainer
  * to promote and delete an entry the moment it goes quiet — so `observed` is
  * read by every reader as a statement about what linklint says today. If it
