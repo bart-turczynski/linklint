@@ -19,6 +19,7 @@ import { addressesEqual } from "./address.js";
 import { isTlsObservationCauseCode } from "./outcome-registry.js";
 import { normalizeTlsCertificate, TlsCertificateAnalysisError } from "./tls-certificate.js";
 import { pinDestination } from "./pin.js";
+import { effectivePort } from "./port.js";
 import type { ClockPort, ResolverPort } from "./types.js";
 import type {
   SafeTlsInspector,
@@ -128,7 +129,7 @@ class SafeTlsInspectorImpl implements SafeTlsInspector {
     url.hash = "";
     state.subject = url.href;
     state.hostname = unbracket(url.hostname);
-    state.port = url.port === "" ? 443 : Number(url.port);
+    state.port = effectivePort(url);
 
     const pin = await wrapOperation(
       "dns",

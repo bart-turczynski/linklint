@@ -63,6 +63,7 @@ import {
 import { systemErrorCode } from "../transport/node-resolver.js";
 import { isCertificateError } from "../transport/node.js";
 import { resolveTransportPolicy, type TransportPolicy } from "../transport/policy.js";
+import { effectivePort } from "../transport/port.js";
 import type { TransportAddressDecision, TransportCauseCode } from "../transport/types.js";
 
 import type {
@@ -227,7 +228,7 @@ class NodeRdapHttpClient implements RdapHttpClient {
           {
             protocol: url.protocol,
             hostname: host,
-            port: url.port === "" ? (secure ? 443 : 80) : Number(url.port),
+            port: effectivePort(url),
             path: `${url.pathname}${url.search}`,
             method: "GET",
             headers: this.requestHeaders(conditional),
