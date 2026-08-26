@@ -1894,6 +1894,84 @@ specified above.
   `https://example.com/?x=Content-Length:%200`,
   `https://example.com/?x=Expect:%20100-continue`.
 
+### `best_fit_mapping` — T2.1 · weight 0.50
+
+- **Meaning:** the path or query carries a code point that a Windows ANSI
+  **best-fit** conversion replaces with an ASCII delimiter, sitting where that
+  delimiter would be read as one — an ASCII letter immediately beside it, and no
+  non-ASCII text on either side.
+- **Why it's a signal:** `WideCharToMultiByte` called for an ANSI codepage
+  without `WC_NO_BEST_FIT_CHARS` does not reject a code point the codepage
+  lacks. It substitutes a "best fit" ASCII character from a table Microsoft
+  publishes per codepage. U+00A5 YEN SIGN becomes `\` under codepage 932,
+  because JIS X 0201 puts the yen sign at 0x5C; U+20A9 WON SIGN becomes `\`
+  under codepage 949, because KS X 1003 does the same; the Halfwidth and
+  Fullwidth Forms collapse onto their ASCII counterparts under the single-byte
+  codepages. So a string a URL parser reads as one path segment becomes, inside
+  the consuming process, a segment plus a separator plus another segment — or a
+  closed quote, or an extra query parameter. The claim is about a named API and
+  a published table, not about a character looking odd. References: Orange Tsai,
+  "WorstFit", Black Hat EU 2024; CVE-2024-4577 (PHP-CGI argument injection on
+  Windows) is the disclosed consequence class.
+- **How this sits with `separator_lookalike`, which ignores path and query:**
+  that code (0.50) scans the authority only, and it excludes path and query
+  deliberately, because an ideographic full stop is ordinary CJK punctuation
+  inside a path segment (`/記事。html`). Three things keep that decision intact.
+  The question differs — that code asks whether IDNA/NFKC normalization folds a
+  character onto a URL delimiter and hides the real host; this one asks whether
+  a platform API substitutes an ASCII character from a vendor table. `。` is
+  absent from this table for a mechanical reason: U+3002 has an exact
+  representation in codepages 932, 949 and 950, so no best-fit substitution
+  happens to it. And the placement guard refuses the exact neighbourhood that
+  decision protects, so `/記事／html` stays quiet.
+- **`／` (U+FF0F), the hard case:** it is in the table, and it is also ordinary
+  CJK punctuation, which is why the placement rather than the character carries
+  the weight. `/記事／html` is quiet; `/path／win` is not. A fullwidth solidus
+  wedged between ASCII letters is a segment boundary the URL string declines to
+  declare, and a reader can check that property without knowing any Chinese.
+- **The gate is placement, because membership on its own is worthless.** A yen
+  sign is a currency sign and a fullwidth ampersand is CJK typesetting. Two
+  conditions place the substitution:
+  - **An ASCII letter immediately on one side.** A currency sign in currency use
+    abuts digits (`?price=¥1000`, `?price=1000¥`); a delimiter separates
+    name-shaped tokens. This is what keeps prices quiet.
+  - **No non-ASCII text immediately on either side.** A character embedded in
+    non-ASCII text is being read as text. This is what keeps CJK paths quiet.
+  A neighbour that is itself in the table counts as neither, since it
+  materializes to ASCII too.
+- **Outside the table on purpose:** `.` and `-` as targets, both unremarkable
+  inside a path, so a materialized one crosses no boundary — and `-` carries the
+  CVE-2024-4577 vector (U+00AD SOFT HYPHEN), which reaches `invisible_char` at
+  weight 1 on its own. Curly quotes and apostrophes (U+2018, U+2019, U+201C,
+  U+201D) best-fit to `'` and `"` and are ordinary orthography in running text;
+  `?title=“hello”` is a title, and reading it as an attack is the mistake this
+  entry exists to avoid.
+- **Precision (SC-2), measured against the shipped corpora:** **0** of the 252
+  non-deceptive `corpus.ts` rows fire (168 `benign`, 59 `info`, 25 `invalid`), 0
+  of the 90 `VECTORS` fixtures, 0 of the 20 `REALISTIC_MULTILINGUAL_URLS`, 0 of
+  `known-false-positives.ts` and 0 of `embarrassment.ts`. The counts were taken
+  through `inspect()` on the same rows, which produce 92, 7, 1 and 17 non-empty
+  reason lists respectively, so the zeroes are measurements rather than an
+  unreached harness.
+- **Scope:** path and query. A yen or won sign in the host is fail-closed
+  `invalid` already, a fullwidth solidus in the authority is
+  `separator_lookalike`, and a fragment is not sent to a server, so widening
+  past path and query would add surface without adding a reachable consumer.
+- **Weight 0.50, argued from the table:** parity with `separator_lookalike`, its
+  closest peer in kind — a character that puts a structural boundary where the
+  string declares none. Below `low_byte_truncation` and `control_char` (0.60),
+  which materialize CR, LF, NUL or `@`: a second line on the wire or a moved
+  authority is a worse outcome than a re-read file path or a broken quote, and
+  those codes rest on no platform assumption. Above `encoding_obfuscation`
+  (0.35), which names an encoding step without naming a mechanism; this names
+  the API, the codepage and the substitution. It lands `medium` — reviewable,
+  and short of the default `--fail-on high` gate on its own, which is right while
+  reachability depends on the consumer running Windows and converting without
+  `WC_NO_BEST_FIT_CHARS`.
+- **Example:** `https://example.com/path¥win`, `https://example.com/path₩win`,
+  `https://example.com/path＼win`, `https://example.com/path／win`,
+  `https://example.com/?q=＂x＂`, `https://example.com/?p=¥share`.
+
 ### `ambiguous_authority` — Epic J (J1) · weight 0.65
 
 - **Meaning:** two conforming readers disagree about the authority — the parser-

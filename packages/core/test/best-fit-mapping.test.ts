@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { inspect } from "../src/index.js";
+import { REASON_CODES } from "../src/schema/reason-codes.js";
+import { BEST_FIT_SOURCES } from "../src/detectors/best-fit-mapping.js";
 
-// LINK-bmnluefn (T2.1) — COMMIT 1 of 2. This file pins the gap OPEN.
-//
-// Every payload below returns 0.00 / info with an EMPTY reason list, which
-// under docs/architecture.md §1.1's fourth rule is the strongest thing the
-// result contract can say: there is nothing to report about this URL. The diff
-// of this file in the next commit carries the before and the after.
+// LINK-bmnluefn (T2.1) — COMMIT 2 of 2. The previous commit pinned this gap
+// OPEN: each payload below returned 0.00/info with an EMPTY reason list, which
+// under docs/architecture.md §1.1's fourth rule asserts "there is nothing to say
+// about this URL". The diff of this file carries the before and the after.
 //
 // The mechanism is a CONVERSION, not an appearance. On Windows, a string handed
 // to `WideCharToMultiByte` for an ANSI codepage without `WC_NO_BEST_FIT_CHARS`
@@ -20,9 +20,9 @@ import { inspect } from "../src/index.js";
 // is the disclosed consequence class.
 //
 // The CONTROLS section is the false-positive profile. It is the half of this
-// file that does NOT change in the next commit, which is what shows the gate is
-// on the neighbourhood the materialized character would land in rather than on
-// the bare character.
+// file that did NOT change across the two commits, which is what shows the gate
+// is on the neighbourhood the materialized character would land in rather than
+// on the bare character.
 
 /** Path/query surfaces where the conversion would materialize a delimiter. */
 const PAYLOADS: ReadonlyArray<readonly [string, string]> = [
@@ -54,21 +54,99 @@ const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ["https://example.com/path/win", "the plain ASCII spelling of the first payload"],
 ];
 
-describe("best-fit charset mappings in path/query are NOT detected yet (LINK-bmnluefn)", () => {
-  it.each(PAYLOADS)("%s (%s) is 0.00/info with nothing to say", (url) => {
+describe("best-fit charset mappings in path/query are detected (LINK-bmnluefn)", () => {
+  it.each(PAYLOADS)("%s (%s) reaches 0.50/medium on this code alone", (url) => {
     const r = inspect(url);
     expect(r.status).toBe("ok");
-    expect(r.score).toBe(0);
-    expect(r.severity).toBe("info");
-    expect(r.reasons).toEqual([]);
+    expect(r.score).toBe(0.5);
+    expect(r.severity).toBe("medium");
+    expect(r.reasons.map((x) => x.code)).toEqual(["best_fit_mapping"]);
+  });
+
+  it("the detail names the code point, the ASCII it becomes, and the grammar", () => {
+    const yen = inspect("https://example.com/path¥win").reasons[0]!;
+    expect(yen.detail).toContain("U+00A5");
+    expect(yen.detail).toContain("codepage 932");
+    expect(yen.detail).toContain("Windows path separator");
+    expect(yen.detail).toContain("in path");
+
+    const quote = inspect("https://example.com/?q=＂x＂").reasons[0]!;
+    expect(quote.detail).toContain("U+FF02");
+    expect(quote.detail).toContain("command-line quote delimiter");
+    expect(quote.detail).toContain("in query");
+  });
+
+  it("registers at weight 0.50 as a scoring lexical code", () => {
+    expect(REASON_CODES.best_fit_mapping).toMatchObject({
+      layer: "lexical",
+      scoring: true,
+      weight: 0.5,
+    });
   });
 });
 
-describe("the false-positive profile — these stay quiet across both commits", () => {
-  it.each(CONTROLS)("%s (%s) raises nothing", (url) => {
+describe("benign placement stays quiet (the measured false-positive profile)", () => {
+  it.each(CONTROLS)("%s (%s) raises no best-fit finding", (url) => {
     const r = inspect(url);
     expect(r.status).toBe("ok");
-    expect(r.severity).toBe("info");
+    expect(r.reasons.map((x) => x.code)).not.toContain("best_fit_mapping");
+  });
+
+  it("a fragment is out of scope — it is not sent to a server", () => {
+    const codes = inspect("https://example.com/#path¥win").reasons.map((x) => x.code);
+    expect(codes).not.toContain("best_fit_mapping");
+  });
+
+  it("a pure-ASCII path or query holds no best-fit source", () => {
+    for (const url of [
+      "https://example.com/path/win",
+      "https://example.com/?q=Host:%20evil.com",
+      "https://example.com/",
+    ]) {
+      expect(inspect(url).reasons.map((x) => x.code), url).not.toContain("best_fit_mapping");
+    }
+  });
+});
+
+describe("the guard is placement, not membership — the recorded decisions hold", () => {
+  // `packages/core/src/detectors/separator-lookalike.ts` excludes path and query
+  // ON PURPOSE, because an ideographic full stop is ordinary CJK punctuation
+  // inside a path segment. This block is the proof that nothing here reopened
+  // that: the same character in the same position is quiet under both codes.
+  it("U+3002 is not a best-fit source at all — it has an exact codepage mapping", () => {
+    expect(BEST_FIT_SOURCES.has(0x3002)).toBe(false);
+    const codes = inspect("https://example.com/記事。html").reasons.map((x) => x.code);
+    expect(codes).not.toContain("best_fit_mapping");
+    expect(codes).not.toContain("separator_lookalike");
+  });
+
+  it("U+FF0F IS a source, and the guard is what keeps CJK prose quiet", () => {
+    expect(BEST_FIT_SOURCES.has(0xff0f)).toBe(true);
+    // Same character, two neighbourhoods. Non-ASCII text on one side is prose.
+    expect(inspect("https://example.com/記事／html").reasons.map((x) => x.code)).not.toContain(
+      "best_fit_mapping",
+    );
+    // ASCII letters on both sides is a segment boundary the URL declines to declare.
+    expect(inspect("https://example.com/path／win").reasons.map((x) => x.code)).toContain(
+      "best_fit_mapping",
+    );
+  });
+
+  it("curly quotes and the soft hyphen are outside the table on purpose", () => {
+    for (const code of [0x2018, 0x2019, 0x201c, 0x201d, 0x00ad]) {
+      expect(BEST_FIT_SOURCES.has(code), code.toString(16)).toBe(false);
+    }
+    // The soft hyphen's shape is covered by a stronger code already.
+    expect(inspect("https://example.com/pa­th").reasons.map((x) => x.code)).toContain(
+      "invisible_char",
+    );
+  });
+
+  it("a digit neighbour is not a letter neighbour — prices stay quiet", () => {
+    expect(inspect("https://example.com/?price=¥1000").reasons).toEqual([]);
+    expect(inspect("https://example.com/?p=¥share").reasons.map((x) => x.code)).toEqual([
+      "best_fit_mapping",
+    ]);
   });
 });
 
@@ -84,14 +162,6 @@ describe("what already covers the neighbouring surfaces", () => {
   it("a fullwidth solidus in the AUTHORITY is already separator_lookalike", () => {
     const codes = inspect("https://github.com／x@evil.zip/").reasons.map((x) => x.code);
     expect(codes).toContain("separator_lookalike");
-  });
-
-  it("a soft hyphen in the path is already invisible_char at weight 1", () => {
-    // U+00AD best-fits to '-', which is why '-' is deliberately outside the new
-    // table: the shape is covered, and a hyphen in a path is unremarkable.
-    const r = inspect("https://example.com/pa­th");
-    expect(r.reasons.map((x) => x.code)).toContain("invisible_char");
-    expect(r.score).toBe(1);
   });
 
   it("low_byte_truncation does not reach these code points", () => {

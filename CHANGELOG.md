@@ -4,6 +4,49 @@ All notable changes to this project will be documented here.
 
 ## Unreleased
 
+### Added — result contract (`SCHEMA_VERSION` `1.13` → `1.14`)
+
+- **New scoring reason code `best_fit_mapping`, weight `0.50`**
+  (`LINK-bmnluefn`, T2.1). The path or query carries a code point that a Windows
+  ANSI **best-fit** conversion replaces with an ASCII delimiter, sitting where
+  that delimiter would be read as one. `WideCharToMultiByte` called for an ANSI
+  codepage without `WC_NO_BEST_FIT_CHARS` substitutes a "best fit" ASCII
+  character from a table Microsoft publishes per codepage: U+00A5 YEN SIGN
+  becomes `\` under codepage 932 because JIS X 0201 puts the yen sign at 0x5C,
+  U+20A9 WON SIGN becomes `\` under codepage 949 for the same reason, and the
+  fullwidth forms collapse onto their ASCII counterparts. Reference: Orange
+  Tsai, "WorstFit", Black Hat EU 2024; CVE-2024-4577 is the disclosed
+  consequence class.
+- **Six URLs move from `0.00`/`info` with an EMPTY reason list to
+  `0.50`/`medium`:** `/path¥win`, `/path₩win`, `/path＼win`, `/path／win`,
+  `/?q=＂x＂` and `/?p=¥share` on `example.com`.
+- **The gate is placement, not membership.** A yen sign is a currency sign; a
+  fullwidth ampersand is CJK typesetting. The substitution fires only with an
+  ASCII letter immediately on one side and no non-ASCII text on either side, so
+  `?price=¥1000`, `?price=1000¥` and `?price=￥1200&x=1` stay quiet.
+- **`separator_lookalike`'s path/query exclusion is undisturbed.** That code
+  ignores path and query deliberately, because an ideographic full stop is
+  ordinary CJK punctuation inside a path segment. `U+3002` is absent from the
+  best-fit table for a mechanical reason — it has an exact representation in
+  codepages 932, 949 and 950 — so `/記事。html` is quiet by construction, and
+  the placement guard keeps `/記事／html` quiet as well. `separator-lookalike.ts`
+  is unmodified.
+- **`.` and `-` are excluded as substitution targets**, both being unremarkable
+  inside a path; the `-` vector (U+00AD SOFT HYPHEN) reaches `invisible_char` at
+  weight 1 already. Curly quotes and apostrophes are excluded as sources, being
+  ordinary orthography in running text.
+- **Measured false-positive profile:** **0** of the 252 non-deceptive
+  `corpus.ts` rows fire (168 `benign`, 59 `info`, 25 `invalid`), 0 of the 90
+  `VECTORS` fixtures, 0 of the 20 `REALISTIC_MULTILINGUAL_URLS`, 0 of
+  `known-false-positives.ts`, 0 of `embarrassment.ts`. The same rows produce 92,
+  7, 1 and 17 non-empty reason lists through `inspect()`, so the zeroes are
+  measurements rather than an unreached harness.
+- **`WEIGHTS_VERSION` moves `1.21` → `1.22`**, because a scoring code with a
+  non-zero weight adds scoring surface.
+- **Scoped to path and query.** A yen or won sign in the host is fail-closed
+  `invalid`, a fullwidth solidus in the authority is `separator_lookalike`, and a
+  fragment is not sent to a server.
+
 ### Added — result contract (`SCHEMA_VERSION` `1.12` → `1.13`)
 
 - **New scoring reason code `header_shaped_token`, weight `0.50`**
