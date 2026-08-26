@@ -6,7 +6,7 @@ import { REASON_CODES, type ReasonCode } from "../schema/reason-codes.js";
  * `dataVersions.weights` so any verdict is reproducible. Bump deliberately
  * whenever a weight or band changes (NFR-DATA-1).
  */
-export const WEIGHTS_VERSION = "1.19";
+export const WEIGHTS_VERSION = "1.20";
 
 /**
  * Severity bands (FR-SCORE-1b):

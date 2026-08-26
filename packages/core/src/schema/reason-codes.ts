@@ -168,6 +168,13 @@ export const REASON_CODES = {
     weight: 0.2,
     summary: "Host has an xn-- label that does not decode to a valid IDN.",
   },
+  idna_protocol_violation: {
+    layer: "lexical",
+    scoring: true,
+    weight: 0.35,
+    summary:
+      "Host label decodes cleanly but is not permitted under RFC 5892 (IDNA2008): a DISALLOWED code point, a CONTEXTJ/CONTEXTO rule violation, or stacked combining marks. Wider than punycode_malformed, which needs the ACE to fail decoding.",
+  },
   percent_encoding_malformed: {
     layer: "lexical",
     scoring: true,

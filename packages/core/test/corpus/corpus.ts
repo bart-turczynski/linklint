@@ -243,6 +243,70 @@ export const CORPUS: CorpusRow[] = [
     expectReasons: ["punycode_malformed"],
     notes: "P1: decodes to a code point above U+10FFFF (sub-code decoded_code_point_out_of_range)",
   },
+  // T2.5 (LINK-lquravtj): IDNA2008 protocol violations — the ACE spelling of a
+  // label RFC 5892 does not permit. Strictly WIDER than punycode_malformed
+  // above: these labels DECODE cleanly and round-trip, so that detector cannot
+  // reach them, and `forbidReasons` pins that separation on every row. The raw
+  // Unicode spellings do not get this far (parse() rejects a bare symbol, and a
+  // raw ZWNJ is invisible_char at weight 1), so ACE is the form that travels.
+  {
+    input: "https://xn--g6h.example.com/",
+    label: "deceptive",
+    minSeverity: "medium",
+    expectReasons: ["idna_protocol_violation"],
+    forbidReasons: ["punycode_malformed"],
+    notes: "T2.5: U+2665 — a DISALLOWED symbol, well-formed ACE (RFC 5892 §2.1)",
+  },
+  {
+    input: "https://xn--abcd-176a.example.com/",
+    label: "deceptive",
+    minSeverity: "medium",
+    expectReasons: ["idna_protocol_violation"],
+    forbidReasons: ["punycode_malformed"],
+    notes: "T2.5: ZWNJ outside its joining context (CONTEXTJ A.1)",
+  },
+  {
+    input: "https://xn--ab-0ea.example.com/",
+    label: "deceptive",
+    minSeverity: "medium",
+    expectReasons: ["idna_protocol_violation"],
+    forbidReasons: ["punycode_malformed"],
+    notes: "T2.5: U+00B7 outside the Catalan l\u00b7l context (CONTEXTO A.3)",
+  },
+  {
+    input: "https://xn--1ca40idaefg.example.com/",
+    label: "deceptive",
+    minSeverity: "medium",
+    expectReasons: ["idna_protocol_violation"],
+    forbidReasons: ["punycode_malformed"],
+    notes: "T2.5: 5 combining marks stacked on one base character",
+  },
+  // T2.5 precision guards: each CONTEXTO code point IN its permitted context,
+  // so the rule is shown to be applied rather than the character blocklisted.
+  {
+    input: "https://xn--collabora-2pa.example.com/",
+    label: "info",
+    options: ALLOW_IDN,
+    expectReasons: ["normalization_delta"],
+    forbidReasons: ["idna_protocol_violation"],
+    notes: "T2.5 guard: col\u00b7labora — Catalan l\u00b7l, the A.3 context",
+  },
+  {
+    input: "https://xn--ccke4x.example.com/",
+    label: "info",
+    options: ALLOW_IDN,
+    expectReasons: ["normalization_delta"],
+    forbidReasons: ["idna_protocol_violation"],
+    notes: "T2.5 guard: \u30a2\u30fb\u30a4 — katakana middle dot with kana, the A.7 context",
+  },
+  {
+    input: "https://xn--1ca40idaef.example.com/",
+    label: "info",
+    options: ALLOW_IDN,
+    expectReasons: ["normalization_delta"],
+    forbidReasons: ["idna_protocol_violation"],
+    notes: "T2.5 guard: 4 combining marks — exactly at the limit, so silent",
+  },
   // T2.14 (LINK-woxuwnks): malformed percent-encoding — §1.1 claim (a) form 3
   // (false self-description). Both shapes of the defect, priced identically;
   // the rationale for NOT splitting them is in docs/reason-codes.md.
