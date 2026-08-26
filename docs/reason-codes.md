@@ -362,6 +362,19 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
     blocker standing. That scoping is deliberate: an IDN exemption must never be
     derivable from the host's ASCII reading, because "the Unicode host reads as a
     legitimate ASCII domain" *is* the homograph signature.
+  - **Positional limitation — a disguised label under another registrable
+    domain does not fire here** (`LINK-aronhrrq`). The scope above is the
+    registrable domain, so `сһаѕе.com` reads 1.00/critical while the identical
+    label at `сһаѕе.example.com` reads 0.00/info: the registrable domain is
+    `example.com`, which is pure ASCII, and the detector stops at its first
+    guard. `idn_host` and `homograph_skeleton_collision` are scoped the same way
+    and drop out with it, which is why nothing at all scores. This is a known
+    asymmetry, not an oversight — per-label evaluation was declined 2–0 on
+    measured false-positive cost (`LINK-vtfyaizy`), and `architecture.md` §6.1.8
+    records the gap, the whole-effective-host scope that would close it, the
+    measured 0.74% vocabulary fold rate that stopped it, and what a future
+    proposal owes. Consumers who need the subdomain case covered today should
+    treat `confusable_char` on a host label as the signal to inspect.
 - **See also:** `homograph_skeleton_collision` — the brand-targeted sibling
   (weight 0.5); the two **stack** on a brand homograph (this blocks, the
   collision adds brand attribution).

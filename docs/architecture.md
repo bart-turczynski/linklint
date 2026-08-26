@@ -1544,6 +1544,111 @@ step-change it implied; and the issue's anchor line describes `brand_homoglyph`
 behaviour rather than anything about DGA, quoting `0.50`/`0.60` scores that the
 built package now reports as `0.80`/`0.84`.
 
+#### 6.1.8 Per-label homograph evaluation — the gap is recorded, not closed (`LINK-aronhrrq`)
+
+**Decision — `homograph_latin_skeleton` keeps its registrable-domain scope, and
+the subdomain gap it leaves is recorded here as a positional limitation.**
+`LINK-vtfyaizy` declined per-label evaluation 2–0 on measured false-positive
+cost, and both verifiers asked that the underlying gap be carried forward rather
+than closed with that decision. This is that record.
+
+**The gap, re-measured at `0ad4566`.** The same disguised label scores
+differently according to where it sits:
+
+```text
+https://сһаѕе.com/          → 1.00 critical   homograph_latin_skeleton + idn_host + collision
+https://сһаѕе.example.com/  → 0.00 info       weight-0 codes only
+https://сһаѕе.bad.co.uk/    → 0.00 info       weight-0 codes only
+```
+
+The 0.00 is not this detector's doing alone. Every scoring code in the IDN
+family is scoped to the registrable domain, so `idn_host` (0.7) and
+`homograph_skeleton_collision` (0.5) drop out too. An ordinary Unicode
+subdomain reads the same way: `пример.example.com` is 0.00/info while
+`пример.рф` is 0.70/high.
+
+**The scope question is three-way, not two-way, and that resolves the
+weight objection.** `LINK-vtfyaizy` recorded a conceptual problem that reads as
+fatal: this detector's weight of 1.0 is grounded in *the whole host reads to a
+human as an ASCII domain*, which is false of `гора.рф`, so a per-label finding
+would carry a fragment-level fact under a host-level verdict. That objection is
+sound against **per-label** scope. It does not reach a third option neither the
+proposal nor the decline considered — the **whole effective host**, with the
+public suffix carve-out of `LINK-ubzfajzm` left in place. Under that scope the
+firing condition *is* the weight-1.0 justification, word for word:
+`сһаѕе.example.com` skeletonizes to `chase.example.com`, and the whole host does
+read as an ASCII domain. Today's code tests something narrower than its own
+prose describes; per-label would test something wider. Only the middle option
+matches it.
+
+The fragment-versus-host framing also overstates how novel a subdomain-sourced
+blocker would be. `mixed_script`, this code's weight-1.0 sibling, already
+iterates `hostUnicode`'s labels and issues a host-level critical from a single
+label — `paypаl.example.com` is 1.00/critical on `main` today.
+
+**What the whole-effective-host scope would and would not reach, measured.** It
+has to be a union with the shipped registrable-domain test rather than a
+replacement: `пример.сһаѕе.com` fires today and its whole-host skeleton retains
+`пpимep`, so replacing the scope would drop a true positive and hand attackers a
+one-label evasion. As a union it reaches `сһаѕе.example.com`,
+`сһаѕе.bad.co.uk` and `сһаѕе.tenant.github.io`. It does **not** reach the
+namespaces whose measured cost killed per-label: `гора.рф`, `собор.рф`,
+`сахар.рф` and `google.бг` stay exactly where they are, because a suffix that
+retains a non-ASCII codepoint keeps the whole-host skeleton non-ASCII.
+
+**Why it is not adopted here: the fourth bar cannot be discharged, and the
+arithmetic shows why.** `LINK-pblqdrco` remains the standard a widening has to
+meet — zero false positives across 36,200 unseen hosts. Re-measured
+independently against the pinned confusables table over six 50k frequency lists
+(ru, bg, sr, uk, el, mk): **1,902 of 256,288 non-ASCII word types — 0.74% —
+skeletonize to pure ASCII**, 7.74% frequency-weighted, rising to 19.6% at label
+length 2 and 30.2% at length 1. A mechanism with a measured 0.74% conditional
+false-positive rate against ordinary vocabulary cannot return zero across 36,200
+samples that exercise it; the expected count is roughly 270. And a corpus that
+returned zero would have done so by containing no folding non-Latin subdomain
+labels at all — which is §6.2's recorded artifact rather than a pass.
+
+That artifact reproduced here on cue: simulating the union scope across all
+**377 distinct corpus inputs flips zero rows**, so `pnpm check` would stay green
+through the change. This is the third recorded instance, after `LINK-tydjfmci`
+(§6.2, thorn-to-p and `thingvellir.is`) and `LINK-vtfyaizy`.
+
+What `LINK-pblqdrco` could do and this cannot is exhaust its firing surface. Its
+mechanism admitted exactly 192 pre-images, so it was probed completely and
+against a control group. The surface here is open — every string over the
+Latin-confusable subset of Cyrillic and Greek — so no sample settles it.
+
+**Two of the four bars the re-file sets are already discharged, and one was
+resolved the other way round.** Public-suffix exclusion (bar 1) shipped under
+`LINK-ubzfajzm` and is documented in `docs/reason-codes.md`. The ASCII-letters
+coherence gate (bar 2) was measured as strictly dominated — it cleared 4 of 16
+suffixes while dropping 3 true positives — and the prose was corrected to match
+the guard instead. A future proposal owes bars 3 and 4 only.
+
+**The honest cost of the decision, stated plainly.** The same string fact draws
+opposite verdicts by position: `агора.com` and `бебе.com` are 1.00/critical on
+`main`, while `агора.example.com` and `бебе.example.com` are 0.00/info. Those
+Cyrillic words are among the false positives `LINK-vtfyaizy` named as
+disqualifying, and they already ship as critical in the registrable-domain
+position — where the residual is accepted and documented, with `suppressReasons`
+as the remedy. Consistency therefore argues for closing the gap, and the
+measured false-positive rate argues against paying weight 1.0 for it. This entry
+resolves that tension toward document-and-stop because the false-positive volume
+in real traffic went unmeasured: it turns on how often a folding non-Latin label
+sits left of an ASCII registrable domain, and Certificate Transparency
+(`crt.sh`) was returning 502 on every query at decision time.
+
+**What a future proposal must supply**, given the above: (a) a base-rate
+measurement of non-ASCII subdomain labels under ASCII registrable domains, from
+Certificate Transparency or passive DNS, since that is the one input missing
+here; (b) a label-scoped suppression key, because `applySuppressions` matches the
+registrable domain, so a caller whose one tenant label trips a blocker can only
+respond by disarming it platform-wide; and (c) an argument for the weight. A
+lower-weighted sibling is the option this entry declines to pick between — the
+`embedded_domain_in_subdomain` precedent puts a deceptive label sequence left of
+a truthfully-named registrable domain at 0.50 on the reasoning that the authority
+the user reaches is displayed correctly, and that reasoning transfers intact.
+
 ### 6.2 IDNA / UTS-46 conformance & the normalization flag profile
 
 Every verdict that rests on *"what host is this really"* flows through
