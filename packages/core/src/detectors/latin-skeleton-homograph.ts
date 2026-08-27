@@ -65,10 +65,18 @@ export const latinSkeletonHomograph: Detector = {
     return [
       {
         code: "homograph_latin_skeleton",
+        // `pure ASCII-Latin` is a term of art and does NOT mean ASCII letters —
+        // `б` folds to `6`, so the skeleton offered here as evidence can carry a
+        // digit. Publishing the bare phrase already cost a cycle (LINK-ixfbtimb):
+        // it made this detector look like a bug and produced an ASCII-letters
+        // guard that measurement rejected. This detail is the fourth publishing
+        // site and the one an end user actually reads, so it states the
+        // definition too, in the registry summary's words.
         detail:
           `registrable domain ${shown} is non-Latin but its UTS#39 confusable ` +
-          `skeleton is pure ASCII-Latin ('${skel.normalize("NFC")}') — a whole-label ` +
-          "homograph masquerading as an ASCII domain",
+          `skeleton '${skel.normalize("NFC")}' is pure ASCII-Latin (the Basic Latin ` +
+          "block, digits included) — a whole-label homograph masquerading as an " +
+          "ASCII domain",
       },
     ];
   },
