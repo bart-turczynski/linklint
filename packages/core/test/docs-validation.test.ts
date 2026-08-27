@@ -1446,8 +1446,13 @@ describe("the SCHEMA_VERSION bump matrix is stated once and its contradictions a
 // misreading already cost a cycle: it made `homograph_latin_skeleton` firing on
 // a digit-bearing skeleton look like an obvious bug, and produced a proposed
 // ASCII-letters guard that measurement then rejected. Pin the qualifier at each
-// of the three sites, and pin the behavior it describes, so the prose and the
-// code cannot drift back apart.
+// of the sites, and pin the behavior it describes, so the prose and the code
+// cannot drift back apart.
+//
+// LINK-agdyrumu — there is a FOURTH site, and it is the one an end user actually
+// reads: the `Reason.detail` the detector emits. It published the bare phrase
+// alongside a digit-bearing skeleton ('6r.com') as the evidence for it, which is
+// the misreading above staged in miniature. It is included below.
 describe("the ASCII-Latin definition is stated wherever the phrase is published", () => {
   const QUALIFIER = "Basic Latin block, digits included";
   const flat = (text: string) => text.replace(/\s+/g, " ");
@@ -1456,6 +1461,15 @@ describe("the ASCII-Latin definition is stated wherever the phrase is published"
   // and both markdown sites wrap mid-sentence — so the matches run against
   // whitespace-flattened text. Verified to bite by dropping the qualifier from
   // one site at a time: each removal reddens this test.
+  //
+  // The detail is read out of a live `inspect()` call rather than grepped out of
+  // the source, so the site under test is the string a consumer is handed, not
+  // the template that builds it.
+  const emittedDetail =
+    inspect("https://бг.com/", { idnPolicy: "allow" }).reasons.find(
+      (r) => r.code === "homograph_latin_skeleton",
+    )?.detail ?? "";
+
   const sites: ReadonlyArray<readonly [string, string]> = [
     ["docs/reason-codes.md", reasonCodesDoc],
     ["README.md", readme],
@@ -1463,6 +1477,7 @@ describe("the ASCII-Latin definition is stated wherever the phrase is published"
       "REASON_CODES.homograph_latin_skeleton.summary",
       REASON_CODES.homograph_latin_skeleton.summary,
     ],
+    ["Reason.detail emitted by latin-skeleton-homograph.ts", emittedDetail],
   ];
 
   it.each(sites)("%s publishes the phrase with its definition", (_name, text) => {

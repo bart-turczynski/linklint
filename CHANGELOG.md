@@ -4,6 +4,30 @@ All notable changes to this project will be documented here.
 
 ## Unreleased
 
+### Changed — `Reason.detail` prose (no stamp moves)
+
+- **`homograph_latin_skeleton`'s detail now states what `pure ASCII-Latin`
+  means** (`LINK-agdyrumu`). `LINK-ixfbtimb` pinned the qualifier *"the Basic
+  Latin block, digits included"* at the three sites that publish the phrase —
+  `docs/reason-codes.md`, the README table and
+  `REASON_CODES.homograph_latin_skeleton.summary` — and missed a fourth: the
+  `Reason.detail` a consumer is handed. That site published the bare phrase
+  *next to a digit-bearing skeleton offered as the evidence for it*
+  (`бг.com` → `'6r.com'`), which is the letters-only misreading staged in
+  miniature. It read `skeleton is pure ASCII-Latin ('6r.com')` and now reads
+  `skeleton '6r.com' is pure ASCII-Latin (the Basic Latin block, digits
+  included)`.
+- **The guard covers four sites, and the fourth is read from a live
+  `inspect()`** rather than grepped from the template that builds it, so the
+  string under test is the one a consumer receives.
+- **No stamp moves.** `Reason.detail` is free-form prose, which
+  `docs/architecture.md` §6.4 assigns to the *"package version +
+  `CHANGELOG.md`"* row; no field, documented meaning or closed-domain value
+  changes, so `SCHEMA_VERSION` stays `1.14` and `WEIGHTS_VERSION` stays `1.22`.
+  The package version stays `0.1.0-dev.0`: every package has held that since the
+  initial scaffold while unpublished, and this entry is what discharges the row
+  until a first release exists to move it.
+
 ### Added — result contract (`SCHEMA_VERSION` `1.13` → `1.14`)
 
 - **New scoring reason code `best_fit_mapping`, weight `0.50`**
