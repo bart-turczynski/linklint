@@ -320,6 +320,18 @@ Three things about that record are easy to get wrong:
 - **Shared runners only.** npm does not accept OIDC from a self-hosted runner,
   so attaching one to solve a future minutes problem (`LINK-ozgkfjow`) would
   cost this job its authentication.
+- **Leave Environment name blank.** The job declares no `environment:`, and a
+  value here would put a claim in the OIDC token that the job cannot match.
+
+**Do not loosen Publishing access to enable CI.** It is a tempting wrong turn:
+the package's *Publishing access* setting offers *"require 2FA **or** a granular
+access token with bypass 2fa enabled"*, and it looks like the thing that lets a
+pipeline publish. It is not. npm states that every option there is compatible
+with trusted publishers, so leave it on **"Require two-factor authentication and
+disallow bypass 2fa tokens"** — the most restrictive one. OIDC still publishes,
+manual bootstrap publishes still work because a passkey *is* 2FA, and the only
+path closed is the token one, which this project does not use and which npm is
+actively restricting.
 
 **A package must already exist before its trusted publisher can be configured** —
 npm's settings page needs something to attach the record to. `linklint` exists,
