@@ -52,7 +52,7 @@ inspect('javascript:fetch("//evil.example")');
   Deterministic and typically **< 5 ms** per call. Nothing about the URL ever leaves
   the machine.
 - **Agent-native** — built for _"check a link before you fetch it,"_ and exposed over
-  [MCP](#mcp-server-check-before-you-fetch) so an LLM agent can vet a URL before opening it.
+  [MCP](#mcp-server--check-before-you-fetch) so an LLM agent can vet a URL before opening it.
 - **Embeddable** — a clean, synchronous, dependency-light library first; every other
   surface (MCP server, CLI) consumes it.
 - **`inspect()` never throws** — unparseable input returns `status: "invalid"`
