@@ -195,8 +195,8 @@ against the shipped record.
 
 **Not in the pre-push hook, deliberately.** `tools/verify.sh` is the primary gate
 and has to work offline; a network call there would turn a plane ride into a
-failed push. A GitLab schedule is the natural second home and is blocked only on
-runner minutes (`LINK-ozgkfjow`).
+failed push. A GitLab schedule is the natural second home, and runner minutes
+stopped blocking it on 2026-09-05 (`LINK-ozgkfjow`) — none is configured yet.
 
 **Cost note.** The `latest` lookup is a few kilobytes per package. The publish
 date lives only in the full packument (~3.4 MB for `tldts`), so it is fetched
@@ -248,8 +248,8 @@ it carries no reason and no expiry. The full field rules are in CONTRIBUTING.md
 gate is expected to be deterministic; the advisory database moves under a tree
 that has not, so the same commit would pass and then fail. Run it before a
 release and after any dependency change. A GitLab schedule is the natural second
-home and is blocked on runner minutes (`LINK-ozgkfjow`, follow-up
-`LINK-txxcwplc`).
+home; runner minutes stopped blocking it on 2026-09-05 (`LINK-ozgkfjow`) and the
+follow-up that would configure one is `LINK-txxcwplc`.
 
 **What it cannot tell you.** Whether an advisory is *reachable* from linklint's
 own code paths. It reports what the resolved tree contains, which is a floor: a

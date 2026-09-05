@@ -19,14 +19,21 @@
 # To force a run at any time: CI/CD -> Pipelines -> "Run pipeline" (the `web`
 # source below always builds).
 #
-# STATUS, 2026-08-08: shared-runner compute minutes for this namespace are
-# EXHAUSTED. The rules below work — the first push created pipeline #1 as
-# intended — but both jobs failed to start with `ci_quota_exceeded`, so remote
-# verification currently provides NOTHING and `tools/verify.sh` is not merely
-# the primary gate, it is the only one. This config is correct and starts
-# working again when the allowance resets or a self-hosted runner is attached
-# (LINK-ozgkfjow). Do not read a red pipeline here as a red tree until you have
-# checked `failure_reason` on the job.
+# STATUS, 2026-09-05: remote verification WORKS again. From 2026-08 it did not —
+# shared-runner minutes for this namespace were exhausted and every job failed to
+# start with `ci_quota_exceeded` — and making the project public restored the
+# allowance without a self-hosted runner (LINK-ozgkfjow). Pipeline 2822652495 put
+# both matrix legs on shared runners.
+#
+# The habit that grew during the outage — a red pipeline means the quota, not the
+# tree — is now WRONG, and the first real run proved it: both legs failed
+# `script_failure` against a tree that `tools/verify.sh` passes on both majors
+# (LINK-ujbttpph). Still check `failure_reason` first, but the answer now
+# distinguishes three things, not two: `ci_quota_exceeded` is the quota,
+# `script_failure` is the tree, and a `script_failure` the local gate cannot
+# reproduce is the runner differing from the workstation — Linux rather than
+# macOS, and running as ROOT, which silently defeats any test that proves a
+# fail-open by making a file unwritable.
 
 stages: [verify, publish]
 
@@ -156,10 +163,13 @@ verify:
 # publish. A `needs:` here would let it start early, which is exactly wrong for
 # the one irreversible job in the file.
 #
-# STATUS, 2026-09-05: unverified end-to-end, because the shared-runner minutes
-# noted at the top of this file are still exhausted and no pipeline has run.
-# The job is written and inert. Its first real execution is also its first test
-# — treat the first tag as a rehearsal and read the log before believing it.
+# STATUS, 2026-09-05: unverified end-to-end — no tag has ever been pushed, so
+# this job has never run. It is not blocked, though: runner minutes came back
+# with the visibility flip. What stands between here and a release is that
+# `verify` is currently red on the runner (LINK-ujbttpph), and stage ordering
+# means a tag pushed today would be refused rather than published — which is the
+# design working. Its first real execution is also its first test: treat the
+# first tag as a rehearsal and read the log before believing it.
 publish:
   stage: publish
   rules:

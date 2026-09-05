@@ -60,13 +60,19 @@ from the lockfile on stock images, and a machine that is not this one. Those are
 worth minutes exactly when dependencies move — which is why that is when they
 happen.
 
-> **Remote CI is not executing right now** (`LINK-ozgkfjow`). The rules above are
-> live and correct — the first push created a pipeline exactly as designed — but
-> the namespace is out of shared-runner compute minutes, so both jobs failed with
-> `ci_quota_exceeded` without starting. Until that is resolved, `tools/verify.sh`
-> is not merely the primary gate, it is the only one. A red pipeline on GitLab
-> right now means the quota, not your tree: check `failure_reason` on the job
-> before believing it.
+> **Remote CI executes again, and it is not the same machine as yours**
+> (`LINK-ozgkfjow`). Between 2026-08 and 2026-09-05 every job failed with
+> `ci_quota_exceeded` without starting, and the habit that grew around that — a
+> red pipeline means the quota, not your tree — is now wrong. Making the project
+> public restored the allowance: pipeline `2822652495` put both matrix legs on
+> shared runners.
+>
+> Read `failure_reason` before drawing either conclusion. `ci_quota_exceeded` is
+> the quota; `script_failure` is your tree, and it can be your tree *while
+> `tools/verify.sh` is green*, because the runner differs from this workstation
+> in ways the local gate cannot simulate — it is Linux rather than macOS, and it
+> runs as **root**, so a test that proves a fail-open by making a file unwritable
+> does not (`LINK-ujbttpph`).
 
 Keep local-only planning state in `_scratch/`. Do not commit `_scratch/`, `.fp/`, secrets, dependency folders, build outputs, or generated caches.
 
@@ -98,9 +104,9 @@ identical source. It is a separately-invoked check: **run it before a release an
 after any dependency change**, which is exactly when the lockfile can have picked
 up something new.
 
-It cannot go in a GitLab schedule yet either, for want of runner minutes
-(`LINK-ozgkfjow`); that follow-up is `LINK-txxcwplc`. Until then it is yours to
-run.
+A GitLab schedule is its natural second home, and as of 2026-09-05 runner
+minutes no longer block that (`LINK-ozgkfjow`); the follow-up that would set one
+up is `LINK-txxcwplc`. Until it exists, this is yours to run.
 
 ### Why it is a wrapper and not `pnpm audit --audit-level high`
 
@@ -190,8 +196,9 @@ move a normalization result. Treat it as a data change, not a version bump.
 >
 > It is deliberately **not** in the pre-push hook: `tools/verify.sh` has to work
 > offline, and a network call there would turn a plane ride into a failed push.
-> It cannot go in a GitLab schedule yet either, for want of runner minutes
-> (`LINK-ozgkfjow`) — so for now it is yours to run.
+> A GitLab schedule is its natural second home, and runner minutes no longer
+> block that (`LINK-ozgkfjow`) — but none is configured, so for now it is yours
+> to run.
 >
 > What it still cannot tell you: whether the *list inside* `tldts` moved. That
 > needs a bump plus `pnpm data:boundary --check`, below.
@@ -301,7 +308,15 @@ included. The token never appears in the repository.
 
 ### What is not proven yet
 
-The `publish` job has **never run**. Shared-runner minutes for this namespace
-are exhausted (`LINK-ozgkfjow`), so it is written and inert. Its first execution
-will also be its first test: read the job log before believing a release
-happened, and check the registry rather than the pipeline's colour.
+The `publish` job has **never run** — no tag has ever been pushed. It is no
+longer blocked, though: runner minutes came back with the visibility flip, and
+`verify` now executes on both majors.
+
+What blocks a release today is that **`verify` is red on the runner**
+(`LINK-ujbttpph`): three tests that pass on macOS fail on the Linux CI image.
+`publish` sits behind `verify` by stage ordering, so a tag pushed now would be
+correctly refused rather than publishing a tree the matrix rejected. Fix that
+first.
+
+When the first tag does go out, its execution is also this job's first test:
+read the job log, and check the registry rather than the pipeline's colour.
