@@ -1,11 +1,40 @@
 /**
- * PhishTank app-key feed updater (LINK-lddpffio, M5a).
+ * PhishTank feed updater (LINK-lddpffio, M5a; app key made optional by
+ * LINK-plfzjlxg).
  *
- * Downloads the PhishTank online-valid CSV feed with a caller-owned application
- * key into a caller-owned snapshot store. One call resolves to an explicit
- * {@link PhishTankUpdateResult}: `updated`, `unchanged` (304 or within cadence),
- * `skipped` (throttle/cancellation), or `failure` (HTTP/network/malformed). It
- * performs no scoring and emits no evidence.
+ * Downloads the PhishTank online-valid CSV feed into a caller-owned snapshot
+ * store. One call resolves to an explicit {@link PhishTankUpdateResult}:
+ * `updated`, `unchanged` (304 or within cadence), `skipped`
+ * (throttle/cancellation), or `failure` (HTTP/network/malformed). It performs no
+ * scoring and emits no evidence.
+ *
+ * THE APP KEY IS OPTIONAL, BECAUSE PHISHTANK DOES NOT REQUIRE ONE. Measured
+ * 2026-09-05: `https://data.phishtank.com/data/online-valid.csv` — no key in the
+ * path — answers `302` to a signed CDN URL serving 74,539 verified-phish
+ * records as `text/csv`. A syntactically plausible but fictional key in the key
+ * position produces the identical redirect, so that path segment authenticates
+ * nothing today. This updater previously demanded a key it could not use, which
+ * meant an operator without one concluded the mirror was unavailable while the
+ * data was freely reachable. A key is still honoured when supplied: PhishTank's
+ * access policy has moved before, and a caller who has registered one should
+ * keep sending it rather than be silently anonymised.
+ *
+ * WHAT THIS DOES NOT FIX. That `302` points at `cdn.phishtank.com`, a host the
+ * caller did not name, and `mirror-http-node.ts` deliberately follows no
+ * redirect — re-sending a caller credential to an unnamed host is what
+ * `docs/online-runtime-boundary.md` forbids. So `createNodePhishTankHttpClient`
+ * turns the live feed into `phishtank-http-error` / `PhishTank status 302`
+ * whether or not a key is configured. Making the key optional removes a false
+ * precondition; it does not on its own make the default download succeed
+ * (LINK-plfzjlxg).
+ *
+ * `baseUrl` does not rescue it, which was worth measuring rather than assuming:
+ * the redirect target is `/datadumps/verified_online.csv` under a CloudFront
+ * signature bound to that exact path, so a base pointed at it still has
+ * `online-valid.csv` appended and answers `404`. The working route is a
+ * caller-supplied {@link PhishTankHttpClient} that follows the hop. Verified
+ * 2026-09-05 against the live feed with no app key at all: the updater below
+ * parsed and stored 74,539 records through such a client.
  *
  * Discipline enforced here:
  * - **App-key safety**: PhishTank keys go in the URL *path*. The key is revealed
@@ -70,8 +99,13 @@ export async function updatePhishTankSnapshot(
   }
 
   // Reveal the key only here, into the download URL path. Never stored anywhere.
+  // With no key, the same feed is requested without that path segment — the
+  // public form, which is what PhishTank actually serves (see the docblock).
   const base = (options.baseUrl ?? PHISHTANK_DATA_BASE_URL).replace(/\/+$/, "");
-  const url = `${base}/${appKey.reveal()}/${PHISHTANK_ONLINE_VALID_FEED}`;
+  const url =
+    appKey === undefined
+      ? `${base}/${PHISHTANK_ONLINE_VALID_FEED}`
+      : `${base}/${appKey.reveal()}/${PHISHTANK_ONLINE_VALID_FEED}`;
   const headers: Record<string, string> = {
     "User-Agent": options.userAgent ?? DEFAULT_USER_AGENT,
     ...conditionalHeaders(previous),

@@ -14,10 +14,13 @@
  *
  * CREDENTIAL SHAPE, AND WHY IT MAKES THE ERROR CHANNEL LOAD-BEARING.
  * `PHISHTANK_SOURCE_DESCRIPTOR` declares
- * `credentials: { kind: "required", scheme: "app-key" }`, and PhishTank puts
- * that key in the download URL's PATH rather than in a header:
- * `${baseUrl}/${appKey}/online-valid.csv`. So for this feed the request URL is
- * itself a secret, and the rule that no failure may carry a path — enforced in
+ * `credentials: { kind: "optional", scheme: "app-key" }` — optional because
+ * PhishTank serves this feed unkeyed (LINK-plfzjlxg) — and when a caller does
+ * have a key, PhishTank puts it in the download URL's PATH rather than in a
+ * header: `${baseUrl}/${appKey}/online-valid.csv`. So for this feed the request
+ * URL may itself be a secret, which is enough: this client cannot know whether
+ * the URL it was handed carries one, so it treats every one of them as though it
+ * does. The rule that no failure may carry a path — enforced in
  * `mirror-http-node.ts`, where every typed failure is built from a code plus a
  * bounded detail rather than from `error.message` — is the thing standing
  * between an app key and a log line. `unsupported-scheme` reports the protocol,
