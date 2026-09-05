@@ -19,8 +19,11 @@
 # ONE JOB HERE RUNS FOR A DIFFERENT REASON: the dependency audit
 # (LINK-txxcwplc). Its answer moves when the npm advisory database moves, not
 # when this tree does, so no `changes:` rule can ever trigger it and a clock is
-# the only thing that can. It gets its own schedule and a single job — see
-# `audit` below, and `SCHEDULE_KIND` in `variables`.
+# the only thing that can. It is driven by its own schedule and a single job —
+# see `audit` below, and `SCHEDULE_KIND` in `variables`. What this file defines
+# is the job and the rules that select it; the schedules that fire them are
+# project settings, and their live state is recorded in the dated SCHEDULES
+# paragraph below.
 #
 # To force a run at any time: CI/CD -> Pipelines -> "Run pipeline" (the `web`
 # source below always builds).
@@ -44,6 +47,19 @@
 # tree, and a `script_failure` the local gate cannot reproduce is the runner
 # differing from the workstation — Linux rather than macOS, and root rather than
 # a user.
+#
+# SCHEDULES, MEASURED 2026-09-05 (LINK-tgzddnrz). Nothing in this repository can
+# assert what is configured under CI/CD -> Schedules, so this is a measurement
+# with a date on it, not a standing claim. On that date
+# `GET /projects/:id/pipeline_schedules` returned exactly ONE object — "dependency
+# audit", `0 6 * * 1` on `refs/heads/main`, ACTIVE FALSE, with no variables
+# attached — and no canary at all. So neither schedule was firing: the audit
+# schedule existed but was paused, and without `SCHEDULE_KIND=audit` attached to
+# it, it would have selected the `verify` matrix rather than `audit` had it been
+# resumed. Everything below describes what each schedule does ONCE CONFIGURED and
+# stays correct whether or not it is; creating the canary, attaching the variable
+# and re-activating the audit are LINK-txxcwplc, and THIS PARAGRAPH is the only
+# text in this file that ticket has to update.
 
 stages: [verify, publish]
 
@@ -52,9 +68,11 @@ variables:
   # between runs; a cold store is most of the wall time of these jobs.
   PNPM_STORE: "$CI_PROJECT_DIR/.pnpm-store"
   # Which schedule is asking (LINK-txxcwplc). Empty in every ordinary pipeline;
-  # the dependency-audit schedule sets it to `audit` under CI/CD -> Schedules ->
-  # Variables, and that single value is what selects the `audit` job AND
-  # deselects `verify`. Declared here so the contract is readable in this file
+  # the dependency-audit schedule is the one thing meant to set it to `audit`,
+  # under CI/CD -> Schedules -> Variables, and that single value is what selects
+  # the `audit` job AND deselects `verify`. A schedule carrying no variable is
+  # therefore not a quieter audit — it is the `verify` matrix under another name.
+  # Declared here so the contract is readable in this file
   # rather than only in the project's settings; a schedule's own variables
   # outrank a top-level default, so this empty value is a floor, not a lock.
   SCHEDULE_KIND: ""
@@ -75,22 +93,39 @@ workflow:
     # back "The pipeline did not run. Review the workflow:rules configuration"
     # and no pipeline was created, so there was no `failure_reason` to read.
     - if: $CI_PIPELINE_SOURCE == "api"
-    # Always: the schedules. There are TWO, they ask different questions, and
-    # this arm admits both — the discrimination happens on `SCHEDULE_KIND` in
-    # the jobs below, not here.
+    # Always: schedule pipelines. TWO schedules are intended here, they ask
+    # different questions, and this one arm admits either — the discrimination
+    # happens on `SCHEDULE_KIND` in the jobs below, not here. Which of them is
+    # actually configured on the project is a separate question this file cannot
+    # answer; see the dated SCHEDULES paragraph at the top.
     #
-    #   the canary (monthly, no variable). Nothing in the repo changes between
-    #   these, so a failure means the world moved underneath us — a base image,
-    #   a transitive floating dep, a registry change. That is the whole `verify`
-    #   matrix, which is the only thing worth running against a stale tree.
+    #   THE CANARY (monthly, no variable). It runs the whole `verify` matrix
+    #   against a tree nobody has touched since the last run. Nothing in the
+    #   repository changes between two canary runs, so a red one cannot mean the
+    #   code moved — it means the WORLD moved underneath a still tree: a base
+    #   image rebuilt, a floating transitive resolving to something new, a
+    #   registry or a toolchain changing under a lockfile that did not. NOTHING
+    #   ELSE IN THIS PROJECT CAN ASK THAT QUESTION. `tools/verify.sh` is not a
+    #   weaker version of it, it is structurally incapable of it: it runs on one
+    #   workstation, against a warm pnpm store and whatever Node builds that
+    #   machine happens to have, and only at the moment somebody pushes. Each of
+    #   those three independently hides exactly the drift the canary looks for —
+    #   one machine cannot see an image change, a warm store cannot see a
+    #   registry change, and a trigger that needs a push cannot fire while the
+    #   tree is still. A clean resolve on a stock image, on a clock, is the whole
+    #   point, and the full matrix is the only payload worth spending on a stale
+    #   tree.
     #
-    #   the dependency audit (weekly, SCHEDULE_KIND=audit). One job, `audit`
+    #   THE DEPENDENCY AUDIT (weekly, SCHEDULE_KIND=audit). One job, `audit`
     #   below, and deliberately NOT the matrix: it asks the registry one
     #   question about a lockfile that has not moved, and paying for two Node
     #   legs beside it would triple the cost of an answer neither leg can
     #   change.
     #
-    # Configure both under CI/CD -> Schedules.
+    # The two are not interchangeable and neither substitutes for the other. The
+    # audit asks whether an ADVISORY appeared against a lockfile that did not
+    # move; the canary asks whether the WORLD moved under a tree nobody touched.
+    # Both belong under CI/CD -> Schedules.
     - if: $CI_PIPELINE_SOURCE == "schedule"
     # Always: release tags. The one moment the artifact leaves this machine.
     - if: $CI_COMMIT_TAG
@@ -128,9 +163,10 @@ workflow:
 verify:
   stage: verify
   # Everywhere EXCEPT the dependency-audit schedule (LINK-txxcwplc). The
-  # `workflow:rules` arm above admits both schedules, and
-  # `$CI_PIPELINE_SOURCE == "schedule"` cannot tell them apart, so the exclusion
-  # has to be stated here, on the variable only that schedule sets. Without it
+  # `workflow:rules` arm above admits any schedule pipeline, and
+  # `$CI_PIPELINE_SOURCE == "schedule"` cannot tell one schedule from another, so
+  # the exclusion has to be stated here, on the variable only that schedule
+  # carries. Without it
   # the audit schedule would create three jobs instead of one, which is the
   # quota burn that parked this ticket in the first place. The trailing
   # `when: on_success` is the catch-all: a job with `rules` and no matching arm
@@ -317,8 +353,10 @@ verify:
 audit:
   stage: verify
   rules:
-    # The audit schedule — and a "Run pipeline" with the same variable set by
-    # hand, which is how to exercise this job without waiting for the cron.
+    # Anything carrying `SCHEDULE_KIND=audit`: the audit schedule once that
+    # variable is attached to it, and a "Run pipeline" with the same variable set
+    # by hand, which is how to exercise this job without waiting for a cron — or
+    # while no schedule is armed at all.
     - if: $SCHEDULE_KIND == "audit"
   image: node:24
   interruptible: true
