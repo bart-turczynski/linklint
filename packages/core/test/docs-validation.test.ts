@@ -345,6 +345,49 @@ describe("the project's forge and visibility are described as they are (LINK-wxo
   });
 });
 
+describe("the README's verification note quotes no figure it cannot keep true (LINK-ggfxaqqr)", () => {
+  // Same `<sub>**Verification:**` sentence as the block above, second defect.
+  // It read "3568 tests, 51 feature scenarios"; the tree measured 5866. The
+  // figure appeared EXACTLY ONCE in the repository, so nothing could contradict
+  // it and it drifted ~40% silently.
+  //
+  // `LINK-ujbttpph` (96ce40b) settled this class in docs/bundle-size-budget.md,
+  // and the discriminator it actually applied is not "prose should avoid
+  // numbers" — that document still quotes 80,162 / 79,821 / 341 / 77,166 and
+  // 31.3%, and the README still quotes its detector count two sections down.
+  // The rule is whether a live assertion can re-measure the figure: raw bytes
+  // stayed because `statSync` reproduces them on every runtime, gzip bytes went
+  // because no single figure is true on both zlib builds.
+  //
+  // A test count fails that bar as hard as a figure can. Reading it means
+  // running the suite, so an in-process assertion would have to run vitest
+  // inside vitest or restate the number a second time — prose pinned to prose,
+  // which guards nothing. "51 feature scenarios" fails it less obviously and is
+  // removed in the same breath: `features/` DECLARES 47 scenarios, one of them
+  // a Scenario Outline with 5 Examples rows, so 51 is what the runner EXECUTES
+  // and deriving it statically would mean reimplementing Gherkin's expansion —
+  // the "pinned as tightly as the numerator" bar that document sets for
+  // restoring a retired axis.
+  //
+  // So the guard bans the SHAPE rather than asserting a value, exactly as
+  // 96ce40b's replacement assertion banned a restored gzip column. What the
+  // sentence is actually for — the whole gate, both Node majors, before the
+  // push — carries no number and is asserted positively below.
+
+  it("states no test count", () => {
+    expect(readme).not.toMatch(/\d[\d,]*\s+tests\b/i);
+  });
+
+  it("states no feature-scenario count", () => {
+    expect(readme).not.toMatch(/\d[\d,]*\s+(?:feature\s+)?scenarios?\b/i);
+  });
+
+  it("still claims the gate itself — every commit, both majors, before the push", () => {
+    expect(readme).toMatch(/every commit passes `pnpm check`/);
+    expect(readme).toMatch(/both supported Node majors before it is\s+pushed/);
+  });
+});
+
 describe("the scope-of-claim boundary is stated in one canonical place", () => {
   // The boundary (claim (a) structural, NOT claim (b) semantic; the watchlist
   // may NAME an anomaly but never CREATE a finding) now appears in three files:

@@ -9,8 +9,9 @@
 [![types](https://img.shields.io/badge/types-included-3178c6.svg?logo=typescript&logoColor=white)](./packages/core/src/index.ts)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-<sub>**Verification:** every commit passes `pnpm check` — build, typecheck, 3568
-tests, 51 feature scenarios — on both supported Node majors before it is pushed.
+<sub>**Verification:** every commit passes `pnpm check` — build, typecheck, the
+unit suite, the feature scenarios — on both supported Node majors before it is
+pushed.
 Remote CI runs the same matrix on dependency, toolchain and pinned-data changes.
 There is no CI badge here because most pushes create no pipeline at all, so a
 badge would report whichever commit last moved dependencies rather than the tip
