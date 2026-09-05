@@ -487,12 +487,19 @@ describe("gitlabAnchor matches GitLab's rendered ids (LINK-quzdwhjt)", () => {
     expect(readme.has("no-such-heading-anywhere")).toBe(false);
   });
 
-  it("headings inside fenced code blocks are samples, not anchors", () => {
-    // `docs/tracker-hygiene.md` and others quote shell in fences, and `# foo`
-    // is a comment there. Asserted through a real file so the fence tracking is
-    // exercised against prose that actually contains one.
-    const anchors = anchorsIn("CONTRIBUTING.md");
-    expect(anchors.has("the-verify-gate")).toBe(true);
-    expect(anchors.has("frozen-lockfile-install-then-the-gate-on-each-node-major")).toBe(false);
+  it("`#` lines inside fenced code blocks are comments, not anchors", () => {
+    // `packages/cli/README.md` opens a ```bash fence whose first line is
+    // `# annotate a known shortener …` — a shell comment in column 1, which is
+    // indistinguishable from an H1 to a regex that does not track fences.
+    // GitLab renders no heading there, and neither may this.
+    const anchors = anchorsIn("packages/cli/README.md");
+    expect(anchors.has("usage")).toBe(true); // a real heading in the same file
+    // `# @linklint/cli`: `@` and `/` are deleted with no separator left behind.
+    expect(anchors.has("linklintcli")).toBe(true);
+    expect(
+      anchors.has("annotate-a-known-shortener-without-changing-what-the-score-says-about-it"),
+      "a shell comment inside a fence became an anchor — fence tracking is broken, " +
+        "and every fragment check downstream is now permissive in a way nobody chose.",
+    ).toBe(false);
   });
 });
