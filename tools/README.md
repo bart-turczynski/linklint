@@ -255,3 +255,36 @@ home and is blocked on runner minutes (`LINK-ozgkfjow`, follow-up
 own code paths. It reports what the resolved tree contains, which is a floor: a
 vulnerable transitive package that nothing ever calls still appears, and a
 genuine exploit path in a package with no advisory does not.
+
+## `check-release-version.mjs` — tag/manifest agreement gate
+
+Refuses a release whose tag and workspace manifests disagree. Runs as the first
+step of the `publish` job in `.gitlab-ci.yml`; there is no pnpm script, because
+it is a release gate rather than something to run by hand.
+
+```bash
+node tools/check-release-version.mjs v0.1.0
+```
+
+Exit codes are three, on the same rule as the two tools above: `0` the tag and
+all four packages agree, `1` they do not, `2` the check could not run (no tag
+argument, unreadable manifests, no packages found).
+
+**Why it exists (`LINK-geygvedm`).** `pnpm publish` rewrites every `workspace:*`
+dependency to the exact version it resolves to, at pack time — measured, not
+assumed: packing `@linklint/cli` at `0.1.0-dev.0` yields
+`"dependencies": {"linklint": "0.1.0-dev.0"}` inside the tarball. Two failures
+follow, and npm versions are immutable, so neither is recoverable after the
+fact: a lagging manifest ships a dependent pinned to a `linklint` version that
+was never published, and a tag that disagrees with the manifests names a release
+the registry does not have.
+
+**Dependency-free on purpose.** Plain ESM on bare `node`, no `tsx`, so it can run
+before any install has happened and cannot itself be the thing that breaks a
+release. `tests/unit/check-release-version.test.ts` pins the decision, which is
+exported separately from the filesystem walk and the `process.exit`.
+
+**What it cannot tell you.** Whether the version is the *right* one — that the
+CHANGELOG entry exists, that the bump matches the size of the change, or that
+the tag points at the commit you think it does. It checks agreement, not
+judgment.

@@ -28,7 +28,7 @@
 # (LINK-ozgkfjow). Do not read a red pipeline here as a red tree until you have
 # checked `failure_reason` on the job.
 
-stages: [verify]
+stages: [verify, publish]
 
 variables:
   # Keep the pnpm store inside the project so GitLab's cache can carry it
@@ -45,6 +45,12 @@ workflow:
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "trigger"
     - if: $CI_PIPELINE_SOURCE == "pipeline"
+    # `api` belongs in this arm for the same reason the three above do — it is
+    # someone asking on purpose (`POST /projects/:id/pipeline`). It was missing,
+    # which made the quota question unanswerable from the CLI: the request came
+    # back "The pipeline did not run. Review the workflow:rules configuration"
+    # and no pipeline was created, so there was no `failure_reason` to read.
+    - if: $CI_PIPELINE_SOURCE == "api"
     # Always: the scheduled canary. Nothing in the repo changes between these,
     # so a failure means the world moved underneath us — a base image, a
     # transitive floating dep, a registry change. Configure the cadence under
@@ -116,3 +122,76 @@ verify:
     # the matrix on one machine, and here the matrix is `parallel:matrix`, one
     # Node per job. Running the script would re-run both majors inside each leg.
     - pnpm check
+
+# ---------------------------------------------------------------------------
+# Release (LINK-geygvedm).
+#
+# This is the one job that sends something outside this machine, and it runs
+# only on a tag — the `$CI_COMMIT_TAG` arm in `workflow:rules` above already
+# admitted that case before this job existed.
+#
+# WHY GITLAB CI PUBLISHES AND A HUMAN DOES NOT. `npm publish` cannot be driven
+# unattended from this project's workstation: the npm account's second factor is
+# a WebAuthn passkey, so publish raises `EOTP` and demands a browser handoff.
+# A passkey is challenge-response — there is no six-digit code to pass to
+# `--otp=` — so the only route that works without a human at the keyboard is an
+# npm **Automation** token, which bypasses 2FA. It lives in `NPM_TOKEN`, a
+# masked and protected CI/CD variable, and nowhere in this repository.
+#
+# `public_jobs` is true on this project, so job logs are world-readable. The
+# defense is not log obscurity: a *protected* variable is unavailable to any
+# non-protected ref — a fork's merge-request pipeline included — and a *masked*
+# one is redacted if it is ever echoed. Set both flags, and scope the variable
+# to protected tags.
+#
+# WHY npmjs.com AND NOT GITLAB'S PACKAGE REGISTRY. The `linklint` name on npmjs
+# is already held by this account (`0.0.1`, a placeholder). GitLab's registry
+# serves only scoped names and makes every consumer add a registry line to their
+# `.npmrc` — a real adoption tax on a CLI and an MCP server. "Move the npm
+# publication to GitLab" means GitLab becomes the thing that publishes, not that
+# the registry changes.
+#
+# NO `needs:`, DELIBERATELY. Stage ordering already blocks this job behind every
+# leg of `verify`, so a tag whose tree fails on either Node major cannot
+# publish. A `needs:` here would let it start early, which is exactly wrong for
+# the one irreversible job in the file.
+#
+# STATUS, 2026-09-05: unverified end-to-end, because the shared-runner minutes
+# noted at the top of this file are still exhausted and no pipeline has run.
+# The job is written and inert. Its first real execution is also its first test
+# — treat the first tag as a rehearsal and read the log before believing it.
+publish:
+  stage: publish
+  rules:
+    - if: $CI_COMMIT_TAG
+  image: node:24
+  interruptible: false
+  timeout: 15m
+  cache:
+    key:
+      files: [pnpm-lock.yaml]
+    paths: [.pnpm-store]
+    policy: pull
+  before_script:
+    - npm install -g "pnpm@$(node -p "require('./package.json').packageManager.split('@')[1]")"
+    - pnpm config set store-dir "$PNPM_STORE"
+  script:
+    # Fail before the install rather than after the build if the token is absent
+    # — an unset protected variable on an unprotected tag is the likeliest way
+    # for this job to go wrong, and it should say so in one line.
+    - test -n "${NPM_TOKEN:-}" || { echo "NPM_TOKEN is unset. It is a protected variable; is this tag protected?"; exit 1; }
+    - pnpm install --frozen-lockfile
+    # The tag names the release. `v0.1.0` must find 0.1.0 in the manifests, and
+    # all four must agree, because pnpm rewrites each `workspace:*` to the
+    # exact version at pack time — a drifted manifest would publish a dependent
+    # pinned to a `linklint` that does not exist.
+    - node tools/check-release-version.mjs "$CI_COMMIT_TAG"
+    - pnpm build
+    - npm config set "//registry.npmjs.org/:_authToken" "$NPM_TOKEN"
+    # `linklint` (packages/core) goes first: the other three depend on it, and
+    # publishing a dependent before its dependency leaves a window in which an
+    # install resolves to nothing. `--no-git-checks` because CI is on a detached
+    # HEAD at the tag. Republishing an existing version fails the job, which is
+    # the wanted behavior — do not soften it with `|| true`.
+    - pnpm --filter linklint publish --no-git-checks
+    - pnpm --filter @linklint/cli --filter @linklint/mcp --filter @linklint/online publish --no-git-checks

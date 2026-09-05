@@ -247,3 +247,61 @@ unnoticed — the exact failure the provenance record exists to make visible.
    If a bump moves the *Unicode* version behind `tr46` (not just its own
    version), refresh the vendored `IdnaTestV2.txt` to match — see
    `packages/core/test/data/README.md`.
+
+## Releasing to npm
+
+Publishing runs on GitLab CI, on a tag, and nowhere else. There is no supported
+way to publish from a workstation — see *Why CI publishes* below.
+
+### Cutting a release
+
+1. Run the checks that are deliberately outside the pre-push gate, because both
+   need a network and the gate does not: `pnpm data:upstream-check` (§*Bumping
+   the `tldts` or `tr46` pin*) and `pnpm audit:deps` (§*Auditing dependencies for
+   known vulnerabilities*).
+2. Move all four `packages/*/package.json` versions **together**, and land the
+   `CHANGELOG.md` entry in the same slice.
+3. Merge to `main`, then tag it `v<version>` and push the tag. The tag is what
+   creates the pipeline: `workflow:rules` admits `$CI_COMMIT_TAG`
+   unconditionally, `verify` runs on every Node major in the matrix, and
+   `publish` runs only after all of it passes.
+
+**The four versions must be identical.** `pnpm publish` rewrites each
+`workspace:*` dependency to the exact version it resolves to at pack time — a
+`@linklint/cli` packed at `0.1.0-dev.0` carries `"linklint": "0.1.0-dev.0"` in
+its tarball. A lagging manifest therefore publishes a dependent pinned to a
+`linklint` that was never published, and npm versions are immutable, so the only
+remedy is another release. `tools/check-release-version.mjs` runs first in the
+job and refuses the tag rather than letting that reach the registry; it exits
+`0` agreement, `1` disagreement, `2` could-not-run, on the same three-way rule
+as the other tools here.
+
+`linklint` publishes before the three packages that depend on it, so no window
+exists in which an install resolves a dependent whose dependency is not there
+yet.
+
+### Why CI publishes and you cannot
+
+The npm account's second factor is a **WebAuthn passkey**. `npm publish` raises
+`EOTP` and demands a browser handoff, and a passkey is challenge–response — there
+is no six-digit code to hand to `--otp=`. An npm **Automation** token bypasses
+2FA and is the only mechanism that works unattended.
+
+Create one at npmjs.com → Access Tokens → Automation and store it as `NPM_TOKEN`
+under Settings → CI/CD → Variables, **masked and protected**. Then protect the
+release tags (Settings → Repository → Protected tags; `v*` is the pattern), or
+the variable will not be exposed to the pipeline and the job will stop on its
+first line saying so.
+
+Both flags matter, and neither is the primary defense on its own. This project
+is public with `public_jobs` enabled, so job logs are world-readable: *masked*
+keeps the value out of them, and *protected* — the one that actually matters —
+keeps it away from every non-protected ref, a fork's merge-request pipeline
+included. The token never appears in the repository.
+
+### What is not proven yet
+
+The `publish` job has **never run**. Shared-runner minutes for this namespace
+are exhausted (`LINK-ozgkfjow`), so it is written and inert. Its first execution
+will also be its first test: read the job log before believing a release
+happened, and check the registry rather than the pipeline's colour.
