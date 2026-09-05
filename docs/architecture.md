@@ -792,11 +792,21 @@ difference and no compiler help. It was held open on the rule "build the seam
 when a detector needs it" — the same rule applied to the `parse.ts` split — and
 then the only candidate consumer was removed by the decision recorded above, so
 the seam has no call site to serve. The PRIVATE-inclusive view is already
-computed directly where it is genuinely needed (`test/boundary-baseline.ts`,
-`test/freshness-corpus.test.ts`, `test/psl-conformance.test.ts`), none of which
-this seam was blocking. If a detector ever does need it, refile: compute both
-views in `analyzeHost()`, share once per `inspect()`, keep the existing field
-bound to the ICANN-only value, and add no caching (pslr D19).
+computed directly where it is genuinely needed — for a long time in test code
+only (`test/boundary-baseline.ts`, `test/freshness-corpus.test.ts`,
+`test/psl-conformance.test.ts`), and since `LINK-vycgfumd` in one **production**
+module as well (`src/compare/compare-urls.ts`, §6.1.9) — none of which this seam
+was blocking. If a detector ever does need it, refile: compute both views in
+`analyzeHost()`, share once per `inspect()`, keep the existing field bound to
+the ICANN-only value, and add no caching (pslr D19).
+
+The production call site added in §6.1.9 does **not** meet that refile
+condition, and the seam therefore stays declined. It is not a detector, it is
+not on the `inspect()` path, and it reads the other view through a separate
+`privateRegistrableDomain()` in `parse/psl.ts` rather than through `HostFacts` —
+so the sub-5 ms budget is untouched and no future detector is handed a second
+similarly-named field to pick between. Read the condition as "a **detector**
+needs it", which is how it was written.
 
 Note for anyone arriving from the accepted limitation above: escalating
 `paypa1.vercel.app` does **not** require this seam. That question was
@@ -1648,6 +1658,109 @@ lower-weighted sibling is the option this entry declines to pick between — the
 `embedded_domain_in_subdomain` precedent puts a deceptive label sequence left of
 a truthfully-named registrable domain at 0.50 on the reasoning that the authority
 the user reaches is displayed correctly, and that reasoning transfers intact.
+
+#### 6.1.9 URL relationship comparison — `compareUrls()`, and the first production PRIVATE-inclusive call site (`LINK-vycgfumd`)
+
+**Decision — a two-URL relationship comparator, ADOPTED.** `inspect()` asks
+whether one string is deceptive. "Do these two URLs address the same origin, or
+the same site?" is a different question about two strings, and `LINK-nlkfsnnd`
+settled 2–0 that the package answers it. `compareUrls(left, right)` in
+`src/compare/compare-urls.ts` is that answer. It scores nothing, emits no reason
+codes, and reads only what the parser already derives.
+
+**Why it is not a caller-side one-liner, measured rather than asserted.** The
+proposal that it be documentation instead of code — "callers can derive this
+from `inspect().parsed`, which already ships `scheme`, `effectiveHost`, `port`
+and `registrableDomain`" — was tested by writing that derivation out and running
+it. `test/parsed-origin-derivation.test.ts` holds both halves: `parse()` reports
+what was *written*, which is what the character-level detectors need, so four
+normalizations a comparison requires are absent from `ParsedUrl`, and the
+strongest derivation an informed caller can write over that surface returns the
+wrong answer in five distinct classes.
+
+| Case | What `parsed` reports | What the derivation concludes |
+| --- | --- | --- |
+| `https://ex.com:443/` vs `https://ex.com/` | `port` 443 vs `null` | correct, after the caller supplies a default-port table |
+| `http://EX.com/` vs `http://ex.com/` | `effectiveHost` `EX.com` vs `ex.com` | correct for ASCII, by `toLowerCase()` |
+| `https://ex.com./` vs `https://ex.com/` | `effectiveHost` `ex.com.` vs `ex.com` | correct, by dropping the root label |
+| `https://münchen.de/` vs `https://xn--mnchen-3ya.de/` | hosts differ, **and so do the registrable domains** | **wrong** — two origins, two sites |
+| `data:`, `file:`, `about:blank` against themselves | every host field `null`, `status: "ok"` | **wrong** — one origin, one site |
+| `http://0x7f000001/` vs `http://127.0.0.1/` | hosts differ | **wrong** — two origins |
+| `https://alice.github.io/` vs `https://mallory.github.io/` | one registrable domain, `github.io` | **wrong** — one site |
+
+The fourth row is the decisive one: no field of `ParsedUrl` puts the two IDN
+spellings of one host on the same value, `registrableDomain` included, because
+tldts is handed the spelling it was given. Closing that row needs a UTS-46
+implementation, which is a dependency this package already carries and a caller
+would have to acquire. The burden here was on shipping the export rather than on
+withholding it, and the measurement discharged it.
+
+**Specified semantics.** `sameOrigin` follows the WHATWG URL Standard's origin
+comparison over a canonical `(scheme, host, port)` tuple: the scheme is
+lower-cased by the parser, the port is elided when it is the scheme's own
+default, an IP literal takes its canonical rendering (so `0x7f000001` meets
+`127.0.0.1`, and `[0:0:0:0:0:0:0:1]` meets `[::1]`), and a domain goes through
+UTS-46 ToASCII, which folds case and reconciles the A-label and U-label
+spellings in one step. There is exactly **one** deliberate divergence from the
+standard, the trailing root label: a browser reads `https://ex.com./` and
+`https://ex.com/` as two origins, and `compareUrls()` reads them as one. That is
+this repository's own stated position rather than a new one — `fqdn_root_label`
+in `docs/reason-codes.md` records that the form "resolves identically to the
+bare form and every URL parser reads it identically", and names host-**string**
+comparison downstream as the hazard the reason code exists to flag. A comparator
+is that downstream consumer, so it applies the normalization the reason code
+asks callers to apply.
+
+`sameSite` is schemeless — registrable domains only, so `http://ex.com/` and
+`https://ex.com/` are one site. The schemeful variant (RFC 6265bis §5.2) is a
+conjunction with `left.scheme === right.scheme`, and both fields are on the
+result so a caller can form it.
+
+**Opaque origins get a determinate answer, not a null.** `data:`,
+`file:` and `about:blank` are settled: the standard gives each parse a fresh
+opaque origin, and an opaque origin is not equal to any origin, itself included
+— so two parses of one identical `data:` string are two origins. Reporting that
+as "unknown" would tell a caller nothing is known about something the standard
+decides. The result type is therefore three-state — `"same"` / `"different"` /
+`"undetermined"` — and opaque origins land on `"different"`. `"undetermined"` is
+reserved for the cases where this comparator genuinely could not tell: an input
+that did not parse, an input that was not a string, a host UTS-46 rejects, and a
+bare authority (`ex.com/a`), which has a site but an origin only relative to a
+base URL. IP literals get the same treatment on the site question: an address is
+its own site, per RFC 6265bis, rather than a `null` that would let two unrelated
+addresses meet. `"different"` is evidence; `"undetermined"` is its absence, and
+`!== "same"` is not a substitute for `=== "different"`.
+
+**The PRIVATE-inclusive view is the piece with content.** `sameSite` resolves
+under `allowPrivateDomains: true`, so `alice.github.io` and `mallory.github.io`
+are two sites — the separation the ICANN-only view cannot express, and the exact
+tenant-collapse the IMC '23 rows above exist to keep visible. `sameSiteIcann`
+carries the other view, the one `parsed.registrableDomain` reports, because
+which of the two a caller wants depends on whether a platform's tenants count as
+one party. This makes `compareUrls()` the first PRIVATE-inclusive PSL call site
+in shipped code rather than in tests; §6.1's declined `HostFacts` seam is
+unaffected and the reasoning is recorded there.
+
+**Advisory, and bounded by the provenance it carries.** The result reports a
+relationship, not a permission — it is not an authorization decision and not a
+substitute for the origin check a security boundary performs itself. Both site
+answers ride on the bundled PSL snapshot, so the result carries `pslSnapshot`.
+Read its `stale` in one direction only: it comes from `pslOutdated()`, which
+returns `false` for a `dateKind` of `"exact"` alone, and the shipped
+`PSL_PROVENANCE` record is a `"release-proxy"` — so the field can prove
+staleness and cannot prove freshness, on any clock reading. Test `=== true` to
+act on proven staleness and read `null` as unknown.
+
+**Sibling and related-domain queries — declined permanently.** "Are these two
+hosts run by the same party?" is claim (b) by construction under §1.1: it is a
+fact about the world, not about the strings, and no offline computation settles
+it. Shared registrable domain is what `sameSite` reports and is the end of what
+the string supports. Better evidence does not reopen this; a different claim
+would.
+
+**Implemented (`LINK-vycgfumd`).** `src/compare/compare-urls.ts`, exported from
+the package root and from `linklint/experimental`, pinned by
+`test/compare-urls.test.ts` and `test/parsed-origin-derivation.test.ts`.
 
 ### 6.2 IDNA / UTS-46 conformance & the normalization flag profile
 

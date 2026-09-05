@@ -353,6 +353,7 @@ describe("linklint/experimental — curated runtime surface", () => {
         "runPolicy",
         "policyConfigured",
         "parse",
+        "compareUrls",
         "findConfusables",
         "skeleton",
       ].sort(),
