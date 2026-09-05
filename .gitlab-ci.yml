@@ -131,7 +131,7 @@ verify:
     - pnpm check
 
 # ---------------------------------------------------------------------------
-# Release (LINK-geygvedm, reworked to OIDC under LINK-ppqdxwlj).
+# Release (LINK-geygvedm, reworked to OIDC under LINK-vbemsjwk).
 #
 # This is the one job that sends something outside this machine, and it runs
 # only on a tag — the `$CI_COMMIT_TAG` arm in `workflow:rules` above already
