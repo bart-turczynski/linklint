@@ -315,6 +315,79 @@ describe("docs/architecture.md detector families cover every check", () => {
   });
 });
 
+describe("the project's forge and visibility are described as they are (LINK-wxofepqm)", () => {
+  // The project was private until 2026-09-05, and the flip to public is what
+  // restored shared-runner minutes (CONTRIBUTING.md, `LINK-ozgkfjow`). Prose
+  // written before it survived in two places, and both stated a REASON rather
+  // than merely a stale adjective — the README explained the absent CI badge by
+  // "the pipeline lives on a private project and the badge would not render" —
+  // so a reader concluded something false about the setup. Anonymous HTTP 200s
+  // against gitlab.com/bart-turczynski/linklint are what settles it.
+  //
+  // The word `private` on its own cannot be banned and is not: the PSL's
+  // PRIVATE section and the `ip_private` reason code are unrelated concepts
+  // that this repository talks about constantly. These assertions name the
+  // visibility-of-the-repository sense only.
+  const namingDoc = readFileSync(join(REPO_ROOT, "docs", "naming.md"), "utf8");
+
+  it("the README explains the absent CI badge by how rarely a pipeline is created", () => {
+    expect(readme).not.toMatch(/private (?:project|repo(?:sitor(?:y|ies))?)/i);
+    expect(readme).toMatch(/no CI badge/i);
+    // The true reason, which is `workflow:rules` in `.gitlab-ci.yml`: an
+    // ordinary push creates no pipeline, so a badge would track whichever
+    // commit last moved dependencies rather than the tip of `main`.
+    expect(readme).toMatch(/most pushes create no pipeline/i);
+  });
+
+  it("docs/naming.md names the forge and the visibility the project actually has", () => {
+    expect(namingDoc).toMatch(/GitLab\s+`bart-turczynski\/linklint`\s+\(public\)/);
+    expect(namingDoc).not.toMatch(/GitHub\s+`bart-turczynski/);
+  });
+});
+
+describe("the README's verification note quotes no figure it cannot keep true (LINK-ggfxaqqr)", () => {
+  // Same `<sub>**Verification:**` sentence as the block above, second defect.
+  // It read "3568 tests, 51 feature scenarios"; the tree measured 5866. The
+  // figure appeared EXACTLY ONCE in the repository, so nothing could contradict
+  // it and it drifted ~40% silently.
+  //
+  // `LINK-ujbttpph` (96ce40b) settled this class in docs/bundle-size-budget.md,
+  // and the discriminator it actually applied is not "prose should avoid
+  // numbers" — that document still quotes 80,162 / 79,821 / 341 / 77,166 and
+  // 31.3%, and the README still quotes its detector count two sections down.
+  // The rule is whether a live assertion can re-measure the figure: raw bytes
+  // stayed because `statSync` reproduces them on every runtime, gzip bytes went
+  // because no single figure is true on both zlib builds.
+  //
+  // A test count fails that bar as hard as a figure can. Reading it means
+  // running the suite, so an in-process assertion would have to run vitest
+  // inside vitest or restate the number a second time — prose pinned to prose,
+  // which guards nothing. "51 feature scenarios" fails it less obviously and is
+  // removed in the same breath: `features/` DECLARES 47 scenarios, one of them
+  // a Scenario Outline with 5 Examples rows, so 51 is what the runner EXECUTES
+  // and deriving it statically would mean reimplementing Gherkin's expansion —
+  // the "pinned as tightly as the numerator" bar that document sets for
+  // restoring a retired axis.
+  //
+  // So the guard bans the SHAPE rather than asserting a value, exactly as
+  // 96ce40b's replacement assertion banned a restored gzip column. What the
+  // sentence is actually for — the whole gate, both Node majors, before the
+  // push — carries no number and is asserted positively below.
+
+  it("states no test count", () => {
+    expect(readme).not.toMatch(/\d[\d,]*\s+tests\b/i);
+  });
+
+  it("states no feature-scenario count", () => {
+    expect(readme).not.toMatch(/\d[\d,]*\s+(?:feature\s+)?scenarios?\b/i);
+  });
+
+  it("still claims the gate itself — every commit, both majors, before the push", () => {
+    expect(readme).toMatch(/every commit passes `pnpm check`/);
+    expect(readme).toMatch(/both supported Node majors before it is\s+pushed/);
+  });
+});
+
 describe("the scope-of-claim boundary is stated in one canonical place", () => {
   // The boundary (claim (a) structural, NOT claim (b) semantic; the watchlist
   // may NAME an anomaly but never CREATE a finding) now appears in three files:
