@@ -100,6 +100,30 @@ const docRow = (label: string, m: Measurement): string => `| ${label} | ${commas
 
 const pct = (part: number, whole: number): string => ((part / whole) * 100).toFixed(1);
 
+/**
+ * Collapse every run of whitespace — newlines included — to a single space.
+ *
+ * Prose comparisons below run against the COLLAPSED text, never the raw file
+ * (LINK-qbbegjro). Markdown wraps at whatever column the author's editor chose,
+ * so a phrase like "8,033 bytes gzip" can straddle a newline; a `not.toContain`
+ * defeated that way reports green while guarding nothing, and a `toContain`
+ * defeated that way goes red on a reflow that changed no fact. Collapsing also
+ * absorbs the cell padding a markdown formatter may add inside a table row.
+ *
+ * Structural checks keep the raw text on purpose: the `## …` heading search and
+ * the `- ` bullet count are ABOUT the line breaks.
+ */
+const flat = (text: string): string => text.replace(/\s+/g, " ");
+
+/** `docs/bundle-size-budget.md`, ready for phrase matching. */
+const flatProse = flat(prose);
+
+/**
+ * How the retired share-of-package axis would read if it came back. Shared by
+ * the guard and by its own regression test, so the two cannot drift apart.
+ */
+const RATIO_AXIS_PHRASING = /%\s+of the unpacked/;
+
 // The emitted artifacts are DISCOVERED, not hard-coded: if `tsc` starts emitting
 // a third file (a source map, say) it joins the budget instead of slipping past
 // a two-entry list.
@@ -147,7 +171,7 @@ describe("docs/bundle-size-budget.md quotes the measurement, not a memory of it"
     ];
     for (const row of rows) {
       expect(
-        prose,
+        flatProse,
         `docs/bundle-size-budget.md is missing the measured row:\n${row}\n` +
           "Update the table — the figures moved.",
       ).toContain(row);
@@ -155,7 +179,7 @@ describe("docs/bundle-size-budget.md quotes the measurement, not a memory of it"
   });
 
   it("quotes the unpacked axis as a share of its own threshold", () => {
-    expect(prose).toContain(`${pct(emittedTotal.raw, CONFUSABLES_RAW_BUDGET)}%`);
+    expect(flatProse).toContain(`${pct(emittedTotal.raw, CONFUSABLES_RAW_BUDGET)}%`);
   });
 
   it("quotes no measured gzip figure that a reader could re-baseline against", () => {
@@ -178,7 +202,7 @@ describe("docs/bundle-size-budget.md quotes the measurement, not a memory of it"
 
     for (const row of threeColumn) {
       expect(
-        prose,
+        flatProse,
         `docs/bundle-size-budget.md carries a gzip column:\n${row}\nGzip bytes ` +
           "are a property of the runtime's zlib build as well as of the input, " +
           "so a quoted one is wrong on some machine by construction — state the " +
@@ -186,14 +210,16 @@ describe("docs/bundle-size-budget.md quotes the measurement, not a memory of it"
       ).not.toContain(row);
     }
 
-    // The prose figures the doc used to carry beside the raw ones.
-    expect(prose).not.toContain(`${commas(emittedTotal.gzip)} bytes gzip`);
-    expect(prose).not.toContain(`${pct(emittedTotal.gzip, CONFUSABLES_GZIP_BUDGET)}%`);
+    // The prose figures the doc used to carry beside the raw ones. "8,033 bytes
+    // gzip" is three words: on raw text a wrap after "bytes" would retire this
+    // guard silently, which is the whole of LINK-qbbegjro.
+    expect(flatProse).not.toContain(`${commas(emittedTotal.gzip)} bytes gzip`);
+    expect(flatProse).not.toContain(`${pct(emittedTotal.gzip, CONFUSABLES_GZIP_BUDGET)}%`);
   });
 
   it("states both absolute thresholds in bytes", () => {
-    expect(prose).toContain(`${commas(CONFUSABLES_RAW_BUDGET)} bytes`);
-    expect(prose).toContain(`${commas(CONFUSABLES_GZIP_BUDGET)} bytes`);
+    expect(flatProse).toContain(`${commas(CONFUSABLES_RAW_BUDGET)} bytes`);
+    expect(flatProse).toContain(`${commas(CONFUSABLES_GZIP_BUDGET)} bytes`);
   });
 
   it("lists exactly the two absolute axes — the ratio axis stays retired", () => {
@@ -206,29 +232,35 @@ describe("docs/bundle-size-budget.md quotes the measurement, not a memory of it"
     const end = rest.search(/^## /m);
     const section = end === -1 ? rest : rest.slice(0, end);
 
+    // The heading search and the bullet count above read the RAW section, where
+    // the line breaks carry the structure. The phrase checks below read the
+    // collapsed one, where they do not.
     const bullets = section.split("\n").filter((line) => line.startsWith("- "));
     expect(bullets).toHaveLength(2);
-    expect(section).toContain("250 KiB");
-    expect(section).toContain("25 KiB");
-    expect(section).not.toMatch(/%\s+of the unpacked/);
+
+    const flatSection = flat(section);
+    expect(flatSection).toContain("250 KiB");
+    expect(flatSection).toContain("25 KiB");
+    expect(flatSection).not.toMatch(RATIO_AXIS_PHRASING);
   });
 
-  // LINK-qbbegjro — the pin. Every prose assertion in this suite matches
-  // against the file's RAW bytes, so where the author's editor happened to wrap
-  // a line decides whether a guard fires. That is not hypothetical here: until
-  // LINK-ujbttpph reworded it, the decision sentence in the section guarded
-  // directly above read "31.3% of the" / "unpacked threshold" across two lines
-  // — the forbidden phrasing, inside the guarded section, with the wrap falling
-  // between "the" and "unpacked". The guard reported green the whole time. It
-  // was inert, not satisfied.
-  it("pins the defect: a line wrap decides whether the forbidden phrasing is caught", () => {
-    const guard = /%\s+of the unpacked/;
-    const onOneLine = "31.3% of the unpacked threshold";
-    const asItShipped = "31.3% of the\nunpacked threshold";
+  // LINK-qbbegjro — the regression test for the guard directly above, which
+  // used to read the raw section. Until LINK-ujbttpph reworded it, the decision
+  // sentence in that very section read "31.3% of the" / "unpacked threshold"
+  // across two lines: the forbidden phrasing, inside the section that forbids
+  // it, reported green because the wrap fell between "the" and "unpacked". The
+  // pattern's own `\s+` covers a wrap after "%" and nothing after that, so
+  // collapsing the text — not widening the pattern — is what closes it.
+  it("catches the forbidden phrasing wherever the line breaks fall", () => {
+    const caught = (text: string): boolean => RATIO_AXIS_PHRASING.test(flat(text));
 
-    expect(onOneLine).toMatch(guard);
-    // Same words, wrapped one column earlier, and the guard goes quiet.
-    expect(asItShipped).not.toMatch(guard);
+    expect(caught("31.3% of the unpacked threshold")).toBe(true);
+    // The wrap that kept this guard inert. Raw, it matches nothing.
+    expect("31.3% of the\nunpacked threshold").not.toMatch(RATIO_AXIS_PHRASING);
+    expect(caught("31.3% of the\nunpacked threshold")).toBe(true);
+    // Collapsing widens what counts as adjacent, not what counts as a hit: the
+    // phrasing the doc settled on is still allowed.
+    expect(caught("31.3% of its 256,000-byte ceiling")).toBe(false);
   });
 });
 
@@ -275,7 +307,7 @@ describe("browser bundle stays inside its byte gate", () => {
   );
 
   it("documents the same thresholds it enforces", () => {
-    expect(prose).toContain(`${commas(BUNDLE_MINIFIED_RAW_BUDGET)} bytes`);
-    expect(prose).toContain(`${commas(BUNDLE_MINIFIED_GZIP_BUDGET)} bytes`);
+    expect(flatProse).toContain(`${commas(BUNDLE_MINIFIED_RAW_BUDGET)} bytes`);
+    expect(flatProse).toContain(`${commas(BUNDLE_MINIFIED_GZIP_BUDGET)} bytes`);
   });
 });
