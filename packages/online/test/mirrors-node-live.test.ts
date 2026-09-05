@@ -649,3 +649,177 @@ describe("mirror updaters over the real Node clients", () => {
     expect(JSON.stringify(result)).not.toContain("real-app-key");
   });
 });
+
+/**
+ * Properties of this engine that must outlive its redirect policy
+ * (LINK-scectgty).
+ *
+ * Written BEFORE the engine learned to follow a redirect, and phrased so that
+ * following one cannot make them pass vacuously: each asserts something about
+ * what reached the wire and what reached a failure, not about how many requests
+ * the engine chose to make. A feed download carries the caller's own
+ * credential, so "where did the secret go" is the question these hold onto
+ * while the hop policy around them moves.
+ */
+describe("mirror engine invariants that outlive its redirect policy", () => {
+  /** Allows loopback exactly as {@link allowLoopback} does, and records every address it was asked about. */
+  function recordingClassifier(): {
+    readonly seen: string[];
+    readonly classify: (address: string) => TransportAddressDecision;
+  } {
+    const seen: string[] = [];
+    return {
+      seen,
+      classify: (address: string) => {
+        seen.push(address);
+        return allowLoopback(address);
+      },
+    };
+  }
+
+  interface SeenRequest {
+    readonly host: string;
+    readonly path: string;
+    readonly authKey: string | string[] | undefined;
+  }
+
+  /**
+   * A socket opens only to an address the policy classified. Half one: an
+   * IP-LITERAL host, which `net.connect` resolves not at all, so the engine has
+   * to classify it on its own path or the policy is simply skipped.
+   */
+  it("classifies an IP-LITERAL host before the socket opens", async () => {
+    const recorder = recordingClassifier();
+    const port = await startServer(() => ({ status: 200, body: URLHAUS_CSV }));
+
+    const response = await createNodeUrlhausHttpClient({
+      allowInsecureUrl: true,
+      classifyAddress: recorder.classify,
+    }).request({
+      url: `http://127.0.0.1:${port}/downloads/csv_online/`,
+      headers: { "Auth-Key": "k" },
+    });
+
+    expect(response.status).toBe(200);
+    expect(recorder.seen).toContain("127.0.0.1");
+  });
+
+  /**
+   * Half two: a NAME, whose addresses arrive from the resolver. `localhost` is
+   * never an IP literal, so the only path that can populate the recorder is the
+   * `dns.lookup` gate — the seam that has to hold per CONNECTION rather than
+   * per request.
+   */
+  it("classifies a RESOLVED address before the socket opens", async () => {
+    const recorder = recordingClassifier();
+    const port = await startServer(() => ({ status: 200, body: URLHAUS_CSV }));
+
+    await createNodeUrlhausHttpClient({
+      allowInsecureUrl: true,
+      classifyAddress: recorder.classify,
+    })
+      .request({ url: `http://localhost:${port}/x`, headers: { "Auth-Key": "k" } })
+      // The outcome is not the claim: whichever family wins the connect, the
+      // classifier must have been consulted with a resolved address first.
+      .catch(() => null);
+
+    expect(recorder.seen.some((address) => address === "127.0.0.1" || address === "::1")).toBe(
+      true,
+    );
+  });
+
+  /**
+   * The credential reaches the origin the caller named, and no other origin
+   * ever observes it.
+   *
+   * Both halves are asserted against what the SERVER saw, so the claim does not
+   * depend on whether the engine follows the `302`: today nothing is sent to
+   * the second origin at all; when a hop is followed, the request that arrives
+   * there must still carry no `Auth-Key`. One loopback server answers both
+   * origins, so the second one is a genuine HOST change (`localhost` against
+   * `127.0.0.1`) rather than a second process.
+   */
+  it("reveals the Auth-Key to the named origin and to no other origin", async () => {
+    const seen: SeenRequest[] = [];
+    let port = 0;
+    port = await startServer((path, headers) => {
+      seen.push({ host: String(headers.host ?? ""), path, authKey: headers["auth-key"] });
+      if (path === "/downloads/csv_online/") {
+        return { status: 302, headers: { location: `http://localhost:${port}/elsewhere` } };
+      }
+      return { status: 200, body: URLHAUS_CSV };
+    });
+
+    await urlhaus()
+      .request({
+        url: `http://127.0.0.1:${port}/downloads/csv_online/`,
+        headers: { "Auth-Key": "secret-auth-key" },
+      })
+      .catch(() => null);
+
+    const named = seen.filter((request) => request.host.startsWith("127.0.0.1"));
+    const elsewhere = seen.filter((request) => !request.host.startsWith("127.0.0.1"));
+    // Revealed exactly once, to exactly the host the caller wrote down.
+    expect(named).toHaveLength(1);
+    expect(named[0]?.authKey).toBe("secret-auth-key");
+    // And nowhere else — whether or not a request was made there at all.
+    for (const request of elsewhere) {
+      expect(request.authKey).toBeUndefined();
+    }
+  });
+
+  /**
+   * No typed failure carries a request path or a header value, whatever the
+   * failure is. PhishTank's app key IS a path segment and URLhaus's key IS a
+   * header value, so this is the assertion standing between a caller's
+   * credential and a log line. Swept across the failure modes a bad download
+   * URL can actually produce rather than pinned one at a time, because the rule
+   * belongs to the mapper and not to any one code.
+   */
+  it("never puts a URL path or a header value into a failure", async () => {
+    const key = "secret-app-key";
+    const auth = "secret-auth-key";
+    // Deferred, so a failing assertion cannot leave the remaining rejections
+    // unobserved and turn one red test into a run-level unhandled error.
+    const attempts: readonly (() => Promise<unknown>)[] = [
+      // Cleartext under the SHIPPED policy: the detail may name the scheme.
+      () =>
+        createNodePhishTankHttpClient({ classifyAddress: allowLoopback }).request({
+          url: `http://data.phishtank.example/data/${key}/online-valid.csv`,
+          headers: { "User-Agent": "phishtank/tester" },
+        }),
+      // A scheme no seam covers.
+      () =>
+        phishtank().request({
+          url: `ftp://data.phishtank.example/data/${key}/online-valid.csv`,
+          headers: {},
+        }),
+      // Userinfo, which is refused rather than dropped.
+      () =>
+        phishtank().request({
+          url: `https://user:${auth}@data.phishtank.example/data/${key}/online-valid.csv`,
+          headers: {},
+        }),
+      // Unparseable, so nothing about it may be echoed.
+      () => phishtank().request({ url: `data/${key}/online-valid.csv`, headers: {} }),
+      // Request splitting, refused before a socket opens.
+      () =>
+        urlhaus().request({
+          url: "https://urlhaus.example/downloads/csv_online/",
+          headers: { "Auth-Key": `${auth}\r\nX-Injected: 1` },
+        }),
+    ];
+
+    for (const attempt of attempts) {
+      const failure = await failureOf(attempt());
+      const rendered = JSON.stringify({
+        code: failure.code,
+        detail: failure.detail,
+        message: (failure as { message?: unknown }).message,
+      });
+      expect(rendered).not.toContain(key);
+      expect(rendered).not.toContain(auth);
+      expect(rendered).not.toContain("online-valid.csv");
+    }
+  });
+});
