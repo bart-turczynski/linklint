@@ -135,7 +135,18 @@ verify:
   # quota burn that parked this ticket in the first place. The trailing
   # `when: on_success` is the catch-all: a job with `rules` and no matching arm
   # is not added to the pipeline at all.
+  #
+  # THE TAG ARM IS FIRST, AND THE ORDER IS THE WHOLE POINT. `rules` are
+  # first-match, so an unconditional `$CI_COMMIT_TAG` ahead of the deny arm makes
+  # the gate unskippable on the one ref that publishes. `publish` stands behind
+  # `verify` by stage ordering, and stage ordering only guarantees anything while
+  # `verify` is actually IN the pipeline — a job that was never selected is not a
+  # job that passed. Without this arm, a "Run pipeline" on a tag with
+  # `SCHEDULE_KIND=audit` typed into the variables form deselected `verify` and
+  # left `publish` — which mints an npm OIDC token and pushes four packages to a
+  # registry that does not take them back — with nothing in front of it.
   rules:
+    - if: $CI_COMMIT_TAG
     - if: $SCHEDULE_KIND == "audit"
       when: never
     - when: on_success
