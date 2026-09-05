@@ -51,8 +51,11 @@ slot. It builds on:
   `.gitlab-ci.yml`, `tools/verify.sh`, or the pinned-data stamps
   (`versions.ts`, `psl-provenance.ts`)
 - release tags
-- the schedule (a canary — nothing in the repo changed, so a failure means the
-  world moved: a base image, a transitive dep, a registry)
+- the monthly canary schedule — nothing in the repo changed, so a failure means
+  the world moved: a base image, a transitive dep, a registry
+- the dependency-audit schedule, which runs `pnpm audit:deps` and **only** that
+  — one job, not the matrix (§*Auditing dependencies for known
+  vulnerabilities*)
 - **Run pipeline** in the UI, any time you want one
 
 So remote runs buy the two things local runs cannot: a genuinely clean resolve
@@ -104,9 +107,37 @@ identical source. It is a separately-invoked check: **run it before a release an
 after any dependency change**, which is exactly when the lockfile can have picked
 up something new.
 
-A GitLab schedule is its natural second home, and as of 2026-09-05 runner
-minutes no longer block that (`LINK-ozgkfjow`); the follow-up that would set one
-up is `LINK-txxcwplc`. Until it exists, this is yours to run.
+### The scheduled run
+
+A clock is the only trigger that fits this check, and `.gitlab-ci.yml` now
+carries the job for one (`LINK-txxcwplc`). An advisory is disclosed against a
+lockfile that has not moved, so no `changes:` rule can fire on it — putting
+`pnpm-lock.yaml` in one would catch the half a developer already sees and stay
+silent on the half nobody does.
+
+The job is `audit`. It is gated on a single variable, `SCHEDULE_KIND=audit`, and
+`verify` refuses that same value, so the audit schedule creates **one** job
+rather than also re-running the two-leg Node matrix — which is what made this
+too expensive to do while minutes were scarce. The other half of that gate is
+that `pnpm audit:deps` must actually fail: exit `1` (unexcused high/critical) and
+exit `2` (could not scan) both redden the pipeline, and a red is the whole
+notification.
+
+The schedule itself is project configuration, not repository content: CI/CD →
+Schedules, target `main`, with `SCHEDULE_KIND` = `audit` in the schedule's
+variables. Weekly is the recommended cadence — the window a disclosure can sit
+unnoticed in, traded against runner minutes. To exercise the job without waiting
+for the cron, run a pipeline from the UI with the same variable set by hand.
+
+**Failure reaches a person by email.** GitLab sends a failed scheduled
+pipeline's mail to the schedule's creator, which needs no configuration but goes
+to exactly one address; Settings → Integrations → *Pipeline status emails*, with
+*Notify only broken pipelines* ticked, is the configurable version and is off
+until someone turns it on.
+
+**Keep running it by hand before a release anyway** (§*Cutting a release*). A
+weekly schedule bounds how long a disclosure goes unseen; it says nothing about
+the hour before a tag.
 
 ### Why it is a wrapper and not `pnpm audit --audit-level high`
 
@@ -197,8 +228,9 @@ move a normalization result. Treat it as a data change, not a version bump.
 > It is deliberately **not** in the pre-push hook: `tools/verify.sh` has to work
 > offline, and a network call there would turn a plane ride into a failed push.
 > A GitLab schedule is its natural second home, and runner minutes no longer
-> block that (`LINK-ozgkfjow`) — but none is configured, so for now it is yours
-> to run.
+> block that (`LINK-ozgkfjow`) — but no schedule runs *this* command (the
+> dependency-audit one runs `pnpm audit:deps` and nothing else), so for now it
+> is yours to run.
 >
 > What it still cannot tell you: whether the *list inside* `tldts` moved. That
 > needs a bump plus `pnpm data:boundary --check`, below.
