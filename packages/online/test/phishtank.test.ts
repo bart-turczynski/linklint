@@ -16,6 +16,7 @@ import {
 import {
   assertValidSourceDescriptor,
   createOnlineSecret,
+  preflightOnlineSource,
 } from "../src/sources/index.js";
 import { assertOnlineSourceContract } from "./contract/online-source-contract-kit.js";
 
@@ -311,5 +312,67 @@ describe("updatePhishTankSnapshot", () => {
     const result = await updatePhishTankSnapshot({ ...baseOptions(client, store), cadenceMs: 0 });
     expect(result.status).toBe("updated");
     if (result.status === "updated") expect(result.snapshot.metadata.expiresAt).toBeNull();
+  });
+});
+
+// --- Feed access as shipped (pinned before LINK-plfzjlxg) -------------------
+
+/**
+ * These three pin the feed-access shape this package shipped with, so that the
+ * change which follows has something to be a change *from*. Measured against
+ * the live provider on 2026-09-05 — the commands and their answers are recorded
+ * in `packages/online/README.md` — each one is wrong about PhishTank:
+ *
+ * - the app key is not required. `https://data.phishtank.com/data/online-valid.csv`
+ *   with no key at all answers with the feed, and a syntactically plausible but
+ *   fictional key answers identically, so the path segment authenticates nothing;
+ * - the descriptor's `credentials: { kind: "required" }` therefore states a
+ *   provider requirement that does not exist, and `preflightOnlineSource` turns
+ *   that false statement into a `credentials-missing` skip for every caller who
+ *   has no key;
+ * - and with no key there is no code path at all — `appKey.reveal()` is
+ *   unconditional, so an absent key is a thrown `TypeError` rather than one of
+ *   this updater's typed causes.
+ *
+ * The URL assertion spells the whole string out rather than composing it from
+ * `PHISHTANK_DATA_BASE_URL`, so that moving the host, the `/data` prefix, the
+ * key's position, or the feed filename fails here rather than agreeing with
+ * whatever the constant now says.
+ */
+describe("PhishTank feed access as shipped (pinned before LINK-plfzjlxg)", () => {
+  it("puts the app key in the URL path and asks for the uncompressed CSV", async () => {
+    const client = new ScriptedClient(resp(200, csv(ROW_A)));
+    const result = await updatePhishTankSnapshot(baseOptions(client, new MemoryStore()));
+
+    expect(result.status).toBe("updated");
+    expect(client.requests).toHaveLength(1);
+    expect(client.requests[0]!.url).toBe(
+      `https://data.phishtank.com/data/${APP_KEY}/online-valid.csv`,
+    );
+  });
+
+  it("cannot proceed at all when no app key is configured", async () => {
+    const client = new ScriptedClient(resp(200, csv(ROW_A)));
+    const store = new MemoryStore();
+    // The type demands `appKey`; this is what a caller who has none hits at
+    // runtime, and the point of the pin is that it is not a typed cause.
+    const options = { client, store, clock: clockAt("2026-07-24T06:00:00.000Z") };
+
+    await expect(
+      updatePhishTankSnapshot(options as unknown as Parameters<typeof updatePhishTankSnapshot>[0]),
+    ).rejects.toBeInstanceOf(TypeError);
+    expect(client.requests).toHaveLength(0);
+    expect(store.replaced).toBe(0);
+  });
+
+  it("declares the app key required, so a keyless caller is skipped before any request", () => {
+    expect(PHISHTANK_SOURCE_DESCRIPTOR.credentials.kind).toBe("required");
+
+    const preflight = preflightOnlineSource(PHISHTANK_SOURCE_DESCRIPTOR, {
+      commercialMode: "non-commercial",
+      acceptAttribution: true,
+    });
+    expect(preflight.ok).toBe(false);
+    if (!preflight.ok) expect(preflight.cause.code).toBe("credentials-missing");
   });
 });
