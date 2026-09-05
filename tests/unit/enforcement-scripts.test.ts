@@ -114,6 +114,12 @@ const JQ = which("jq");
  * this guard to fail in. A real rc-file user has `/usr/bin/printf` on PATH, so
  * what was wrong was this list's claim about shells, not the guard's use of a
  * POSIX utility. The assertion it feeds is unchanged and no weaker.
+ *
+ * SETTLED SINCE, in LINK-jtirhajv: the guard now falls back to `print -r --`
+ * when it can resolve no `printf`, so the message survives a PATH this list
+ * would not stage. `printf` stays staged here because that is the ORDINARY
+ * environment; the fallback is proved by the one case that passes
+ * `printf: false`.
  */
 const REQUIRED_EXTERNALS = ["cat", "grep", "basename", "printf"] as const;
 
@@ -246,6 +252,13 @@ interface SandboxOptions {
   readonly linklint?: "real" | "fake" | "absent";
   readonly linklintExit?: number;
   readonly jq?: boolean;
+  /**
+   * Stage `printf` on the sandbox PATH. Defaults to true; `false` is how
+   * LINK-jtirhajv's case reproduces a shell that can resolve no `printf` at
+   * all, which is the environment mksh exposed and the one the guard's
+   * `print -r --` fallback exists for.
+   */
+  readonly printf?: boolean;
   /** Install stub `curl`/`wget` that log and exit 0. */
   readonly fetchStubs?: boolean;
 }
@@ -257,7 +270,10 @@ function makeSandbox(name: string, opts: SandboxOptions = {}): Sandbox {
   const argvLog = join(root, "linklint-argv.log");
   const fetchLog = join(root, "fetch.log");
 
-  for (const cmd of REQUIRED_EXTERNALS) link(bin, which(cmd), cmd);
+  for (const cmd of REQUIRED_EXTERNALS) {
+    if (cmd === "printf" && opts.printf === false) continue;
+    link(bin, which(cmd), cmd);
+  }
   if (opts.jq !== false) link(bin, JQ, "jq");
 
   const record = (log: string, extra: string) =>
@@ -1162,6 +1178,47 @@ describe.skipIf(POSIX_SHELLS.length === 0)("the emitted guard under a non-bash r
     const r = underGuard(sb, `curl -H 'Origin: https://app.example.com' https://example.com/ok`, shell);
     expect(r.status).toBe(0);
     expect(sb.fetchCalls()).toHaveLength(1);
+  });
+
+  /**
+   * THE FALLBACK EMITTER (LINK-jtirhajv).
+   *
+   * mksh carries no `printf` builtin, so a PATH that cannot reach
+   * `/usr/bin/printf` cost the refusal its message and printed
+   * `printf: inaccessible or not found` in its place — a linklint block that
+   * reads as a linklint bug. The block itself always held, which is why this is
+   * about the explanation and not about the guarantee.
+   *
+   * `echo` was the obvious fallback and is the wrong one: the third field is
+   * the user's own argument, and dash's and mksh's `echo` expand backslash
+   * escapes and swallow a leading `-n`, so a crafted URL could rewrite the
+   * message that exposes it. `print -r --` renders bytes verbatim and is a
+   * builtin in exactly the shells that lack a printf builtin.
+   *
+   * This case is only meaningful on a shell whose `printf` is NOT a builtin —
+   * mksh on CI. Everywhere else it passes through the ordinary path, which is
+   * the point: the message survives either way.
+   */
+  it.each(POSIX_SHELLS)("%s: still names linklint when no printf can be resolved", (shell) => {
+    const sb = makeSandbox("posix-noprintf", { linklint: "real", fetchStubs: true, printf: false });
+    const r = underGuard(sb, `curl ${JSON.stringify(DECEPTIVE_TARGET)}`, shell);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("linklint blocked curl");
+    expect(r.stderr).not.toContain("printf");
+    expect(sb.fetchCalls()).toHaveLength(0);
+  });
+
+  /**
+   * The source-level half of the same decision, so nobody reintroduces `echo`
+   * on a machine where every shell has a printf builtin and the case above can
+   * therefore not fail.
+   */
+  it("never routes the refusal through echo (LINK-jtirhajv)", () => {
+    const sb = makeSandbox("posix-noecho", { linklint: "absent" });
+    const r = runScript(INSTALLER_BASH, INSTALLER, ["--print"], sb);
+    expect(r.status).toBe(0);
+    const code = r.stdout.split("\n").filter((line) => !line.trimStart().startsWith("#"));
+    expect(code.filter((line) => /(^|[;&|(]\s*)echo\s/.test(line))).toEqual([]);
   });
 
   /**

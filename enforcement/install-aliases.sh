@@ -112,7 +112,23 @@ _linklint_guard() {
     else
       _linklint_why='deceptive at or above '${FAIL_ON_LIT}
     fi
-    printf 'linklint blocked %s (%s): %s\\n' "\$_linklint_tool" "\$_linklint_why" "\$_linklint_arg" >&2
+    # Emitting this line is not a free choice: the third field is the user's own
+    # argument, the hostile string this guard exists to show ACCURATELY, so the
+    # emitter must render arbitrary bytes verbatim. \`printf\` does. \`echo\` does
+    # not — dash's and mksh's expand backslash escapes and swallow a leading
+    # \`-n\`, which would let a crafted URL rewrite the message that exposes it.
+    #
+    # So the fallback is \`print -r --\`, which is byte-faithful, and the shells
+    # that carry no \`printf\` BUILTIN are exactly the ones that have it: mksh
+    # (pdksh), ksh93 and zsh. bash and dash always resolve printf internally, so
+    # the else branch is unreachable there. A shell with neither loses the
+    # explanation and still refuses the fetch, which is this guard's own failure
+    # direction (LINK-jtirhajv).
+    if command -v printf >/dev/null 2>&1; then
+      printf 'linklint blocked %s (%s): %s\\n' "\$_linklint_tool" "\$_linklint_why" "\$_linklint_arg" >&2
+    else
+      print -r -- "linklint blocked \$_linklint_tool (\$_linklint_why): \$_linklint_arg" >&2
+    fi
     unset _linklint_tool _linklint_arg _linklint_skip _linklint_rc _linklint_why
     return 1
   done
