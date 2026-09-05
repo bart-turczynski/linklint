@@ -19,12 +19,23 @@ import { describe, expect, it } from "vitest";
  * MEASUREMENT METHOD (reproduce it on the command line with `gzip -9 -n`):
  * gzip figures come from `zlib.gzipSync(buf, { level: 9 })`, which emits a
  * HEADERLESS stream. Plain `gzip -9 file` stores the source filename in the
- * header and reports a few bytes more — 7,921 / 7,820 / 265 for these three
- * files against the 7,896 / 7,795 / 238 below. Getting that wrong reads as
- * drift that is not there. The "total" gzip figure is the SUM of the per-file
- * figures, not one gzip over the concatenation (which is 8,018): npm reports
- * per-file unpacked sizes, not per-file tarball deltas, so the sum is the
- * honest standalone proxy.
+ * header and reports a few bytes more; getting that wrong reads as drift that
+ * is not there. The "total" gzip figure is the SUM of the per-file figures, not
+ * one gzip over the concatenation: npm reports per-file unpacked sizes, not
+ * per-file tarball deltas, so the sum is the honest standalone proxy.
+ *
+ * WHY THE PROSE ASSERTIONS COVER THE RAW AXIS ONLY (LINK-ujbttpph). The doc
+ * used to quote gzip bytes and a gzip percentage too, and this suite asserted
+ * the prose matched them. That is a reproducibility claim `gzipSync` does not
+ * support: its output depends on the zlib the runtime is linked against, so the
+ * same three files measure 8,033 bytes on the maintainer's macOS node
+ * (zlib 1.2.12) and 8,168 on the `node:24` and `node:26` Linux images
+ * (zlib 1.3.2.1) — identical on both Node majors, which is what ruled the Node
+ * version out. Re-baselining would only have moved which machine was wrong.
+ * Raw bytes ARE reproducible (measured byte-identical across the same three
+ * runtimes), so they stay quoted and asserted. The gzip axis keeps the part
+ * that protects the package — the absolute 25 KiB ceiling, asserted against a
+ * live measurement above — and loses only the transcript.
  *
  * There is deliberately no `npm pack` shell-out here. Retiring the ratio axis
  * removed the only reason to need one, and an untested subprocess dependency in
@@ -80,9 +91,12 @@ const measureFile = (...path: string[]): Measurement => measureBytes(readFileSyn
 
 const commas = (n: number): string => n.toLocaleString("en-US");
 
-/** `| `label` | 79,821 | 7,795 |` — the exact row the doc has to carry. */
-const docRow = (label: string, m: Measurement): string =>
-  `| ${label} | ${commas(m.raw)} | ${commas(m.gzip)} |`;
+/**
+ * `` | `label` | 79,821 | `` — the exact row the doc has to carry. Raw bytes
+ * only: the gzip column was removed from the table because its values are not
+ * reproducible off this workstation (see the header note).
+ */
+const docRow = (label: string, m: Measurement): string => `| ${label} | ${commas(m.raw)} |`;
 
 const pct = (part: number, whole: number): string => ((part / whole) * 100).toFixed(1);
 
@@ -140,9 +154,41 @@ describe("docs/bundle-size-budget.md quotes the measurement, not a memory of it"
     }
   });
 
-  it("quotes each axis as a share of its own threshold", () => {
+  it("quotes the unpacked axis as a share of its own threshold", () => {
     expect(prose).toContain(`${pct(emittedTotal.raw, CONFUSABLES_RAW_BUDGET)}%`);
-    expect(prose).toContain(`${pct(emittedTotal.gzip, CONFUSABLES_GZIP_BUDGET)}%`);
+  });
+
+  it("quotes no measured gzip figure that a reader could re-baseline against", () => {
+    // The complement of the row assertion above: the doc has to carry the raw
+    // measurements and must NOT carry the gzip ones. Without this the table's
+    // gzip column could be restored by hand and go unnoticed until a runner
+    // with a different zlib build reported it — the LINK-ujbttpph failure.
+    // Every figure checked here is a LIVE reading, so the assertion means the
+    // same thing on macOS and on the Linux images rather than banning one
+    // machine's transcript and admitting the other's.
+    // Checked as a whole ROW rather than as a bare number: `| label | raw |`
+    // is a prefix of `| label | raw | gzip |`, so the assertion above would
+    // stay green against a restored third column, and a bare `238` is short
+    // enough to collide with an unrelated digit run.
+    const threeColumn = [
+      [`\`packages/core/src/data/confusables.generated.ts\``, sourceFile] as const,
+      ...emitted.map((f) => [`\`packages/core/dist/data/${f.name}\``, f] as const),
+      ["Emitted generated confusables total", emittedTotal] as const,
+    ].map(([label, m]) => `${docRow(label, m)} ${commas(m.gzip)} |`);
+
+    for (const row of threeColumn) {
+      expect(
+        prose,
+        `docs/bundle-size-budget.md carries a gzip column:\n${row}\nGzip bytes ` +
+          "are a property of the runtime's zlib build as well as of the input, " +
+          "so a quoted one is wrong on some machine by construction — state the " +
+          "absolute threshold instead (LINK-ujbttpph).",
+      ).not.toContain(row);
+    }
+
+    // The prose figures the doc used to carry beside the raw ones.
+    expect(prose).not.toContain(`${commas(emittedTotal.gzip)} bytes gzip`);
+    expect(prose).not.toContain(`${pct(emittedTotal.gzip, CONFUSABLES_GZIP_BUDGET)}%`);
   });
 
   it("states both absolute thresholds in bytes", () => {

@@ -36,7 +36,7 @@
  *     repo's hooks or CI and none is added here.
  */
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -55,6 +55,16 @@ function which(cmd: string): string | undefined {
   return r.status === 0 && out.length > 0 ? out : undefined;
 }
 
+/**
+ * `jq` gates four of the hook describes below, and its absence is not
+ * hypothetical: GitLab's `node:24` image does not ship it, so those blocks are
+ * SKIPPED on every remote run and exercised on a workstation only. Measured —
+ * forcing `JQ` undefined here skips exactly 25 tests, which with the
+ * darwin-only bash-3.2 pin is the whole of the 26 the runner reported on
+ * pipeline 2822652495 (LINK-ujbttpph). Coverage that skips precisely where the
+ * matrix would otherwise supply it is not matrix coverage; installing `jq` in
+ * the CI job is what would make it so.
+ */
 const JQ = which("jq");
 
 /**
@@ -125,16 +135,8 @@ function bashMajor(bash: string): number {
 // ---------------------------------------------------------------------------
 
 const TMP_ROOT = mkdtempSync(join(tmpdir(), "linklint-enforcement-"));
-const cleanups: Array<() => void> = [];
 
 afterAll(() => {
-  for (const fn of cleanups) {
-    try {
-      fn();
-    } catch {
-      /* best effort */
-    }
-  }
   rmSync(TMP_ROOT, { recursive: true, force: true });
 });
 
@@ -549,17 +551,49 @@ describe.each(BASHES)("install-aliases.sh under %s", (bash) => {
      * Fail-open found while writing this suite: the append used to be
      * unchecked, so an unwritable rc printed "appended linklint guard to …"
      * and exited 0 while nothing was installed.
+     *
+     * The unwritability has to be built out of something the KERNEL refuses
+     * for every uid, not out of permission bits (LINK-ujbttpph). This case
+     * used to write the rc at mode `0o444`, which holds on a workstation and
+     * collapses on GitLab's `node:24` job, where the job runs as root and root
+     * bypasses the DAC check: the append succeeded, the installer correctly
+     * exited 0, and the assertion failed on a premise it had not managed to
+     * construct rather than on the behaviour it exists to pin.
+     *
+     * Measured under `docker run --rm node:24 bash` as uid 0, against the same
+     * probe run as uid 501 on macOS: an rc file at `0o444` and an rc parent
+     * directory at `0o555` both accept the append as root, so neither can
+     * carry this test. Appending onto a path that IS a directory (`EISDIR`)
+     * and onto one whose parent is absent (`ENOENT`) are refused for root and
+     * non-root alike — those are type and lookup failures, not permission
+     * checks — so the two cases below are the premise instead.
      */
-    it("reports failure with exit 1 when the rc cannot be written", () => {
-      const sb = makeSandbox("inst-readonly", { linklint: "fake", linklintExit: 0 });
-      const home = join(sb.root, "home");
-      mkdirSync(home, { recursive: true });
-      writeFileSync(join(home, ".zshrc"), "# existing\n", { mode: 0o444 });
-      cleanups.push(() => chmodSync(join(home, ".zshrc"), 0o644));
-      const r = runScript(bash, INSTALLER, [], sb, { SHELL: "/bin/zsh" });
+    /** The installer refused, said so, and installed nothing. */
+    function expectRefusal(r: ReturnType<typeof runScript>): void {
       expect(r.status).toBe(1);
       expect(r.stdout).not.toContain("appended linklint guard");
-      expect(readFileSync(join(home, ".zshrc"), "utf8")).not.toContain("linklint guard");
+      // Names the append as the thing that failed, so a bail-out somewhere
+      // earlier in the script cannot pass as this coverage.
+      expect(r.stderr).toContain("guard NOT installed");
+    }
+
+    it("reports failure with exit 1 when the rc path is a directory", () => {
+      const sb = makeSandbox("inst-rc-isdir", { linklint: "fake", linklintExit: 0 });
+      mkdirSync(rcFor(sb, ".zshrc"), { recursive: true });
+      expectRefusal(runScript(bash, INSTALLER, [], sb, { SHELL: "/bin/zsh" }));
+      // Nothing was written anywhere beneath the rc path either.
+      expect(readdirSync(rcFor(sb, ".zshrc"))).toEqual([]);
+    });
+
+    it("reports failure with exit 1 when the rc's parent directory is absent", () => {
+      const sb = makeSandbox("inst-rc-noparent", { linklint: "fake", linklintExit: 0 });
+      // ZDOTDIR is the routing the installer already honors, so this points the
+      // rc at a real path shape rather than an invented one. Deliberately never
+      // created — an rc under it cannot be opened for append by any uid.
+      const zdot = join(sb.root, "zdotdir-that-was-removed");
+      expectRefusal(runScript(bash, INSTALLER, [], sb, { SHELL: "/bin/zsh", ZDOTDIR: zdot }));
+      expect(existsSync(zdot)).toBe(false);
+      expect(existsSync(rcFor(sb, ".zshrc"))).toBe(false);
     });
   });
 
