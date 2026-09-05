@@ -25,15 +25,19 @@
 # allowance without a self-hosted runner (LINK-ozgkfjow). Pipeline 2822652495 put
 # both matrix legs on shared runners.
 #
-# The habit that grew during the outage — a red pipeline means the quota, not the
-# tree — is now WRONG, and the first real run proved it: both legs failed
-# `script_failure` against a tree that `tools/verify.sh` passes on both majors
-# (LINK-ujbttpph). Still check `failure_reason` first, but the answer now
-# distinguishes three things, not two: `ci_quota_exceeded` is the quota,
-# `script_failure` is the tree, and a `script_failure` the local gate cannot
-# reproduce is the runner differing from the workstation — Linux rather than
-# macOS, and running as ROOT, which silently defeats any test that proves a
-# fail-open by making a file unwritable.
+# It is also GREEN, as of pipeline 2822716357 on `main` — both matrix legs
+# succeeded. The first real run was not: both legs failed `script_failure`
+# against a tree `tools/verify.sh` passes on both majors, because the runner is
+# Linux and runs as ROOT, which silently defeats any test that proves a fail-open
+# by making a file unwritable (LINK-ujbttpph, fixed in 7ecba8b).
+#
+# What survives that fix is the reading rule it taught. The habit that grew
+# during the outage — a red pipeline means the quota, not the tree — is WRONG;
+# check `failure_reason` first, and note that it now distinguishes three things
+# rather than two: `ci_quota_exceeded` is the quota, `script_failure` is the
+# tree, and a `script_failure` the local gate cannot reproduce is the runner
+# differing from the workstation — Linux rather than macOS, and root rather than
+# a user.
 
 stages: [verify, publish]
 
