@@ -168,6 +168,45 @@ provider and are always stripped before a destination request or cross-origin
 redirect. Missing credentials cause an explicit skipped outcome rather than an
 interactive prompt or fallback to an anonymous service.
 
+**Stripping is the rule; refusing the hop is not** (`LINK-scectgty`). The feed
+download engine (`mirrors/mirror-http-node.ts`) once read the sentence above as
+a licence to follow no redirect at all, on the argument that refusing was its
+stronger form. It is not stronger, it is different, and it cost the default
+PhishTank download entirely: `data.phishtank.com` answers `302` to a signed
+`cdn.phishtank.com` URL and serves the feed only from there. A provider hop is
+now followed under four bounds, and the four together are what the rule means
+concretely for a credentialed provider request:
+
+- **A bounded chain.** Three redirects are followed and the fourth is refused
+  with a `hop-limit` cause, so at most four requests leave the engine per call
+  and a loop terminates on the cap.
+- **HTTPS only, on every hop.** A hop URL passes the same scheme gate as the
+  caller's own, so a `Location:` naming `http:` is an `unsupported-scheme`
+  failure rather than a silent downgrade. `allowInsecureUrl` remains what it
+  always was: a documented hermetic-test seam, applying to a hop for the same
+  reason and to the same extent as it applies to the first request, because it
+  is the same gate.
+- **Cross-origin drops the credential.** A hop to a different origin keeps an
+  allow-list — `Accept`, `Accept-Encoding`, `User-Agent` — and drops everything
+  else the caller supplied, so URLhaus's `Auth-Key` and any header this engine
+  has not heard of are dropped by construction rather than by enumeration. A
+  dropped credential is never restored, including on a hop back.
+- **Every hop is address-classified before its socket opens,** through the same
+  `dns.lookup` gate and IP-literal check as the first connection.
+
+The hop chain a caller can read back is **redacted to origins** — scheme, host
+and port, never a path and never a query — because PhishTank's credential is
+revealed in the URL path, and a full-URL provenance record would put a caller's
+key wherever that record is written.
+
+**This is not the L1 downgrade policy, and the two must not be reconciled.**
+`LINK-emlbzwct` ruled that `resolution/redirect-chain.ts` *observes* an
+HTTPS-to-HTTP hop rather than refusing it. That is correct there and wrong here.
+At L1 linklint is following an attacker-supplied URL, and the downgrade is
+evidence about the destination that refusing would destroy. At the provider
+boundary every request carries the caller's own secret. Two layers, two rules,
+one distinguishing fact: whether a credential is in flight.
+
 Core keeps portable storage interfaces. `@linklint/online` may provide Node
 implementations, but a caller supplies the database, directory, or store. Feed
 snapshots and cache contents are never bundled in npm artifacts. The monitoring
