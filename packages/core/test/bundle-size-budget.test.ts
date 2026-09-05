@@ -212,6 +212,24 @@ describe("docs/bundle-size-budget.md quotes the measurement, not a memory of it"
     expect(section).toContain("25 KiB");
     expect(section).not.toMatch(/%\s+of the unpacked/);
   });
+
+  // LINK-qbbegjro — the pin. Every prose assertion in this suite matches
+  // against the file's RAW bytes, so where the author's editor happened to wrap
+  // a line decides whether a guard fires. That is not hypothetical here: until
+  // LINK-ujbttpph reworded it, the decision sentence in the section guarded
+  // directly above read "31.3% of the" / "unpacked threshold" across two lines
+  // — the forbidden phrasing, inside the guarded section, with the wrap falling
+  // between "the" and "unpacked". The guard reported green the whole time. It
+  // was inert, not satisfied.
+  it("pins the defect: a line wrap decides whether the forbidden phrasing is caught", () => {
+    const guard = /%\s+of the unpacked/;
+    const onOneLine = "31.3% of the unpacked threshold";
+    const asItShipped = "31.3% of the\nunpacked threshold";
+
+    expect(onOneLine).toMatch(guard);
+    // Same words, wrapped one column earlier, and the guard goes quiet.
+    expect(asItShipped).not.toMatch(guard);
+  });
 });
 
 describe("browser bundle stays inside its byte gate", () => {
