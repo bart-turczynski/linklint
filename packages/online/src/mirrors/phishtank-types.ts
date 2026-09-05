@@ -14,6 +14,9 @@
  * NOTE: PhishTank places the application key in the download URL *path*, not a
  * header. The updater substitutes the revealed key only when building the request
  * URL and never stores that keyed URL in metadata, results, evidence, or causes.
+ * The key is optional (LINK-plfzjlxg) — PhishTank serves this feed unkeyed — but
+ * when one is supplied it still travels in that path segment, so the URL is still
+ * treated as a secret.
  */
 
 import type { OnlineSecret } from "../sources/index.js";
@@ -127,12 +130,27 @@ export type PhishTankUpdateResult =
 export interface UpdatePhishTankSnapshotOptions {
   readonly client: PhishTankHttpClient;
   readonly store: PhishTankSnapshotStore;
-  /** Caller-owned application key. Revealed only into the download URL path. */
-  readonly appKey: OnlineSecret;
+  /**
+   * Caller-owned application key, revealed only into the download URL path.
+   *
+   * OPTIONAL (LINK-plfzjlxg): PhishTank serves the online-valid feed to an
+   * unkeyed request, and a fictional key in the key position gets the same
+   * answer as none at all, so requiring one here was a precondition the
+   * provider does not impose. Omit it and the public feed URL is requested;
+   * supply it and it is still sent, because PhishTank's access policy has
+   * changed before and a registered caller should keep identifying itself.
+   */
+  readonly appKey?: OnlineSecret;
   readonly clock: PhishTankClock;
   /**
-   * Base of the PhishTank data URL. The app key and feed filename are appended:
-   * `${baseUrl}/${appKey}/online-valid.csv`. Defaults to the PhishTank data host.
+   * Base of the PhishTank data URL. The feed filename is appended, with the app
+   * key between them when one is supplied: `${baseUrl}/${appKey}/online-valid.csv`,
+   * or `${baseUrl}/online-valid.csv` without. Defaults to the PhishTank data host.
+   *
+   * Note this is NOT a way around the `302` that host answers with: the signed
+   * CDN target is `verified_online.csv`, so a base pointed at it still gets
+   * `online-valid.csv` appended and answers `404`. Following that hop is a
+   * caller-supplied {@link PhishTankHttpClient}'s job (LINK-plfzjlxg).
    */
   readonly baseUrl?: string;
   /**

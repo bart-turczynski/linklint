@@ -16,6 +16,7 @@ import {
 import {
   assertValidSourceDescriptor,
   createOnlineSecret,
+  preflightOnlineSource,
 } from "../src/sources/index.js";
 import { assertOnlineSourceContract } from "./contract/online-source-contract-kit.js";
 
@@ -131,7 +132,7 @@ describe("PHISHTANK_SOURCE_DESCRIPTOR", () => {
     });
     expect(PHISHTANK_SOURCE_DESCRIPTOR.disclosure.sends).toEqual(["none"]);
     expect(PHISHTANK_SOURCE_DESCRIPTOR.credentials).toMatchObject({
-      kind: "required",
+      kind: "optional",
       scheme: "app-key",
     });
     expect(PHISHTANK_SOURCE_DESCRIPTOR.terms.supportedModes).not.toContain("commercial");
@@ -311,5 +312,87 @@ describe("updatePhishTankSnapshot", () => {
     const result = await updatePhishTankSnapshot({ ...baseOptions(client, store), cadenceMs: 0 });
     expect(result.status).toBe("updated");
     if (result.status === "updated") expect(result.snapshot.metadata.expiresAt).toBeNull();
+  });
+});
+
+// --- Feed access, keyed and public (LINK-plfzjlxg) --------------------------
+
+/**
+ * The app key is optional because PhishTank does not require one. Measured
+ * against the live provider on 2026-09-05 — the commands and their answers are
+ * recorded in `packages/online/README.md` —
+ * `https://data.phishtank.com/data/online-valid.csv`, with no key at all,
+ * answers with the feed, and a syntactically plausible but fictional key in the
+ * key position answers identically. That path segment authenticates nothing
+ * today, so demanding it was a precondition of this package's own invention.
+ *
+ * These pin both halves: the keyed URL is unchanged for a caller who has a key
+ * (PhishTank's policy has moved before, and a registered caller should keep
+ * identifying itself), and a caller without one now gets the public URL and a
+ * real result rather than a thrown `TypeError`.
+ *
+ * The URL assertions spell the whole string out rather than composing it from
+ * `PHISHTANK_DATA_BASE_URL`, so that moving the host, the `/data` prefix, the
+ * key's position, or the feed filename fails here rather than agreeing with
+ * whatever the constant now says.
+ */
+describe("PhishTank feed access (LINK-plfzjlxg)", () => {
+  it("puts a supplied app key in the URL path and asks for the uncompressed CSV", async () => {
+    const client = new ScriptedClient(resp(200, csv(ROW_A)));
+    const result = await updatePhishTankSnapshot(baseOptions(client, new MemoryStore()));
+
+    expect(result.status).toBe("updated");
+    expect(client.requests).toHaveLength(1);
+    expect(client.requests[0]!.url).toBe(
+      `https://data.phishtank.com/data/${APP_KEY}/online-valid.csv`,
+    );
+  });
+
+  it("requests the public feed, and stores a snapshot, when no app key is configured", async () => {
+    const client = new ScriptedClient(resp(200, csv(ROW_A, ROW_B), { ETag: '"pub"' }));
+    const store = new MemoryStore();
+
+    const result = await updatePhishTankSnapshot({
+      client,
+      store,
+      clock: clockAt("2026-07-24T06:00:00.000Z"),
+      userAgent: "phishtank/test-user",
+    });
+
+    expect(client.requests).toHaveLength(1);
+    expect(client.requests[0]!.url).toBe("https://data.phishtank.com/data/online-valid.csv");
+    expect(client.requests[0]!.headers["User-Agent"]).toBe("phishtank/test-user");
+    expect(result.status).toBe("updated");
+    if (result.status === "updated") expect(result.snapshot.records).toHaveLength(2);
+    expect(store.replaced).toBe(1);
+  });
+
+  it("honours a caller-supplied baseUrl in both the keyed and public forms", async () => {
+    const keyed = new ScriptedClient(resp(200, csv(ROW_A)));
+    await updatePhishTankSnapshot({
+      ...baseOptions(keyed, new MemoryStore()),
+      baseUrl: "https://mirror.example/data/",
+    });
+    expect(keyed.requests[0]!.url).toBe(`https://mirror.example/data/${APP_KEY}/online-valid.csv`);
+
+    const anonymous = new ScriptedClient(resp(200, csv(ROW_A)));
+    await updatePhishTankSnapshot({
+      client: anonymous,
+      store: new MemoryStore(),
+      clock: clockAt("2026-07-24T06:00:00.000Z"),
+      baseUrl: "https://mirror.example/data/",
+    });
+    expect(anonymous.requests[0]!.url).toBe("https://mirror.example/data/online-valid.csv");
+  });
+
+  it("declares the app key optional, so a keyless caller preflights ok", () => {
+    expect(PHISHTANK_SOURCE_DESCRIPTOR.credentials.kind).toBe("optional");
+
+    const preflight = preflightOnlineSource(PHISHTANK_SOURCE_DESCRIPTOR, {
+      commercialMode: "non-commercial",
+      acceptAttribution: true,
+    });
+    expect(preflight.ok).toBe(true);
+    if (preflight.ok) expect(preflight.credential).toBeNull();
   });
 });

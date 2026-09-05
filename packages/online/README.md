@@ -108,18 +108,20 @@ at all; a destination is authorized per hop, not per construction.
 ## Caller-owned threat-feed mirrors
 
 The `@linklint/online/mirrors` subpath exposes the URLhaus and PhishTank
-mirrors. Both are *local* mirrors: the dataset is downloaded once with a
-caller-owned credential and queried offline, so a lookup discloses nothing about
-the inspected URL. Neither dataset is bundled in this package or redistributed.
+mirrors. Both are *local* mirrors: the dataset is downloaded once — with a
+caller-owned credential where the provider needs one — and queried offline, so a
+lookup discloses nothing about the inspected URL. Neither dataset is bundled in
+this package or redistributed.
 
 Each feed ships a bounded Node HTTP client for the download. Both sit outside
 the L0 destination boundary — a feed host is a provider, not an inspected
 destination — but both classify every address they would connect to with the
 same table L0 pins destinations with, so a mis-configured download URL cannot
 reach loopback, link-local, or cloud-metadata space. Both refuse a non-HTTPS
-download URL, because every request they make carries your credential. Neither
-follows a redirect: a 3xx is returned to the updater as a typed error rather
-than re-sending your credential to a host you did not name.
+download URL, because a request they make may carry your credential and neither
+client can tell from the URL whether this one does. Neither follows a redirect:
+a 3xx is returned to the updater as a typed error rather than re-sending your
+credential to a host you did not name.
 
 ```ts
 import {
@@ -137,8 +139,10 @@ const result = await updateUrlhausSnapshot({
 });
 ```
 
-PhishTank is the same shape, with the app key going into the download URL's
-path rather than a header, and a descriptive `User-Agent` the provider requires:
+PhishTank is the same shape, with a descriptive `User-Agent` the provider
+requires and an app key that is **optional** — supplied, it goes into the
+download URL's path rather than a header; omitted, the public feed URL is
+requested instead:
 
 ```ts
 import {
@@ -149,11 +153,56 @@ import {
 const result = await updatePhishTankSnapshot({
   client: createNodePhishTankHttpClient(),
   store: myPhishTankStore,
-  appKey: createOnlineSecret(process.env.PHISHTANK_APP_KEY!),
   clock: { now: () => new Date() },
   userAgent: "phishtank/your-username",
+  // Optional. Sent in the URL path when present:
+  // appKey: createOnlineSecret(process.env.PHISHTANK_APP_KEY!),
 });
 ```
+
+#### Why the PhishTank app key is optional, and what still does not work
+
+Measured against the live provider on **2026-09-05**. PhishTank serves this feed
+to an unkeyed request:
+
+```console
+$ curl -sSI -A 'linklint-phishtank-mirror' \
+    https://data.phishtank.com/data/online-valid.csv
+HTTP/2 302
+location: https://cdn.phishtank.com/datadumps/verified_online.csv?Expires=…&Signature=…
+x-request-limit: 75
+x-request-limit-interval: 259200 Seconds
+
+$ curl -sSL -A 'linklint-phishtank-mirror' \
+    https://data.phishtank.com/data/online-valid.csv | wc -l
+   74540                       # 74,539 records + header
+```
+
+Substituting a syntactically plausible but fictional key —
+`https://data.phishtank.com/data/deadbeef…/online-valid.csv` — returns the
+identical `302`. The key position is not authenticating anything today, so
+declaring the credential `required` stated a provider precondition that does not
+exist, and turned `preflightOnlineSource` into a `credentials-missing` skip for
+every operator who had none. A key is still honoured when supplied: PhishTank's
+access policy has changed before, and a registered caller should keep
+identifying itself rather than be silently anonymised.
+
+Note also that the feed is **not** compressed on the wire — `content-type:
+text/csv`, no `content-encoding`, 14,268,656 bytes — so nothing here depends on
+the decode path. A `.csv.gz` variant exists as a separate URL and is not what
+this updater asks for.
+
+**The bundled Node client still cannot complete this download.** That `302`
+points at `cdn.phishtank.com`, a host the caller did not name, and neither
+mirror client follows a redirect — for the reason stated above, and in
+`docs/online-runtime-boundary.md`. So `createNodePhishTankHttpClient` reports
+`phishtank-http-error` / `PhishTank status 302`, with or without a key.
+`baseUrl` does not route around it either: the signed target is
+`verified_online.csv` under a signature bound to that exact path, so a base
+pointed at it gets `online-valid.csv` appended and answers `404`. Until that is
+resolved, a working PhishTank mirror needs a caller-supplied
+`PhishTankHttpClient` that follows the hop — with which the shipped updater
+parsed and stored all 74,539 live records on 2026-09-05, with no app key at all.
 
 Feed exports are large, so these clients default to wider byte and time budgets
 than a single-document fetch (`DEFAULT_MIRROR_DOWNLOAD_POLICY`: 64 MiB encoded,
