@@ -57,13 +57,17 @@ function which(cmd: string): string | undefined {
 
 /**
  * `jq` gates four of the hook describes below, and its absence is not
- * hypothetical: GitLab's `node:24` image does not ship it, so those blocks are
- * SKIPPED on every remote run and exercised on a workstation only. Measured —
- * forcing `JQ` undefined here skips exactly 25 tests, which with the
- * darwin-only bash-3.2 pin is the whole of the 26 the runner reported on
- * pipeline 2822652495 (LINK-ujbttpph). Coverage that skips precisely where the
- * matrix would otherwise supply it is not matrix coverage; installing `jq` in
- * the CI job is what would make it so.
+ * hypothetical: no `node:` image ships it, so those blocks were SKIPPED on every
+ * remote run and exercised on a workstation only. Measured — forcing `JQ`
+ * undefined here skips exactly 25 tests, which with the darwin-only bash-3.2 pin
+ * is the whole of the 26 the runner reported on pipeline 2822652495
+ * (LINK-ujbttpph). Coverage that skips precisely where the matrix would
+ * otherwise supply it is not matrix coverage.
+ *
+ * `.gitlab-ci.yml` now installs a pinned `jq` in the `verify` job, so this file
+ * is expected to report ONE skip there — the bash-3.2 pin, which is darwin-only
+ * by design (LINK-yzipjdtq). A remote run that reports 26 again means the
+ * install regressed, not that the tests moved.
  */
 const JQ = which("jq");
 

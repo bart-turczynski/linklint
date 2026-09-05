@@ -126,8 +126,41 @@ verify:
     # version in one place (package.json) across both legs.
     - npm install -g "pnpm@$(node -p "require('./package.json').packageManager.split('@')[1]")"
     - pnpm config set store-dir "$PNPM_STORE"
+    # `jq`, which the `node:` images do not ship (LINK-yzipjdtq). 25 tests in
+    # `tests/unit/enforcement-scripts.test.ts` gate themselves on `command -v jq`
+    # and they are the ENTIRE behavioural contract of
+    # `enforcement/claude-code-hook.sh` — stdin handling, verdict delegation,
+    # argument construction, and the run against the real CLI. Skipped here and
+    # run on a workstation only, they were the one thing this matrix was supposed
+    # to buy and did not. With jq present the file should report a single skip:
+    # the darwin-only bash-3.2 pin, which cannot run on Linux by design.
+    #
+    # A pinned static binary rather than `apt-get install jq`, for three measured
+    # reasons. Fetching apt's package indexes is the expensive half and it is
+    # unpredictable (3s on bookworm, 79s on trixie in one sample) against ~2.2MB
+    # for the binary. Debian's jq is whatever the suite carries, so the two legs
+    # would quietly run different jq majors — 1.6 on node:24/bookworm, 1.7 on
+    # node:26/trixie — and the matrix would stop varying one thing. And a
+    # checksummed download is a pin in the sense the rest of this repo uses the
+    # word: upstream moving the artifact fails loudly instead of moving a test
+    # result. `verify` only; `publish` runs no tests and gets none of this.
+    #
+    # Shared runners are amd64; the arm64 arm exists because the SaaS arm64
+    # runners do, and because it is the arch this block was exercised on.
+    - |
+      JQ_VERSION=1.8.2
+      case "$(uname -m)" in
+        x86_64)  JQ_ARCH=amd64; JQ_SHA256=b1c22172dd303f3be49e935aa56aa48a8b7a46e0bc838b4997d3bb451495870f ;;
+        aarch64) JQ_ARCH=arm64; JQ_SHA256=8b85c817833814ddca00a144c33705546355afccf0cf39b188f3cdb48b852309 ;;
+        *) echo "no pinned jq for $(uname -m)" >&2; exit 1 ;;
+      esac
+      curl -fsSL -o /usr/local/bin/jq "https://github.com/jqlang/jq/releases/download/jq-${JQ_VERSION}/jq-linux-${JQ_ARCH}"
+      echo "${JQ_SHA256}  /usr/local/bin/jq" | sha256sum -c -
+      chmod +x /usr/local/bin/jq
   script:
-    - node -v
+    # `jq --version` next to `node -v`, because "which jq ran" is the first
+    # question any difference between these legs and a workstation would raise.
+    - node -v && jq --version
     - pnpm install --frozen-lockfile
     # `pnpm check` directly, not `tools/verify.sh`: the script's job is to walk
     # the matrix on one machine, and here the matrix is `parallel:matrix`, one
