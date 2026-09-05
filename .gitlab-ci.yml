@@ -194,10 +194,59 @@ verify:
       curl -fsSL -o /usr/local/bin/jq "https://github.com/jqlang/jq/releases/download/jq-${JQ_VERSION}/jq-linux-${JQ_ARCH}"
       echo "${JQ_SHA256}  /usr/local/bin/jq" | sha256sum -c -
       chmod +x /usr/local/bin/jq
+    # `mksh`, a SECOND POSIX shell (LINK-znjdpezx). `POSIX_SHELLS` in
+    # `tests/unit/enforcement-scripts.test.ts` is built by probing, and on a
+    # stock `node:` image it finds exactly one interpreter: `/bin/ksh` is a
+    # dangling name, no ksh or mksh is installed, and `/bin/sh` realpaths onto
+    # `/bin/dash`. Three `it.each` blocks therefore ran nine cases on the
+    # author's machine and three here — and NOTHING SAID SO. This is not a skip:
+    # no skipped count moves, no line of the report changes, the file simply
+    # reports 100 tests against 106 and both are green. Strictly worse than the
+    # jq case above, where the lost coverage at least printed as `skipped`.
+    #
+    # What that cost is not incidental. `install-aliases.sh`'s `*)` branch routes
+    # every non-bash, non-zsh shell to `~/.profile`, and LINK-dwapcooy exists
+    # because the guard it emits declared `local` — which dash carries as an
+    # extension and ksh93 does not, so a dash-only check called a 126 fine. The
+    # one shell CI had was the forgiving one.
+    #
+    # APT HERE, A PINNED DOWNLOAD FOR jq ABOVE. The three reasons in that block
+    # split rather than transfer, and it is worth being explicit about which:
+    #
+    #   - Pinning does not transfer, because there is nothing to pin. jq's
+    #     upstream publishes an immutable, permanently hosted release binary;
+    #     MirBSD ships mksh as source, and Debian's pool drops a .deb as soon as
+    #     a revision supersedes it, so a checksummed URL here would be a link
+    #     that 404s on someone else's schedule. apt is not the lazier route, it
+    #     is the only one.
+    #   - Determinism across the matrix does not transfer either, and that is
+    #     what chose mksh over ksh93. Debian carries mksh R59c in BOTH suites
+    #     (59c-28+deb12u1 on bookworm, 59c-41+b2 on trixie): one upstream
+    #     release, a packaging revision apart. `apt-get install ksh` would have
+    #     put ksh93u+m 2023-01-28 on the node:24 leg and 1.0.10 on the node:26
+    #     leg — two shells wearing one name, which is the thing the jq note
+    #     refused.
+    #   - Cost is the reason that stands, and it is simply paid. Fetching apt's
+    #     indexes is the expensive half: 1-2s in six of seven `docker run`
+    #     samples taken for this change, and 156s in the seventh. Unpredictable
+    #     in both directions, which is what the jq note found from the other end
+    #     (3s bookworm, 79s trixie). The lists are deleted afterwards so nothing
+    #     downstream inherits a stale index.
+    #
+    # mksh is a genuinely different implementation, which is the whole point:
+    # dash descends from the Almquist shell and mksh from pdksh by way of
+    # OpenBSD's ksh. A second ash build would have added a row, not a check.
+    - apt-get update -qq
+    - apt-get install -y -qq --no-install-recommends mksh
+    - rm -rf /var/lib/apt/lists/*
   script:
     # `jq --version` next to `node -v`, because "which jq ran" is the first
     # question any difference between these legs and a workstation would raise.
-    - node -v && jq --version
+    # `$KSH_VERSION` for the same reason, and for one more: Debian's mksh package
+    # registers the `ksh` alternative, so the POSIX cases in the enforcement
+    # suite name themselves `/bin/ksh` in this log while being mksh, not the
+    # ksh93 that name means on macOS. This line is what tells them apart.
+    - node -v && jq --version && mksh -c 'echo "$KSH_VERSION"'
     - pnpm install --frozen-lockfile
     # `pnpm check` directly, not `tools/verify.sh`: the script's job is to walk
     # the matrix on one machine, and here the matrix is `parallel:matrix`, one
