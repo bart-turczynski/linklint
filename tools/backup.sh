@@ -3,11 +3,13 @@
 #
 # WHY THIS EXISTS
 #
-# GitHub push is blocked (403, account suspended), so `main` lives on this
-# machine and nowhere else. Two things have to survive, and only one of them is
-# in git:
+# `main` is pushed to GitLab, so git history has an off-machine copy. The
+# tracker does not: two things have to survive, and only one of them is in git
+# — and only one of them is on any remote:
 #
-#   1. Git history — captured by `git bundle --all`.
+#   1. Git history — captured by `git bundle --all`. Also on GitLab, so this
+#      half is belt-and-braces: it protects against a bad local git operation
+#      or a bad merge, not against losing the remote.
 #   2. `.fp/` — the issue tracker. It is GITIGNORED, so no bundle has ever
 #      contained it. It holds every issue, decision record and closing comment
 #      the repo's process depends on (LINK-wgsbhovi and LINK-nwqrqjdc were both

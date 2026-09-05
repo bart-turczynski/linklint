@@ -173,9 +173,10 @@ like a package the registry does not know.
 **Why it exists (`LINK-rlrdiqhm`).** `tldts` and `tr46` carry the Public Suffix
 List and the UTS-46 tables that linklint's verdicts are computed from, so a
 release of either is a data change, not a version bump. Until 2026-08 the only
-automatic signal that one had shipped was a dependabot PR; the GitHub account is
-suspended, dependabot stopped, and `tldts@7.4.10` slipped past the 7.4.9 pin
-unnoticed. Nothing inside the repository can close that gap on its own —
+automatic signal that one had shipped came from outside the repository, and when
+that signal stopped `tldts@7.4.10` slipped past the 7.4.9 pin unnoticed. This
+script replaced it, and is now the only such signal — GitLab opens no dependency
+PRs, so nothing arrives unasked. Nothing inside the repository can close that gap on its own —
 linklint has no network path, and `PSL_PROVENANCE.pslListDate` is a
 packaging-release proxy that bounds the snapshot's age from below only, so
 `pslOutdated()` reads `null` (undetermined) inside its window rather than

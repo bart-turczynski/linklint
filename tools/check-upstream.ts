@@ -5,10 +5,11 @@
  * WHY THIS EXISTS. `tldts` and `tr46` carry the Public Suffix List and the
  * UTS-46 tables that linklint's verdicts are computed from, so a release of
  * either is a data change (CONTRIBUTING.md §"Bumping the `tldts` or `tr46`
- * pin"). Until 2026-08 the only automatic signal that one had shipped was a
- * dependabot PR; the GitHub account is suspended, dependabot is not running,
- * and `tldts@7.4.10` had already slipped past unnoticed. Nothing else in the
- * repository can report the move: linklint has no network path, and
+ * pin"). Until 2026-08 the only automatic signal that one had shipped came from
+ * outside the repository; when that signal stopped, `tldts@7.4.10` slipped past
+ * unnoticed. This tool is its replacement, and the only one — GitLab opens no
+ * dependency PRs, so nothing arrives unasked. Nothing else in the repository
+ * can report the move either: linklint has no network path, and
  * `PSL_PROVENANCE.pslListDate` is a packaging-release proxy that bounds the
  * snapshot's age from BELOW only — inside the freshness window `pslOutdated()`
  * returns `null`, which is "undetermined", not "current".
@@ -28,8 +29,7 @@
  *   - It does not check publicsuffix.org. A current `tldts` pin still says
  *     nothing about whether the list bundled inside it is current; the bundled
  *     snapshot is regenerated at that package's build time and is dated only by
- *     proxy. This closes the "upstream *package* moved" gap, which is the one
- *     dependabot used to cover, and no other.
+ *     proxy. This closes the "upstream *package* moved" gap, and no other.
  *   - It does not bump anything. A move is reported for a human to run the
  *     CONTRIBUTING procedure against, because the bump is a data change whose
  *     blast radius has to be read (`pnpm data:boundary --check`).

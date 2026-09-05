@@ -1,6 +1,6 @@
 /**
- * LINK-rlrdiqhm — contract tests for `tools/check-upstream.ts`, the replacement
- * for the dependabot notification that died with the GitHub account.
+ * LINK-rlrdiqhm — contract tests for `tools/check-upstream.ts`, the only signal
+ * that an npm-backed data pin has moved.
  *
  * EVERY REGISTRY READ IS INJECTED. `pnpm check` runs offline (and runs inside
  * `tools/verify.sh`, which is expected to work on a plane), so nothing here

@@ -174,8 +174,9 @@ move a normalization result. Treat it as a data change, not a version bump.
 
 `pnpm check` already runs all three gates below; this is the order to work in.
 
-> **Dependabot is not the notification any more** (`LINK-rlrdiqhm`). The GitHub
-> account is suspended, so no PR will arrive. Ask the registry directly instead:
+> **Ask the registry; nothing will tell you** (`LINK-rlrdiqhm`). GitLab is the
+> only forge this project uses and it opens no dependency PRs, so no upstream
+> release announces itself. Ask the registry directly:
 >
 > ```sh
 > pnpm data:upstream-check
@@ -195,23 +196,19 @@ move a normalization result. Treat it as a data change, not a version bump.
 > What it still cannot tell you: whether the *list inside* `tldts` moved. That
 > needs a bump plus `pnpm data:boundary --check`, below.
 
-**The dependabot PR is a notification, not a merge candidate.** Dependabot opens
-one per `tldts`/`tr46` release and it arrives **red**, because it moves the pin
-without moving the stamps and `data-versions.test.ts` catches that. That is the
-gate working, not a broken PR. Do not merge it and do not "fix CI" on it — do
-the procedure below on your own branch, land that, and close the dependabot PR
-as superseded.
+**A bare pin bump is a notification, not a merge candidate.** Moving `tldts` or
+`tr46` without moving the stamps fails `data-versions.test.ts`. That is the gate
+working, not a broken change — do the procedure below on your own branch rather
+than shipping the bump alone.
 
-Keeping these PRs is deliberate, and the reason is that nothing *inside* the
+The reason an outside signal is needed at all is that nothing *inside* the
 repository can tell us upstream moved. linklint has no network path and never
 contacts publicsuffix.org, and `PSL_PROVENANCE.pslListDate` is a
 packaging-release **proxy** — it bounds the snapshot's age from below only, so
 inside the freshness window `pslOutdated()` returns `null` (undetermined) and
-can never say "a new list shipped". The signal has to come from outside, which
-is what the dependabot PR was and what `pnpm data:upstream-check` now is. An
-`ignore:` entry would buy a quieter PR list at the cost of one of the two
-mechanisms that surface a silently ageing trust boundary — the exact failure the
-provenance record exists to make visible.
+can never say "a new list shipped". `pnpm data:upstream-check` is that outside
+signal, and it is the only one: run it, or a silently ageing trust boundary goes
+unnoticed — the exact failure the provenance record exists to make visible.
 
 1. **Bump the pin and its stamps together.** Update `DATA_VERSIONS`
    (`src/data/versions.ts`) and, for `tldts`, all three fields of

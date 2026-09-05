@@ -20,8 +20,7 @@ The pre-push hook runs `tools/verify.sh`: a `--frozen-lockfile` install, then
 metered, so `.gitlab-ci.yml` creates no pipeline for an ordinary push and only
 builds on dependency, toolchain, pinned-data and tag changes.
 
-It is also the stand-in for branch protection, which this project has never had
-on either host.
+It is also the stand-in for branch protection, which this project has never had.
 
 If the script reports a matrix leg as NOT RUN, that leg is genuinely ungated on
 your machine until you install the runtime it names — `brew install node@24` for
@@ -31,9 +30,11 @@ pass on one major as a pass on the matrix.
 Install the tracker guards in the same pass; see
 [*Tracker hygiene*](tracker-hygiene.md).
 
-## While the remote is unreachable
+## Local hygiene
 
-`main` lives on one machine, so local hygiene is the only hygiene.
+`main` is on GitLab and in sync, but nothing on that remote gates or reviews it
+— there is no branch protection and no required pipeline — so the discipline
+below is still the only discipline.
 
 **Nothing may sit on a branch.** Finish the slice, merge to `main`, delete the
 branch. `git branch --no-merged main` should be empty every time you check —

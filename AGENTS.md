@@ -11,9 +11,9 @@ dependencies, build outputs, or caches.
 `tools/verify.sh`. A leg reported NOT RUN is ungated — a pass on one major is
 not a pass on the matrix.
 
-`main` lives on one machine; there is no branch protection. Finish a slice,
-merge to `main`, delete the branch — `git branch --no-merged main` stays empty —
-then run `./tools/backup.sh`.
+`main` is on GitLab (`bart-turczynski/linklint`, public); there is no branch
+protection. Finish a slice, merge to `main`, delete the branch —
+`git branch --no-merged main` stays empty — then run `./tools/backup.sh`.
 
 Every `— ADOPTED.` block in `docs/architecture.md` ends with a
 `**Pending (LINK-…).**` or `**Implemented (LINK-…).**` trailer, asserted by
