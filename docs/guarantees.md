@@ -82,7 +82,7 @@ that moved them.
 | `docs/naming.md` | 0 |
 | `docs/online-composition-root.md` | 1 |
 | `docs/online-roadmap.md` | 12 |
-| `docs/online-runtime-boundary.md` | 10 |
+| `docs/online-runtime-boundary.md` | 13 |
 | `docs/online-source-contract.md` | 14 |
 | `docs/raw-url-tokenization-spike.md` | 1 |
 | `docs/reason-codes.md` | 88 |
@@ -281,7 +281,7 @@ that the reason fires at each limit and that the reason list is not empty.
 | F3 | Every pluggable call is a total boundary — an exception becomes an attributed failure outcome and never rejects `inspectAsync()` | `docs/enrichment-outcomes.md` | `packages/core/test/enrichment-resilience.test.ts` |
 | F4 | Online evidence is additive and never replaces the lexical verdict | `docs/layer3-reputation-model.md`, `docs/online-source-contract.md`, `docs/reason-codes.md` | `packages/online/test/reputation-composition.test.ts` |
 | F5 | Evidence-only sources (TLS, DNS) never score a finding and are byte-neutral on the verdict | `docs/layer3-reputation-model.md`, `docs/online-source-contract.md` | `packages/online/test/tls-certificate-enricher.test.ts`, `packages/online/test/dns-enricher.test.ts` |
-| F6 | Redirects are returned to the caller and never followed implicitly; construction is never consent to connect — scoped to this boundary and the built-in composition, since a caller-supplied HTTP port is a trusted capability (see the note below) | `packages/online/README.md`, `docs/safe-transport.md`, `docs/online-runtime-boundary.md` | `packages/online/test/safe-transport.test.ts`, `packages/online/test/transport-trust-boundary.test.ts` |
+| F6 | Redirects are returned to the caller and never followed implicitly; construction is never consent to connect — scoped to the **L0 destination boundary** (`@linklint/online/transport`) and its built-in composition, since a caller-supplied HTTP port is a trusted capability (see the note below); the provider mirror engine is a different layer and is F18 | `packages/online/README.md`, `docs/safe-transport.md`, `docs/online-runtime-boundary.md` | `packages/online/test/safe-transport.test.ts`, `packages/online/test/transport-trust-boundary.test.ts` |
 | F7 | Ambient credential headers are never copied to a destination; `Referer` is never forwarded from caller headers — same scope as F6: the header set this boundary builds and hands the port carries neither, and a caller-supplied port answers for anything it adds of its own | `docs/safe-transport.md` | `packages/online/test/safe-transport.test.ts`, `packages/online/test/transport-trust-boundary.test.ts` |
 | F8 | Local wrapper decoding never calls a vendor decoder service and performs no I/O at all | `packages/online/README.md`, `docs/wrapper-decoding.md`, `docs/redirect-chain-resolution.md` | `packages/online/test/embedded-wrapper.test.ts`, `packages/online/test/package-contract.test.ts` |
 | F9 | A reputation match is never broadened to the host — a different path, query, subdomain, or parent is a `no-hit` | `docs/layer3-reputation-model.md`, `docs/reason-codes.md`, `docs/online-roadmap.md` | `packages/online/test/urlhaus-lookup.test.ts`, `packages/online/test/phishtank-lookup.test.ts` |
@@ -293,6 +293,7 @@ that the reason fires at each limit and that the reason list is not empty.
 | F15 | An HTTPS-to-HTTP downgrade is reported at weight 0 and the chain is not stopped: the finding is keyed on the transition, not on a hop's own scheme, so a plaintext origin is not a downgrade, and a hop-capped or authorization-denied chain still reports the plaintext target it was directed into | `docs/redirect-chain-resolution.md`, `docs/reason-codes.md` | `packages/online/test/https-downgrade.test.ts` |
 | F16 | The transport outcome statuses and cause vocabularies published in `docs/safe-transport.md` are exactly the sets exported at runtime under `TRANSPORT_SCHEMA_VERSION`, and a value added to or removed from either side without moving the stamp fails the build | `docs/safe-transport.md`, `packages/online/README.md` | `packages/online/test/transport-outcome-registry.test.ts` |
 | F17 | Certificate evidence on a `transport.attempt` is read from the hop's own already-authorized handshake — it opens no additional connection and asks no additional authorization question — and a populated `tls` block never describes an unverified peer, because the authorization and identity checks run before the record is taken. The leaf is best-effort: absence means "not recovered here", never "no certificate" | `docs/safe-transport.md` | `packages/online/test/safe-transport.test.ts`, `packages/online/test/node-transport-tls-live.test.ts` |
+| F18 | The provider mirror download engine follows a redirect — this is the layer F6 does not govern — under four bounds: at most three hops are followed and the fourth is refused; every hop URL passes the same HTTPS-only scheme gate as the caller's own, so a `Location:` naming `http:` is refused rather than silently downgraded; a hop to a different origin keeps only `Accept`, `Accept-Encoding` and `User-Agent` and never restores a dropped credential, including on a hop back; and every hop is address-classified before its socket opens. The hop chain it reports carries origins only — never a path and never a query, because PhishTank's credential is a path segment | `docs/online-runtime-boundary.md` | `packages/online/test/mirrors-node-live.test.ts` |
 
 **F6 and F7 are scoped to this boundary and to the built-in composition
 (`LINK-zzaerxod`).** Both are pinned through `createSafeTransport` with
@@ -322,6 +323,21 @@ identity, which is the property the scoped half of both claims rests on and
 which nothing held before. F11 is deliberately left unqualified: it is a closure
 claim about what the transport hands the connector, which `execute()` enforces
 for every port, built-in or not.
+
+**"This boundary" means L0, and the same package contains a layer where it does
+not apply** (`LINK-scectgty`). `mirrors/mirror-http-node.ts` — the feed download
+engine behind `createNodeUrlhausHttpClient` and `createNodePhishTankHttpClient`
+— follows a redirect, which reads as a counterexample to F6 and is not one. It
+sits outside L0 by design and says so in its own header: L0 authorizes a request
+only when it carries a `destination-fetch` authorization whose URL equals the
+request URL, so routing a feed download through it would authorize the *feed
+host* as an inspected destination, which
+[`online-runtime-boundary.md`](online-runtime-boundary.md) forbids. F6 governs
+what linklint does with an **attacker-supplied** URL, where a hop is a fact to
+report to the caller and following one would skip the caller's per-hop
+authorization. The mirror engine fetches a **provider's own dataset** under
+rules of its own — the bounded, credential-stripped chain that F18 states and
+pins. Two layers, two rules; neither is a relaxation of the other.
 
 **F10 is scoped to the built-ins, deliberately.** It is a claim about
 `createNodeSafeTransport()`'s own connector and HTTP port, not about a
