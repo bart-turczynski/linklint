@@ -20,12 +20,14 @@ import { compareUrls } from "../src/compare/compare-urls.js";
  * **No row is added here, and no weight moves.** Two things block that decision
  * and only one of them is answerable by measurement:
  *
- * 1. OpenStack states the link-local address is incomplete without a ZONE
- *    IDENTIFIER (`fe80::a9fe:a9fe%eth0`), and nothing in the tree recorded what
- *    linklint does with one. That is this file: every zone-identifier spelling
- *    is measured against `analyzeIpv6`, `parse`, `inspect`, `classifyHost` and
- *    `compareUrls`, and against WHATWG-URL for parity. The answers are pinned
- *    whether or not a table row is ever added.
+ * 1. A `fe80::/10` address is ambiguous without a ZONE IDENTIFIER — RFC 4007 §6,
+ *    not anything OpenStack says; the Nova page prints the bare address and
+ *    mentions no zone at all — so `fe80::a9fe:a9fe%eth0` is the spelling a host
+ *    with more than one interface actually needs, and nothing in the tree
+ *    recorded what linklint does with one. That is this file: every
+ *    zone-identifier spelling is measured against `analyzeIpv6`, `parse`,
+ *    `inspect`, `classifyHost` and `compareUrls`, and against WHATWG-URL for
+ *    parity. The answers are pinned whether or not a table row is ever added.
  * 2. `fe80::a9fe:a9fe` is a PROXY ANYCAST address, not one vendor's endpoint:
  *    every OpenStack deployment answers on it, and on a network without
  *    OpenStack it is an ordinary link-local address. That is materially weaker
