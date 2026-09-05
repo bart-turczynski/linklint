@@ -22,5 +22,16 @@ export { scanControlChar } from "./detectors/control-char.js";
 export type { Detector, DetectorFinding, InspectionContext } from "./detectors/types.js";
 export { runPolicy, policyConfigured } from "./policy/policy.js";
 export { parse } from "./parse/parse.js";
+// URL relationship comparison — same origin / same site (LINK-vycgfumd).
+// A SECOND question from `inspect()`'s, and the one production consumer of the
+// PSL's PRIVATE-inclusive view (architecture §6.1).
+export {
+  compareUrls,
+  type ComparedUrl,
+  type OriginKind,
+  type UrlComparison,
+  type UrlRelation,
+} from "./compare/compare-urls.js";
+
 export { findConfusables } from "./unicode/confusables.js";
 export { skeleton } from "./unicode/skeleton.js";

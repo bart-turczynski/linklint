@@ -72,6 +72,59 @@ The synchronous package itself still performs no network I/O. See
 [`docs/enrichment-outcomes.md`](../../docs/enrichment-outcomes.md) for the public
 contract, status semantics, validation rules, and legacy-findings migration.
 
+## Comparing two URLs
+
+`compareUrls(left, right)` answers a different question from `inspect()`'s: not
+"is this string deceptive" but "do these two URLs address the same origin, or the
+same site". It is synchronous, offline, and total — a non-string argument comes
+back as `"undetermined"` rather than a `TypeError`.
+
+```ts
+import { compareUrls } from 'linklint';
+
+compareUrls('https://ex.com:443/a', 'https://EX.com./b').sameOrigin;
+// → 'same'  (default port elided, case folded, root label dropped)
+
+compareUrls('https://alice.github.io/', 'https://mallory.github.io/');
+// → sameSite: 'different', sameSiteIcann: 'same'
+```
+
+Three answers, each `'same' | 'different' | 'undetermined'`:
+
+| Field | Question |
+| --- | --- |
+| `sameOrigin` | Same scheme, host and port, after the canonicalization below. |
+| `sameSite` | Same registrable domain under the PSL's **PRIVATE-inclusive** view, so two tenants of one multi-tenant platform stay distinct. |
+| `sameSiteIcann` | The same under the ICANN-only view — the one `inspect().parsed.registrableDomain` reports. |
+
+Both sides of the comparison come back on `left` and `right` as the canonical
+view they were compared on (`scheme`, `host`, `port`, `site`, `siteIcann`,
+`originKind`), so an answer can be read rather than taken on trust.
+
+**Why this is a function and not a recipe.** `inspect().parsed` reports what the
+URL *wrote*, which is what the character-level detectors need, so it applies none
+of the four normalizations a comparison wants: `https://ex.com:443/` keeps port
+`443`, `http://EX.com/` keeps host `EX.com`, `https://ex.com./` keeps the root
+label, and the A-label and U-label spellings of one host land on different values
+— `registrableDomain` included. `compareUrls()` applies all four: UTS-46 ToASCII
+over the host (which covers case and the IDN spellings in one step), canonical
+rendering for IP literals, default-port elision, and a single trailing root label
+removed. See `docs/architecture.md` §6.1.9 for the specification and the
+measurement that decided it ships.
+
+**Opaque origins are `'different'`, not `'undetermined'`.** `data:`, `file:` and
+`about:blank` are settled by the URL Standard — each parse gets a fresh opaque
+origin, so two parses of one identical `data:` string are two origins.
+`'undetermined'` is kept for what this function could not work out: an input that
+did not parse, a host UTS-46 rejects, or a bare authority with no scheme. Read
+`!== 'same'` as weaker than `=== 'different'`.
+
+The result is **advisory**: a relationship, not a permission. It carries
+`pslSnapshot`, the provenance of the bundled PSL both site answers rest on, whose
+`stale` flag is one-directional — it can show proven staleness and cannot show
+freshness, because the pinned date is a packaging proxy. Test `=== true`; read
+`null` as unknown.
+
 ## License
 
 MIT.

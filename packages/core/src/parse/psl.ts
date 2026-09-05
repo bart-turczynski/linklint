@@ -41,3 +41,26 @@ export function looksLikeRegistrableDomain(candidate: string): boolean {
   // domain, producing embedded-domain false positives.
   return r.domain === candidate && r.isIcann === true && !r.isIp;
 }
+
+/**
+ * Registrable domain under the PRIVATE-inclusive view: the same lookup as
+ * {@link analyzeHost} with the PSL's PRIVATE section switched on, so a
+ * multi-tenant platform's tenants stay distinct (`alice.github.io` and
+ * `mallory.github.io` resolve to themselves rather than collapsing onto
+ * `github.io`). Returns `null` when the host has no registrable domain under
+ * that view (an IP literal, an unlisted suffix, a hostless input).
+ *
+ * DELIBERATELY NOT wired into {@link analyzeHost} or `HostFacts`. Architecture
+ * §6.1 declined that seam — it would add a second PSL lookup to every
+ * `inspect()` against the sub-5 ms budget, and put two similarly-named fields
+ * with a subtle correctness difference in front of every future detector. This
+ * is a separate function for the one production consumer that needs the other
+ * view (`compare/compare-urls.ts`), which is not on the `inspect()` path, so
+ * the declined seam stays declined and the hot path is untouched.
+ *
+ * No caching, on purpose (pslr D19): tldts owns its own lookup structure and a
+ * memo here would be a second cache with a second invalidation story.
+ */
+export function privateRegistrableDomain(host: string): string | null {
+  return tldtsParse(host, { allowPrivateDomains: true, detectIp: true }).domain;
+}
