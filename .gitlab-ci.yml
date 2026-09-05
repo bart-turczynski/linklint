@@ -131,45 +131,48 @@ verify:
     - pnpm check
 
 # ---------------------------------------------------------------------------
-# Release (LINK-geygvedm).
+# Release (LINK-geygvedm, reworked to OIDC under LINK-ppqdxwlj).
 #
 # This is the one job that sends something outside this machine, and it runs
 # only on a tag — the `$CI_COMMIT_TAG` arm in `workflow:rules` above already
 # admitted that case before this job existed.
 #
-# WHY GITLAB CI PUBLISHES AND A HUMAN DOES NOT. `npm publish` cannot be driven
-# unattended from this project's workstation: the npm account's second factor is
-# a WebAuthn passkey, so publish raises `EOTP` and demands a browser handoff.
-# A passkey is challenge-response — there is no six-digit code to pass to
-# `--otp=` — so the only route that works without a human at the keyboard is an
-# npm **Automation** token, which bypasses 2FA. It lives in `NPM_TOKEN`, a
-# masked and protected CI/CD variable, and nowhere in this repository.
+# NO TOKEN. Authentication is npm "trusted publishing": GitLab mints a
+# short-lived OIDC token, the npm CLI exchanges it for a publish token that
+# lives for minutes, and npm attaches a provenance attestation for free. There
+# is no long-lived credential in this project's CI variables to leak, rotate, or
+# expose through world-readable job logs — which matters more here than it would
+# on a private project, since `public_jobs` is on. `cc-cream` publishes this way
+# already; this is the same shape.
 #
-# `public_jobs` is true on this project, so job logs are world-readable. The
-# defense is not log obscurity: a *protected* variable is unavailable to any
-# non-protected ref — a fork's merge-request pipeline included — and a *masked*
-# one is redacted if it is ever echoed. Set both flags, and scope the variable
-# to protected tags.
+# THIS FILE'S PATH IS LOAD-BEARING. npm's trusted-publisher record pins the
+# namespace, the project and the "top-level CI file path". Renaming or moving
+# `.gitlab-ci.yml` breaks publishing until the record is updated, and the record
+# cannot be edited — npm's UI says the provider and its fields are fixed once
+# created, so a change means deleting the connection and making a new one.
 #
-# WHY npmjs.com AND NOT GITLAB'S PACKAGE REGISTRY. The `linklint` name on npmjs
-# is already held by this account (`0.0.1`, a placeholder). GitLab's registry
-# serves only scoped names and makes every consumer add a registry line to their
-# `.npmrc` — a real adoption tax on a CLI and an MCP server. "Move the npm
-# publication to GitLab" means GitLab becomes the thing that publishes, not that
-# the registry changes.
+# SHARED RUNNERS ONLY. npm does not accept OIDC from self-hosted runners, so the
+# escape hatch discussed for the metered-minutes problem (LINK-ozgkfjow) would
+# cost this job its authentication. Weigh that before attaching one.
 #
-# NO `needs:`, DELIBERATELY. Stage ordering already blocks this job behind every
-# leg of `verify`, so a tag whose tree fails on either Node major cannot
-# publish. A `needs:` here would let it start early, which is exactly wrong for
-# the one irreversible job in the file.
+# WHY `npm publish` AND NOT `pnpm publish`. pnpm is the workspace tool here, but
+# it is not the publisher: OIDC support is an open request against pnpm
+# (pnpm/pnpm#9812), and pnpm 11 — the major pinned in `packageManager` — is
+# reported to fail OIDC publishes that worked on pnpm 10 (pnpm/pnpm#11513). The
+# npm CLI owns the token exchange, so npm does the publishing.
 #
-# STATUS, 2026-09-05: unverified end-to-end — no tag has ever been pushed, so
-# this job has never run. It is not blocked, though: runner minutes came back
-# with the visibility flip. What stands between here and a release is that
-# `verify` is currently red on the runner (LINK-ujbttpph), and stage ordering
-# means a tag pushed today would be refused rather than published — which is the
-# design working. Its first real execution is also its first test: treat the
-# first tag as a rehearsal and read the log before believing it.
+# That leaves one thing only pnpm can do: `workspace:*`. npm would publish that
+# literal string and break every install. So pnpm PACKS — which rewrites each
+# `workspace:*` to the exact version, measured in `check-release-version.mjs` —
+# and npm publishes the resulting tarballs. Each tool does the half it is good
+# at, and the artifact npm uploads is the one pnpm resolved.
+#
+# STATUS, 2026-09-05: unverified end-to-end — no tag has ever been pushed. It is
+# not blocked by runner minutes any more; what stands in the way is that
+# `verify` is red on the runner (LINK-ujbttpph), and stage ordering means a tag
+# pushed today is refused rather than published, which is the design working.
+# Its first execution is also its first test: read the log, and check the
+# registry rather than the pipeline's colour.
 publish:
   stage: publish
   rules:
@@ -177,31 +180,42 @@ publish:
   image: node:24
   interruptible: false
   timeout: 15m
+  id_tokens:
+    NPM_ID_TOKEN:
+      aud: "npm:registry.npmjs.org"
+    SIGSTORE_ID_TOKEN:
+      aud: sigstore
   cache:
     key:
       files: [pnpm-lock.yaml]
     paths: [.pnpm-store]
     policy: pull
+  variables:
+    RELEASE_DIR: "$CI_PROJECT_DIR/.release"
   before_script:
+    # The node:24 image ships an npm older than trusted publishing needs (11.5.1
+    # or later). Pin the major rather than `@latest`, so a future npm major
+    # cannot change publish behavior underneath a release.
+    - npm install -g npm@11
     - npm install -g "pnpm@$(node -p "require('./package.json').packageManager.split('@')[1]")"
     - pnpm config set store-dir "$PNPM_STORE"
   script:
-    # Fail before the install rather than after the build if the token is absent
-    # — an unset protected variable on an unprotected tag is the likeliest way
-    # for this job to go wrong, and it should say so in one line.
-    - test -n "${NPM_TOKEN:-}" || { echo "NPM_TOKEN is unset. It is a protected variable; is this tag protected?"; exit 1; }
+    - node -v && npm -v && pnpm -v
     - pnpm install --frozen-lockfile
-    # The tag names the release. `v0.1.0` must find 0.1.0 in the manifests, and
-    # all four must agree, because pnpm rewrites each `workspace:*` to the
-    # exact version at pack time — a drifted manifest would publish a dependent
-    # pinned to a `linklint` that does not exist.
+    # The tag names the release, and every manifest must agree with it, because
+    # the pack step below turns each `workspace:*` into whatever version it finds.
     - node tools/check-release-version.mjs "$CI_COMMIT_TAG"
     - pnpm build
-    - npm config set "//registry.npmjs.org/:_authToken" "$NPM_TOKEN"
+    - mkdir -p "$RELEASE_DIR"
+    - pnpm -r --filter "./packages/*" pack --pack-destination "$RELEASE_DIR"
+    - ls -l "$RELEASE_DIR"
     # `linklint` (packages/core) goes first: the other three depend on it, and
     # publishing a dependent before its dependency leaves a window in which an
-    # install resolves to nothing. `--no-git-checks` because CI is on a detached
-    # HEAD at the tag. Republishing an existing version fails the job, which is
-    # the wanted behavior — do not soften it with `|| true`.
-    - pnpm --filter linklint publish --no-git-checks
-    - pnpm --filter @linklint/cli --filter @linklint/mcp --filter @linklint/online publish --no-git-checks
+    # install resolves to nothing. Republishing an existing version fails the
+    # job, which is the wanted behavior — do not soften it with `|| true`.
+    - npm publish "$RELEASE_DIR/linklint-${CI_COMMIT_TAG#v}.tgz"
+    - |
+      for tarball in "$RELEASE_DIR"/linklint-cli-*.tgz "$RELEASE_DIR"/linklint-mcp-*.tgz "$RELEASE_DIR"/linklint-online-*.tgz; do
+        echo "publishing $tarball"
+        npm publish "$tarball"
+      done

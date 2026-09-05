@@ -289,22 +289,56 @@ yet.
 
 ### Why CI publishes and you cannot
 
-The npm account's second factor is a **WebAuthn passkey**. `npm publish` raises
-`EOTP` and demands a browser handoff, and a passkey is challenge–response — there
-is no six-digit code to hand to `--otp=`. An npm **Automation** token bypasses
-2FA and is the only mechanism that works unattended.
+Authentication is npm **trusted publishing** (OIDC), not a token. GitLab mints a
+short-lived identity token, the npm CLI exchanges it for a publish token that
+lives for minutes, and npm attaches a provenance attestation at no extra cost.
+Nothing long-lived exists to leak or rotate — which matters here, because this
+project is public with `public_jobs` on and job logs are world-readable.
 
-Create one at npmjs.com → Access Tokens → Automation and store it as `NPM_TOKEN`
-under Settings → CI/CD → Variables, **masked and protected**. Then protect the
-release tags (Settings → Repository → Protected tags; `v*` is the pattern), or
-the variable will not be exposed to the pipeline and the job will stop on its
-first line saying so.
+It also happens to be the only thing that works unattended. The npm account's
+second factor is a WebAuthn passkey, so a manual `npm publish` raises `EOTP` and
+demands a browser handoff, and a passkey is challenge–response — there is no
+six-digit code to hand to `--otp=`.
 
-Both flags matter, and neither is the primary defense on its own. This project
-is public with `public_jobs` enabled, so job logs are world-readable: *masked*
-keeps the value out of them, and *protected* — the one that actually matters —
-keeps it away from every non-protected ref, a fork's merge-request pipeline
-included. The token never appears in the repository.
+**One-time setup, per package**, at npmjs.com → the package → Settings → Trusted
+Publisher:
+
+| Field | Value |
+|---|---|
+| Publisher | GitLab CI/CD |
+| Namespace | `bart-turczynski` |
+| Project name | `linklint` |
+| Top-level CI file path | `.gitlab-ci.yml` |
+| Allowed actions | tick **Allow `npm publish`** |
+
+Three things about that record are easy to get wrong:
+
+- **The CI file path is load-bearing.** Moving or renaming `.gitlab-ci.yml`
+  breaks publishing until the record is updated.
+- **It cannot be edited.** npm fixes the provider and its fields once the
+  connection is created; changing one means deleting it and making a new one.
+- **Shared runners only.** npm does not accept OIDC from a self-hosted runner,
+  so attaching one to solve a future minutes problem (`LINK-ozgkfjow`) would
+  cost this job its authentication.
+
+**A package must already exist before its trusted publisher can be configured** —
+npm's settings page needs something to attach the record to. `linklint` exists,
+so it can go straight to OIDC. `@linklint/cli`, `@linklint/mcp` and
+`@linklint/online` do not, so each needs one bootstrap publish by another means
+before its record can be created. Plan the first release around that; it is a
+one-time cost per package, not a standing one.
+
+### Why `npm publish` and not `pnpm publish`
+
+pnpm is the workspace tool here but not the publisher. OIDC support is an open
+request against pnpm (`pnpm/pnpm#9812`), and pnpm 11 — the major pinned in
+`packageManager` — is reported to fail OIDC publishes that worked on pnpm 10
+(`pnpm/pnpm#11513`). The npm CLI owns the token exchange, so npm publishes.
+
+That leaves exactly one thing only pnpm can do: rewrite `workspace:*`. npm would
+publish the literal string and break every install. So the job has pnpm **pack**
+all four packages and npm **publish** the resulting tarballs — each tool does the
+half it is good at, and what npm uploads is what pnpm resolved.
 
 ### What is not proven yet
 
