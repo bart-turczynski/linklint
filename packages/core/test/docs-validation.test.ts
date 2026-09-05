@@ -315,6 +315,36 @@ describe("docs/architecture.md detector families cover every check", () => {
   });
 });
 
+describe("the project's forge and visibility are described as they are (LINK-wxofepqm)", () => {
+  // The project was private until 2026-09-05, and the flip to public is what
+  // restored shared-runner minutes (CONTRIBUTING.md, `LINK-ozgkfjow`). Prose
+  // written before it survived in two places, and both stated a REASON rather
+  // than merely a stale adjective — the README explained the absent CI badge by
+  // "the pipeline lives on a private project and the badge would not render" —
+  // so a reader concluded something false about the setup. Anonymous HTTP 200s
+  // against gitlab.com/bart-turczynski/linklint are what settles it.
+  //
+  // The word `private` on its own cannot be banned and is not: the PSL's
+  // PRIVATE section and the `ip_private` reason code are unrelated concepts
+  // that this repository talks about constantly. These assertions name the
+  // visibility-of-the-repository sense only.
+  const namingDoc = readFileSync(join(REPO_ROOT, "docs", "naming.md"), "utf8");
+
+  it("the README explains the absent CI badge by how rarely a pipeline is created", () => {
+    expect(readme).not.toMatch(/private (?:project|repo(?:sitor(?:y|ies))?)/i);
+    expect(readme).toMatch(/no CI badge/i);
+    // The true reason, which is `workflow:rules` in `.gitlab-ci.yml`: an
+    // ordinary push creates no pipeline, so a badge would track whichever
+    // commit last moved dependencies rather than the tip of `main`.
+    expect(readme).toMatch(/most pushes create no pipeline/i);
+  });
+
+  it("docs/naming.md names the forge and the visibility the project actually has", () => {
+    expect(namingDoc).toMatch(/GitLab\s+`bart-turczynski\/linklint`\s+\(public\)/);
+    expect(namingDoc).not.toMatch(/GitHub\s+`bart-turczynski/);
+  });
+});
+
 describe("the scope-of-claim boundary is stated in one canonical place", () => {
   // The boundary (claim (a) structural, NOT claim (b) semantic; the watchlist
   // may NAME an anomaly but never CREATE a finding) now appears in three files:

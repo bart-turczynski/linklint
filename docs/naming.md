@@ -15,8 +15,13 @@ read.
 For orientation, the identity this name attaches to: an explainable, offline-first, agent-native
 URL inspector — "safe-chain for links" — that detects deceptive URLs (homographs, confusables,
 userinfo spoofs, IP obfuscation) lexically and offline, with named reason codes. v1 is Layer-1
-lexical only; resolution and reputation are roadmap. Repo `~/Projects/linklint`, GitHub
-`bart-turczynski/linklint` (private), npm `linklint` (published `0.0.1`, a throwing
+lexical only; resolution and reputation are roadmap. Repo `~/Projects/linklint`, GitLab
+`bart-turczynski/linklint` (public), npm `linklint` (published `0.0.1`, a throwing
 placeholder). pnpm TS monorepo; `packages/core` is the publishable `linklint` package; MIT.
+
+The forge and the visibility above are both corrections, made 2026-09-05 under
+`LINK-wxofepqm`. This paragraph was promoted with "GitHub … (private)" in it: GitLab is the
+only forge this project uses, and the project was made public on 2026-09-05 — the flip that
+restored shared-runner minutes (`LINK-ozgkfjow`).
 
 See also `PRD.md`, `architecture.md`, `IDEAS.md`.

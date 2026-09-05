@@ -12,8 +12,9 @@
 <sub>**Verification:** every commit passes `pnpm check` — build, typecheck, 3568
 tests, 51 feature scenarios — on both supported Node majors before it is pushed.
 Remote CI runs the same matrix on dependency, toolchain and pinned-data changes.
-There is no CI badge here because the pipeline lives on a private project and
-the badge would not render; see
+There is no CI badge here because most pushes create no pipeline at all, so a
+badge would report whichever commit last moved dependencies rather than the tip
+of `main`; see
 [CONTRIBUTING.md](./CONTRIBUTING.md#the-verify-gate) for how the gate is split.</sub>
 
 Hand **linklint** a single URL — from an email, a chat message, or an LLM agent's
