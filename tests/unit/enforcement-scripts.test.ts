@@ -36,7 +36,7 @@
  *     repo's hooks or CI and none is added here.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { accessSync, constants, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -48,11 +48,33 @@ const HOOK = resolve(REPO_ROOT, "enforcement", "claude-code-hook.sh");
 const INSTALLER = resolve(REPO_ROOT, "enforcement", "install-aliases.sh");
 const CLI_BIN = resolve(REPO_ROOT, "packages", "cli", "dist", "cli.js");
 
-/** Absolute path of an external command, or undefined when it is not on PATH. */
+/**
+ * Absolute path of an external command, or undefined when it is not on PATH.
+ *
+ * The PATH walk is the second half, and it is not decoration (LINK-znjdpezx).
+ * `command -v` answers with the bare NAME rather than a path when the probing
+ * shell has the command as a BUILTIN — `sh -c 'command -v printf'` prints
+ * `printf` under dash and bash. The callers hand this result to `symlinkSync`,
+ * so a bare name produced a dangling relative link and a sandbox that silently
+ * lacked the command. That stayed invisible for as long as no entry below was a
+ * builtin anywhere. mksh ended it: it has no printf builtin and resolves the
+ * name on PATH, so the sandbox must carry the real binary, so this must find it.
+ */
 function which(cmd: string): string | undefined {
   const r = spawnSync("/usr/bin/env", ["sh", "-c", `command -v ${cmd}`], { encoding: "utf8" });
   const out = r.stdout.trim();
-  return r.status === 0 && out.length > 0 ? out : undefined;
+  if (r.status === 0 && out.startsWith("/")) return out;
+  for (const dir of (process.env["PATH"] ?? "").split(":")) {
+    if (dir === "") continue;
+    const candidate = join(dir, cmd);
+    try {
+      accessSync(candidate, constants.X_OK);
+      return candidate;
+    } catch {
+      /* not here; keep walking */
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -72,12 +94,28 @@ function which(cmd: string): string | undefined {
 const JQ = which("jq");
 
 /**
- * Externals the two scripts and the emitted guard actually invoke. Everything
- * else is a shell builtin, so a PATH containing only these plus our shims is
- * enough to run them — and is what makes "jq is missing" / "linklint is
- * missing" testable rather than hypothetical.
+ * Externals the two scripts and the emitted guard actually invoke, so a PATH
+ * containing only these plus our shims is enough to run them — which is what
+ * makes "jq is missing" / "linklint is missing" testable rather than
+ * hypothetical.
+ *
+ * `printf` IS THE NON-OBVIOUS ENTRY, and it is here because of mksh
+ * (LINK-znjdpezx). This list used to say "everything else is a shell builtin",
+ * which is true of bash, zsh and dash and FALSE of mksh: it carries no printf
+ * builtin and resolves the name on PATH. Measured in `docker run node:24` —
+ * `mksh -c 'command -v printf'` answers `/usr/bin/printf`, where dash and bash
+ * both answer `printf`, and `PATH= mksh -c 'printf "OK\n"'` fails outright.
+ *
+ * Adding mksh to the `verify` job is what surfaced it. The guard prints its
+ * refusal with `printf`, so under the restricted PATH above the message became
+ * `E: /bin/ksh: printf: inaccessible or not found` and the assertion below
+ * caught it. Note WHICH half broke: the block still held — exit 1, zero fetch
+ * calls — and only the explanation was lost, which is the correct direction for
+ * this guard to fail in. A real rc-file user has `/usr/bin/printf` on PATH, so
+ * what was wrong was this list's claim about shells, not the guard's use of a
+ * POSIX utility. The assertion it feeds is unchanged and no weaker.
  */
-const REQUIRED_EXTERNALS = ["cat", "grep", "basename"] as const;
+const REQUIRED_EXTERNALS = ["cat", "grep", "basename", "printf"] as const;
 
 /** ASCII unit separator: the argv delimiter our shims write to their log. */
 const UNIT_SEP = String.fromCharCode(0x1f);
@@ -118,6 +156,28 @@ const BASHES: readonly string[] = distinctShells([
  * and any `/bin/sh` read — so the emitted text has to be POSIX sh, not bash.
  * macOS ships `/bin/ksh` (ksh93u+) and `/bin/dash`; a Linux CI box usually has
  * dash as `/bin/sh` only.
+ *
+ * WHICH IS WHY `.gitlab-ci.yml` INSTALLS `mksh` (LINK-znjdpezx). Probing means
+ * this list shrinks IN SILENCE. On a stock `node:` image every candidate but
+ * dash is absent — `/bin/ksh` is a dangling name, no ksh or mksh is installed,
+ * and `/bin/sh` realpaths onto `/bin/dash` — so it collapsed from three entries
+ * to one and the three `it.each` blocks below ran nine cases on a workstation
+ * and three on the runner. Nothing said so: no skipped count moved, no line of
+ * the report changed, 106 tests here and 100 there and both green. That is
+ * worse than the `jq` case above, where the lost coverage at least printed as
+ * `skipped`. The census assertion at the foot of this file is what stops the
+ * install being removed without a sound.
+ *
+ * mksh rather than a second dash build, because the point is a second
+ * IMPLEMENTATION: dash descends from the Almquist shell, mksh from pdksh by way
+ * of OpenBSD's ksh. `install-aliases.sh`'s `*)` branch had been proved against
+ * the forgiving one only — LINK-dwapcooy exists because the guard declared
+ * `local`, which dash carries as an extension and ksh93 does not.
+ *
+ * READING A CI LOG: the case names there say `/bin/ksh`, and on Debian that is
+ * MKSH, not ksh93 — the mksh package registers the `ksh` alternative, and
+ * `/bin/ksh` is the first candidate below, so it wins the de-duplication. The
+ * `verify` job prints `$KSH_VERSION` beside `node -v` for exactly that reason.
  */
 const POSIX_SHELLS: readonly string[] = distinctShells([
   "/bin/ksh",
@@ -1118,5 +1178,33 @@ describe.skipIf(POSIX_SHELLS.length === 0)("the emitted guard under a non-bash r
     for (const bashism of [/^\s*local\s/, /^\s*declare\s/, /\[\[/, /\$\(\(/, /==/, /\+=/, /<<</]) {
       expect(code.filter((line) => bashism.test(line))).toEqual([]);
     }
+  });
+});
+
+/**
+ * The census itself, asserted (LINK-znjdpezx).
+ *
+ * `POSIX_SHELLS` is built by probing, so its length is a fact about the machine
+ * rather than about this repository — and a shorter list costs coverage without
+ * costing a single line of output. This is the only place that can say so. Its
+ * own `describe` rather than a case inside the block above, because that block
+ * is `skipIf(POSIX_SHELLS.length === 0)` and the emptiest census is exactly the
+ * one that must not go quiet.
+ *
+ * Linux only, because it is a claim about the CI image. macOS ships `/bin/ksh`
+ * and `/bin/dash` from the vendor and needs no instruction; a Debian box needs
+ * `mksh`, which `.gitlab-ci.yml` installs in `verify`. Removing that install now
+ * reddens the gate instead of quietly narrowing it by six cases.
+ */
+describe("the POSIX shell census (LINK-znjdpezx)", () => {
+  it.skipIf(process.platform !== "linux")("finds at least two distinct POSIX shells", () => {
+    expect(
+      POSIX_SHELLS.length,
+      `POSIX_SHELLS is ${JSON.stringify(POSIX_SHELLS)}. On Linux a stock image supplies dash and ` +
+        "nothing else, so the `*)` branch of install-aliases.sh would be proved against one " +
+        "forgiving implementation and the loss would not show up anywhere in the report. Install " +
+        "a second, non-dash POSIX shell — `apt-get install mksh`, which is what `.gitlab-ci.yml` " +
+        "does in the `verify` job.",
+    ).toBeGreaterThanOrEqual(2);
   });
 });
