@@ -19,22 +19,30 @@
  * access policy has moved before, and a caller who has registered one should
  * keep sending it rather than be silently anonymised.
  *
- * WHAT THIS DOES NOT FIX. That `302` points at `cdn.phishtank.com`, a host the
- * caller did not name, and `mirror-http-node.ts` deliberately follows no
- * redirect — re-sending a caller credential to an unnamed host is what
- * `docs/online-runtime-boundary.md` forbids. So `createNodePhishTankHttpClient`
- * turns the live feed into `phishtank-http-error` / `PhishTank status 302`
- * whether or not a key is configured. Making the key optional removes a false
- * precondition; it does not on its own make the default download succeed
- * (LINK-plfzjlxg).
+ * THE HOP IS FOLLOWED BY THE SHIPPED CLIENT (LINK-scectgty). That `302` points
+ * at `cdn.phishtank.com`, a host the caller did not name, and for a while
+ * `mirror-http-node.ts` followed no redirect at all — so
+ * `createNodePhishTankHttpClient` turned the live feed into
+ * `phishtank-http-error` / `PhishTank status 302` whether or not a key was
+ * configured, and making the key optional (LINK-plfzjlxg) removed a false
+ * precondition without making the default download succeed.
  *
- * `baseUrl` does not rescue it, which was worth measuring rather than assuming:
- * the redirect target is `/datadumps/verified_online.csv` under a CloudFront
- * signature bound to that exact path, so a base pointed at it still has
- * `online-valid.csv` appended and answers `404`. The working route is a
- * caller-supplied {@link PhishTankHttpClient} that follows the hop. Verified
+ * It succeeds now. The engine follows a bounded chain — three hops, HTTPS only,
+ * every hop address-classified — and DROPS every caller header but
+ * `Accept`, `Accept-Encoding` and `User-Agent` when the origin changes, which
+ * is what `docs/online-runtime-boundary.md` asks for when it says provider
+ * authorization headers are "always stripped before a destination request or
+ * cross-origin redirect". PhishTank's credential is not in a header anyway; it
+ * is in the path of the URL this updater builds, and the CDN hop's path is
+ * chosen by PhishTank's own `Location`, so the key is not re-sent there either.
+ *
+ * `baseUrl` is still not the way to reach the CDN, which was worth measuring
+ * rather than assuming: the redirect target is `/datadumps/verified_online.csv`
+ * under a CloudFront signature bound to that exact path, so a base pointed at
+ * it still has `online-valid.csv` appended and answers `404`. Follow the hop —
+ * which is now the default — rather than trying to name its target. Verified
  * 2026-09-05 against the live feed with no app key at all: the updater below
- * parsed and stored 74,539 records through such a client.
+ * parsed and stored 74,539 records over a redirect-following client.
  *
  * Discipline enforced here:
  * - **App-key safety**: PhishTank keys go in the URL *path*. The key is revealed

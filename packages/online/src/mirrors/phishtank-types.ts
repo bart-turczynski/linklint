@@ -147,10 +147,12 @@ export interface UpdatePhishTankSnapshotOptions {
    * key between them when one is supplied: `${baseUrl}/${appKey}/online-valid.csv`,
    * or `${baseUrl}/online-valid.csv` without. Defaults to the PhishTank data host.
    *
-   * Note this is NOT a way around the `302` that host answers with: the signed
-   * CDN target is `verified_online.csv`, so a base pointed at it still gets
-   * `online-valid.csv` appended and answers `404`. Following that hop is a
-   * caller-supplied {@link PhishTankHttpClient}'s job (LINK-plfzjlxg).
+   * Note this is NOT the way to reach the `302`'s target: the signed CDN object
+   * is `verified_online.csv`, so a base pointed at it still gets
+   * `online-valid.csv` appended and answers `404`. Nor does it need to be —
+   * the shipped Node client follows that hop under a bounded, credential-
+   * stripping redirect policy (LINK-scectgty), so the default base reaches the
+   * feed on its own.
    */
   readonly baseUrl?: string;
   /**

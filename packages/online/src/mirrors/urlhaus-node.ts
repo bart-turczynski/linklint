@@ -8,7 +8,7 @@
  * The socket, address-policy, budget and decode wiring lives in
  * `mirror-http-node.ts`, shared with the PhishTank client — read that file for
  * why a feed download sits outside the L0 destination boundary, which parts of
- * L0's policy it still borrows, and why a 3xx is never followed. This module
+ * L0's policy it still borrows, and how far it follows a redirect. This module
  * owns only what is URLhaus-specific: the error identity the updater reports,
  * and the note below about where the credential goes.
  *
