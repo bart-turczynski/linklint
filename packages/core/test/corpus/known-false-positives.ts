@@ -198,6 +198,65 @@
  * The measurement is reproducible from public data with curl and node, no
  * credentials and no paid service. Re-run it against a newer crawl before trusting
  * the rate; nothing here is pinned by a test, and these numbers are a snapshot.
+ *
+ * ## The other class on the same surface, split (LINK-xzzqaine)
+ *
+ * `open_redirect_param` is not the only thing the fragment surface flags. The
+ * same run produced 39 fragment-attributed findings, and 26 of them are the class
+ * above; the other 13 are `percent_encoding_malformed`, at 0.20/low. That class
+ * was filed unsplit because it visibly held two different things, and a single
+ * verdict over both would have been wrong either way.
+ *
+ * ### The classifier
+ *
+ * For each `%` in the fragment: shape 1 is `%` followed by a character that is
+ * neither a hex digit nor a second `%` — the author meant a percent SIGN. Shape 2
+ * is `%` followed by a hex digit and then a non-hex character — a partially valid,
+ * corrupted escape. `%` at end of string and `%%` are counted separately as edge
+ * forms rather than folded into either shape.
+ *
+ * ### The result, on the SAME corpus, so the denominators are the ones above
+ *
+ * The instrument was re-run rather than recalled, and it reproduced the figures in
+ * this header exactly — 233,209 hrefs with `#`, 101,787 unique, 1,233 with `=` in
+ * the fragment, 39 fragment-attributed findings, 13 of them this class.
+ *
+ *   shape 1, bare percent sign     10 of 13   `width=95%&height=95%`
+ *   shape 2, corrupted escape       3 of 13   `...Participation%2n0Requirements`
+ *
+ * The split is CLEAN. Every one of the 13 falls into exactly one shape, the two
+ * never co-occur in a single URL, and the offending sequences are just three:
+ * `%&h` and a trailing `%` for shape 1, `%2n` for shape 2. Shape 1 is ordinary
+ * authoring — a percent sign in a width parameter — and by the detector's own
+ * premise shape 2 is a TRUE positive, a corrupted `%20`. So the class did need
+ * splitting before it could be judged, and it splits without ambiguity.
+ *
+ * ### What the split does NOT establish, which is the more important half
+ *
+ * Shape 1 outnumbers shape 2 by 10 to 3, and that ratio is NOT evidence of
+ * prevalence. Each shape comes from exactly ONE host: all 10 shape-1 URLs are
+ * `allbible.info`, all 3 shape-2 URLs are `affiliate-program.amazon.co.uk`. Worse
+ * for the ratio, the two sides are not even counted alike — the 10 are 10 distinct
+ * verse pages of one template, while the 3 are ONE page whose URLs differ only in
+ * an Amazon tracking token. So 10-to-3 measures how many verse pages happened to
+ * land in the sample, not how common either convention is on the web.
+ *
+ * The honest reading: the SHAPES are established and the classifier is decisive,
+ * but with n=1 host per shape this sample supports no per-shape rate at all. Do not
+ * quote 10-of-13 as a prevalence figure. Sizing either shape needs a wider crawl —
+ * more segments, or a whole WAT file rather than its head.
+ *
+ * Every caveat in "Representativeness" above applies here unchanged and is not
+ * weakened by the split: WAT sees only hrefs in SERVED markup, the denominator is
+ * "the web as crawled" rather than verified-benign, and only the numerator was read
+ * by hand. The rate remains a floor.
+ *
+ * ### Nothing here is pinned, deliberately
+ *
+ * No entry was added to the register for either shape, and no detector, weight,
+ * heuristic or exemption changed. Narrowing `percent_encoding_malformed` so shape 1
+ * stops firing would suppress shape 2 with it, and shape 2 is the detector working
+ * correctly. Measuring the split is licensed; acting on it is a separate decision.
  */
 
 export interface KnownFalsePositive {
