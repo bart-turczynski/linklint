@@ -123,6 +123,46 @@
  * remediation should price the share-widget convention first; the SPA hash router
  * is the rare member, not the representative one.
  *
+ * ### The second band, and why it is a second entry (LINK-gdarhprp)
+ *
+ * The adjudication above sizes the class. It does not report its worst verdict,
+ * because the sample dump it was read from listed only the fragment-attributed
+ * reason code, which hid a co-firing detector. Re-run against the built
+ * `inspect()`, 4 of the same 26 hits score 0.61/high rather than 0.40/medium, and
+ * all four are AddToAny share links that were hand-adjudicated benign.
+ *
+ * The mechanism generalises, which is why it is pinned rather than noted. A share
+ * widget percent-encodes the URL being shared. When that URL ALREADY contains
+ * percent-encoded non-ASCII - Devanagari `%E0%A4%85` in the entry below - encoding
+ * it a second time yields `%25E0%25A4%2585`, and double-encoding is exactly what
+ * `encoding_obfuscation` is built to notice. So it co-fires with
+ * `open_redirect_param` and the pair clears the high band. This is not a rare
+ * accident: it is the deterministic output of the share-widget convention applied
+ * to any non-ASCII URL, which is to say to most of the non-English web. The
+ * 4-of-26 rate inherits the served-markup floor caveat above.
+ *
+ * Severity is the part that costs something, because severity is what the
+ * enforcement guard acts on. `docs/enforcement.md` documents `LINKLINT_FAIL_ON` as
+ * defaulting to `high`, so this is not a threshold a user opts into by taking our
+ * advice - at the shipped default these benign share links are BLOCKED rather than
+ * merely scored, out of the box, on the non-English web.
+ *
+ * Why a SECOND ENTRY and not a range on the existing one. `observed` is coupled to
+ * live behaviour through `band-narration.test.ts`, and that coupling is the whole
+ * value of the field. One assertion cannot pin "somewhere between 0.40/medium and
+ * 0.61/high", so a range would convert a mechanically-checked field into prose
+ * that drifts silently - the precise failure this register exists to prevent. Two
+ * rows keep one pin per observable verdict. They also repair the naming problem
+ * the section above records: the first row is named for an SPA hash router that is
+ * 1 of 26 real hits, while the share widgets it stands next to are 21 of 26.
+ *
+ * Read the two rows as ONE class with two bands, not as two classes. Same detector
+ * on the same fragment surface; the second simply carries a second detector
+ * because the shared URL was non-ASCII. And nothing here licenses tuning either
+ * band away: `encoding_obfuscation` is doing its stated job on a genuinely
+ * double-encoded string. Recording the high band is the deliverable; making it
+ * disappear is a separate decision nobody has taken.
+ *
  * ### Representativeness, stated against our own interest
  *
  * The honest caveats, including the one that cuts the wrong way:
@@ -204,5 +244,20 @@ export const KNOWN_FALSE_POSITIVES: readonly KnownFalsePositive[] = [
     why: "an ordinary single-page-app hash route whose own query happens to carry a CDN URL under a parameter named `url`; by the detector's stated premise it is a true positive, by ordinary web practice it is a normal SPA link",
     issue: "LINK-wtdpntox",
     observed: "0.40/medium [open_redirect_param] — fragment redirect parameter 'url' points off-site to 'example.org'",
+  },
+  // The same class at its high band — see "The second band" in the header. 4 of
+  // those same 26 hits score here rather than at 0.40/medium, all four AddToAny
+  // share links, all four benign. Kept as its own row because `observed` is pinned
+  // per verdict and cannot express a range. Do NOT tune `encoding_obfuscation` so
+  // it stops co-firing: it is correctly reporting a genuinely double-encoded
+  // string, and the entry exists to keep that cost visible, not to license its
+  // removal.
+  {
+    input:
+      "https://www.addtoany.com/share#url=https%3A%2F%2Fbishnumun.gov.np%2Fcontent%2F%25E0%25A4%2585%25E0%25A4%25A8&title=x",
+    why: "an ordinary AddToAny share link, which puts the shared URL in the fragment by design so that the URL being shared is never sent to AddToAny's server; the shared URL is a Nepali government page whose path is already percent-encoded Devanagari, so the widget's own encoding of it comes out double-encoded by arithmetic, with nothing concealed and nothing to conceal.",
+    issue: "LINK-gdarhprp",
+    observed:
+      "0.61/high [open_redirect_param, encoding_obfuscation] — fragment redirect parameter 'url' points off-site to 'bishnumun.gov.np', and the doubly percent-encoded Devanagari path reads as '%25' double-encoding",
   },
 ];
