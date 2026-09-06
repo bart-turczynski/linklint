@@ -97,8 +97,19 @@ describe("guarantee register — claim budget (LINK-ltyjctpf)", () => {
     expect(
       actual,
       `${path} has ${actual} guarantee-word line(s), register says ${budgeted}. ` +
-        "Pin the new claim with a test, qualify the prose, or classify it under " +
-        "docs/guarantees.md §H — then update the budget.",
+        "\n\nTHIS TEST GATES PROSE. Editing a doc under docs/, or a README, can move " +
+        "this count, and the budget pinning it lives in a DIFFERENT file: the " +
+        "'### Claim budget' table in docs/guarantees.md, one row per swept file. " +
+        "That coupling is not discoverable from the file you just edited, which is " +
+        "why this message spells it out (LINK-ampwnhnj).\n\n" +
+        "IF THE COUNT WENT UP you added a claim-shaped sentence. The sanctioned " +
+        "remedy is pin-then-move, IN THAT ORDER: pin the new claim with a test, or " +
+        "qualify the prose so it no longer reads as an unconditional guarantee, or " +
+        "classify it under docs/guarantees.md §H (Not guarantees) — and only then " +
+        "raise this file's row in the budget table. Moving the row first is what the " +
+        "check exists to catch.\n\n" +
+        "IF THE COUNT WENT DOWN you removed or reworded a claim; lower the row to " +
+        "match, so the budget keeps biting at the new level.",
     ).toBe(budgeted);
   });
 });
