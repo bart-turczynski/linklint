@@ -224,12 +224,17 @@
  *   shape 1, bare percent sign     10 of 13   `width=95%&height=95%`
  *   shape 2, corrupted escape       3 of 13   `...Participation%2n0Requirements`
  *
- * The split is CLEAN. Every one of the 13 falls into exactly one shape, the two
- * never co-occur in a single URL, and the offending sequences are just three:
- * `%&h` and a trailing `%` for shape 1, `%2n` for shape 2. Shape 1 is ordinary
- * authoring — a percent sign in a width parameter — and by the detector's own
- * premise shape 2 is a TRUE positive, a corrupted `%20`. So the class did need
- * splitting before it could be judged, and it splits without ambiguity.
+ * The split is CLEAN. Every one of the 13 carries exactly one of the two SHAPES,
+ * and the two never co-occur in a single URL. Three offending sequences account
+ * for all of them: `%&h` is shape 1, `%2n` is shape 2, and a trailing `%` is the
+ * edge form — which every shape-1 URL here also carries, because `width=95%` ends
+ * the string. The edge form is counted apart from both shapes, per the classifier
+ * above, so a re-run reporting shape 1 as 10 AND `edge_trailing` as 10 over the
+ * same 10 URLs is agreeing with this header, not contradicting it. Shape 1 is
+ * ordinary authoring — a percent sign in a width parameter — and by the
+ * detector's own premise shape 2 is a TRUE positive, a corrupted `%20`. So the
+ * class did need splitting before it could be judged, and it splits without
+ * ambiguity.
  *
  * ### What the split does NOT establish, which is the more important half
  *
