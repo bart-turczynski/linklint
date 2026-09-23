@@ -1,3 +1,4 @@
+import { bareSingleLabelHost } from "./raw-parts.js";
 import type { RawUrlTokens } from "./raw-tokens.js";
 import { isKnownScheme } from "./syntax.js";
 
@@ -63,7 +64,7 @@ function echo(region: string): string {
  */
 export function describeParseFailure(tokens: RawUrlTokens): string | undefined {
   const scheme = tokens.scheme;
-  if (scheme === null) return undefined;
+  if (scheme === null) return describeSchemelessFailure(tokens);
 
   const recognition = isKnownScheme(scheme)
     ? "is a scheme linklint recognizes"
@@ -74,4 +75,20 @@ export function describeParseFailure(tokens: RawUrlTokens): string | undefined {
       : `the authority region '${echo(tokens.authority)}' is not a host`;
 
   return `scheme '${scheme}:' ${recognition}, and ${failure} — the body after '${scheme}:' was not inspected`;
+}
+
+/**
+ * The one scheme-less failure with a name to give (LINK-igoxaojd): the input
+ * parsed as far as a host, and that host is a single label, which scheme-less
+ * input may not be (`isBareSingleLabel` in `raw-parts.ts`). Every other
+ * scheme-less failure keeps the generic fallback, as before.
+ *
+ * The message says what would have made the input acceptable, because the
+ * failure is a contract rule rather than a malformation: `localhost` is a fine
+ * host behind `http://`.
+ */
+function describeSchemelessFailure(tokens: RawUrlTokens): string | undefined {
+  const host = bareSingleLabelHost(tokens);
+  if (host === null) return undefined;
+  return `no scheme, and the host '${echo(host)}' is a single label with no dot — input without a scheme must name a dotted host or carry a scheme such as 'http://'; the input was not inspected`;
 }
