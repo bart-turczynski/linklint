@@ -394,15 +394,19 @@ half it is good at, and what npm uploads is what pnpm resolved.
 
 ### What is not proven yet
 
-The `publish` job has **never run** — no tag has ever been pushed. It is no
-longer blocked, though: runner minutes came back with the visibility flip, and
-`verify` now executes on both majors.
+The `publish` job has **never run** — no tag has ever been pushed.
 
-What blocks a release today is that **`verify` is red on the runner**
-(`LINK-ujbttpph`): three tests that pass on macOS fail on the Linux CI image.
-`publish` sits behind `verify` by stage ordering, so a tag pushed now would be
-correctly refused rather than publishing a tree the matrix rejected. Fix that
-first.
+As of 2026-09-23, **`verify` is not red on the tree.** The Linux-as-root
+failures (`LINK-ujbttpph`) were fixed in `7ecba8b`; pipeline `2822716357` on
+`main` put both matrix legs green on 2026-09-05, and the last pipeline to run
+any job (`2824077211`, 2026-09-06) was green too.
+
+What blocks a release on that date is **runner minutes again.** All nine
+pipelines created on 2026-09-23, `main`'s `2874608846` among them, failed with
+`failure_reason: ci_quota_exceeded` before any job started. A tag pushed while
+that holds fails `verify` the same way, and `publish` sits behind `verify` by
+stage ordering, so nothing reaches the registry. Check the latest pipeline's
+`failure_reason` before tagging.
 
 When the first tag does go out, its execution is also this job's first test:
 read the job log, and check the registry rather than the pipeline's colour.

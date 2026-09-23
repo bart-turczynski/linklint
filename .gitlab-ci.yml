@@ -414,10 +414,14 @@ audit:
 # and npm publishes the resulting tarballs. Each tool does the half it is good
 # at, and the artifact npm uploads is the one pnpm resolved.
 #
-# STATUS, 2026-09-05: unverified end-to-end — no tag has ever been pushed. It is
-# not blocked by runner minutes any more; what stands in the way is that
-# `verify` is red on the runner (LINK-ujbttpph), and stage ordering means a tag
-# pushed today is refused rather than published, which is the design working.
+# STATUS, 2026-09-23: unverified end-to-end — no tag has ever been pushed.
+# `verify` is NOT red on the tree: LINK-ujbttpph was fixed in 7ecba8b, pipeline
+# 2822716357 on `main` put both matrix legs green on 2026-09-05, and the last
+# pipeline to run jobs at all (2824077211, 2026-09-06) was green. What blocks a
+# tag now is runner minutes again: all nine pipelines created on 2026-09-23,
+# `main`'s 2874608846 among them, failed with `ci_quota_exceeded` and no job
+# started. A tag pushed while that holds would fail `verify` the same way, and
+# stage ordering keeps `publish` from running — nothing reaches the registry.
 # Its first execution is also its first test: read the log, and check the
 # registry rather than the pipeline's colour.
 publish:
