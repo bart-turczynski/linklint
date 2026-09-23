@@ -40,7 +40,21 @@ import { accessSync, constants, existsSync, mkdirSync, mkdtempSync, readFileSync
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
+
+/**
+ * A 60s per-test timeout for THIS FILE ONLY (LINK-pzzhkpnm), not vitest's 5s
+ * default. Every case here spawns real processes — the installer, a shell that
+ * sources the emitted rc, and often the real CLI on Node — so its wall time is
+ * process-spawn cost, and that cost is what a loaded machine inflates. Measured
+ * on 2026-09-23 (12 cores, endpoint scanning every exec): alone, the slowest
+ * case took 1.1s; inside the full parallel suite, 36 of 111 cases took over 2s
+ * and the worst took 42s. The 5s default failed `tools/verify.sh` on 2 of 4
+ * clean-tree runs, on different cases each time — a false red at push. 60s
+ * clears the measured worst with headroom and still fails a genuine hang in
+ * one minute. Raise it only with a new measurement; do not reach for retries.
+ */
+vi.setConfig({ testTimeout: 60_000 });
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..");
