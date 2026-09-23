@@ -1847,6 +1847,167 @@ it refuses a connection on `classifyHost()`'s bucket and does not read a weight.
 moves `1.22` → `1.23`. The pin is `test/address-destination-weight.test.ts`,
 and `docs/scoring.md` and `docs/reason-codes.md` list the five as annotations.
 
+#### 6.1.11 Correlated reasons in the scorer — not collapsed (`LINK-qhvrvonb`)
+
+**Decision — `aggregate()` keeps combining every scoring reason by
+probabilistic OR. It does not first collapse reasons to the maximum weight per
+`familyFor()` family.** This is option (a), no scorer change, and nothing in
+`schema/`, `scoring/` or the corpus moves. It was decided on the measurement
+below.
+
+**The question.** `LINK-tviundio` gave each code a family, and
+`docs/reason-codes.md` says two codes in one family are two readings of one
+feature rather than two pieces of evidence. `LINK-ucpmjzvt` declined to reward
+stacks, and both of its verifiers pointed the other way: correlated codes
+double-count, so the evidence argues for discounting them. Collapse is that
+discount. It is the residual that decline named, not a reopening of it.
+
+**Measured at weights `1.23`, tip `3970868`.** The method: run every row of
+`CORPUS` in `test/corpus/corpus.ts` through `inspect()`, then recompute each
+score with only the heaviest scoring reason kept per family. 447 rows, 151 of
+which score:
+
+- 21 rows carry more than one scoring reason inside a single family.
+- 12 rows change severity band. Every move is a downgrade, and every moved row
+  is labelled `deceptive`. No `benign` or `info` row moves, because none carries
+  a same-family stack. On this corpus, collapse would not remove one false
+  positive. Its whole measured effect is lower recall on known-bad rows.
+- The moves by family: `authority_delimiters` 7 (`critical` → `high`,
+  `ambiguous_authority` 0.65 + `userinfo_present` 0.5), `character_identity` 4
+  (`critical` → `high`, `brand_homoglyph` 0.8 + `ascii_homoglyph` 0.2), and
+  `host_label_arrangement` 1 (`high` → `medium`, `embedded_domain_in_subdomain`
+  0.5 + `excessive_subdomain_depth` 0.15). The largest score change is 0.175.
+
+The ticket's own figures were taken at weights `1.22` (tip `b66c6f8`): 422 rows,
+30 same-family stacks, 17 band moves. Substituting the `1.22` weights for the
+five `ip_*` codes reproduces 30 and 17 on today's larger corpus. The difference
+is `address_literal`. At `1.22` it contributed five moves (`ip_obfuscation` 0.4
+stacked on `ip_loopback` 0.2, or on `ip_cloud_metadata` 0.75). §6.1.10 moved
+those destination codes to weight 0, so `ip_obfuscation` now scores alone in its
+family and those rows have nothing to collapse.
+
+**Why no collapse.** Three findings decide it, and each holds at `1.23`:
+
+1. **It would silently revert `LINK-kbsvooet`.** That decision raised
+   `brand_homoglyph` to 0.80, and its worked example is
+   `https://paypa1.com/` at `0.84`/`critical`. The critical band is
+   `(0.8, 1]`, and `brand_homoglyph` alone is exactly 0.80, which is `high`.
+   The `critical` verdict is bought by the +0.2 from `ascii_homoglyph`.
+   `character_identity` is the one family where the likelihood ratios show the
+   second reading adds almost nothing (314 against 2.41). It is also where
+   collapse does the most damage, because the 0.80 weight was tuned with the
+   double-count in place.
+2. **It is not a drop-in.** Five rows would fail their own `minSeverity`
+   assertions: `https://a.b.c.d.paypal.com.evil-login.tk/` (`high` → `medium`),
+   and four `critical` → `high` backslash-authority rows,
+   `http://google.com:80\@yahoo.com`,
+   `http://example.com:80\@localhost:8080/secret.txt`, `https://n.pr\@e.gg` and
+   `https://malware.testing.google.test\testing\malware\*@letsencrypt.org`.
+   Adopting collapse means retuning weights or revising those rows, which is a
+   `WEIGHTS_VERSION` change (§6.4) and not a combiner patch.
+3. **The family may be the wrong collapse key.** The placement rule proves
+   sharing structurally: one edit can raise both codes. Collapse needs a
+   stronger, empirical claim, that the second code adds no information. That
+   claim is measured for `character_identity` only and is assumed by the rule
+   everywhere else.
+
+**What reopens it.** A likelihood-ratio measurement per family, a retune that
+keeps `LINK-kbsvooet`'s outcome, and revised corpus assertions, all in one
+`WEIGHTS_VERSION` change. Options (c) and (d) of the ticket describe that work.
+This record does not decide option (b), grouping `reasons[]` by family at the
+presentation surface. That leaves the score untouched.
+
+#### 6.1.12 A `javascript:` payload inside a redirect parameter — the understatement is kept (`LINK-dmjqrcrj`)
+
+**Decision — a redirect parameter carrying an executable scheme keeps
+`open_redirect_param`'s 0.40. It is not graded up toward the payload it
+carries.** Measured on the built CLI at tip `3970868`:
+
+```text
+javascript:alert(1)                                 → 0.90 critical   [dangerous_scheme]
+https://example.com/login?next=javascript:alert(1)  → 0.40 medium     [open_redirect_param]
+```
+
+The same bytes read one band lower when wrapped. That is a known,
+deliberate understatement and it stays visible. It is not a resolved question.
+
+**Why it stays.** Weights in this repository rest on evidence, and no two-class
+measurement exists for this shape. That would take a labelled set of redirect
+parameters carrying executable schemes, weighed against a benign set, which is
+what would ground a different number. Arguments run both ways and neither is
+measured. For 0.40: the outer authority is not deceptive, and the payload runs
+only if the target page also honours the redirect. For raising it: §5 puts both
+codes in the **Dangerous payloads** family, and a `next` parameter holding
+executable content instead of a location is a false self-description. Grading
+the two differently takes a new reason code, because
+`test/checks-registry.test.ts` lets one descriptor emit a code and `checks.ts`
+gives `dangerous_scheme` to exactly one. A new code forces a `SCHEMA_VERSION`
+bump (§6.4), a `docs/scoring.md` count change and a new docs-validation pin, all
+for a weight nobody has measured. A pinned understatement is a better resting
+state than an invented number. The 0.40 is also an improvement on what came
+before: this shape read `0.00` before `LINK-txgqerim`.
+
+**The pins.** `test/open-redirect-param-dangerous-payload.test.ts`, *"the
+understatement against the same bytes standing alone is deliberate"*, asserts
+both weights and both bands. The test just above it in the same file pins the
+single code, `open_redirect_param` alone. The
+Android intent-fallback surface carries the same pin in
+`test/open-redirect-param-intent-fallback.test.ts`. A change to either weight or
+either band turns those tests red.
+
+**What reopens it.** A two-class measurement for this shape. With one, the new
+code, the schema bump and the weight arrive together in one change.
+
+#### 6.1.13 `http://` to an HSTS-preloaded host — declined (`LINK-hmvdnyds`)
+
+**Decision — linklint does not bundle the Chromium HSTS preload list, and
+`http://` to a preloaded host is not flagged, at any weight.** The maintainer
+affirmed the decline on 2026-09-23, on the rationale of the 2026-08-25 vote
+recorded on the ticket. `http://accounts.google.com/` reads `0.00`/`info` with
+no reasons, and that is the intended result.
+
+**The proposal.** The list is offline and deterministic. A conforming browser
+upgrades `http://` to a preloaded host before connecting, so a plain-`http` URL
+to one looks stale, hand-forged, or like a downgrade attempt.
+
+**Why it is declined — two rules, each sufficient.**
+
+1. **§1.1's watchlist rule: a table may NAME a structural anomaly and may not
+   CREATE one.** The proposed firing condition is the preload-list hit, with no
+   structural precondition in front of it. That is the same mechanism as
+   `api_endpoint_impersonation`, whose firing condition was
+   `API_BRAND_DOMAINS.get(token)` and which §6.1.4 deleted for exactly that.
+2. **§6.1.4's residue test rules out the fallback, "then report it at weight
+   0".** Strip the world-claim, "this host has promised HTTPS", and what is left
+   is "the scheme is `http`". `parsed.scheme` already carries that. It is the
+   same shape as `risky_tld`, whose residue was "the public suffix is `tk`" and
+   which §6.1.5 deleted rather than demoted.
+
+The weight-0 route fails a second way as well. §1.1's special-use-names ruling
+admits a reporting code whose content comes from a list only when that content
+is RFC-fixed. Weight 0 answers the deception objection, and RFC-fixed content
+answers the durability objection. Both are required. The Chromium preload list
+is a living, submission-based vendor registry, not RFC-fixed, so the durability
+half fails. This record does not rest on the axis `LINK-qqwfpxvu` rejected,
+*authority-fixed content licenses scoring*. §6.1.10 records that rejection, and
+the argument here does not use it.
+
+**The reader divergence is real, and it is not string-derived.** Chrome upgrades
+the request and curl does not, so two classes of client do act differently on
+the same string. That is not form 2. `read_A(input) !== read_B(input)` here
+depends on whether the host is on a mutable vendor list, not on anything in the
+string, so it fails §1.1's "for all time". `ambiguous_numeric_host` shows that
+browser-versus-non-browser divergence counts when the standards themselves
+supply it, and here they do not.
+
+**Not the precedent.** §6.1.3's decline of `LINK-gruclwmr` concerned a
+popularity list offered as a brand-watchlist source. That is a different
+artifact, and this decline does not rest on it. Bundle size is not the reason
+either: the preload list is roughly two orders of magnitude larger than the
+generated confusables data, but the two rules above settle the question first.
+No reason code, no `SCHEMA_VERSION` or `WEIGHTS_VERSION` movement and no
+`docs/scoring.md` change follow from this record.
+
 ### 6.2 IDNA / UTS-46 conformance & the normalization flag profile
 
 Every verdict that rests on *"what host is this really"* flows through
