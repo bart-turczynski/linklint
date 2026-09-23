@@ -179,7 +179,7 @@ verify:
   # `verify` is actually IN the pipeline — a job that was never selected is not a
   # job that passed. Without this arm, a "Run pipeline" on a tag with
   # `SCHEDULE_KIND=audit` typed into the variables form deselected `verify` and
-  # left `publish` — which mints an npm OIDC token and pushes four packages to a
+  # left `publish` — which mints an npm OIDC token and pushes packages to a
   # registry that does not take them back — with nothing in front of it.
   rules:
     - if: $CI_COMMIT_TAG
@@ -461,8 +461,31 @@ publish:
     # install resolves to nothing. Republishing an existing version fails the
     # job, which is the wanted behavior — do not soften it with `|| true`.
     - npm publish "$RELEASE_DIR/linklint-${CI_COMMIT_TAG#v}.tgz"
+    # The three scoped packages publish ONLY IF THEIR NAME ALREADY EXISTS on the
+    # registry (LINK-kaiehaha). OIDC cannot create a package: the trusted-publisher
+    # record needs a package to attach to, so a new name needs the maintainer's
+    # bootstrap publish first (CONTRIBUTING.md, "Why CI publishes and you
+    # cannot"). Until that has happened, `npm publish` of such a name can only
+    # fail — and failing here would take down a release of `linklint` that has
+    # already gone out, for a package nobody can install yet anyway. So a name
+    # the registry answers with a clean E404 is skipped, loudly, by name.
+    #
+    # ONLY a clean E404 skips. Any other failure to ask — network, 5xx, auth —
+    # fails the job: "could not ask" must never read as "does not exist", or an
+    # outage would silently drop a package that is live. And a name that DOES
+    # exist keeps the rule above: republishing an existing version fails the job.
     - |
       for tarball in "$RELEASE_DIR"/linklint-cli-*.tgz "$RELEASE_DIR"/linklint-mcp-*.tgz "$RELEASE_DIR"/linklint-online-*.tgz; do
-        echo "publishing $tarball"
-        npm publish "$tarball"
+        name="$(tar -xzOf "$tarball" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).name')"
+        view_err="$(mktemp)"
+        if npm view "$name" name >/dev/null 2>"$view_err"; then
+          echo "publishing $tarball ($name)"
+          npm publish "$tarball"
+        elif grep -Eq 'code E404$' "$view_err"; then
+          echo "SKIPPED $name: not on the registry yet (E404) — needs the maintainer's bootstrap publish and trusted-publisher record before CI can publish it"
+        else
+          cat "$view_err" >&2
+          echo "could not ask the registry whether $name exists; refusing to guess" >&2
+          exit 1
+        fi
       done
