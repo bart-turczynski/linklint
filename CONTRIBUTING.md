@@ -372,6 +372,14 @@ so it can go straight to OIDC. `@linklint/cli`, `@linklint/mcp` and
 before its record can be created. Plan the first release around that; it is a
 one-time cost per package, not a standing one.
 
+**Maintainer-only, and no agent can stand in.** Creating the `@linklint` npm
+org, the bootstrap publish of each new package name, and each trusted-publisher
+record all sit behind the maintainer's passkey, which an agent cannot answer.
+Once they exist, a tag and CI trusted publishing do the rest, and agents never
+run `npm publish`. Until then the `publish` job skips any scoped package the
+registry answers with a 404, logging the skip by name, and publishes `linklint`
+alone (`LINK-kaiehaha`).
+
 ### Why `npm publish` and not `pnpm publish`
 
 pnpm is the workspace tool here but not the publisher. OIDC support is an open
