@@ -262,7 +262,9 @@ require no attribution — which is a fact about those descriptors, not an
 exemption from the gate. The gate is terms-only: feed credentials are revealed by
 the updaters, never demanded to construct a query-side enricher. See
 [`online-source-contract.md`](online-source-contract.md) § "Where the
-construction gate runs".
+construction gate runs". For attribution, the gate checks only the caller's
+acknowledgement: linklint renders no attribution, and the duty to attribute
+stays with the caller (same document, § "Attribution is a caller assertion").
 
 The repository ships integration code, not credentials or provider datasets.
 Caller-owned mirrors stay caller-owned and are never silently redistributed.

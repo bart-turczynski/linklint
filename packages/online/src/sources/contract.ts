@@ -92,7 +92,13 @@ export type OnlineSourceSkipCode =
 export interface SourceTermsAcceptance {
   /** The commercial posture the caller operates under. Must be a supported mode. */
   readonly commercialMode: CommercialMode;
-  /** Required when `terms.attributionRequired`; acknowledges the attribution duty. */
+  /**
+   * Required when `terms.attributionRequired`. The caller's assertion that THEY
+   * will attribute the source wherever they publish its results. The terms gate
+   * checks that it was made and nothing reads it afterwards: linklint renders,
+   * displays and satisfies no attribution on the caller's behalf. The gate makes
+   * the duty impossible to miss, not satisfied.
+   */
   readonly acceptAttribution?: boolean;
 }
 
