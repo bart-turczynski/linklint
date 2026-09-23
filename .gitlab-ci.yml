@@ -28,7 +28,13 @@
 # To force a run at any time: CI/CD -> Pipelines -> "Run pipeline" (the `web`
 # source below always builds).
 #
-# STATUS, 2026-09-05: remote verification WORKS again. From 2026-08 it did not —
+# STATUS, 2026-09-23: the namespace's shared-runner minutes are EXHAUSTED again.
+# Every pipeline since 2026-09-23 10:15 UTC failed `ci_quota_exceeded` before any
+# job started (e.g. 2874608846 on `main`). The allowance resets on 2026-10-01;
+# the v0.1.0 tag waits for that, because trusted publishing runs only on
+# GitLab.com hosted runners (LINK-rdkfkqze). `tools/verify.sh` remains the gate.
+#
+# STATUS, 2026-09-05: remote verification worked again. From 2026-08 it did not —
 # shared-runner minutes for this namespace were exhausted and every job failed to
 # start with `ci_quota_exceeded` — and making the project public restored the
 # allowance without a self-hosted runner (LINK-ozgkfjow). Pipeline 2822652495 put
