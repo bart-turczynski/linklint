@@ -1810,7 +1810,7 @@ applied. IANA and the vendors fixing the ranges defeats the durability objection
 weight. §1.1 draws the same line for `special_use_name`: RFC-fixed content plus
 weight 0, both required and neither sufficient alone. Nor is the rule "internal
 destinations are dangerous, so score them": a consequence argument like that is
-what §1.1 lets a caller's declaration license (`agentMode`), never linklint's own
+what §1.1 lets a caller's declaration license (`agentMode`), not linklint's own
 guess about what a URL is for.
 
 **What stays scored, and why that is consistent.** An obfuscated spelling still
@@ -1818,10 +1818,10 @@ scores, because the disguise is the deception and the destination is not. A
 bucket code now only explains what the disguise was hiding. Under `agentMode`,
 `ssrf_cloud_metadata` still meets §1.1's three conditions. Condition 1 asks that
 the fact be *settled* with the gate off, and `ip_cloud_metadata` still settles
-it, reported in both modes by the same lookup. The condition never required the
+it, reported in both modes by the same lookup. The condition did not require the
 fact to score. `http://169.254.169.254/` therefore still lands `critical` under
-`agentMode`, on the escalation alone: `1 − (1 − 1.0) = 1.00`. It always
-saturated there, so the always-on `0.75` never contributed to that verdict.
+`agentMode`, on the escalation alone: `1 − (1 − 1.0) = 1.00`. It saturated
+there in every case, so the ungated `0.75` did not contribute to that verdict.
 
 **Measured consequences.**
 
@@ -1840,7 +1840,7 @@ In the labelled corpus, 47 rows that had scored only on a bucket move from
 and no embarrassment-corpus row carries a bucket code. The default CLI gate
 (`--fail-on high`) no longer exits non-zero on a bare metadata address; `--agent`
 restores the block. `@linklint/online`'s transport guard is untouched, because
-it refuses a connection on `classifyHost()`'s bucket and never reads a weight.
+it refuses a connection on `classifyHost()`'s bucket and does not read a weight.
 
 **Implemented (`LINK-bwqhvjcs`).** The five registry entries in
 `schema/reason-codes.ts` carry `scoring: false` / weight 0 and `WEIGHTS_VERSION`
