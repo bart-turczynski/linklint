@@ -16,14 +16,10 @@
 # `tools/verify.sh` reuses a warm store and the Node builds this laptop happens
 # to have, while these jobs resolve from the lockfile on stock images.
 #
-# ONE JOB HERE RUNS FOR A DIFFERENT REASON: the dependency audit
-# (LINK-txxcwplc). Its answer moves when the npm advisory database moves, not
-# when this tree does, so no `changes:` rule can ever trigger it and a clock is
-# the only thing that can. It is driven by its own schedule and a single job —
-# see `audit` below, and `SCHEDULE_KIND` in `variables`. What this file defines
-# is the job and the rules that select it; the schedules that fire them are
-# project settings, and their live state is recorded in the dated SCHEDULES
-# paragraph below.
+# The dependency audit (`pnpm audit:deps`) is NOT scheduled here. The project
+# runs no scheduled pipelines (LINK-txxcwplc, declined): the audit is run by hand
+# before every release and after dependency changes — CONTRIBUTING.md,
+# §"Auditing dependencies for known vulnerabilities".
 #
 # To force a run at any time: CI/CD -> Pipelines -> "Run pipeline" (the `web`
 # source below always builds).
@@ -53,19 +49,6 @@
 # tree, and a `script_failure` the local gate cannot reproduce is the runner
 # differing from the workstation — Linux rather than macOS, and root rather than
 # a user.
-#
-# SCHEDULES, MEASURED 2026-09-05 (LINK-tgzddnrz). Nothing in this repository can
-# assert what is configured under CI/CD -> Schedules, so this is a measurement
-# with a date on it, not a standing claim. On that date
-# `GET /projects/:id/pipeline_schedules` returned exactly ONE object — "dependency
-# audit", `0 6 * * 1` on `refs/heads/main`, ACTIVE FALSE, with no variables
-# attached — and no canary at all. So neither schedule was firing: the audit
-# schedule existed but was paused, and without `SCHEDULE_KIND=audit` attached to
-# it, it would have selected the `verify` matrix rather than `audit` had it been
-# resumed. Everything below describes what each schedule does ONCE CONFIGURED and
-# stays correct whether or not it is; creating the canary, attaching the variable
-# and re-activating the audit are LINK-txxcwplc, and THIS PARAGRAPH is the only
-# text in this file that ticket has to update.
 
 stages: [verify, publish]
 
@@ -73,15 +56,6 @@ variables:
   # Keep the pnpm store inside the project so GitLab's cache can carry it
   # between runs; a cold store is most of the wall time of these jobs.
   PNPM_STORE: "$CI_PROJECT_DIR/.pnpm-store"
-  # Which schedule is asking (LINK-txxcwplc). Empty in every ordinary pipeline;
-  # the dependency-audit schedule is the one thing meant to set it to `audit`,
-  # under CI/CD -> Schedules -> Variables, and that single value is what selects
-  # the `audit` job AND deselects `verify`. A schedule carrying no variable is
-  # therefore not a quieter audit — it is the `verify` matrix under another name.
-  # Declared here so the contract is readable in this file
-  # rather than only in the project's settings; a schedule's own variables
-  # outrank a top-level default, so this empty value is a floor, not a lock.
-  SCHEDULE_KIND: ""
 
 workflow:
   # Supersede a running pipeline when a newer commit lands on the same ref
@@ -99,40 +73,6 @@ workflow:
     # back "The pipeline did not run. Review the workflow:rules configuration"
     # and no pipeline was created, so there was no `failure_reason` to read.
     - if: $CI_PIPELINE_SOURCE == "api"
-    # Always: schedule pipelines. TWO schedules are intended here, they ask
-    # different questions, and this one arm admits either — the discrimination
-    # happens on `SCHEDULE_KIND` in the jobs below, not here. Which of them is
-    # actually configured on the project is a separate question this file cannot
-    # answer; see the dated SCHEDULES paragraph at the top.
-    #
-    #   THE CANARY (monthly, no variable). It runs the whole `verify` matrix
-    #   against a tree nobody has touched since the last run. Nothing in the
-    #   repository changes between two canary runs, so a red one cannot mean the
-    #   code moved — it means the WORLD moved underneath a still tree: a base
-    #   image rebuilt, a floating transitive resolving to something new, a
-    #   registry or a toolchain changing under a lockfile that did not. NOTHING
-    #   ELSE IN THIS PROJECT CAN ASK THAT QUESTION. `tools/verify.sh` is not a
-    #   weaker version of it, it is structurally incapable of it: it runs on one
-    #   workstation, against a warm pnpm store and whatever Node builds that
-    #   machine happens to have, and only at the moment somebody pushes. Each of
-    #   those three independently hides exactly the drift the canary looks for —
-    #   one machine cannot see an image change, a warm store cannot see a
-    #   registry change, and a trigger that needs a push cannot fire while the
-    #   tree is still. A clean resolve on a stock image, on a clock, is the whole
-    #   point, and the full matrix is the only payload worth spending on a stale
-    #   tree.
-    #
-    #   THE DEPENDENCY AUDIT (weekly, SCHEDULE_KIND=audit). One job, `audit`
-    #   below, and deliberately NOT the matrix: it asks the registry one
-    #   question about a lockfile that has not moved, and paying for two Node
-    #   legs beside it would triple the cost of an answer neither leg can
-    #   change.
-    #
-    # The two are not interchangeable and neither substitutes for the other. The
-    # audit asks whether an ADVISORY appeared against a lockfile that did not
-    # move; the canary asks whether the WORLD moved under a tree nobody touched.
-    # Both belong under CI/CD -> Schedules.
-    - if: $CI_PIPELINE_SOURCE == "schedule"
     # Always: release tags. The one moment the artifact leaves this machine.
     - if: $CI_COMMIT_TAG
     # Otherwise only when dependencies, the toolchain, the pinned data stamps
@@ -168,30 +108,15 @@ workflow:
 
 verify:
   stage: verify
-  # Everywhere EXCEPT the dependency-audit schedule (LINK-txxcwplc). The
-  # `workflow:rules` arm above admits any schedule pipeline, and
-  # `$CI_PIPELINE_SOURCE == "schedule"` cannot tell one schedule from another, so
-  # the exclusion has to be stated here, on the variable only that schedule
-  # carries. Without it
-  # the audit schedule would create three jobs instead of one, which is the
-  # quota burn that parked this ticket in the first place. The trailing
-  # `when: on_success` is the catch-all: a job with `rules` and no matching arm
-  # is not added to the pipeline at all.
+  # NO `rules`, ON PURPOSE. `verify` is in every pipeline this file creates, and
+  # that is the whole safety property it carries: `publish` stands behind it by
+  # stage ordering, and stage ordering only guarantees anything while `verify`
+  # is actually IN the pipeline — a job that was never selected is not a job
+  # that passed. A tag pipeline therefore always runs both matrix legs before
+  # `publish`, which mints an npm OIDC token and pushes packages to a registry
+  # that does not take them back. Do not add a rule that can deselect this job;
+  # if one is ever needed, put an unconditional `$CI_COMMIT_TAG` arm first.
   #
-  # THE TAG ARM IS FIRST, AND THE ORDER IS THE WHOLE POINT. `rules` are
-  # first-match, so an unconditional `$CI_COMMIT_TAG` ahead of the deny arm makes
-  # the gate unskippable on the one ref that publishes. `publish` stands behind
-  # `verify` by stage ordering, and stage ordering only guarantees anything while
-  # `verify` is actually IN the pipeline — a job that was never selected is not a
-  # job that passed. Without this arm, a "Run pipeline" on a tag with
-  # `SCHEDULE_KIND=audit` typed into the variables form deselected `verify` and
-  # left `publish` — which mints an npm OIDC token and pushes packages to a
-  # registry that does not take them back — with nothing in front of it.
-  rules:
-    - if: $CI_COMMIT_TAG
-    - if: $SCHEDULE_KIND == "audit"
-      when: never
-    - when: on_success
   # Node majors, kept in sync with MATRIX in tools/verify.sh. 24 is the floor
   # declared by `engines.node` in every package and pinned in `.node-version`;
   # 26 is the current release line, and `engines` has no upper bound, so users
@@ -305,83 +230,6 @@ verify:
     # the matrix on one machine, and here the matrix is `parallel:matrix`, one
     # Node per job. Running the script would re-run both majors inside each leg.
     - pnpm check
-
-# ---------------------------------------------------------------------------
-# The scheduled dependency audit (LINK-txxcwplc).
-#
-# `pnpm audit:deps` is `tools/audit-dependencies.ts`: it posts the resolved
-# workspace tree — production, dev and optional, every workspace project — to
-# the npm advisory endpoint and applies this repository's policy to the answer.
-# High and critical fail it, moderate and below are listed and do not block, and
-# "could not ask" is exit 2 rather than a pass. CONTRIBUTING.md §"Auditing
-# dependencies for known vulnerabilities" is that policy; this job is only its
-# clock.
-#
-# WHY A CLOCK AND NOT A `changes:` RULE. Every other remote trigger in this file
-# keys off the tree moving, and this is the one check that cannot: an advisory is
-# disclosed against a lockfile that has not changed, so the repository carries no
-# event to key off. Adding `pnpm-lock.yaml` to a `changes:` list would fire on
-# the half of the problem a developer already sees and stay silent on the half
-# nobody does. It is the same asymmetry that keeps this command OUT of
-# `pnpm check` and `tools/verify.sh` (LINK-urjaxlrz) — the gate must be offline
-# and deterministic, and this answer moves under a still tree.
-#
-# ITS OWN SCHEDULE, NOT A JOB BOLTED ONTO THE CANARY. The two want different
-# cadences — a stale-tree canary is a monthly question, a disclosure window is a
-# weekly one — and different readings of a red. Merging them would also have
-# meant paying for both matrix legs on every audit run, so `SCHEDULE_KIND=audit`
-# separates them and `verify` refuses that value.
-#
-# ONE NODE, NOT THE MATRIX. This job reads a lockfile and a registry; it never
-# executes the workspace, so there is nothing for a second Node major to
-# disagree about. node:24 is the floor `engines.node` declares.
-#
-# NO `pnpm build`, and no `jq`. `tools/audit-dependencies.ts` imports node
-# builtins and nothing else, so `pnpm install --frozen-lockfile` — needed for
-# `tsx`, which runs it — is the whole prerequisite. The pinned jq above belongs
-# to `verify`'s tests and this job does not pay for it.
-#
-# NO `allow_failure`. Exit 1 is an unexcused high/critical, exit 2 is a scan that
-# did not happen, and both have to redden the pipeline, because the red IS the
-# notification.
-#
-# HOW A FAILURE IS SEEN, since this project has no PR-comment surface. The
-# default channel is email to the schedule's owner: "For scheduled pipelines,
-# failure emails are only sent to the creator of the schedule"
-# (gitlab-org/gitlab#202120). That is the behaviour as stated in a GitLab issue's
-# own problem statement rather than in the reference docs, and it reaches exactly
-# one address — so it is worth knowing but not worth relying on alone. The
-# doc-backed route is Settings -> Integrations -> "Pipeline status emails" with
-# "Notify only broken pipelines" ticked, which takes a recipient list and is off
-# until someone turns it on. The profile-level "Pipeline fails" notification is a
-# third, per-user opt-in. None of them fires unless the job fails, which is the
-# paragraph above.
-audit:
-  stage: verify
-  rules:
-    # Anything carrying `SCHEDULE_KIND=audit`: the audit schedule once that
-    # variable is attached to it, and a "Run pipeline" with the same variable set
-    # by hand, which is how to exercise this job without waiting for a cron — or
-    # while no schedule is armed at all.
-    - if: $SCHEDULE_KIND == "audit"
-  image: node:24
-  interruptible: true
-  timeout: 15m
-  cache:
-    key:
-      files: [pnpm-lock.yaml]
-    paths: [.pnpm-store]
-    # Pull only, as in `publish`. `verify` fills this cache and does so exactly
-    # when the key moves, so the audit has nothing to add and no reason to
-    # reupload a store it did not change.
-    policy: pull
-  before_script:
-    - npm install -g "pnpm@$(node -p "require('./package.json').packageManager.split('@')[1]")"
-    - pnpm config set store-dir "$PNPM_STORE"
-  script:
-    - node -v && pnpm -v
-    - pnpm install --frozen-lockfile
-    - pnpm audit:deps
 
 # ---------------------------------------------------------------------------
 # Release (LINK-geygvedm, reworked to OIDC under LINK-vbemsjwk).
