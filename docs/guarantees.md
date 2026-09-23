@@ -476,8 +476,9 @@ an oversight. These lines match the pattern and are deliberately unpinned:
   gives the directory and the durability policy to the deployment), and the
   README's write-then-rename sketch is one way to satisfy it, not a promise that
   it holds. Same category as the process rules above — it binds an implementor.
-  Whether `@linklint/online` should ship its own fs-backed store, and so make
-  this a claim we could pin, is `LINK-tkafhtrf`.
+  It stays unpinnable: `LINK-tkafhtrf` declined shipping an fs-backed store in
+  `@linklint/online` (`docs/online-runtime-boundary.md` records the decision),
+  so there is no store of ours for this to become a claim about.
 
 ## Adding a claim
 

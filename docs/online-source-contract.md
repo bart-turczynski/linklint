@@ -207,9 +207,12 @@ The successor shape is `LINK-boqmfrcn`, and a future proposal should take that
 form rather than `dependsOn`: the redirect chain already completes an authorized
 TLS handshake on every HTTPS hop it fetches, and `TransportConnection` carries
 an optional `tls` field that `TransportEvidence` drops, so surfacing it adds no
-connection and reopens no authorization question. Until an authorization seam
-exists (`LINK-sndjnmig`), no code path may hand a redirect-discovered URL to
-`SafeTlsInspector.inspect`.
+connection and reopens no authorization question. No code path may hand a
+redirect-discovered URL to `SafeTlsInspector.inspect`, and the shipped TLS
+enricher passes it the input origin only. That rule is standing, not interim:
+`LINK-sndjnmig` decided that no authorization seam will be added, because the
+call is the consent and that consent covers only a URL the caller chose (see
+[`safe-transport.md`](safe-transport.md) § "The call is the consent").
 
 ## The shared contract-test kit
 

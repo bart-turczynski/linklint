@@ -119,9 +119,18 @@ destination — but both classify every address they would connect to with the
 same table L0 pins destinations with, so a mis-configured download URL cannot
 reach loopback, link-local, or cloud-metadata space. Both refuse a non-HTTPS
 download URL, because a request they make may carry your credential and neither
-client can tell from the URL whether this one does. Neither follows a redirect:
-a 3xx is returned to the updater as a typed error rather than re-sending your
-credential to a host you did not name.
+client can tell from the URL whether this one does. Both follow a redirect,
+within bounds that keep your credential away from a host you did not name
+(`LINK-scectgty`): up to three redirects are followed and a fourth fails with
+`hop-limit`; every hop URL passes the same HTTPS-only gate as yours, so a
+`Location:` naming `http:` fails with `unsupported-scheme`; a hop to another
+origin carries only `Accept`, `Accept-Encoding` and `User-Agent`, so URLhaus's
+`Auth-Key` is dropped and stays dropped on a hop back; and each hop's address is
+classified before its socket opens. The response reports the hops as origins
+only, with no path or query, since PhishTank's key is a path segment. A 3xx with
+no `Location` is not followed; the updater reports it as an HTTP error naming
+the status. Register entry F18 and `docs/online-runtime-boundary.md` state the
+same bounds.
 
 ```ts
 import {
@@ -160,7 +169,7 @@ const result = await updatePhishTankSnapshot({
 });
 ```
 
-#### Why the PhishTank app key is optional, and what still does not work
+#### Why the PhishTank app key is optional, and how the download completes
 
 Measured against the live provider on **2026-09-05**. PhishTank serves this feed
 to an unkeyed request:
@@ -192,17 +201,20 @@ text/csv`, no `content-encoding`, 14,268,656 bytes — so nothing here depends o
 the decode path. A `.csv.gz` variant exists as a separate URL and is not what
 this updater asks for.
 
-**The bundled Node client still cannot complete this download.** That `302`
-points at `cdn.phishtank.com`, a host the caller did not name, and neither
-mirror client follows a redirect — for the reason stated above, and in
-`docs/online-runtime-boundary.md`. So `createNodePhishTankHttpClient` reports
-`phishtank-http-error` / `PhishTank status 302`, with or without a key.
-`baseUrl` does not route around it either: the signed target is
+**The bundled Node client follows that hop** (`LINK-scectgty`). The `302`
+points at `cdn.phishtank.com`, a host the caller did not name, and the client
+follows it under the bounds stated above: it is one cross-origin hop, so only
+`Accept`, `Accept-Encoding` and `User-Agent` go with it, and the signed CDN URL
+is the provider's `Location`, not a URL built from your key.
+`createNodePhishTankHttpClient` with no app key therefore completes the default
+download; the client once stopped at the `302` and reported
+`phishtank-http-error` / `PhishTank status 302`, and that was the only reason a
+caller-supplied `PhishTankHttpClient` was needed. The follow was measured by
+hand against the live provider when it shipped (`200`, `text/csv`, one hop); the
+test suite exercises the same cross-origin shape on loopback and does not reach
+PhishTank. `baseUrl` is still no way around the hop: the signed target is
 `verified_online.csv` under a signature bound to that exact path, so a base
-pointed at it gets `online-valid.csv` appended and answers `404`. Until that is
-resolved, a working PhishTank mirror needs a caller-supplied
-`PhishTankHttpClient` that follows the hop — with which the shipped updater
-parsed and stored all 74,539 live records on 2026-09-05, with no app key at all.
+pointed at it gets `online-valid.csv` appended and answers `404`.
 
 Feed exports are large, so these clients default to wider byte and time budgets
 than a single-document fetch (`DEFAULT_MIRROR_DOWNLOAD_POLICY`: 64 MiB encoded,
