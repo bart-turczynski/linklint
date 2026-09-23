@@ -266,6 +266,13 @@ detector logic is versioned there, not in `dataVersions`.
 > _not_ benign — it returns `score: null`, `severity: null`, and you should treat it
 > with suspicion.
 
+**Accepted input.** A string with a scheme (`https://…`, `mailto:…`) is parsed as
+written. A string without one is read as a bare host, which must contain a dot
+(`example.com`, `127.0.0.1`) or be an IP literal (`[::1]`, `2130706433`). A bare
+single label such as `localhost`, `POST` or the `Mozilla` of a User-Agent string is
+`invalid`, and its `parse_error` names the host and the rule. For an intranet host,
+write the scheme: `http://intranet/` is accepted.
+
 ## The result contract
 
 `inspect()` returns a stable, versioned object:

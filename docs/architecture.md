@@ -76,6 +76,7 @@ at **weight 0**, annotating without moving the score, exactly as
 earlier draft left unwritten is therefore settled this way: *scoring* is reserved
 for the three forms above, *reporting* is not. Where a `parse_error` is
 unavoidable, it names what failed rather than standing in for the whole verdict.
+Scheme-less single-label input (`POST`, `localhost`) is one such case (§6.1.14).
 
 The worked case is the one immediately above: an over-long hostname stays
 `benign` and scores `0.00`, and now also carries the weight-0
@@ -2007,6 +2008,59 @@ either: the preload list is roughly two orders of magnitude larger than the
 generated confusables data, but the two rules above settle the question first.
 No reason code, no `SCHEMA_VERSION` or `WEIGHTS_VERSION` movement and no
 `docs/scoring.md` change follow from this record.
+
+#### 6.1.14 Scheme-less single-label input — `invalid`, with the failure named (`LINK-igoxaojd`)
+
+**Decision — an input with no scheme whose host is a single label is `invalid`,
+and its `parse_error` names that rule — ADOPTED.** This implements option A of
+`LINK-jzafufqv`.
+
+**The problem.** A string with no scheme is read as a bare host, and before this
+record any single label passed. `linklint check 'POST'` returned `info` at
+`0.00` with host `POST` and no reasons. A User-Agent string
+(`Mozilla/5.0 (compatible; …)`) came back the same way with host `Mozilla`. That
+is §1.1's fourth rule broken: the result says "inspected, nothing to report"
+about text that was not a URL. With no scheme, the host's shape is the only
+evidence the input is a URL at all, and a single label carries none.
+
+**The rule.** With no scheme, the host must contain a dot or be an IP literal.
+Otherwise `parseRawParts()` returns `null` and the input takes the
+`status: "invalid"` path. The dot is tested after invisible characters are
+stripped. Each boundary case was decided:
+
+| Input | Result | Why |
+|---|---|---|
+| `POST`, `Mozilla/5.0 (…)`, `localhost`, `localhost:8080`, `user@intranet` | `invalid` | no scheme, single-label host |
+| `http://localhost/`, `http://intranet/`, `https://svc/` | accepted, as before | an explicit scheme lifts the rule |
+| `example.com`, `a.b`, `127.0.0.1`, `localhost.` | accepted, as before | the host has a dot (a trailing root dot counts) |
+| `[::1]`, `2130706433`, `0x7f000001` | accepted, as before | IP literal: an address, not a label |
+
+IP literals are exempt for two reasons. A bracketed IPv6 host cannot be mistaken
+for a word. The dotless IPv4 forms are exactly what `ip_obfuscation` flags, and
+rejecting them would turn a scored finding into an unscored `invalid`.
+
+**Naming the failure.** The detail travels through the same `parseErrorDetail`
+channel that `LINK-iuzphbnp` opened for scheme-bearing failures, and no new
+reason code was minted. `describeParseFailure()` in `parse/failure.ts` now
+covers the scheme-less case. When the single-label rule alone rejected the
+input, the detail names the host and says what would make it acceptable: a
+dotted host, or a scheme such as `http://`. Any other scheme-less failure
+(`hello world`, `/etc/passwd`) keeps the generic fallback, because the rule did
+not cause it. When a structural scan already explains the input (a zero-width
+character inside the label), that finding carries the invalid result and no
+`parse_error` is emitted, as on every findings-bearing invalid path.
+
+**What moves.** Only the inputs in the first table row. Status, score and the
+single weight-0 `parse_error` follow the existing fail-closed shape. The CLI's
+default gate treats them as it treats any `invalid` input (exit `1` unless
+`--allow-invalid`), and the MCP tools return the same core result. A bare
+single label that used to score, such as `user@host` (`userinfo_present`), now
+fails closed instead.
+
+**Implemented (`LINK-igoxaojd`).** `isBareSingleLabel()` and
+`bareSingleLabelHost()` in `parse/raw-parts.ts`, the detail in
+`parse/failure.ts`. The pin is `test/single-label-input.test.ts`, whose first
+commit recorded the old `ok`/`0.00` verdicts.
 
 ### 6.2 IDNA / UTS-46 conformance & the normalization flag profile
 

@@ -177,10 +177,15 @@ describe("view-source is a live KNOWN_SCHEMES entry, not a dead one (LINK-iuzphb
     expect(known.parsed?.scheme).toBe("view-source");
     expect(known.parsed?.port).toBeNull();
 
+    // Still read as host `nonesuch` on port 8080 — not as scheme `nonesuch:` —
+    // and that host:port reading is now what makes it invalid: a scheme-less
+    // single-label host (LINK-igoxaojd). The detail naming the HOST, not a
+    // scheme, is the proof the digit tail was taken as a port.
     const unknown = inspect("nonesuch:8080");
-    expect(unknown.parsed?.scheme).toBeNull();
-    expect(unknown.parsed?.effectiveHost).toBe("nonesuch");
-    expect(unknown.parsed?.port).toBe(8080);
+    expect(unknown.status).toBe("invalid");
+    expect(unknown.reasons.map((r) => r.code)).toEqual(["parse_error"]);
+    expect(unknown.reasons[0]!.detail).toContain("the host 'nonesuch' is a single label");
+    expect(unknown.reasons[0]!.detail).not.toContain("'nonesuch:'");
   });
 
   it("membership is not a promise that the nested scheme is unwrapped", () => {

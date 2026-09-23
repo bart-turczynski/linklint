@@ -1,5 +1,5 @@
 import { stripInvisible } from "../unicode/format-chars.js";
-import { analyzeIpv6 } from "./ip.js";
+import { analyzeIpv4, analyzeIpv6 } from "./ip.js";
 import { tokenizeRawUrl, type RawUrlTokens } from "./raw-tokens.js";
 
 const ILLEGAL_HOST_RE = /[\s<>"{}|\\^`]/;
@@ -82,18 +82,77 @@ export function parseRawParts(
   prepared: string,
   tokens: RawUrlTokens = tokenizeRawUrl(prepared),
 ): RawParts | null {
+  const split = splitRawParts(tokens);
+  if (split === null) return null;
+  if (isBareSingleLabel(split)) return null;
+  return split.parts;
+}
+
+/**
+ * Scheme-less input must name a dotted host (LINK-igoxaojd, architecture
+ * §6.1.14). With no scheme, the only evidence that a string is a URL at all is
+ * the shape of its host, and a single label carries none: `POST`, `Mozilla/5.0
+ * (…)`, `localhost` and `intranet` are words before they are hosts. Promoting
+ * them produced `ok` at 0.00 with no reasons — "inspected, nothing found" for
+ * text that was never a URL, which is the silent pass §1.1's fourth rule
+ * forbids. They now fail to parse, and {@link bareSingleLabelHost} lets the
+ * invalid result name why.
+ *
+ * Scope, each case decided rather than inherited:
+ *
+ *   - An explicit scheme lifts the rule entirely. `http://localhost/`,
+ *     `http://intranet/` and `https://svc/` say they are URLs, and a single
+ *     label is a legitimate intranet host.
+ *   - A dot anywhere in the cleaned host satisfies it — `example.com`, `a.b`,
+ *     the dotted IPv4 `127.0.0.1`, and the root-label form `localhost.`.
+ *   - IP literals are exempt though they carry no dot: a bracketed IPv6 literal
+ *     (`[::1]`) and a dotless IPv4 form WHATWG reads as an address
+ *     (`2130706433`, `0x7f000001`). They are addresses, not labels, and the
+ *     dotless IPv4 forms are what `ip_obfuscation` exists to flag — rejecting
+ *     them would turn a scored finding into an unscored `invalid`.
+ */
+function isBareSingleLabel({ parts, bracketed }: SplitParts): boolean {
+  if (parts.scheme !== null || bracketed) return false;
+  const host = stripInvisible(parts.rawHost);
+  if (host === "" || host.includes(".")) return false;
+  return analyzeIpv4(host) === null;
+}
+
+/**
+ * The host that {@link parseRawParts} rejected under the scheme-less
+ * single-label rule, or `null` when the input parsed or failed for any other
+ * reason. Only a failure caused by that rule alone is named: an input that is
+ * also unparseable on other grounds gets no single-label explanation, because
+ * that would name a cause that is not the whole story.
+ */
+export function bareSingleLabelHost(tokens: RawUrlTokens): string | null {
+  const split = splitRawParts(tokens);
+  return split !== null && isBareSingleLabel(split) ? split.parts.rawHost : null;
+}
+
+interface SplitParts {
+  parts: RawParts;
+  /** The host was written in brackets (and validated as an IPv6 literal). */
+  bracketed: boolean;
+}
+
+/** Syntax split with host validation, before the scheme-less single-label rule. */
+function splitRawParts(tokens: RawUrlTokens): SplitParts | null {
   const { scheme } = tokens;
 
   // ── Opaque scheme (no authority): javascript:, data:, mailto:, … ───────────
   if (tokens.opaque) {
     return {
-      scheme,
-      userinfo: null,
-      rawHost: "",
-      port: null,
-      path: opaqueBody(tokens),
-      query: null,
-      fragment: null,
+      bracketed: false,
+      parts: {
+        scheme,
+        userinfo: null,
+        rawHost: "",
+        port: null,
+        path: opaqueBody(tokens),
+        query: null,
+        fragment: null,
+      },
     };
   }
 
@@ -102,13 +161,16 @@ export function parseRawParts(
   // projection hostless so dangerous-scheme policy still sees local file URLs.
   if (scheme === "file" && tokens.authority === "") {
     return {
-      scheme,
-      userinfo: null,
-      rawHost: "",
-      port: null,
-      path: tokens.path,
-      query: tokens.query,
-      fragment: tokens.fragment,
+      bracketed: false,
+      parts: {
+        scheme,
+        userinfo: null,
+        rawHost: "",
+        port: null,
+        path: tokens.path,
+        query: tokens.query,
+        fragment: tokens.fragment,
+      },
     };
   }
 
@@ -168,13 +230,16 @@ export function parseRawParts(
   }
 
   return {
-    scheme,
-    userinfo,
-    rawHost,
-    port,
-    path: tokens.path,
-    query: tokens.query,
-    fragment: tokens.fragment,
+    bracketed,
+    parts: {
+      scheme,
+      userinfo,
+      rawHost,
+      port,
+      path: tokens.path,
+      query: tokens.query,
+      fragment: tokens.fragment,
+    },
   };
 }
 
