@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyClosingComment,
+  describeShaFinding,
   isClosingComment,
   isTombstoneTitle,
 } from "../../../tools/fp-extensions/closing-comment-required/predicate.js";
@@ -76,5 +77,46 @@ describe("tombstone titles close without a comment (LINK-owjeewpe)", () => {
     ["Rename the check id", "an ordinary title"],
   ])("%s is not a tombstone (%s)", (title) => {
     expect(isTombstoneTitle(title)).toBe(false);
+  });
+});
+
+/**
+ * LINK-ravclvca — this project's forge is GitLab, whose merge requests are
+ * written `!89`, `MR !89`, `merge request 89`. The guard only knew GitHub's
+ * `#89` / `PR #89`.
+ */
+describe("closing-comment predicate — GitLab merge-request references (LINK-ravclvca)", () => {
+  it.each([
+    "merged as !89",
+    "merged as MR !89",
+    "merged as MR 89",
+    "landed in merge request 89",
+    "landed in merge request !89",
+    "(!89)",
+  ])("%s is not yet accepted", (content) => {
+    expect(classifyClosingComment(content).kind).toBe("none");
+  });
+
+  it.each([
+    ["use !important sparingly", "a CSS keyword"],
+    ["guarded by x!=1", "an inequality"],
+    ["rerun it with !!", "shell history"],
+    ["wow!89 URLs", "a bang glued to a word"],
+  ])("%s is not an MR reference (%s)", (content) => {
+    expect(classifyClosingComment(content).kind).toBe("none");
+  });
+});
+
+describe("closing-comment rejection — per-SHA wording", () => {
+  it("asserts a SHA-shaped token that resolves to nothing is a missing commit", () => {
+    expect(describeShaFinding("a565e48445c52aa7a", "unknown-commit", "main")).toBe(
+      "  a565e48445c52aa7a — no such commit in this repository",
+    );
+  });
+
+  it("names the trunk for a commit that exists but is unmerged", () => {
+    expect(describeShaFinding("71debd9", "unreachable", "main")).toBe(
+      "  71debd9 — exists, but is not an ancestor of main",
+    );
   });
 });

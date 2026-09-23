@@ -63,6 +63,22 @@ export function isClosingComment(content: string): boolean {
 }
 
 /**
+ * How `index.ts` classified one SHA-shaped token against the trunk.
+ * `no-git` means the guard could not form an opinion.
+ */
+export type Reachability = "reachable" | "unreachable" | "unknown-commit" | "no-git";
+
+/**
+ * One line of the `CLOSING_COMMIT_NOT_MERGED` rejection, per SHA-shaped token.
+ * Lives here rather than in `index.ts` so the wording is unit-testable.
+ */
+export function describeShaFinding(sha: string, reachability: Reachability, trunk: string): string {
+  return reachability === "unknown-commit"
+    ? `  ${sha} — no such commit in this repository`
+    : `  ${sha} — exists, but is not an ancestor of ${trunk}`;
+}
+
+/**
  * Titles that declare a commitless close in the listing itself (LINK-owjeewpe).
  * `done` used to mean shipped, abandoned and superseded at once, and the
  * difference was discoverable ONLY by reading a comment — which is what made the

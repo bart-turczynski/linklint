@@ -21,7 +21,12 @@
  */
 import { execFileSync } from "node:child_process";
 import type { ExtensionInit, HookValidationError } from "@fiberplane/extensions";
-import { classifyClosingComment, isTombstoneTitle } from "./predicate.js";
+import {
+  classifyClosingComment,
+  describeShaFinding,
+  isTombstoneTitle,
+  type Reachability,
+} from "./predicate.js";
 
 /**
  * The trunk a commit has to be reachable from before it counts as shipped.
@@ -29,8 +34,6 @@ import { classifyClosingComment, isTombstoneTitle } from "./predicate.js";
  * local `main` by fast-forward and there is no remote to consult.
  */
 const TRUNK = "main";
-
-type Reachability = "reachable" | "unreachable" | "unknown-commit" | "no-git";
 
 /**
  * Is `sha` an ancestor of the trunk?
@@ -75,11 +78,7 @@ const REJECTION = [
 ].join("\n");
 
 function unmergedRejection(results: readonly (readonly [string, Reachability])[]): string {
-  const lines = results.map(([sha, r]) =>
-    r === "unknown-commit"
-      ? `  ${sha} — no such commit in this repository`
-      : `  ${sha} — exists, but is not an ancestor of ${TRUNK}`,
-  );
+  const lines = results.map(([sha, r]) => describeShaFinding(sha, r, TRUNK));
   return [
     `Refusing to mark this done: the closing comment names a commit that has not`,
     `reached ${TRUNK}.`,
