@@ -30,6 +30,37 @@ pass on one major as a pass on the matrix.
 Install the tracker guards in the same pass; see
 [*Tracker hygiene*](tracker-hygiene.md).
 
+### Secret scanning
+
+The pre-commit stage runs [gitleaks](https://github.com/gitleaks/gitleaks)
+(the upstream hook, at a pinned `rev`) over your **staged changes**. It is the
+project's **only** secret scanner. It runs at commit time and not as a GitLab
+pipeline job because most pushes here create no pipeline, and GitLab push
+protection needs a tier this project does not have (`LINK-tmqonltz`).
+
+It catches credential-shaped strings using gitleaks' full default rule set:
+cloud provider keys (AWS, GCP, Azure), forge and package-registry tokens, API
+keys for common services, private key blocks, and generic high-entropy
+`key=`/`token=`/`secret=` assignments. When it finds one, the commit is
+refused. The output is redacted, so the finding does not end up in your
+scrollback.
+
+**If it flags a real secret,** unstage it, move it into `.env` (gitignored; see
+`.env.example`), and rotate it if it has ever left your machine.
+
+**If it flags a false positive**, which the hostile test corpora make likely,
+add a narrow entry to `.gitleaks.toml`:
+
+- scope it with `targetRules` to the one rule that fired, and with `paths` to the
+  exact file(s). Add a `regexes` match on the literal value with
+  `condition = "AND"` whenever the file could hold other strings;
+- add a comment saying why the value is safe.
+
+Do not add a path-only or repo-wide allowlist, do not disable a rule, and do not
+use `--no-verify` or `SKIP=gitleaks` to get past it. To check the whole tree,
+run `gitleaks dir .`. The hook itself scans only what is staged, so
+`pre-commit run gitleaks --all-files` checks the index and not the tree.
+
 ## Local hygiene
 
 `main` is on GitLab and in sync, but nothing on that remote gates or reviews it
