@@ -358,6 +358,11 @@ Available options (all optional, all default-allow):
 linklint ships a thin, **local-only** [Model Context Protocol](https://modelcontextprotocol.io)
 server so an LLM agent can vet a URL _before_ opening it.
 
+> **Not yet published on npm.** `@linklint/mcp` does not exist on the registry
+> yet, so the `npx` config below will not resolve. Until it does, build a clone
+> (`pnpm install && pnpm build`) and point the client at
+> `node /path/to/linklint/packages/mcp/dist/server.js` instead.
+
 ```jsonc
 // e.g. Claude Desktop / any MCP client config
 {
@@ -383,6 +388,11 @@ No network, no API keys — the server runs entirely on the local machine.
 ## CLI — check a URL from the shell
 
 linklint ships a thin, offline command-line wrapper around the same `inspect()`.
+
+> **Not yet published on npm.** `@linklint/cli` does not exist on the registry
+> yet; the install line below is what it will be once it does. Until then, run
+> it from a clone: `pnpm install && pnpm build`, then
+> `node packages/cli/dist/cli.js check <url>`.
 
 ```sh
 npm install -g @linklint/cli   # or: npx @linklint/cli check <url>

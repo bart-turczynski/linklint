@@ -4,6 +4,15 @@
   "description": "Local-only MCP server for linklint — check URLs before fetches, with explicit agentMode for agent-gated checks.",
   "keywords": ["mcp", "url", "security", "phishing", "agent", "linklint"],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.com/bart-turczynski/linklint.git",
+    "directory": "packages/mcp"
+  },
+  "homepage": "https://gitlab.com/bart-turczynski/linklint#readme",
+  "bugs": {
+    "url": "https://gitlab.com/bart-turczynski/linklint/-/issues"
+  },
   "type": "module",
   "bin": {
     "linklint-mcp": "./dist/server.js"
