@@ -320,9 +320,15 @@ describe("docs/online-source-contract.md states the semantics (LINK-pyvuxaac)", 
     expect(flat).toContain(
       "the redirect chain already completes an authorized TLS handshake on every HTTPS hop it fetches",
     );
+    // The rule, and the decision that makes it standing rather than interim:
+    // LINK-sndjnmig decided the call is the consent, so no seam is coming.
     expect(flat).toContain(
-      "Until an authorization seam exists (`LINK-sndjnmig`), no code path may hand a redirect-discovered URL to `SafeTlsInspector.inspect`",
+      "No code path may hand a redirect-discovered URL to `SafeTlsInspector.inspect`, and the shipped TLS enricher passes it the input origin only",
     );
+    expect(flat).toContain(
+      "That rule is standing, not interim: `LINK-sndjnmig` decided that no authorization seam will be added, because the call is the consent",
+    );
+    expect(flat).not.toContain("Until an authorization seam exists");
   });
 });
 
@@ -336,7 +342,7 @@ describe("the flattening bites — the same needles are absent from the raw docu
       "successful redirect resolution does not imply TLS metadata for the resolved endpoint",
     );
     expect(SEMANTICS_SECTION).not.toContain(
-      "Until an authorization seam exists (`LINK-sndjnmig`), no code path may hand a redirect-discovered URL to `SafeTlsInspector.inspect`",
+      "No code path may hand a redirect-discovered URL to `SafeTlsInspector.inspect`, and the shipped TLS enricher passes it the input origin only",
     );
   });
 
