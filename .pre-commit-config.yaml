@@ -19,6 +19,14 @@ repos:
       - id: check-toml
       - id: mixed-line-ending
       - id: check-case-conflict
+  # Secret scanning — the project's ONLY secret scanner (LINK-tmqonltz). It runs
+  # at commit time rather than as a GitLab pipeline job because most pushes
+  # here create no pipeline, and GitLab push protection is Ultimate-only.
+  # Scans staged changes; project allowlist lives in .gitleaks.toml.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
   - repo: local
     hooks:
       # The verify gate. This is the PRIMARY gate, not a mirror of a remote one:

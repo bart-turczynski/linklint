@@ -1,0 +1,32 @@
+# gitleaks configuration: the project's only secret scanner (LINK-tmqonltz).
+# It runs as a pre-commit hook; see docs/local-workflow.md.
+#
+# Every upstream default rule stays on. Each allowlist below is limited to ONE
+# rule and the exact fixture paths that deliberately trip it, so a real
+# credential anywhere else, or of any other kind, is still caught. Never add a
+# path-only or repo-wide allowlist, and never disable a rule.
+
+title = "linklint gitleaks config"
+
+[extend]
+useDefault = true
+
+# Throwaway loopback TLS identities for the node-transport live tests. Their keys
+# are committed on purpose and secure nothing. See the header of
+# packages/online/test/fixtures/tls/generate.sh. Only `private-key` is silenced,
+# and only for the *.key.pem files in that directory.
+[[allowlists]]
+description = "Committed throwaway TLS fixture keys (packages/online/test/fixtures/tls)"
+targetRules = ["private-key"]
+paths = ['''^packages/online/test/fixtures/tls/[a-z-]+\.key\.pem$''']
+
+# The data-exfiltration detector test feeds a short fake query value
+# (`?token=abc123def456`) to prove it stays below the length floor. Only that
+# literal secret, in only that file, is allowed; both conditions must hold.
+[[allowlists]]
+description = "Fake short query token in the data-exfiltration detector test"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^packages/core/test/data-exfiltration\.test\.ts$''']
+regexTarget = "secret"
+regexes = ['''^abc123def456$''']
