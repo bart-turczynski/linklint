@@ -93,8 +93,17 @@ describe("closing-comment predicate — GitLab merge-request references (LINK-ra
     "landed in merge request 89",
     "landed in merge request !89",
     "(!89)",
-  ])("%s is not yet accepted", (content) => {
-    expect(classifyClosingComment(content).kind).toBe("none");
+    "see bart-turczynski/linklint!89",
+  ])("%s discharges it at face value, as a PR reference does", (content) => {
+    expect(classifyClosingComment(content)).toEqual({ kind: "pr", shas: [] });
+    expect(isClosingComment(content)).toBe(true);
+  });
+
+  it("outranks a SHA it also mentions, as a PR reference does", () => {
+    expect(classifyClosingComment("merged as !89 (landed in 71debd9)")).toEqual({
+      kind: "pr",
+      shas: [],
+    });
   });
 
   it.each([
@@ -108,10 +117,13 @@ describe("closing-comment predicate — GitLab merge-request references (LINK-ra
 });
 
 describe("closing-comment rejection — per-SHA wording", () => {
-  it("asserts a SHA-shaped token that resolves to nothing is a missing commit", () => {
-    expect(describeShaFinding("a565e48445c52aa7a", "unknown-commit", "main")).toBe(
-      "  a565e48445c52aa7a — no such commit in this repository",
+  it("does not assert a SHA-shaped token that resolves to nothing is a missing commit", () => {
+    // e.g. a 17-hex subagent id inside a worktree path.
+    const line = describeShaFinding("a565e48445c52aa7a", "unknown-commit", "main");
+    expect(line).toBe(
+      "  a565e48445c52aa7a — resolves to no commit here; it may not be a commit reference at all",
     );
+    expect(line).not.toMatch(/no such commit/);
   });
 
   it("names the trunk for a commit that exists but is unmerged", () => {

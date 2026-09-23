@@ -66,12 +66,16 @@ function reachableFromTrunk(sha: string): Reachability {
 }
 
 const REJECTION = [
-  "Refusing to mark this done: no closing comment names a commit, a PR, or an exemption.",
+  "Refusing to mark this done: no closing comment names a commit, a PR or MR, or an exemption.",
   "",
   "Add one first, e.g.:",
-  '  fp comment <id> "merged as PR #139"',
+  '  fp comment <id> "merged as !89"',
   '  fp comment <id> "landed in 71debd9"',
   '  fp comment <id> "NO-COMMIT: declined on cost, see the analysis above"',
+  "",
+  "Post it as its own call BEFORE the status change: `--comment` on",
+  "`fp issue update --status done` is applied after the update, so a refused",
+  "close never posts it.",
   "",
   "If this is abandoned or superseded work rather than shipped work, say so in",
   'the title instead: fp issue update --title "[SCRATCHED] ..." <id>',
@@ -80,8 +84,8 @@ const REJECTION = [
 function unmergedRejection(results: readonly (readonly [string, Reachability])[]): string {
   const lines = results.map(([sha, r]) => describeShaFinding(sha, r, TRUNK));
   return [
-    `Refusing to mark this done: the closing comment names a commit that has not`,
-    `reached ${TRUNK}.`,
+    `Refusing to mark this done: no SHA-shaped token in the closing comments is a`,
+    `commit that has reached ${TRUNK}.`,
     "",
     ...lines,
     "",
