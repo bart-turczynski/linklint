@@ -21,7 +21,12 @@
  */
 import { execFileSync } from "node:child_process";
 import type { ExtensionInit, HookValidationError } from "@fiberplane/extensions";
-import { classifyClosingComment, isTombstoneTitle } from "./predicate.js";
+import {
+  classifyClosingComment,
+  describeShaFinding,
+  isTombstoneTitle,
+  type Reachability,
+} from "./predicate.js";
 
 /**
  * The trunk a commit has to be reachable from before it counts as shipped.
@@ -29,8 +34,6 @@ import { classifyClosingComment, isTombstoneTitle } from "./predicate.js";
  * local `main` by fast-forward and there is no remote to consult.
  */
 const TRUNK = "main";
-
-type Reachability = "reachable" | "unreachable" | "unknown-commit" | "no-git";
 
 /**
  * Is `sha` an ancestor of the trunk?
@@ -63,26 +66,26 @@ function reachableFromTrunk(sha: string): Reachability {
 }
 
 const REJECTION = [
-  "Refusing to mark this done: no closing comment names a commit, a PR, or an exemption.",
+  "Refusing to mark this done: no closing comment names a commit, a PR or MR, or an exemption.",
   "",
   "Add one first, e.g.:",
-  '  fp comment <id> "merged as PR #139"',
+  '  fp comment <id> "merged as !89"',
   '  fp comment <id> "landed in 71debd9"',
   '  fp comment <id> "NO-COMMIT: declined on cost, see the analysis above"',
+  "",
+  "Post it as its own call BEFORE the status change: `--comment` on",
+  "`fp issue update --status done` is applied after the update, so a refused",
+  "close never posts it.",
   "",
   "If this is abandoned or superseded work rather than shipped work, say so in",
   'the title instead: fp issue update --title "[SCRATCHED] ..." <id>',
 ].join("\n");
 
 function unmergedRejection(results: readonly (readonly [string, Reachability])[]): string {
-  const lines = results.map(([sha, r]) =>
-    r === "unknown-commit"
-      ? `  ${sha} — no such commit in this repository`
-      : `  ${sha} — exists, but is not an ancestor of ${TRUNK}`,
-  );
+  const lines = results.map(([sha, r]) => describeShaFinding(sha, r, TRUNK));
   return [
-    `Refusing to mark this done: the closing comment names a commit that has not`,
-    `reached ${TRUNK}.`,
+    `Refusing to mark this done: no SHA-shaped token in the closing comments is a`,
+    `commit that has reached ${TRUNK}.`,
     "",
     ...lines,
     "",

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyClosingComment,
+  describeShaFinding,
   isClosingComment,
   isTombstoneTitle,
 } from "../../../tools/fp-extensions/closing-comment-required/predicate.js";
@@ -76,5 +77,58 @@ describe("tombstone titles close without a comment (LINK-owjeewpe)", () => {
     ["Rename the check id", "an ordinary title"],
   ])("%s is not a tombstone (%s)", (title) => {
     expect(isTombstoneTitle(title)).toBe(false);
+  });
+});
+
+/**
+ * LINK-ravclvca — this project's forge is GitLab, whose merge requests are
+ * written `!89`, `MR !89`, `merge request 89`. The guard only knew GitHub's
+ * `#89` / `PR #89`.
+ */
+describe("closing-comment predicate — GitLab merge-request references (LINK-ravclvca)", () => {
+  it.each([
+    "merged as !89",
+    "merged as MR !89",
+    "merged as MR 89",
+    "landed in merge request 89",
+    "landed in merge request !89",
+    "(!89)",
+    "see bart-turczynski/linklint!89",
+  ])("%s discharges it at face value, as a PR reference does", (content) => {
+    expect(classifyClosingComment(content)).toEqual({ kind: "pr", shas: [] });
+    expect(isClosingComment(content)).toBe(true);
+  });
+
+  it("outranks a SHA it also mentions, as a PR reference does", () => {
+    expect(classifyClosingComment("merged as !89 (landed in 71debd9)")).toEqual({
+      kind: "pr",
+      shas: [],
+    });
+  });
+
+  it.each([
+    ["use !important sparingly", "a CSS keyword"],
+    ["guarded by x!=1", "an inequality"],
+    ["rerun it with !!", "shell history"],
+    ["wow!89 URLs", "a bang glued to a word"],
+  ])("%s is not an MR reference (%s)", (content) => {
+    expect(classifyClosingComment(content).kind).toBe("none");
+  });
+});
+
+describe("closing-comment rejection — per-SHA wording", () => {
+  it("does not assert a SHA-shaped token that resolves to nothing is a missing commit", () => {
+    // e.g. a 17-hex subagent id inside a worktree path.
+    const line = describeShaFinding("a565e48445c52aa7a", "unknown-commit", "main");
+    expect(line).toBe(
+      "  a565e48445c52aa7a — resolves to no commit here; it may not be a commit reference at all",
+    );
+    expect(line).not.toMatch(/no such commit/);
+  });
+
+  it("names the trunk for a commit that exists but is unmerged", () => {
+    expect(describeShaFinding("71debd9", "unreachable", "main")).toBe(
+      "  71debd9 — exists, but is not an ancestor of main",
+    );
   });
 });

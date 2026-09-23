@@ -6,8 +6,27 @@
  * See `./index.ts` for why this guard exists (LINK-crxctgsh).
  */
 
-/** A PR or issue reference: `#139`, `PR #139`, `pull request 139`. */
-const PR_REF = /(?:^|[^\w#])#\d+|(?:\bPR|\bpull request)\s*#?\s*\d+/i;
+/**
+ * A PR, merge-request or issue reference.
+ *
+ *  - GitHub: `#139`, `PR #139`, `pull request 139`.
+ *  - GitLab (this project's forge, LINK-ravclvca): `!89`, `MR !89`, `MR 89`,
+ *    `merge request 89`, `merge request !89`, and the cross-project
+ *    `group/project!89`.
+ *
+ * A bare `!` needs a digit right after it and no word character or `!` right
+ * before it, so `!important`, `x!=1`, shell `!!` and `wow!89` stay out.
+ */
+const PR_REF = new RegExp(
+  [
+    String.raw`(?:^|[^\w#])#\d+`,
+    String.raw`(?:\bPR|\bpull request)\s*#?\s*\d+`,
+    String.raw`(?:^|[^\w!])!\d+\b`,
+    String.raw`[\w.-]+\/[\w./-]+!\d+\b`,
+    String.raw`(?:\bMR|\bmerge request)\s*!?\s*\d+`,
+  ].join("|"),
+  "i",
+);
 
 /**
  * A git SHA: 7-40 hex chars with at least one a-f digit, so bare numbers
@@ -31,8 +50,9 @@ const SHA_REF_ALL = new RegExp(SHA_REF.source, "gi");
  * anything the tracker cannot see on its own.
  *
  *  - `none`   — nothing here closes the issue.
- *  - `pr`     — a PR / pull-request reference. Taken at face value: a merge on
- *               the forge is the evidence, and this guard cannot reach it.
+ *  - `pr`     — a PR / pull-request or GitLab merge-request reference. Taken
+ *               at face value: a merge on the forge is the evidence, and this
+ *               guard cannot reach it.
  *  - `exempt` — a `NO-COMMIT:` exemption with a stated reason.
  *  - `sha`    — one or more commit SHAs, which STILL HAVE TO BE VERIFIED
  *               REACHABLE from the trunk. See `shas`.
@@ -60,6 +80,25 @@ export function classifyClosingComment(content: string): ClosingCommentVerdict {
 /** Does this comment body discharge the closing-comment requirement? */
 export function isClosingComment(content: string): boolean {
   return classifyClosingComment(content).kind !== "none";
+}
+
+/**
+ * How `index.ts` classified one SHA-shaped token against the trunk.
+ * `no-git` means the guard could not form an opinion.
+ */
+export type Reachability = "reachable" | "unreachable" | "unknown-commit" | "no-git";
+
+/**
+ * One line of the `CLOSING_COMMIT_NOT_MERGED` rejection, per SHA-shaped token.
+ * Lives here rather than in `index.ts` so the wording is unit-testable.
+ */
+export function describeShaFinding(sha: string, reachability: Reachability, trunk: string): string {
+  // A SHA-shaped token is only hex of the right length: a subagent id inside a
+  // worktree path (`agent-a565e48445c52aa7a`) reads the same. Resolving to no
+  // commit is not proof a commit is missing, so do not assert that it is.
+  return reachability === "unknown-commit"
+    ? `  ${sha} — resolves to no commit here; it may not be a commit reference at all`
+    : `  ${sha} — exists, but is not an ancestor of ${trunk}`;
 }
 
 /**

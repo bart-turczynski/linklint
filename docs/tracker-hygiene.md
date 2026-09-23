@@ -18,13 +18,24 @@ list.
 ## Closing comments
 
 **An issue cannot go `done` without a closing comment** (`LINK-crxctgsh`). The
-comment must name a commit SHA, a PR (`merged as PR #139`), or an explicit
-exemption with a reason (`NO-COMMIT: declined on cost, see the analysis above`).
+comment must name a commit SHA, a merge request (`merged as !89`, `MR !89`,
+`merge request 89`) or PR (`merged as PR #139`), or an explicit exemption with a
+reason (`NO-COMMIT: declined on cost, see the analysis above`).
 Use the exemption for declined proposals and epics closing on their children's
 acceptance — it keeps a commitless close visible and auditable rather than
 silent. The rule comes from the `LINK-nlfybbsf` audit, where closing-comment
 presence separated verified-clean from defective across 45 issues with no
 exceptions.
+
+**Post the closing comment as its own call, before the status change**
+(`LINK-ravclvca`). `fp issue update --status done --comment "..."` applies the
+comment *after* the update, so when the guard refuses the close the comment is
+not posted at all — and the retry is refused for the same reason:
+
+```bash
+fp comment <id> "merged as !89"
+fp issue update --status done <id>
+```
 
 **A named commit must also be a *merged* commit** (`LINK-nwqrqjdc`). When the
 closing comment names a SHA, the guard now checks it is an ancestor of local
@@ -34,10 +45,12 @@ closing comment names a SHA, the guard now checks it is an ancestor of local
 git checkout main && git merge --ff-only <branch>
 ```
 
-A PR reference or a `NO-COMMIT:` exemption still discharges on its own — the
-evidence for those lives where the guard cannot reach. The check fails **open**
-if git is unavailable or `main` is missing, since an unusable tracker is worse
-than an unverified close.
+An MR or PR reference or a `NO-COMMIT:` exemption still discharges on its own —
+the evidence for those lives where the guard cannot reach. A SHA-shaped token
+that resolves to no commit (a hex id inside a worktree path reads the same) is
+reported as possibly not a commit reference, not as a missing commit. The check
+fails **open** if git is unavailable or `main` is missing, since an unusable
+tracker is worse than an unverified close.
 
 This closes the hole that cost `LINK-wgsbhovi` and `LINK-nwqrqjdc`: **nine
 branches and twelve issues** were closed citing a SHA that sat on a branch

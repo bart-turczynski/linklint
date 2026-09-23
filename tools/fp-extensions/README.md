@@ -21,6 +21,7 @@ the issue names one of:
 
 | Form | Example |
 |---|---|
+| GitLab MR reference | `merged as !89`, `MR !89`, `merge request 89` |
 | PR or issue reference | `merged as PR #139` |
 | Commit SHA | `landed in 71debd9` |
 | Explicit exemption + reason | `NO-COMMIT: declined on cost, see the analysis above` |
