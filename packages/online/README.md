@@ -216,9 +216,15 @@ either mirror, and for the RDAP bootstrap registry either. The package holds the
 `UrlhausSnapshotStore` / `PhishTankSnapshotStore` *interface*; you supply the
 directory, database, or object store, because that is the piece whose durability,
 concurrency, and retention policy belong to your deployment rather than to a
-library. `docs/online-runtime-boundary.md` states the rule: "Core keeps portable
-storage interfaces. `@linklint/online` may provide Node implementations, but a
-caller supplies the database, directory, or store."
+library. `docs/online-runtime-boundary.md` states the rule: "`@linklint/online`
+ships interfaces too, not stores: a caller supplies the database, directory, or
+store."
+
+That is settled, not pending (`LINK-tkafhtrf`): an fs-backed store was
+considered for this package and declined, and none will ship. The filesystem
+stays on the caller's side of the runtime boundary, and the write-then-rename
+sketch below is the permanent answer rather than a stand-in for a future
+export.
 
 The one property the updaters rely on is that `replace` is **atomic**: a reader
 must never observe a partial dataset. On a POSIX filesystem, write-then-rename

@@ -415,3 +415,52 @@ expiry did not go on to check the rest of the chain.
 DNS, connection, handshake, certificate-analysis, timeout, and cancellation
 failures are `incomplete` with a typed cause. A TLS failure is never a safety
 claim. `notBefore` is a validity start, **not** reliable issuance age.
+
+### The call is the consent (`LINK-sndjnmig`)
+
+`TlsInspectRequest` is `{ url, signal? }`. It carries no authorization field,
+and `SafeTlsInspector` takes no `authorize` callback. That is a decision
+(`LINK-sndjnmig`), not a seam still to be added: calling `inspect()` is itself
+the caller's consent, and the consent covers exactly what one call can do.
+
+- **One URL.** The request's own `url`, which must parse as `https:` and carry
+  no userinfo; its fragment is dropped before resolution.
+- **One connection.** `pinDestination` resolves the hostname once and the
+  inspector asks the observe port for one observation of the selected address.
+  The built-in port opens one TLS socket, reads the presented chain when the
+  handshake completes, and destroys the socket. No HTTP request is written and
+  no body is read.
+- **No redirects.** With no HTTP exchange there is no response and no
+  `Location` to follow, and an observation confers no permission to connect
+  anywhere else.
+- **The same address-layer denial as the fetch path.** `pinDestination` and the
+  `classifyTransportAddress` table behind it are the ones `fetch()` uses, so
+  every address the resolution returns is classified before the socket opens,
+  and one prohibited answer ends the call as `blocked` with
+  `prohibited-address` and no connection. The observed peer address and port
+  must then match the pin, or the call ends `incomplete` with
+  `connection-address-mismatch`.
+
+The fetch path is stricter on purpose, and the difference is safe because the
+two paths differ in reach. `SafeTransportSession.fetch()` refuses with
+`authorization-required` unless `authorization.url` equals `request.url` as a
+string, and it applies that check to hop 1 as well. A fetch session is a
+chain: a response can carry a `Location` naming a host the caller did not
+name, and the transport cannot tell a URL the caller wrote from one a
+destination supplied. Requiring the same explicit authorization on every call,
+the first included, means no hop is reachable by a path that skips the
+question — `resolution/redirect-chain.ts` accordingly calls `authorize()` for
+hop 1 as for every later hop. The observe path has no hop 2. Its one
+destination is the URL written into the call, so an authorization naming that
+same URL would restate the argument rather than add a decision.
+
+The consent is the caller's, so its scope is the caller's URL. The inspector
+cannot tell where its `url` came from any more than the fetch transport can,
+which is why [`online-source-contract.md`](online-source-contract.md) § "The
+live TLS source's subject is the input origin" bars handing it a
+redirect-discovered URL; the shipped TLS enricher passes the input origin
+only. Construction stays inert: building an inspector opens nothing, so the
+rule that construction is not consent to connect (register entry F6) is
+unaffected. This decision changed no code and no vocabulary:
+`authorization-required` stays outside `TLS_OBSERVATION_CAUSE_CODES`, and
+`TRANSPORT_SCHEMA_VERSION` stays at `1.0`.
