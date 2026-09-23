@@ -1,6 +1,6 @@
 {
   "name": "@linklint/online",
-  "version": "0.1.0-dev.0",
+  "version": "0.1.0",
   "description": "Explicit Node/server online capabilities for linklint.",
   "keywords": ["url", "security", "linklint", "resolution", "reputation"],
   "license": "MIT",

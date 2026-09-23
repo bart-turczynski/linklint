@@ -2,7 +2,100 @@
 
 All notable changes to this project will be documented here.
 
-## Unreleased
+## 0.1.0 — 2026-09-23
+
+The first published release of `linklint`. The `0.0.1` already on npm was a
+name placeholder with no code in it. `@linklint/cli`, `@linklint/mcp` and
+`@linklint/online` are **not yet on npm**: each scoped name needs a one-time
+bootstrap publish by the maintainer before CI can publish it, and until then the
+`publish` job skips them by name (`LINK-kaiehaha`). All four workspace packages
+move from `0.1.0-dev.0` to `0.1.0` in lockstep (`LINK-jxlojwkk`), so the scoped
+packages will depend on `linklint` `0.1.0` once they do publish. The result
+contract ships at `SCHEMA_VERSION` `1.14` and `WEIGHTS_VERSION` `1.23`.
+
+Everything below this release's first four subsections was written while the
+packages were unpublished, which is why several entries say the version "stays
+`0.1.0-dev.0`" — true when written.
+
+### Changed — scoring (`WEIGHTS_VERSION` `1.22` → `1.23`)
+
+- **The five destination `ip_*` codes report at weight 0**
+  (`LINK-bwqhvjcs`, architecture §6.1.10). `ip_cloud_metadata`, `ip_loopback`,
+  `ip_private`, `ip_link_local` and `ip_reserved` fire on where an address
+  points — membership of an IANA special-purpose range or the vendor
+  cloud-endpoint table — not on how the string is written, so none of them is a
+  deception finding. They are still reported, with their detail, and no longer
+  score (`scoring: false`). `ip_obfuscation` (`0.40`) and
+  `ambiguous_numeric_host` (`0.30`) read the address's *form* and keep their
+  weights; `ssrf_cloud_metadata` keeps `1.00`.
+- **User-visible consequence.** Without `agentMode`, `http://169.254.169.254/`
+  moves from `0.75`/`high` to `0.00`/`info`, with `ip_cloud_metadata` still
+  reported, so the CLI's default `--fail-on high` gate no longer exits non-zero
+  on a bare metadata address. Under `agentMode` (`--agent`) it is still
+  `1.00`/`critical`, carried by `ssrf_cloud_metadata` alone.
+  `http://192.168.1.1/` moves `0.20`/`low` → `0.00`/`info`;
+  `http://2130706433/` moves `0.52`/`high` → `0.40`/`medium` and
+  `http://0251.0376.0251.0376/` moves `0.85`/`critical` → `0.40`/`medium`, both
+  carried by `ip_obfuscation`.
+- **Corpus.** 47 rows that scored only on a bucket code move from `deceptive` to
+  `info` and keep their `expectReasons`; two rows that also carry
+  `ip_obfuscation` move from `minSeverity: high` to `medium`. Each relabel
+  carries a `LINK-bwqhvjcs` comment. `@linklint/online`'s transport guard is
+  unaffected: it refuses a connection on the address bucket, not on a weight.
+- `SCHEMA_VERSION` stays `1.14`: no field, code or documented value was added
+  or removed, only five weights.
+
+### Changed — input parsing (no stamp moves)
+
+- **Scheme-less single-label input is `invalid`, and its `parse_error` names
+  the rule** (`LINK-igoxaojd`, architecture §6.1.14). A string with no scheme
+  whose host is a single label with no dot — `POST`, a User-Agent's `Mozilla`,
+  bare `localhost`, `localhost:8080`, `user@intranet` — used to come back `ok`
+  at `0.00` with no reasons. It now takes the `status: "invalid"` path, and the
+  `parse_error` detail names the host and says what would make it acceptable (a
+  dotted host, or a scheme such as `http://`).
+- **Unchanged:** any explicit scheme (`http://localhost/`, `https://svc/`),
+  dotted hosts including a trailing root dot (`localhost.`), and IP literals
+  (`[::1]`, `2130706433`, `0x7f000001`), so `ip_obfuscation` still scores the
+  dotless IPv4 forms.
+- The CLI's default gate treats the newly invalid inputs as any `invalid` input
+  (exit `1` unless `--allow-invalid`). A bare single label that used to score,
+  such as `user@host` (`userinfo_present`), now fails closed instead.
+- No stamp moves: the detail travels through the existing `parseErrorDetail`
+  channel and no reason code was minted, so this is owned by the package version
+  and this file (§6.4).
+
+### Packaging and release
+
+- **Repository, homepage and bugs metadata** in all four manifests, pointing at
+  `gitlab.com/bart-turczynski/linklint`, so npm's package page and provenance
+  link back to the source and tracker; pinned in `engines-consistency.test.ts`
+  (`LINK-kaiehaha`).
+- **The CI `publish` job skips scoped packages npm does not know yet.** It
+  publishes `linklint` first, then each of `@linklint/cli`, `/mcp`, `/online`
+  only if the registry finds the name; a clean `E404` skips with a logged line,
+  any other registry error fails the job (`LINK-kaiehaha`).
+- **`CITATION.cff`** added, and the README and CONTRIBUTING mark the CLI and MCP
+  packages as unpublished and list the maintainer-only npm steps
+  (`LINK-kaiehaha`).
+
+### Documentation and tooling (no code or contract change)
+
+- **Scoring decision records 6.1.11–6.1.13** (`LINK-cobcskcn`): correlated
+  reasons are not collapsed per family in the scorer (`LINK-qhvrvonb`, measured
+  at weights `1.23`); a wrapped `javascript:` payload stays at `0.40`/`medium`
+  (`LINK-dmjqrcrj`); `http://` to an HSTS-preloaded host is declined as a
+  finding (`LINK-hmvdnyds`).
+- **Online-layer decision records** (`LINK-dbsghzmm`, `LINK-sccxkavi`): a TLS
+  observe call is its own consent, with no authorization seam to come
+  (`LINK-sndjnmig`); there is no `@linklint/online-cli` (`LINK-kzpzqkfz`) and no
+  fs-backed snapshot store (`LINK-tkafhtrf`); the `@linklint/online` README now
+  describes the mirror clients' bounded redirect following (up to three hops,
+  HTTPS-only per hop).
+- **The tracker's closing-comment guard accepts GitLab MR references** (`!89`,
+  `MR !89`, `merge request 89`, `group/project!89`), and a SHA-shaped token that
+  resolves to no commit is reported as possibly not a commit reference
+  (`LINK-ravclvca`). Repository tooling only; nothing published changes.
 
 ### Changed — `Reason.detail` prose (no stamp moves)
 

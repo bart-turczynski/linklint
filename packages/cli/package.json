@@ -1,6 +1,6 @@
 {
   "name": "@linklint/cli",
-  "version": "0.1.0-dev.0",
+  "version": "0.1.0",
   "description": "Offline CLI for linklint — check a URL for deception before you fetch it (explainable, deterministic).",
   "keywords": ["cli", "url", "security", "phishing", "linklint"],
   "license": "MIT",
