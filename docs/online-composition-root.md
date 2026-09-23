@@ -11,6 +11,11 @@ to `inspectAsync()`. That explicitness is the accepted design (`LINK-ryfztgke`,
 is discovered from the environment. This document is the worked example that was
 missing, so the shape does not have to be reconstructed from the source.
 
+A composition root is the only supported way to run them. No
+`@linklint/online-cli` package will be built (`LINK-kzpzqkfz`), and
+`@linklint/cli` stays offline, so a command-line online run is a caller's own
+program around a root like the one below.
+
 ## The root
 
 Four subpath imports, three adapters, one consent callback. The snippet below
@@ -277,8 +282,9 @@ source's subject is the input origin".
   snapshot lives and how often it is updated, which is an application decision
   rather than a line of composition.
 - **URLhaus and PhishTank** (`@linklint/online/mirrors`) ship no snapshot store
-  (`LINK-mpkglaqb` added the two Node feed clients but deliberately not a store),
-  so a runnable example would first have to invent where the snapshot lives.
+  (`LINK-mpkglaqb` added the two Node feed clients but deliberately not a store,
+  and `LINK-tkafhtrf` declined adding an fs-backed one for good), so a runnable
+  example would first have to invent where the snapshot lives.
   Their mirrors are caller-owned by design. Their factories appear in the table
   above because both now require `terms`, and both are the only two sources whose
   licence can refuse a construction outright.
@@ -290,7 +296,7 @@ and declined. Four reasons, recorded so the question does not have to be
 reopened from scratch:
 
 1. **There is no honest default bundle.** RDAP needs caller-owned bootstrap
-   storage and the mirrors have no Node adapter, so any blessed set today is a
+   storage and the mirrors have no Node store, so any blessed set today is a
    partial one that would read as complete.
 2. **It has no home in the export map.** The package exposes exactly five
    subpaths; `.` re-exports the source contract only, and a helper spanning

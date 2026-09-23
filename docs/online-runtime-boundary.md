@@ -28,7 +28,7 @@ Adopt three one-way runtime boundaries:
 ```text
 browser / offline CLI / offline MCP ───────────────► linklint
 
-server app / opt-in online CLI ─► @linklint/online ─► linklint
+server app ────────────────────► @linklint/online ─► linklint
 
 monitoring service ─────────────► @linklint/online ─► linklint
         │
@@ -67,7 +67,10 @@ package owns:
 - DNS, TLS, HTTP, redirect, and response-evidence adapters;
 - RDAP and other explicitly enabled provider adapters;
 - caller-owned threat-feed mirror lookup and update implementations;
-- Node persistent cache/store adapters; and
+- the storage *interfaces* its snapshot updaters write through
+  (`UrlhausSnapshotStore`, `PhishTankSnapshotStore`, `RdapBootstrapStore`),
+  with the storage behind them left to the caller (see "Configuration,
+  credentials, and storage"); and
 - deterministic injected resolver, connector, clock, and provider fixtures.
 
 It depends on the public `linklint` contract. `linklint` never imports it, and
@@ -121,16 +124,26 @@ technology remain N0 decisions; the ownership boundary does not.
 |----------|----------|
 | Browser/library | Import `linklint` only. Online work goes through a caller-owned backend after an explicit user action. |
 | Existing `@linklint/cli` | Remains offline and depends only on `linklint`; `linklint check` never gains an implicit online mode. |
-| Opt-in online CLI | A separately installed future channel (for example `@linklint/online-cli`) depends on `@linklint/online`; it must require an explicit online command/flag and operation authorization. |
+| Online CLI | Declined (`LINK-kzpzqkfz`): no `@linklint/online-cli` package will be built. Online checks stay a library composition — the caller writes the root that builds the adapters and supplies consent ([`online-composition-root.md`](online-composition-root.md)). |
 | Existing `@linklint/mcp` | Remains local-only and offline. It does not import or dynamically load `@linklint/online`. |
 | Future agent-facing online channel | Must be a separate package/service with per-operation caller authorization. Merely enabling agent mode or calling an offline check is not consent to fetch a destination or disclose a URL. |
 | Server application | Composes named `@linklint/online` capabilities at its application boundary and supplies policy, storage, clock, credentials, and consent explicitly. |
 | Monitoring worker | Runs in the monitoring service and uses only the specific core/online contracts required by each source. |
 
-Separating the online CLI and any future online MCP surface preserves truthful
+Keeping network authority out of the CLI and MCP packages, and requiring any
+future online agent surface to be a separate package, preserves truthful
 installation and runtime claims for the existing offline packages. It also
 prevents a transitive dependency or configuration change from quietly adding
 network authority to an agent process.
+
+**There is no online CLI, and none is planned (`LINK-kzpzqkfz`).** An opt-in
+`@linklint/online-cli` was once listed here as a future channel; building it
+was declined. Online checks stay a library composition: the caller writes the
+root that builds the adapters and supplies the per-hop `authorize` policy, the
+`terms` for each source, and any snapshot storage, as
+[`online-composition-root.md`](online-composition-root.md) shows. The rule for
+the existing CLI is unchanged: `@linklint/cli` stays offline and depends only
+on `linklint`.
 
 ## Opt-in and authorization rules
 
@@ -207,9 +220,22 @@ evidence about the destination that refusing would destroy. At the provider
 boundary every request carries the caller's own secret. Two layers, two rules,
 one distinguishing fact: whether a credential is in flight.
 
-Core keeps portable storage interfaces. `@linklint/online` may provide Node
-implementations, but a caller supplies the database, directory, or store. Feed
-snapshots and cache contents are never bundled in npm artifacts. The monitoring
+Core keeps portable storage interfaces, and `@linklint/online` ships interfaces
+too, not stores: a caller supplies the database, directory, or store. Feed
+snapshots and cache contents are never bundled in npm artifacts.
+
+**The filesystem stays on the caller's side (`LINK-tkafhtrf`).** A proposal to
+ship an fs-backed snapshot store in `@linklint/online` was declined. The
+package holds `UrlhausSnapshotStore`, `PhishTankSnapshotStore`, and
+`RdapBootstrapStore` as interfaces and reaches for no `node:fs` behind them;
+`packages/online/test/package-contract.test.ts` pins the absence of a
+`node:fs` import in the mirror sources and the RDAP bootstrap updater, and of a
+Node snapshot-store export from `@linklint/online/mirrors`. Where a snapshot lives, how durably it is
+written, and who else may write it are deployment decisions, so the
+write-then-rename sketch in
+[`packages/online/README.md`](../packages/online/README.md) § "The snapshot
+store is yours" is the permanent answer rather than a placeholder for a shipped
+store. The monitoring
 service owns its durable database and outbox; it may reference online mirror
 stores but does not transfer their ownership to core.
 

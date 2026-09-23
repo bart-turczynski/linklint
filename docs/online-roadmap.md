@@ -222,6 +222,22 @@ With K, L, and M delivered and N and P parked, the coordinator has no remaining
 priority order — it is done. Any future online work resumes by unparking a
 stream explicitly.
 
+## Declined, not parked
+
+Two proposals were decided against rather than deferred. Unlike N and P they
+have nothing to unpark, and they are not candidates for future work:
+
+- **An online CLI (`LINK-kzpzqkfz`).** No `@linklint/online-cli` package will
+  be built. Online checks stay a library composition written by the caller
+  ([`online-composition-root.md`](online-composition-root.md)), and
+  `@linklint/cli` stays offline.
+- **A filesystem snapshot store (`LINK-tkafhtrf`).** `@linklint/online` will not
+  ship an fs-backed store for the mirror or RDAP snapshots. The filesystem stays
+  on the caller's side of the runtime boundary
+  ([`online-runtime-boundary.md`](online-runtime-boundary.md)), and the
+  write-then-rename sketch in
+  [`packages/online/README.md`](../packages/online/README.md) is the answer.
+
 ## Binding invariants
 
 - No concrete network I/O in `linklint`, the existing CLI, or the existing MCP
