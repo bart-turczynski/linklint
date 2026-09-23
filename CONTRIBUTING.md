@@ -63,7 +63,12 @@ from the lockfile on stock images, and a machine that is not this one. Those are
 worth minutes exactly when dependencies move — which is why that is when they
 happen.
 
-> **Remote CI executes again, and it is not the same machine as yours**
+> **Measured 2026-09-23: the shared-runner minutes are exhausted again**, so every
+> pipeline fails `ci_quota_exceeded` before a job starts until the allowance
+> resets on 2026-10-01 (`LINK-rdkfkqze`). What follows describes remote CI when
+> it has minutes.
+>
+> **Remote CI, when it runs, is not the same machine as yours**
 > (`LINK-ozgkfjow`). Between 2026-08 and 2026-09-05 every job failed with
 > `ci_quota_exceeded` without starting, and the habit that grew around that — a
 > red pipeline means the quota, not your tree — is now wrong. Making the project
