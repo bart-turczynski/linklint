@@ -43,3 +43,19 @@ describe("engines.node is consistent across all manifests", () => {
     expect([...unique][0]).toBe(EXPECTED);
   });
 });
+
+// npm's package page and provenance link back through these three fields, and
+// a manifest that lacks them publishes a package with no route to its source or
+// its tracker (LINK-kaiehaha). All four published packages, `online` included.
+describe("repository, homepage and bugs point at the GitLab project", () => {
+  const REPO = "git+https://gitlab.com/bart-turczynski/linklint.git";
+
+  it.each(["core", "cli", "mcp", "online"])("packages/%s declares them", (dir) => {
+    const manifest = JSON.parse(
+      readFileSync(join(repoRoot, "packages", dir, "package.json"), "utf8"),
+    ) as { repository?: unknown; homepage?: unknown; bugs?: unknown };
+    expect(manifest.repository).toEqual({ type: "git", url: REPO, directory: `packages/${dir}` });
+    expect(manifest.homepage).toBe("https://gitlab.com/bart-turczynski/linklint#readme");
+    expect(manifest.bugs).toEqual({ url: "https://gitlab.com/bart-turczynski/linklint/-/issues" });
+  });
+});

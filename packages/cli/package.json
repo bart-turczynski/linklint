@@ -4,6 +4,15 @@
   "description": "Offline CLI for linklint — check a URL for deception before you fetch it (explainable, deterministic).",
   "keywords": ["cli", "url", "security", "phishing", "linklint"],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.com/bart-turczynski/linklint.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://gitlab.com/bart-turczynski/linklint#readme",
+  "bugs": {
+    "url": "https://gitlab.com/bart-turczynski/linklint/-/issues"
+  },
   "type": "module",
   "bin": {
     "linklint": "./dist/cli.js"

@@ -4,6 +4,15 @@
   "description": "Explicit Node/server online capabilities for linklint.",
   "keywords": ["url", "security", "linklint", "resolution", "reputation"],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.com/bart-turczynski/linklint.git",
+    "directory": "packages/online"
+  },
+  "homepage": "https://gitlab.com/bart-turczynski/linklint#readme",
+  "bugs": {
+    "url": "https://gitlab.com/bart-turczynski/linklint/-/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
