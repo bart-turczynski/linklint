@@ -102,6 +102,12 @@ createPhishTankEnricher({
 });
 ```
 
+`acceptAttribution: true` asserts that the caller will attribute the source
+where they publish its results; linklint checks the assertion and renders no
+attribution itself (see
+[`online-source-contract.md`](./online-source-contract.md) § "Attribution is a
+caller assertion").
+
 The redirect chain's `authorize` callback is a different seam and is not replaced
 by this one: terms govern whether a *feed* may be used, `authorize` governs
 whether a *destination* may be contacted. Construction is still never consent to

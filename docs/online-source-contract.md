@@ -36,7 +36,7 @@ Every source publishes an inert `OnlineSourceDescriptor`:
 | `evidenceScope` | The evidence `type` tokens the source may emit. |
 | `disclosure` | Recipient, the channels that leave the machine (`sends`), and which are consent-gated (`consentRequired`). |
 | `credentials` | `none`, or a `required` / `optional` BYOK slot with `scheme` and `label`. |
-| `terms` | Supported commercial modes, attribution duty, redistribution and caching posture. |
+| `terms` | Supported commercial modes, whether the licence requires attribution (a flag the caller acknowledges; see "Attribution is a caller assertion"), redistribution and caching posture. |
 | `dataOrigin` | `live-provider` (with recipient) or `caller-owned-mirror` (`bundled: false`, always). |
 | `freshness` | Whether the source can declare expiry and whether it goes stale. |
 | `scoring` | `evidence-only` or `conjunctive-finding` (see below). |
@@ -112,6 +112,31 @@ The gate is **terms-only**. It never asks for a feed credential: the URLhaus
 Auth-Key and the PhishTank app key are revealed only by the M4a/M5a *updaters*,
 and querying a caller-owned local snapshot must not demand the key that
 downloaded it. Credentials and disclosure stay on the runtime seam.
+
+### Attribution is a caller assertion
+
+`terms.attributionRequired` records that a source's licence requires
+attribution. It is a flag, not a notice: the descriptor carries no attribution
+text and no URL, so there is nothing for linklint to render.
+
+`acceptAttribution: true` is the caller asserting that **they** will attribute
+the source wherever they publish or display its results. The terms gate checks
+that the assertion was made, and nothing reads it afterwards. linklint does not
+render, display or otherwise satisfy attribution on the caller's behalf — and
+cannot from its own front ends, because `@linklint/cli` and `@linklint/mcp` do
+not depend on `@linklint/online`.
+
+So the gate makes the obligation impossible to *miss*, not *satisfied*. A source
+whose licence requires attribution cannot be constructed until the caller has
+acknowledged the duty; discharging it stays with the caller. "Terms it cannot
+honor" above is scoped the same way: for attribution, what is checked is the
+caller's acknowledgement, not an attribution linklint produces.
+
+The machine-readable provenance on each outcome and evidence record (for
+example the source names `urlhaus.abuse.ch` and `phishtank`) is emitted whether
+or not a source requires attribution. It identifies where a record came from; it
+is not a licence-conformant attribution notice, and passing it through does not
+by itself discharge the caller's duty.
 
 The three **resolution** enrichers (`createRedirectChainEnricher`,
 `createDivergenceProbeEnricher`, `createEmbeddedWrapperEnricher`) deliberately
@@ -225,7 +250,8 @@ for any compliant source:
 3. **secret handling** — a BYOK secret redacts through every serialization sink;
 4. **freshness** — emitted freshness matches the declared capability;
 5. **disclosure capture** — a consent-gated operation skips without consent;
-6. **terms mode** — an unsupported mode or declined attribution throws;
+6. **terms mode** — an unsupported mode or a declined attribution
+   acknowledgement throws;
 7. **failure-to-check** — every runtime refusal is a valid `EnrichmentCause`;
 8. **graceful `checksSkipped`** — refusals map to skip states, never to safety.
 

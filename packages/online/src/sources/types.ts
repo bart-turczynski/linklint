@@ -69,7 +69,12 @@ export type CachingMode = "prohibited" | "response-directed" | "permitted";
  */
 export interface TermsProfile {
   readonly supportedModes: readonly CommercialMode[];
-  /** When true, the caller must acknowledge attribution to construct the source. */
+  /**
+   * When true, the source's licence requires attribution, and the caller must
+   * acknowledge that duty (`acceptAttribution: true`) to construct the source.
+   * This is a flag only: it carries no attribution text or URL, and linklint
+   * renders no attribution. Discharging the duty stays with the caller.
+   */
   readonly attributionRequired: boolean;
   readonly redistribution: RedistributionMode;
   readonly caching: CachingMode;

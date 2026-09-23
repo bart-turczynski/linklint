@@ -105,6 +105,13 @@ revealed by the *updaters* below, and querying a snapshot you already own must
 not demand the key that downloaded it. The resolution enrichers take no `terms`
 at all; a destination is authorized per hop, not per construction.
 
+`acceptAttribution: true` is your assertion that you will attribute URLhaus or
+PhishTank wherever you publish or display their results. The gate checks only
+that you made it; linklint renders no attribution for you, and the source names
+in evidence provenance are not a licence notice. The obligation stays yours. See
+[`docs/online-source-contract.md`](../../docs/online-source-contract.md) §
+"Attribution is a caller assertion".
+
 ## Caller-owned threat-feed mirrors
 
 The `@linklint/online/mirrors` subpath exposes the URLhaus and PhishTank
