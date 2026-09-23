@@ -184,11 +184,15 @@ the burden on the proposal that wants to score.
 burden, and `ssrf_cloud_metadata` is its only instance. Three conditions, all
 required:
 
-1. **The fact is settled with the gate off.** The firing condition is a
-   claim-(a) string property already reported without `agentMode` — here a
-   whole-host equality test against an IANA-reserved literal and the
-   vendor-published names for it, emitted at `0.75` by `ip_cloud_metadata` in
-   either mode. The escalation inherits that grounding; it does not supply one.
+1. **The fact is settled with the gate off.** The firing condition is a fact
+   determinable from the string alone and already reported without `agentMode`
+   — here a whole-host equality test against an IANA-reserved literal and the
+   vendor-published names for it, reported by `ip_cloud_metadata` in either
+   mode. What the condition needs is that the fact is *settled*, not that it
+   *scores*: since §6.1.10 `ip_cloud_metadata` reports at weight 0, because
+   where an address points is not a claim-(a) deception, and the escalation's
+   grounding is unchanged by that. The escalation inherits that grounding; it
+   does not supply one.
 2. **The gate moves the weight, not the finding set.** Both modes state the same
    fact about the same string, and the gate says how hard an already-settled
    fact should land. A detector that *exists only* under the gate fails this
@@ -263,9 +267,11 @@ under the fourth rule, not under the three forms. `foo.invalid` is exactly the
 shape the fourth rule's worked case has — well-formed, universally agreed, honest
 about itself, and guaranteed never to work — so staying silent on it was the same
 inconsistency `host_length_unresolvable` was written to close. The sharpened
-form: `192.168.1.1` scores `0.20` because a literal addressing a private network
-is worth mentioning, while `svc.internal` scores `0.00` — a name reserved for
-that exact purpose, saying nothing at all.
+form, as it stood when this was decided: `192.168.1.1` scored `0.20` because a
+literal addressing a private network is worth mentioning, while `svc.internal`
+scored `0.00` — a name reserved for that exact purpose, saying nothing at all.
+Since §6.1.10 the literal reports at weight 0 as well, so the two now say their
+piece the same way: `ip_private` and `special_use_name`, both at `0.00`.
 
 `special_use_name` therefore reports at **weight 0** (schema `1.11`; `WEIGHTS_VERSION`
 does not move, because a weight of 0 adds no scoring surface). Three boundaries
@@ -278,13 +284,14 @@ travel with it:
   versus "second-level reservation under a delegated TLD", and it is not
   fastidiousness: roughly a quarter of the labeled corpus uses one of those hosts
   as a neutral stand-in.
-- **Where a scoring code already names the host, the informational one
+- **Where a cloud-metadata code already names the host, the informational one
   suppresses itself.** `metadata.google.internal` sits under `.internal` and
-  already carries `ip_cloud_metadata` at `0.75`. The fourth rule's trigger is a
+  already carries `ip_cloud_metadata` (at `0.75` when this was decided, at weight
+  0 since §6.1.10). The fourth rule's trigger is a
   `0.00` with no reasons, so a host that already carries a finding is owed
   nothing — and the predicate would be false where it landed, since that host's
   whole hazard is that it *does* resolve. The suppression reads the same table
-  the scoring codes read, so the two cannot drift.
+  the metadata codes read, so the two cannot drift.
 - **`.onion` label syntax is a separate, still-open question.** A v3 address is a
   56-character base32 pubkey plus checksum, so `ab.onion` announces a Tor
   identity it cannot be — form 3, and therefore **scoring**-eligible. Deciding it
@@ -294,7 +301,9 @@ travel with it:
 This also does **not** decide `LINK-qqwfpxvu` sideways. The axis rejected there
 was *authority-fixed content licenses SCORING*. Nothing here scores: weight 0
 defeats the deception objection and RFC-fixed content defeats the durability
-objection, **both** are required, and neither suffices alone.
+objection, **both** are required, and neither suffices alone. `LINK-qqwfpxvu`
+was later decided head-on, on this same line, and §6.1.10 records it: the
+IANA-fixed address buckets report at weight 0 too.
 
 **Handing back a modified URL, settled: the list doing the editing is a claim
 about the world** (`LINK-sarsncoh`). The recurring request is a `sanitize()` —
@@ -341,7 +350,7 @@ guard, which is why it argues the class rather than the API shape.
 Nothing in this section is open. What this section settles, and what
 should therefore not be re-filed: well-formed-but-unusable strings, the path
 layer, the agent-mode layer, the reserved special-use names and the cleaned-URL
-output, all above; the watchlist's name-never-create rule, combosquatting, and
+output, all above (with the address destination codes applied in §6.1.10); the watchlist's name-never-create rule, combosquatting, and
 the reading of a clean result, all below.
 
 **The rule.** The brand watchlist (`data/brands.ts`) may only be consulted to
@@ -1761,6 +1770,82 @@ would.
 **Implemented (`LINK-vycgfumd`).** `src/compare/compare-urls.ts`, exported from
 the package root and from `linklint/experimental`, pinned by
 `test/compare-urls.test.ts` and `test/parsed-origin-derivation.test.ts`.
+
+#### 6.1.10 Address destination codes — reported at weight 0 (`LINK-bwqhvjcs`)
+
+**Decision — an `ip_*` code that fires on where an address points reports at
+weight 0; a code that reads how the address is written keeps its weight,
+ADOPTED.** This settles `LINK-qqwfpxvu` (option 2). Weights `1.23`.
+
+**The rule.** Five codes fire on the address's *destination*: membership of an
+IANA special-purpose range or of the vendor cloud-endpoint table, and nothing
+else. They are `ip_cloud_metadata`, `ip_loopback`, `ip_private`,
+`ip_link_local` and `ip_reserved` — the complete bucket set of
+`detectors/ip-classification.ts`, one per address. Each now reports at
+**weight 0** (`scoring: false`), exactly as the retired semantic tier does
+(§6.1.5, §1.1's agent-mode table). Two codes read the address's *form* and keep
+their weights. `ip_obfuscation` (0.40) is form 1: `http://2130706433/` reads as
+one string and normalizes to `127.0.0.1`. `ambiguous_numeric_host` (0.30) is
+form 2: a browser rejects the host and a non-browser client dials it.
+`ssrf_cloud_metadata` (1.00) is not an address reading at all. It is §1.1's one
+consequence-weighted escalation, and it keeps scoring.
+
+**Why a destination is outside claim (a).** Claim (a) is *the string is not what
+it presents itself to be*. `http://192.168.1.1/` presents itself as the private
+address `192.168.1.1`, and that is what it is. `normalize(input) === input`,
+every conforming reader agrees where it goes, and it makes no false claim about
+itself. None of the three forms reaches it. What the bucket adds is a fact about
+the address — which block a registry put it in, which vendor answers on it. That
+fact is true, settleable offline and worth saying. It is not a deception finding,
+so it belongs to §1.1's fourth rule: report it and do not score it. This holds for
+the cloud-metadata endpoint too. `169.254.169.254` is honestly
+`169.254.169.254`, and the hazard it names is what a fetcher does there, not
+anything the string hides.
+
+**What this is not.** This record must not be read as the axis `LINK-qqwfpxvu`
+rejected, *authority-fixed content licenses scoring*. It is that rejection
+applied. IANA and the vendors fixing the ranges defeats the durability objection
+— the fact will not rot — and that is what earns the buckets a place in
+`reasons[]`. It does not defeat the deception objection, so it earns them no
+weight. §1.1 draws the same line for `special_use_name`: RFC-fixed content plus
+weight 0, both required and neither sufficient alone. Nor is the rule "internal
+destinations are dangerous, so score them": a consequence argument like that is
+what §1.1 lets a caller's declaration license (`agentMode`), not linklint's own
+guess about what a URL is for.
+
+**What stays scored, and why that is consistent.** An obfuscated spelling still
+scores, because the disguise is the deception and the destination is not. A
+bucket code now only explains what the disguise was hiding. Under `agentMode`,
+`ssrf_cloud_metadata` still meets §1.1's three conditions. Condition 1 asks that
+the fact be *settled* with the gate off, and `ip_cloud_metadata` still settles
+it, reported in both modes by the same lookup. The condition did not require the
+fact to score. `http://169.254.169.254/` therefore still lands `critical` under
+`agentMode`, on the escalation alone: `1 − (1 − 1.0) = 1.00`. It saturated
+there in every case, so the ungated `0.75` did not contribute to that verdict.
+
+**Measured consequences.**
+
+| Input | Before (weights `1.22`) | After (weights `1.23`) |
+|---|---|---|
+| `http://169.254.169.254/` | `0.75`/`high` | `0.00`/`info`, `ip_cloud_metadata` reported |
+| `http://169.254.169.254/` + `agentMode` | `1.00`/`critical` | `1.00`/`critical` |
+| `http://192.168.1.1/` | `0.20`/`low` | `0.00`/`info`, `ip_private` reported |
+| `http://2130706433/` | `0.52`/`high` | `0.40`/`medium`, carried by `ip_obfuscation` |
+| `http://0251.0376.0251.0376/` | `0.85`/`critical` | `0.40`/`medium`, carried by `ip_obfuscation` |
+
+In the labelled corpus, 47 rows that had scored only on a bucket move from
+`deceptive` to `info` and keep their `expectReasons`. Two rows that also carry
+`ip_obfuscation` (`[fd00:0ec2::254]`, `[fd20:00ce::254]`) move from
+`minSeverity: high` to `medium`. Each relabel carries a `LINK-bwqhvjcs` comment,
+and no embarrassment-corpus row carries a bucket code. The default CLI gate
+(`--fail-on high`) no longer exits non-zero on a bare metadata address; `--agent`
+restores the block. `@linklint/online`'s transport guard is untouched, because
+it refuses a connection on `classifyHost()`'s bucket and does not read a weight.
+
+**Implemented (`LINK-bwqhvjcs`).** The five registry entries in
+`schema/reason-codes.ts` carry `scoring: false` / weight 0 and `WEIGHTS_VERSION`
+moves `1.22` → `1.23`. The pin is `test/address-destination-weight.test.ts`,
+and `docs/scoring.md` and `docs/reason-codes.md` list the five as annotations.
 
 ### 6.2 IDNA / UTS-46 conformance & the normalization flag profile
 

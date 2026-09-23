@@ -3,7 +3,7 @@
 > Version-pinned (`dataVersions.weights`). Source of truth:
 > `packages/core/src/schema/reason-codes.ts` (weights) and
 > `packages/core/src/scoring/` (aggregation + bands). Current weights version:
-> **1.22**.
+> **1.23**.
 
 ## Aggregation — probabilistic OR (FR-SCORE-1a)
 
@@ -62,12 +62,15 @@ real and is discarded:
 
 | Input | `status` | `score` | Reasons (weight) |
 |---|---|---|---|
-| `http://169.254.169.254/` | `ok` | **0.75** | `ip_cloud_metadata` (0.75) |
-| the same host with fullwidth dots `．` | `invalid` | **`null`** | `separator_lookalike` (**0.5**), `idna_mapping_ambiguity` (0) |
+| `http://169.254.169.254/`, `agentMode` | `ok` | **1.00** | `ssrf_cloud_metadata` (1.0), `ip_cloud_metadata` (0) |
+| the same host with fullwidth dots `．`, `agentMode` | `invalid` | **`null`** | `separator_lookalike` (**0.5**), `idna_mapping_ambiguity` (0) |
 | `https:///evil.com` | `invalid` | **`null`** | `ambiguous_authority` (**0.65**) |
 
 The first row is blocked by a numeric gate; the second reaches the identical
-cloud-metadata endpoint and is not.
+cloud-metadata endpoint and is not. Both rows are agent-mode verdicts: without
+`agentMode` the plain host reports `ip_cloud_metadata` at weight 0 (weights
+`1.23`, `architecture.md` §6.1.10), so there it scores `0.00` and no gate blocks
+it on score alone.
 
 **The correct predicate** treats `invalid` as blocking in its own right:
 
@@ -152,7 +155,7 @@ signal. Reserved for patterns with no legitimate use.
 
 ### Scoring codes
 
-The **38** codes that carry a non-zero weight and therefore move the score. `Layer`
+The **33** codes that carry a non-zero weight and therefore move the score. `Layer`
 is the code's registry layer; `(agent)` marks a code emitted only by an
 agent-gated check, which stays silent unless the caller opts in via `agentMode`.
 
@@ -167,7 +170,6 @@ agent-gated check, which stays silent unless the caller opts in via `agentMode`.
 | `verified_phish_listed`        | 1.00   | reputation |
 | `dangerous_scheme`             | 0.90   | lexical    |
 | `brand_homoglyph`              | 0.80   | lexical    |
-| `ip_cloud_metadata`            | 0.75   | lexical    |
 | `idn_host`                     | 0.70   | lexical    |
 | `ambiguous_authority`          | 0.65   | lexical    |
 | `control_char`                 | 0.60   | lexical    |
@@ -189,24 +191,21 @@ agent-gated check, which stays silent unless the caller opts in via `agentMode`.
 | `idna_protocol_violation`      | 0.35   | lexical    |
 | `ambiguous_numeric_host`       | 0.30   | lexical    |
 | `ascii_homoglyph`              | 0.20   | lexical    |
-| `ip_link_local`                | 0.20   | lexical    |
-| `ip_loopback`                  | 0.20   | lexical    |
-| `ip_private`                   | 0.20   | lexical    |
-| `ip_reserved`                  | 0.20   | lexical    |
 | `percent_encoding_malformed`   | 0.20   | lexical    |
 | `punycode_malformed`           | 0.20   | lexical    |
 | `excessive_subdomain_depth`    | 0.15   | lexical    |
 
 Most scoring detectors land at `severity ≥ medium` on their own, satisfying SC-1
 for the canonical attack set. The `0.20` and `0.15` tiers are intentionally `low`
-alone — anomalous or contextual signals that mainly matter in combination — and
-the `ip_*` classification codes are deliberately quiet because a private or
-loopback literal is ordinary in most contexts and only interesting next to
-another signal.
+alone — anomalous or contextual signals that mainly matter in combination. The
+`ip_*` codes that name where an address points (`ip_cloud_metadata`,
+`ip_loopback`, `ip_private`, `ip_link_local`, `ip_reserved`) are not here at
+all: they report at weight 0 (below). `ip_obfuscation`, which reads how the
+address is written, is the `ip_*` code that scores.
 
 ### Zero-weight codes
 
-The remaining **21** codes never move the score. They are listed separately
+The remaining **26** codes never move the score. They are listed separately
 because "weight `0.00`" means three different things, and mixing them into the
 table above is what let this section drift: a reader scanning for weights has no
 reason to read past the last non-zero row.
@@ -224,6 +223,11 @@ reason to read past the last non-zero row.
 | `host_not_allowlisted`     | policy     | policy verdict |
 | `https_downgrade_observed` | resolution | annotation     |
 | `idna_mapping_ambiguity`   | lexical    | annotation     |
+| `ip_cloud_metadata`        | lexical    | annotation     |
+| `ip_link_local`            | lexical    | annotation     |
+| `ip_loopback`              | lexical    | annotation     |
+| `ip_private`               | lexical    | annotation     |
+| `ip_reserved`              | lexical    | annotation     |
 | `locale_case_ambiguity`    | lexical    | annotation     |
 | `normalization_delta`      | lexical    | annotation     |
 | `open_redirect_observed`   | resolution | annotation     |
@@ -244,7 +248,12 @@ reason to read past the last non-zero row.
   bytes after every reader has agreed where they came from, which §1.1 routes to
   the fourth rule rather than to the score. `ssrf_cloud_metadata` is the one
   agent-gated code that still scores, because the fact it escalates is already
-  settled with the gate off.
+  settled with the gate off. Five address codes joined this row in weights
+  `1.23` (`LINK-bwqhvjcs`): `ip_cloud_metadata`, `ip_loopback`, `ip_private`,
+  `ip_link_local` and `ip_reserved` fire on the address's destination — which
+  range or table it belongs to — and a destination is not a claim-(a) property
+  of the string (`architecture.md` §6.1.10). The codes that read the address's
+  form, `ip_obfuscation` and `ambiguous_numeric_host`, keep their weights.
 - **meta** — `parse_error` describes linklint's own handling of the input, not
   the input's properties.
 - **policy verdict** — emitted by the policy layer from *caller configuration*

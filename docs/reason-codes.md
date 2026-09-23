@@ -879,12 +879,21 @@ These contribute to the risk score via probabilistic OR (`docs/scoring.md`).
     accepted, so an uncompressed `[0:0:0:0:0:ffff:192.0.2.1]` still flags.
   - What is dangerous about `[::ffff:127.0.0.1]` is the *destination*, and that
     is carried notation-independently by the range buckets below
-    (`ip_loopback`) — which is exactly what its hex sibling
-    `[::ffff:7f00:1]` already scores.
+    (`ip_loopback`, reported at weight 0 since `LINK-bwqhvjcs`) — which is
+    exactly what its hex sibling `[::ffff:7f00:1]` already reports.
 - **Example:** `http://2130706433/` (decimal for `127.0.0.1`);
   `https://[2001:db8::192.0.2.1]/` (dotted tail, unrecognized prefix).
 
-### Literal-IP range buckets — V1a · weights 0.2 / 0.5
+### Literal-IP range buckets — V1a · weight 0 (informational)
+
+**Reported, not scored** (`LINK-bwqhvjcs`, architecture §6.1.10). Every bucket
+below names where the address points: which IANA range, or which vendor
+endpoint, it belongs to. That is a fact about the destination, not about how the
+string is written, so none of the three claim-(a) forms reaches it and each bucket
+code reports at **weight 0** under §1.1's fourth rule. The codes that read the
+address's *form* keep their weights: `ip_obfuscation` (0.4, above) and
+`ambiguous_numeric_host` (0.3, below). Until weights `1.23` the buckets scored
+(`ip_cloud_metadata` 0.75, the other four 0.2).
 
 A literal-IP host is classified into **exactly one** range bucket, emitting one
 code. The classifier runs on **all** IP-literal hosts — canonical or obfuscated
@@ -971,13 +980,15 @@ Two boundaries are deliberate:
   stays `ip_loopback`.
 - **That exclusion is NOT extended to the NAT64 prefixes** (LINK-vwehpsdv).
   `[64:ff9b::]`, `[64:ff9b::1]` and `[64:ff9b:1::]` unwrap to `0.0.0.0` /
-  `0.0.0.1` and report `ip_reserved` (low, 0.20). The carve-out above works
+  `0.0.0.1` and report `ip_reserved` (weight 0 since `LINK-bwqhvjcs`; low, 0.20
+  when this was decided). The carve-out above works
   because RFC 4291 gives `::` and `::1` a **competing assignment**, so excluding
   them *redirects* to a different verdict; the NAT64 prefixes have no competing
   assignment — their range rows carry `bucket: null` — so the same edit would
   *silence* all three to `info` 0.00 with zero reasons. Measured, not assumed:
-  applying `excludeLow: [0, 1]` to the well-known row fails 5 tests with
-  `score 0, expected > 0; severity info`. RFC 6052 §3.1 also forbids the
+  applying `excludeLow: [0, 1]` to the well-known row failed 5 tests with
+  `score 0, expected > 0; severity info` (measured at the old 0.20 weight; the
+  reason, not the score, is what the edit would now lose). RFC 6052 §3.1 also forbids the
   well-known prefix from representing a non-global IPv4, which `0.0.0.0` is, so
   these are *prohibited* addresses and the strict reading keeps the flag. All
   three are pinned by corpus rows and by a mutation guard in
@@ -1078,7 +1089,7 @@ evidence of malformed 6to4 or Teredo literals used in real phishing or SSRF-filt
 bypass, or a redesign that lets an anomaly of this shape reuse an existing code
 instead of minting one. Absent either, this stays closed.
 
-### `ip_cloud_metadata` — V1a · weight 0.75 (high)
+### `ip_cloud_metadata` — V1a · weight 0 (informational)
 
 - **Meaning:** the host is a cloud instance-metadata endpoint, or other
   provider-internal platform infrastructure, matched against a curated
@@ -1113,7 +1124,7 @@ instead of minting one. Absent either, this stays closed.
   contradicted the vendor page the row is cited to, so it now reads "the Azure
   (WireServer host channel) provider-internal infrastructure endpoint"
   (`LINK-mjbrzxeo`). The **reason code is `ip_cloud_metadata` for both kinds**,
-  at the same 0.75 weight: the kind selects emitted wording, not a schema or
+  at the same weight: the kind selects emitted wording, not a schema or
   scoring input, so a consumer keying off `code` is untouched by a row being
   re-described.
 
@@ -1138,7 +1149,7 @@ instead of minting one. Absent either, this stays closed.
   family of it, and `address` selects the endpoint the emitted detail cites.
 - **Named endpoints:** the code also fires on the small set of HOSTNAMES a vendor
   publishes for an endpoint in the table above (`LINK-hvawpgos`). Same code, same
-  0.75 weight, same agentMode escalation:
+  weight, same agentMode escalation:
 
   | Hostname | Provider | Endpoint it names |
   | --- | --- | --- |
@@ -1174,8 +1185,8 @@ instead of minting one. Absent either, this stays closed.
   `metadata.oraclecloud.com` were all dropped on that test — none appears in its
   vendor's own documentation. Bare `metadata` and
   `metadata.platformequinix.com` were sourceable and still declined: the first
-  is a single label, so matching it would put a `high` verdict on any
-  organization running a host by that name, and the second's only citation is
+  is a single label, so matching it would put a metadata finding (a `high`
+  verdict when this was decided) on any organization running a host by that name, and the second's only citation is
   scheduled for removal. `data/cloud-metadata.ts` records each decline and what
   would reverse it.
 
@@ -1209,13 +1220,15 @@ instead of minting one. Absent either, this stays closed.
   answers metadata on. The table therefore carries its own provenance stamp,
   version-pinned via `dataVersions.cloudMetadata`, independent of any registry
   pin.
-- **Why it's a signal:** the canonical SSRF credential-theft target; a URL naming
-  it literally is a near-unambiguous exfiltration attempt. Weighted to land
-  **high** on its own (it fails the default `--fail-on high` gate) — well above
-  the generic private/loopback buckets, but short of `critical`, which is left to
-  the agentMode escalation (`ssrf_cloud_metadata`) where a fetch is in flight.
-  Dual-use (cloud-init, IaC legitimately name it), so not a hard block in the
-  default verdict.
+- **Why it's reported, and why it does not score:** the canonical SSRF
+  credential-theft target, so a URL naming it is worth saying so about. But the
+  string is exactly what it presents itself to be — `169.254.169.254` is
+  honestly `169.254.169.254` — so the finding names the destination, not a
+  deception, and reports at **weight 0** (`LINK-bwqhvjcs`, architecture
+  §6.1.10). It scored 0.75 (`high`, failing the default `--fail-on high` gate)
+  until weights `1.23`. Dual-use (cloud-init, IaC legitimately name it). The
+  scoring consequence lives in the agentMode escalation (`ssrf_cloud_metadata`),
+  where the caller has declared that a fetch is in flight.
 - **Example:** `http://169.254.169.254/latest/meta-data/`.
 
 ### `ssrf_cloud_metadata` — weight 1.0 (blocker, agent-gated)
@@ -1236,16 +1249,18 @@ instead of minting one. Absent either, this stays closed.
   "resolves to", because `inspect()` looked nothing up.
 - **Why it blocks:** in an agent / tool-use context, fetching the metadata
   endpoint is an in-flight SSRF credential-theft attempt with no defensible
-  purpose, so it **blocks** (weight 1.0 → saturates the score to `critical`). It
-  **stacks** on the always-on `ip_cloud_metadata` (0.75): the classifier states
-  the fact, this states the agent-context verdict.
+  purpose, so it **blocks** (weight 1.0 → saturates the score to `critical`) on
+  its own. It rides beside the always-on `ip_cloud_metadata` (weight 0 since
+  `LINK-bwqhvjcs`): the classifier states the fact, this states the
+  agent-context verdict.
 - **Gating:** emits only under `agentMode`. Default (non-agent) callers — log
   scanners, cloud-ops tooling that legitimately names the endpoint — never see it
-  and keep the high, `--fail-on`-overridable `ip_cloud_metadata` verdict.
+  and get the weight-0 `ip_cloud_metadata` report instead.
 - **Scope — architecture §1.1 (`LINK-uyoocslu`):** the one **grounded**
   agent-gated code, and the only instance of the shape §1.1's agent-mode block
   admits. It meets all three conditions there: the fact is settled with the gate
-  off (`ip_cloud_metadata`, `0.75`, the same lookup in either mode), the gate
+  off (`ip_cloud_metadata`, reported at weight 0 by the same lookup in either
+  mode — settlement is about the fact being determined, not about its weight), the gate
   moves the weight rather than the finding set, and the caller's own `agentMode`
   declaration — not an inference about what the URL is for — fixes the
   consequence. The escalation inherits `ip_cloud_metadata`'s grounding and
@@ -1254,30 +1269,31 @@ instead of minting one. Absent either, this stays closed.
   `critical`. Same for
   `inspect("http://metadata.google.internal/computeMetadata/v1/", { agentMode: true })`.
 
-### `ip_loopback` — V1a · weight 0.2
+### `ip_loopback` — V1a · weight 0 (informational)
 
 - **Meaning:** a literal loopback IP — `127.0.0.0/8` or `::1`.
-- **Why it's a signal:** an internal target a public-facing URL has no legitimate
-  reason to name — the lexical fingerprint of an SSRF lure. Low weight
-  (suspicious-in-context, not decisive alone).
+- **Why it's reported:** an internal target a public-facing URL has no legitimate
+  reason to name. It names the destination, not a deception, so it reports at
+  **weight 0** (`LINK-bwqhvjcs`, architecture §6.1.10; was 0.2).
 - **Example:** `http://127.0.0.1:3000/`, `https://[::1]:8080/`.
 
-### `ip_private` — V1a · weight 0.2
+### `ip_private` — V1a · weight 0 (informational)
 
 - **Meaning:** a literal private/internal IP — the registry's `Private-Use`
   blocks, i.e. RFC 1918 (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), or
   IPv6 `Unique-Local` `fc00::/7`.
-- **Why it's a signal:** names an internal target. Same low band as
-  `ip_loopback`.
+- **Why it's reported:** names an internal target. Weight 0, as
+  `ip_loopback` (was 0.2).
 - **Example:** `http://192.168.1.1/`, `https://[fc00::1]/`.
 
-### `ip_link_local` — V1a · weight 0.2
+### `ip_link_local` — V1a · weight 0 (informational)
 
 - **Meaning:** a literal link-local IP — `169.254.0.0/16` or `fe80::/10`.
-- **Why it's a signal:** an unrouteable internal target. Same low band.
+- **Why it's reported:** an unrouteable internal target. Weight 0, as
+  `ip_loopback` (was 0.2).
 - **Example:** `http://169.254.0.1/`.
 
-### `ip_reserved` — V1a · weight 0.2
+### `ip_reserved` — V1a · weight 0 (informational)
 
 - **Meaning:** a literal reserved / special-use IP — every registry block that is
   **not** globally reachable and not one of the more specific buckets above.
@@ -1286,7 +1302,8 @@ instead of minting one. Absent either, this stays closed.
   (`192.0.0.0/24`, `2001::/23`), `100::/64` (discard-only), `5f00::/16` (SRv6
   SIDs), the IPv6 unspecified address `::`, and multicast (`224.0.0.0/4`, IPv6
   `ff00::/8`) via the non-registry overlay.
-- **Why it's a signal:** not a normal public destination. Same low band.
+- **Why it's reported:** not a normal public destination. Weight 0, as
+  `ip_loopback` (was 0.2).
 - **Example:** `http://0.0.0.0/`, `https://[ff02::1]/`.
 
 ### Crosswalk: LNA address spaces vs. the `ip_*` buckets (T2.12)
@@ -1632,8 +1649,10 @@ specified above.
   a standards body has guaranteed will never work. `foo.invalid` has the same
   shape as `host_length_unresolvable`'s worked case — well-formed, universally
   agreed, honest, and guaranteed to fail — so the silence was the inconsistency
-  the fourth rule exists to close. Sharpened: `192.168.1.1` scores `0.20`, while
-  `svc.internal` scores `0.00` on a name reserved for exactly that purpose.
+  the fourth rule exists to close. Sharpened, as it stood when this was decided:
+  `192.168.1.1` scored `0.20`, while `svc.internal` said nothing at all on a name
+  reserved for exactly that purpose. Since `LINK-bwqhvjcs` both report at weight
+  0 — `ip_private` and `special_use_name` — which is the consistent end state.
 - **Scope — suffixes only, the example DOMAINS excluded:** RFC 6761 §6.5 reserves
   `.example` *and* `example.com`/`.net`/`.org` in one section, but those are two
   different facts. `.example` is a TLD that was never delegated. `example.com` is
@@ -1644,15 +1663,15 @@ specified above.
   stand-in, so including them would annotate that whole population with a claim
   about the stand-in and would make this code's own predicate false on every
   one.
-- **Boundary — no double-report:** where a **scoring** code already names the
+- **Boundary — no double-report:** where a cloud-metadata code already names the
   host, this one suppresses itself. `metadata.google.internal` sits under
-  `.internal` and already carries `ip_cloud_metadata` (`0.75`, stacking to `1.00`
-  with `ssrf_cloud_metadata` under `agentMode`). Two reasons, both required: the
+  `.internal` and already carries `ip_cloud_metadata` (weight 0 since
+  `LINK-bwqhvjcs`; `1.00` with `ssrf_cloud_metadata` under `agentMode`). Two reasons, both required: the
   fourth rule's trigger is a `0.00` with **no** reasons, so a host already
   carrying a finding is owed nothing; and the predicate would be false where it
   landed, since that host's entire hazard is that it *does* resolve, reliably, to
   a credential-vending endpoint. The suppression reads the same matcher the
-  scoring codes read, and it does not generalise — a host suppresses on table
+  metadata codes read, and it does not generalise — a host suppresses on table
   membership, not on "some other code fired".
 - **Out of scope — `.onion` label syntax:** a v3 onion address is a 56-character
   base32 pubkey plus checksum, so `ab.onion` announces a Tor identity it cannot
@@ -1662,7 +1681,9 @@ specified above.
 - **This does not decide `LINK-qqwfpxvu` sideways:** the axis rejected there was
   *authority-fixed content licenses SCORING*. Nothing here scores. Weight 0
   defeats the deception objection and RFC-fixed content defeats the durability
-  objection; both are required and neither suffices alone.
+  objection; both are required and neither suffices alone. `LINK-qqwfpxvu` was
+  later decided on exactly that line (`LINK-bwqhvjcs`, architecture §6.1.10):
+  the IANA-fixed address buckets report at weight 0 too.
 - **Versioning:** the reservation registry is **living** — `.alt` arrived in 2023
   (RFC 9476), `.internal` in 2024 (an ICANN Board resolution, not an RFC) — so
   the table carries `dataVersions.specialUseNames`. Registering the code bumped

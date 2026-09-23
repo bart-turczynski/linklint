@@ -67,6 +67,17 @@ const PRIVATE_IP_FINDING: EnricherFinding = {
   detail: "resolved host maps to a private/internal IP",
 };
 
+/**
+ * A fixed finding carrying a NON-ZERO registry weight, for the tests that watch
+ * an enricher finding move the score. `ip_private` served here until
+ * LINK-bwqhvjcs put it at weight 0 (architecture §6.1.10); any 0.20 scoring code
+ * exercises the same merge path, and the code itself is incidental.
+ */
+const SCORING_FINDING: EnricherFinding = {
+  code: "ascii_homoglyph",
+  detail: "fixture finding with a 0.20 registry weight",
+};
+
 describe("inspectAsync — no-enricher path is byte-identical to inspect() (HARD invariant)", () => {
   const urls = [BENIGN, "https://paypal.com@evil.ru/", "javascript:alert(1)", "ht!tp://%%%not a url"];
 
@@ -97,10 +108,10 @@ describe("inspectAsync — a configured+successful enricher is observable", () =
   });
 
   it("merges findings into reasons and scoring the same way lexical findings do", async () => {
-    const enricher = new FakeEnricher("dns", "resolution", [PRIVATE_IP_FINDING]);
+    const enricher = new FakeEnricher("dns", "resolution", [SCORING_FINDING]);
     const r = await inspectAsync(BENIGN, { enrichers: [enricher] });
 
-    const reason = r.reasons.find((x) => x.code === "ip_private");
+    const reason = r.reasons.find((x) => x.code === "ascii_homoglyph");
     expect(reason).toBeDefined();
     // layer + weight come from the reason-code registry, identical to a lexical
     // finding that emits the same code.
@@ -185,7 +196,7 @@ describe("inspectAsync — confidence aggregation (FR-SCORE-2b)", () => {
   });
 
   it("a finding with confidence 0.6 drives the result confidence to 0.6", async () => {
-    const finding: EnricherFinding = { ...PRIVATE_IP_FINDING, confidence: 0.6 };
+    const finding: EnricherFinding = { ...SCORING_FINDING, confidence: 0.6 };
     const enricher = new FakeEnricher("dns", "resolution", [finding]);
     const r = await inspectAsync(BENIGN, { enrichers: [enricher] });
     expect(r.confidence).toBeCloseTo(0.6, 10);

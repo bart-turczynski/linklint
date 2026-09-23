@@ -43,10 +43,13 @@ const scoreOf = (url: string, agentMode = false): number | null =>
   inspect(url, agentMode ? { agentMode: true } : undefined).score;
 
 describe("the GCP IPv6 metadata endpoint scores as one (LINK-eyjfhbzu)", () => {
-  it("fd20:ce::254 is ip_cloud_metadata at 0.75, not the generic ULA bucket", () => {
+  // LINK-bwqhvjcs (architecture §6.1.10): ip_cloud_metadata reports at weight
+  // 0, so the default verdict is 0.00/info for all three spellings alike; the
+  // bucket still matters, because it is what the agent-mode escalation reads.
+  it("fd20:ce::254 is ip_cloud_metadata (weight 0), not the generic ULA bucket", () => {
     expect(codesOf(V6)).toEqual(["ip_cloud_metadata"]);
-    expect(scoreOf(V6)).toBeCloseTo(0.75, 5);
-    expect(inspect(V6).severity).toBe("high");
+    expect(scoreOf(V6)).toBe(0);
+    expect(inspect(V6).severity).toBe("info");
   });
 
   // The bucket REPLACES the `fc00::/7` match rather than stacking with it:
@@ -69,7 +72,7 @@ describe("the GCP IPv6 metadata endpoint scores as one (LINK-eyjfhbzu)", () => {
   // bucket, so the under-scoring was two findings deep: 0.20 instead of 0.75
   // always-on, and no agent-mode block at all. Reaching the bucket restores
   // both at once.
-  it("escalates under agentMode, stacking to 1.00 critical", () => {
+  it("escalates under agentMode to 1.00 critical", () => {
     expect(codesOf(V6, true).sort()).toEqual(["ip_cloud_metadata", "ssrf_cloud_metadata"]);
     expect(scoreOf(V6, true)).toBeCloseTo(1, 5);
     expect(inspect(V6, { agentMode: true }).severity).toBe("critical");
@@ -98,16 +101,16 @@ describe("the GCP IPv6 metadata endpoint scores as one (LINK-eyjfhbzu)", () => {
 });
 
 describe("the spellings that already score, and must not move (LINK-eyjfhbzu control)", () => {
-  it("the IPv4 address is ip_cloud_metadata at 0.75, escalating to 1.00", () => {
+  it("the IPv4 address is ip_cloud_metadata (weight 0), escalating to 1.00", () => {
     expect(codesOf(V4)).toEqual(["ip_cloud_metadata"]);
-    expect(scoreOf(V4)).toBeCloseTo(0.75, 5);
+    expect(scoreOf(V4)).toBe(0);
     expect(codesOf(V4, true).sort()).toEqual(["ip_cloud_metadata", "ssrf_cloud_metadata"]);
     expect(scoreOf(V4, true)).toBeCloseTo(1, 5);
   });
 
-  it("the documented hostname is ip_cloud_metadata at 0.75, escalating to 1.00", () => {
+  it("the documented hostname is ip_cloud_metadata (weight 0), escalating to 1.00", () => {
     expect(codesOf(NAME)).toEqual(["ip_cloud_metadata"]);
-    expect(scoreOf(NAME)).toBeCloseTo(0.75, 5);
+    expect(scoreOf(NAME)).toBe(0);
     expect(codesOf(NAME, true).sort()).toEqual(["ip_cloud_metadata", "ssrf_cloud_metadata"]);
     expect(scoreOf(NAME, true)).toBeCloseTo(1, 5);
   });

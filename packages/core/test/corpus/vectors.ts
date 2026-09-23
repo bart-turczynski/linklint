@@ -545,8 +545,9 @@ export const VECTORS: CorpusRow[] = [
   },
   {
     input: "http://192.168.1.1/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_private"],
     forbidReasons: ["ambiguous_numeric_host", "ip_obfuscation"],
     notes: "valid canonical private IP → ip_private only, never ambiguous_numeric_host",

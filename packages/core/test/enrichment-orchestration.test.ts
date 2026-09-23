@@ -359,6 +359,8 @@ describe("K7 — unavailable prerequisites and cancellation stay distinct", () =
 
 describe("K7 — suppression follows each structured finding subject", () => {
   it("does not let an original-host rule suppress a discovered destination", async () => {
+    // Fixture code is any 0.20 scoring code; `ip_private` served until
+    // LINK-bwqhvjcs put it at weight 0 (architecture §6.1.10).
     const subjectAware: Enricher = {
       id: "subjects.fixture",
       layer: "resolution",
@@ -368,13 +370,13 @@ describe("K7 — suppression follows each structured finding subject", () => {
             "subjects.fixture",
             "resolution",
             { kind: "host", value: "www.example.com" },
-            [{ code: "ip_private", detail: "original-host finding" }],
+            [{ code: "ascii_homoglyph", detail: "original-host finding" }],
           ),
           success(
             "subjects.fixture",
             "resolution",
             { kind: "url", value: DESTINATION },
-            [{ code: "ip_private", detail: "destination-host finding" }],
+            [{ code: "ascii_homoglyph", detail: "destination-host finding" }],
           ),
         );
       },
@@ -382,7 +384,7 @@ describe("K7 — suppression follows each structured finding subject", () => {
 
     const result = await inspectAsync(ORIGINAL, {
       enrichers: [subjectAware],
-      suppressReasons: [{ code: "ip_private", host: "example.com" }],
+      suppressReasons: [{ code: "ascii_homoglyph", host: "example.com" }],
     });
     const original = result.reasons.find((item) => item.detail === "original-host finding");
     const destination = result.reasons.find(

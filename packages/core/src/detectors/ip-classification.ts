@@ -10,7 +10,9 @@ import {
 import { matchIpv4Range, matchIpv6Range, type IpRangeBucket } from "../data/ip-ranges.js";
 
 /**
- * Literal-IP range classifier. Scoring. Classifies a literal IP host into
+ * Literal-IP range classifier. Informational since LINK-bwqhvjcs: every bucket
+ * names the address's destination, not its form, so each emitted code reports at
+ * weight 0 (architecture §6.1.10). Classifies a literal IP host into
  * exactly ONE range bucket and emits one reason code naming that bucket. Runs on
  * ALL IP-literal hosts — canonical or obfuscated alike — and reuses the already-
  * decoded canonical/embedded address from `parse/ip.ts` (no IP parsing here).

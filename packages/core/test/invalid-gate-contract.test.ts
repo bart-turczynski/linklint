@@ -44,18 +44,28 @@ function naiveGate(result: InspectResult, failOn = 0.5): boolean {
   return result.score !== null && result.score >= failOn;
 }
 
-const metadataPlain = inspect("http://169.254.169.254/");
+// Both metadata spellings run under agentMode. Since LINK-bwqhvjcs the plain
+// host reports `ip_cloud_metadata` at weight 0 by default (architecture
+// §6.1.10), so the declared agent context — where `ssrf_cloud_metadata` scores
+// 1.0 — is the one in which the plain spelling is blocked by a numeric gate.
+const AGENT = { agentMode: true } as const;
+const metadataPlain = inspect("http://169.254.169.254/", AGENT);
 const metadataFullwidth = inspect(
   `http://169${FULLWIDTH_STOP}254${FULLWIDTH_STOP}169${FULLWIDTH_STOP}254/`,
+  AGENT,
 );
+const obfuscatedLoopback = inspect("http://2130706433/");
 const overSlashed = inspect("https:///evil.com");
 const benign = inspect("https://github.com/");
 
 describe("invalid results can carry real scoring weight", () => {
-  it("the plain cloud-metadata host is ok and scores high", () => {
+  it("the plain cloud-metadata host is ok and scores critical under agentMode", () => {
     expect(metadataPlain.status).toBe("ok");
-    expect(metadataPlain.score).toBe(0.75);
-    expect(metadataPlain.reasons.map((r) => r.code)).toContain("ip_cloud_metadata");
+    expect(metadataPlain.score).toBe(1);
+    expect(metadataPlain.reasons.map((r) => r.code)).toEqual([
+      "ssrf_cloud_metadata",
+      "ip_cloud_metadata",
+    ]);
   });
 
   it("the SAME host with fullwidth dots is invalid with a null score", () => {
@@ -111,9 +121,11 @@ describe("the documented predicate does NOT fail open", () => {
   });
 
   it("respects the threshold for parsed results", () => {
-    // 0.75 is `high`: blocked at failOn "high", allowed at "critical".
-    expect(shouldBlock(metadataPlain, "high")).toBe(true);
-    expect(shouldBlock(metadataPlain, "critical")).toBe(false);
+    // 0.40 is `medium`: blocked at failOn "medium", allowed at "high".
+    expect(obfuscatedLoopback.status).toBe("ok");
+    expect(obfuscatedLoopback.score).toBeCloseTo(0.4, 5);
+    expect(shouldBlock(obfuscatedLoopback, "medium")).toBe(true);
+    expect(shouldBlock(obfuscatedLoopback, "high")).toBe(false);
     // …but an invalid result blocks at EVERY threshold, including "critical".
     expect(shouldBlock(metadataFullwidth, "critical")).toBe(true);
   });

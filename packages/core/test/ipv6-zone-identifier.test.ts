@@ -14,8 +14,11 @@ import { compareUrls } from "../src/compare/compare-urls.js";
  * same shape as the GCP IPv6 gap closed by LINK-eyjfhbzu (`fd20:ce::254`, see
  * `gcp-ipv6-metadata.test.ts`): a documented credential endpoint losing to a
  * broader range. The measurement below confirms it is still open —
- * `[fe80::a9fe:a9fe]` scores 0.20 as `ip_link_local` while its IPv4 sibling
- * scores 0.75 and escalates to 1.00 under `agentMode`.
+ * `[fe80::a9fe:a9fe]` reports `ip_link_local` while its IPv4 sibling reports
+ * `ip_cloud_metadata` and escalates to 1.00 under `agentMode`. (Both default
+ * verdicts are 0.00 since LINK-bwqhvjcs, architecture §6.1.10, which put every
+ * destination-membership code at weight 0; the agent-mode asymmetry is what
+ * remains.)
  *
  * **No row is added here, and no weight moves.** Two things block that decision
  * and only one of them is answerable by measurement:
@@ -90,31 +93,30 @@ describe("the gap this evidence is about, re-confirmed and NOT closed (LINK-zjcz
   // Committed asserting the UNDER-SCORING. If a later slice adds an OpenStack
   // row to CLOUD_METADATA_ENDPOINTS this test is the one that must be flipped,
   // deliberately, in that slice — the way `gcp-ipv6-metadata.test.ts` was.
-  it("the bare fe80::a9fe:a9fe scores 0.20 as the generic link-local bucket", () => {
+  it("the bare fe80::a9fe:a9fe reports the generic link-local bucket (weight 0)", () => {
     const r = inspect(BARE_URL);
     expect(r.status).toBe("ok");
-    expect(r.score).toBeCloseTo(0.2, 5);
-    expect(r.severity).toBe("low");
+    expect(r.score).toBe(0);
+    expect(r.severity).toBe("info");
     expect(r.reasons.map((x) => x.code)).toEqual(["ip_link_local"]);
     expect(classifyHost(BARE)?.bucket).toBe("ip_link_local");
     expect(classifyHost(BARE)?.rangeName).toBe("Link-Local Unicast");
   });
 
-  it("its IPv4 sibling scores 0.75 and escalates to 1.00 — the asymmetry", () => {
+  it("its IPv4 sibling escalates to 1.00 under agentMode — the asymmetry", () => {
     expect(codesOf(V4_URL)).toEqual(["ip_cloud_metadata"]);
-    expect(inspect(V4_URL).score).toBeCloseTo(0.75, 5);
+    expect(inspect(V4_URL).score).toBe(0);
     expect(codesOf(V4_URL, true).sort()).toEqual(["ip_cloud_metadata", "ssrf_cloud_metadata"]);
     expect(inspect(V4_URL, { agentMode: true }).score).toBeCloseTo(1, 5);
   });
 
   // `ssrf_cloud_metadata` asks `classifyHost` for the `ip_cloud_metadata`
-  // bucket, so the under-scoring is two findings deep on the v6 side as well:
-  // 0.20 always-on, and no agent-mode block at all.
+  // bucket, so the v6 side gets no agent-mode block at all.
   it("agentMode adds nothing on the v6 side — no SSRF block", () => {
     const r = inspect(BARE_URL, { agentMode: true });
     expect(r.reasons.map((x) => x.code)).toEqual(["ip_link_local"]);
     expect(r.reasons.map((x) => x.code)).not.toContain("ssrf_cloud_metadata");
-    expect(r.score).toBeCloseTo(0.2, 5);
+    expect(r.score).toBe(0);
   });
 });
 

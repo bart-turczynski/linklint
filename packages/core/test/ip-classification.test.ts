@@ -440,8 +440,10 @@ describe("cloud-metadata provider table", () => {
     const r = inspect("http://168.63.129.16/machine?comp=goalstate");
     const reason = r.reasons.find((x) => x.code === "ip_cloud_metadata");
     expect(reason).toBeDefined();
-    expect(reason?.weight).toBeCloseTo(0.75, 5);
-    expect(r.severity).toBe("high");
+    // Weight 0 since LINK-bwqhvjcs (architecture §6.1.10): destination
+    // membership is reported, not scored.
+    expect(reason?.weight).toBe(0);
+    expect(r.severity).toBe("info");
   });
 
   // The Azure WireServer row is the only one in the table that no range rule can
@@ -479,12 +481,12 @@ describe("ip_cloud_metadata scoring + agentMode SSRF escalation (ssrf_cloud_meta
   const codes = (url: string, opts?: Parameters<typeof inspect>[1]) =>
     inspect(url, opts).reasons.map((r) => r.code);
 
-  it("lands high (0.75) by default — blocks the --fail-on high gate, not critical", () => {
+  it("is reported at weight 0 by default — info, not a score (LINK-bwqhvjcs)", () => {
     const r = inspect("http://169.254.169.254/latest/meta-data/");
     expect(r.reasons.map((x) => x.code)).toContain("ip_cloud_metadata");
-    expect(r.severity).toBe("high");
+    expect(r.severity).toBe("info");
     const reason = r.reasons.find((x) => x.code === "ip_cloud_metadata")!;
-    expect(reason.weight).toBeCloseTo(0.75, 5);
+    expect(reason.weight).toBe(0);
   });
 
   it("does NOT emit the agent-gated ssrf_cloud_metadata in the default verdict", () => {
@@ -538,10 +540,10 @@ describe("ip_cloud_metadata scoring + agentMode SSRF escalation (ssrf_cloud_meta
     expect(blocker?.detail).not.toContain("provider-internal");
   });
 
-  it("does NOT escalate the generic internal buckets under agentMode (loopback stays low)", () => {
+  it("does NOT escalate the generic internal buckets under agentMode (loopback stays info)", () => {
     const r = inspect("http://127.0.0.1:3000/", { agentMode: true });
     expect(r.reasons.map((x) => x.code)).not.toContain("ssrf_cloud_metadata");
-    expect(r.severity).toBe("low");
+    expect(r.severity).toBe("info");
   });
 
   it("does NOT fire on a public IP", () => {

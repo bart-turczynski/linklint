@@ -62,14 +62,16 @@ describe("cloud metadata hostnames score exactly as their addresses do", () => {
   // Spelled out rather than generated, so a row quietly leaving the table fails
   // a named test instead of shortening a loop.
   for (const url of HOSTNAME_URLS) {
-    it(`lands high with ip_cloud_metadata in default mode: ${url}`, () => {
+    it(`reports ip_cloud_metadata at weight 0 in default mode: ${url}`, () => {
       const r = inspect(url);
       expect(r.status).toBe("ok");
-      expect(r.score).toBe(0.75);
-      expect(r.severity).toBe("high");
+      // LINK-bwqhvjcs (architecture §6.1.10): a destination fact is reported,
+      // not scored. Was 0.75/high.
+      expect(r.score).toBe(0);
+      expect(r.severity).toBe("info");
       expect(r.reasons.map((x) => x.code)).toContain("ip_cloud_metadata");
       // Agent-gated, so a default caller (a log scanner, cloud-ops tooling)
-      // keeps the overridable `high` verdict rather than a hard block.
+      // gets the reported fact rather than a hard block.
       expect(r.reasons.map((x) => x.code)).not.toContain("ssrf_cloud_metadata");
     });
 
@@ -87,11 +89,11 @@ describe("cloud metadata hostnames score exactly as their addresses do", () => {
   // this one holds for whatever the table contains, so a new row cannot land
   // untested. `>=` rather than `=` because an unrelated detector may legitimately
   // stack on a particular host — see the IBM case below.
-  it("every row in the table scores, in both modes", () => {
+  it("every row in the table is reported by default and scores under agentMode", () => {
     expect(CLOUD_METADATA_HOSTNAMES.length).toBeGreaterThan(0);
     for (const row of CLOUD_METADATA_HOSTNAMES) {
       const url = `http://${row.hostname}/`;
-      expect(inspect(url).score ?? 0, url).toBeGreaterThanOrEqual(0.75);
+      expect(inspect(url).score, url).toBe(0);
       expect(codesOf(url), url).toContain("ip_cloud_metadata");
       expect(inspect(url, { agentMode: true }).severity, url).toBe("critical");
       expect(codesOf(url, true), url).toContain("ssrf_cloud_metadata");
@@ -112,9 +114,12 @@ describe("cloud metadata hostnames score exactly as their addresses do", () => {
   // evidence rather than to make this number tidy. The symmetry with the address
   // form is a side effect. The pin moves to the new value so the composite stays
   // a decision someone made rather than a number that drifted.
+  //
+  // LINK-bwqhvjcs moved both halves together: the address and the name each
+  // report ip_cloud_metadata at weight 0, so the symmetry holds at 0.00.
   it("the IBM host scores exactly as its address form does", () => {
     const r = inspect("http://api.metadata.cloud.ibm.com/metadata/v1/instance/");
-    expect(r.score).toBe(0.75);
+    expect(r.score).toBe(0);
     expect(r.reasons.map((x) => x.code)).toEqual(["ip_cloud_metadata"]);
   });
 
@@ -136,10 +141,11 @@ describe("cloud metadata hostnames score exactly as their addresses do", () => {
 });
 
 describe("cloud metadata by ADDRESS — the control, must not move", () => {
-  it("169.254.169.254 lands high with ip_cloud_metadata in default mode", () => {
+  it("169.254.169.254 reports ip_cloud_metadata at weight 0 in default mode", () => {
     const r = inspect("http://169.254.169.254/latest/meta-data/");
-    expect(r.score).toBe(0.75);
-    expect(r.severity).toBe("high");
+    // LINK-bwqhvjcs moved the control together with the names: was 0.75/high.
+    expect(r.score).toBe(0);
+    expect(r.severity).toBe("info");
     expect(r.reasons.map((x) => x.code)).toContain("ip_cloud_metadata");
     expect(r.reasons.map((x) => x.code)).not.toContain("ssrf_cloud_metadata");
   });
