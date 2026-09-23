@@ -49,14 +49,14 @@ const PREDICATE =
  * it is measurable: `example.com`'s public suffix is `com`.
  *
  * **THE CLOUD-METADATA COLLISION, decided and pinned.** `metadata.google.internal`
- * sits under `.internal` and already carries a scoring verdict —
- * `ip_cloud_metadata` at 0.75, stacking to 1.00 with `ssrf_cloud_metadata` under
- * `agentMode`. This check SUPPRESSES itself on exactly the hosts
+ * sits under `.internal` and already carries a finding — `ip_cloud_metadata`
+ * (0.75 when this was decided; weight 0 since LINK-bwqhvjcs, architecture
+ * §6.1.10), and 1.00 with `ssrf_cloud_metadata` under `agentMode`. This check SUPPRESSES itself on exactly the hosts
  * `matchCloudMetadataHostname` names, for two reasons and not one:
  *
  *   1. The fourth rule's trigger is absent. The rule fires on "returning 0.00
- *      with no reasons"; a host that already carries a 0.75 finding is not being
- *      silently passed, so there is no silence to close and nothing is owed.
+ *      with no reasons"; a host that already carries an ip_cloud_metadata
+ *      finding is not being silently passed (at any weight), so there is no silence to close and nothing is owed.
  *   2. The sentence would be FALSE where it landed. The predicate says the name
  *      is never publicly resolvable. That is true of `.internal` as a suffix and
  *      beside the point for this host, whose whole hazard is that it resolves,
@@ -90,7 +90,7 @@ export const specialUseName: Detector = {
     const row = matchSpecialUseName(ctx.host);
     if (!row) return [];
 
-    // A host a scoring code already names is not being silently passed.
+    // A host a cloud-metadata code already names is not being silently passed.
     if (matchCloudMetadataHostname(ctx.host)) return [];
 
     return [

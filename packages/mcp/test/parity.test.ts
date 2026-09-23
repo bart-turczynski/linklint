@@ -145,14 +145,16 @@ describe("MCP agentMode opt-in coverage", () => {
     expect(verdict.checksRun).toContain("agent");
   });
 
-  it("escalates cloud metadata SSRF from high to critical under agentMode", async () => {
+  it("escalates cloud metadata SSRF from info to critical under agentMode", async () => {
     const input = "http://169.254.169.254/latest/meta-data/";
     const defaultVerdict = await call("check_url", { url: input });
     const agentVerdict = await call("check_url", { url: input, agentMode: true });
 
     expect(defaultVerdict.reasons.map((r) => r.code)).toContain("ip_cloud_metadata");
     expect(defaultVerdict.reasons.map((r) => r.code)).not.toContain("ssrf_cloud_metadata");
-    expect(defaultVerdict.severity).toBe("high");
+    // ip_cloud_metadata reports at weight 0 since LINK-bwqhvjcs (architecture
+    // §6.1.10); the agent-mode escalation alone carries the block.
+    expect(defaultVerdict.severity).toBe("info");
 
     expect(agentVerdict.reasons.map((r) => r.code)).toEqual(
       expect.arrayContaining(["ip_cloud_metadata", "ssrf_cloud_metadata"]),

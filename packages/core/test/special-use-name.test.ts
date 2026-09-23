@@ -179,7 +179,9 @@ describe("matching is whole-label suffix, longest first (LINK-mgnbgicq)", () => 
 describe("the sharpened inconsistency the fourth rule closes (LINK-mgnbgicq)", () => {
   it("192.168.1.1 says something about a private network; svc.internal now does too", () => {
     const literal = inspect("https://192.168.1.1/");
-    expect(literal.score).toBe(0.2);
+    // Was 0.20. Since LINK-bwqhvjcs (architecture §6.1.10) the literal reports
+    // at weight 0 too, so the two now say their piece the same way.
+    expect(literal.score).toBe(0);
     expect(literal.reasons.map((x) => x.code)).toContain("ip_private");
 
     const name = inspect("https://svc.internal/");
@@ -252,10 +254,11 @@ describe("the RFC 6761 EXAMPLE DOMAINS are EXCLUDED (LINK-mgnbgicq)", () => {
 describe("the cloud-metadata collision, decided: SUPPRESS (LINK-mgnbgicq)", () => {
   const GCP = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token";
 
-  it("plain mode: metadata.google.internal scores 0.75/high on ip_cloud_metadata", () => {
+  it("plain mode: metadata.google.internal reports ip_cloud_metadata (weight 0)", () => {
     const r = inspect(GCP);
-    expect(r.score).toBe(0.75);
-    expect(r.severity).toBe("high");
+    // Was 0.75/high; weight 0 since LINK-bwqhvjcs (architecture §6.1.10).
+    expect(r.score).toBe(0);
+    expect(r.severity).toBe("info");
     expect(r.reasons.map((x) => x.code)).toEqual(["ip_cloud_metadata"]);
   });
 
@@ -264,7 +267,8 @@ describe("the cloud-metadata collision, decided: SUPPRESS (LINK-mgnbgicq)", () =
     // under it, so a naive suffix-driven code would fire on the ONE host in the
     // class that already carries a verdict. Two reasons are owed:
     //   1. the fourth rule's trigger is a 0.00 with no reasons. A host carrying
-    //      a 0.75 finding is not being silently passed, so nothing is owed.
+    //      an ip_cloud_metadata finding is not being silently passed, so
+    //      nothing is owed (true at 0.75, and still true at weight 0).
     //   2. the predicate would be FALSE where it landed. "never publicly
     //      resolvable" is beside the point for a host whose entire hazard is
     //      that it resolves, reliably, to a credential-vending endpoint.

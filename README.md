@@ -113,8 +113,8 @@ authority is somewhere else.
 | `https://paypal.com@evil.com/login` | `userinfo_present` | `paypal.com` is a **username** — the real host is `evil.com`. |
 | `https://paypal.com.login.evil.tk/` | `embedded_domain_in_subdomain` | `paypal.com` is a **subdomain label**; the registrable domain is `evil.tk`. |
 | `https://google.com#@evil.com` | `ambiguous_authority` | Fragment-in-authority — parsers disagree on the real host. |
-| `http://2130706433/` | `ip_obfuscation`, `ip_loopback` | Decimal-encoded `127.0.0.1` — an IP wearing a disguise that resolves to loopback. |
-| `http://169.254.169.254/` | `ip_cloud_metadata` (+ `ssrf_cloud_metadata` under `agentMode`) | Literal cloud instance-metadata endpoint — the canonical SSRF credential-theft target. Lands `high` by default; **blocks (`critical`) under `agentMode`**, where a fetch is in flight. |
+| `http://2130706433/` | `ip_obfuscation`, `ip_loopback` | Decimal-encoded `127.0.0.1` — an IP wearing a disguise that resolves to loopback. The disguise scores (`0.40`/`medium`); the loopback destination is reported at weight 0. |
+| `http://169.254.169.254/` | `ip_cloud_metadata` (+ `ssrf_cloud_metadata` under `agentMode`) | Literal cloud instance-metadata endpoint — the canonical SSRF credential-theft target. Reported at weight 0 by default (`0.00`/`info`: the string is exactly what it says, so where it points is a fact, not a deception — [architecture §6.1.10](docs/architecture.md)); **blocks (`critical`) under `agentMode`**, where a fetch is in flight. |
 | `https://evil。com/` | `separator_lookalike` | `。` (U+3002) normalizes to `.` — a fake label separator. |
 | `https://a.b.c.d.paypal.com.evil.tk/` | `excessive_subdomain_depth` | Abnormally deep labels used to bury the real domain. |
 
@@ -292,8 +292,8 @@ interface InspectResult {
 
 > **Gating? `status: "invalid"` must be checked separately — a numeric gate fails open.**
 > `score` is `null` whenever `status` is `"invalid"`, and structural scans emit real
-> scoring weight on inputs that then fail to parse: `http://169.254.169.254/` scores
-> `0.75`, but the same host written with fullwidth dots is `invalid` / `score: null`
+> scoring weight on inputs that then fail to parse: under `agentMode` the plain
+> `http://169.254.169.254/` reaches `1.00`, but the same host written with fullwidth dots is `invalid` / `score: null`
 > while still carrying `separator_lookalike` (weight 0.5) — and still reaching the same
 > cloud-metadata endpoint. Treat `invalid` as blocking:
 > `if (r.status === 'invalid') block();` before comparing severity. See

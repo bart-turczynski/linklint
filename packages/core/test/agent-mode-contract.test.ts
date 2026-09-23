@@ -271,8 +271,10 @@ describe("agentMode — family-wide gating contract over the agent corpus", () =
 //  1. The family is exactly four checks. The ruling table in §1.1 is written
 //     against that number; it was five until LINK-eurtxkit.
 //  2. `ssrf_cloud_metadata` is GROUNDED because it is an escalation — the fact
-//     it reports is settled with the gate OFF, by `ip_cloud_metadata` at 0.75,
-//     and the gate moves the weight rather than the finding set. If the always-on
+//     it reports is settled with the gate OFF, by `ip_cloud_metadata` (reported
+//     at weight 0 since LINK-bwqhvjcs, architecture §6.1.10 — a destination fact
+//     is reported, not scored), and the gate moves the weight rather than the
+//     finding set. If the always-on
 //     code ever stops firing, the escalation stops being grounded and the §1.1
 //     ruling silently becomes false.
 //  3. The other three exist ONLY under the gate. That is the diagnostic §1.1
@@ -306,8 +308,10 @@ describe("agentMode — ssrf_cloud_metadata is a GROUNDED escalation (LINK-uyooc
   it.each(ENDPOINTS)("the underlying fact is reported with the gate OFF: %s", (url) => {
     const off = inspect(url);
     expect(off.reasons.map((r) => r.code)).toContain("ip_cloud_metadata");
-    expect(off.score).toBeCloseTo(0.75, 5);
-    expect(off.severity).toBe("high");
+    // Reported, never scored, since LINK-bwqhvjcs (architecture §6.1.10).
+    expect(off.reasons.find((r) => r.code === "ip_cloud_metadata")?.weight).toBe(0);
+    expect(off.score).toBe(0);
+    expect(off.severity).toBe("info");
     // Condition 1 of the escalation charter: nothing about the gate is needed
     // to settle WHAT this address is.
     expect(off.reasons.map((r) => r.code)).not.toContain("ssrf_cloud_metadata");

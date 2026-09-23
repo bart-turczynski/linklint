@@ -511,11 +511,15 @@ export const CORPUS: CorpusRow[] = [
   { input: "https://mail.google.com/", label: "benign" },
   { input: "https://amazon.co.jp/", label: "benign" },
   // V1b reclassification: canonical literal-IP internal links. NOT ip_obfuscation
-  // (that invariant holds), but the V1a range classifier now emits a low-weight
-  // bucket signal (a public-facing URL has no business naming an internal target),
-  // so these score low and read as deceptive at minSeverity low — see worklog.
-  { input: "192.168.1.1", label: "deceptive", minSeverity: "low", expectReasons: ["ip_private"], forbidReasons: ["ip_obfuscation"], notes: "canonical RFC 1918 internal link — low-weight ip_private signal, not obfuscation" },
-  { input: "http://127.0.0.1:3000/", label: "deceptive", minSeverity: "low", expectReasons: ["ip_loopback"], forbidReasons: ["ip_obfuscation"], notes: "canonical loopback internal link — low-weight ip_loopback signal, not obfuscation" },
+  // (that invariant holds). The V1a range classifier emits a bucket signal; it
+  // scored low until LINK-bwqhvjcs and now reports at weight 0 (architecture
+  // §6.1.10), so these rows are info.
+  // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+  // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
+  { input: "192.168.1.1", label: "info", expectReasons: ["ip_private"], forbidReasons: ["ip_obfuscation"], notes: "canonical RFC 1918 internal link — ip_private reported at weight 0, not obfuscation" },
+  // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+  // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
+  { input: "http://127.0.0.1:3000/", label: "info", expectReasons: ["ip_loopback"], forbidReasons: ["ip_obfuscation"], notes: "canonical loopback internal link — ip_loopback reported at weight 0, not obfuscation" },
   { input: "example.com", label: "benign", notes: "bare host, missing scheme" },
   { input: "https://example.com/?redirect=https%3A%2F%2Fexample.com%2Fp", label: "benign", forbidReasons: ["encoding_obfuscation", "open_redirect_param"], notes: "legitimate encoded SAME-host redirect value (A→A): guards encoding_obfuscation and open_redirect_param. Cross-host (A→B) deceptive case is an I4 corpus row." },
 
@@ -633,8 +637,9 @@ export const CORPUS: CorpusRow[] = [
   // Deceptive — IPv6 obfuscation (J5, weight 0.4 → medium)
   {
     input: "https://[::ffff:127.0.0.1]/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_loopback"],
     forbidReasons: ["ip_obfuscation"],
     notes: "LINK-ibwialex — SSRF masquerade for 127.0.0.1, classified by the embedded v4. NOT ip_obfuscation: RFC 5952 §5 RECOMMENDS the mixed spelling behind a well-known prefix, so this scores the same as its hex sibling [::ffff:7f00:1]",
@@ -720,7 +725,9 @@ export const CORPUS: CorpusRow[] = [
   },
 
   // Benign (SC-2): the J detectors must NOT over-flag these
-  { input: "https://[::1]:8080/", label: "deceptive", minSeverity: "low", expectReasons: ["ip_loopback"], forbidReasons: ["ip_obfuscation"], notes: "J5/V1b: canonical IPv6 loopback + port — low-weight ip_loopback signal, not obfuscation" },
+  // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+  // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
+  { input: "https://[::1]:8080/", label: "info", expectReasons: ["ip_loopback"], forbidReasons: ["ip_obfuscation"], notes: "J5/V1b: canonical IPv6 loopback + port — ip_loopback reported at weight 0, not obfuscation" },
   { input: "https://[2001:db8::1]/", label: "benign", forbidReasons: ["ip_obfuscation"], notes: "J5: canonical IPv6" },
   { input: "https://s3.amazonaws.com/my-bucket/key", label: "benign", forbidReasons: ["ascii_homoglyph"], notes: "J4: legit digit label (s3)" },
   { input: "https://web3.example.com/", label: "benign", forbidReasons: ["ascii_homoglyph"], notes: "J4: legit digit label (web3)" },
@@ -1021,24 +1028,27 @@ export const CORPUS: CorpusRow[] = [
   // Private (RFC 1918) — v4 and v6 (fc00::/7 unique-local).
   {
     input: "http://10.1.2.3/admin",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_private"],
     forbidReasons: ["ip_obfuscation"],
     notes: "V1b private bucket — 10/8 internal target",
   },
   {
     input: "http://172.16.5.5/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_private"],
     forbidReasons: ["ip_obfuscation"],
     notes: "V1b private bucket — 172.16/12 internal target",
   },
   {
     input: "https://[fd12:3456:789a::1]/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_private"],
     forbidReasons: ["ip_obfuscation"],
     notes: "V1b private bucket (IPv6) — fc00::/7 unique-local",
@@ -1047,8 +1057,9 @@ export const CORPUS: CorpusRow[] = [
   // Loopback — v4 (127/8) and v6 (::1) beyond the reclassified canonical rows.
   {
     input: "http://127.5.6.7/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_loopback"],
     forbidReasons: ["ip_obfuscation"],
     notes: "V1b loopback bucket — 127/8 (not just 127.0.0.1)",
@@ -1057,16 +1068,18 @@ export const CORPUS: CorpusRow[] = [
   // Link-local — v4 (169.254/16, NOT the metadata /32) and v6 (fe80::/10).
   {
     input: "http://169.254.10.20/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_link_local"],
     forbidReasons: ["ip_obfuscation", "ip_cloud_metadata"],
     notes: "V1b link-local bucket — 169.254/16 generic (NOT the metadata endpoint)",
   },
   {
     input: "https://[fe80::abcd]/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_link_local"],
     forbidReasons: ["ip_obfuscation"],
     notes: "V1b link-local bucket (IPv6) — fe80::/10",
@@ -1075,80 +1088,91 @@ export const CORPUS: CorpusRow[] = [
   // Cloud-metadata (most-specific bucket, deceptive-labeled) — v4 and v6 literals.
   {
     input: "http://169.254.169.254/latest/meta-data/",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["ip_link_local", "ip_obfuscation", "ssrf_cloud_metadata"],
-    notes: "V1b precedence — metadata /32 wins over 169.254/16; lands high (0.75); ssrf_cloud_metadata is agent-gated so NOT present in the default verdict",
+    notes: "V1b precedence — metadata /32 wins over 169.254/16; reported at weight 0 since LINK-bwqhvjcs (was 0.75); ssrf_cloud_metadata is agent-gated so NOT present in the default verdict",
   },
   {
     input: "https://[fd00:ec2::254]/",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["ip_private", "ip_obfuscation", "ssrf_cloud_metadata"],
-    notes: "V1b cloud-metadata bucket (IPv6) — wins over fc00::/7; lands high (0.75); ssrf_cloud_metadata is agent-gated",
+    notes: "V1b cloud-metadata bucket (IPv6) — wins over fc00::/7; reported at weight 0 since LINK-bwqhvjcs (was 0.75); ssrf_cloud_metadata is agent-gated",
   },
   {
     input: "https://[fd00:0ec2::254]/",
     label: "deceptive",
-    minSeverity: "high",
+    // LINK-bwqhvjcs: was deceptive/high. The destination code now reports at weight 0
+    // (architecture §6.1.10); ip_obfuscation (0.40, the non-canonical spelling) carries it to medium.
+    minSeverity: "medium",
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["ip_private", "ssrf_cloud_metadata"],
     notes: "S2 canonical (not textual) matching — fd00:0ec2::254 is the SAME 128 bits as fd00:ec2::254; a string prefix test would miss it (ip_obfuscation also fires: the spelling is non-canonical)",
   },
   {
     input: "http://192.0.0.192/latest/meta-data/",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["ip_reserved", "ip_obfuscation", "ssrf_cloud_metadata"],
     notes: "S2 provider table — Oracle Cloud endpoint; outside link-local entirely, so it scored as an ordinary public IP before the table landed",
   },
   {
     input: "http://100.100.100.200/latest/meta-data/",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["ip_reserved", "ip_obfuscation", "ssrf_cloud_metadata"],
-    notes: "S2 provider table — Alibaba Cloud endpoint; most-specific-wins over the 100.64/10 CGNAT reserved range (was ip_reserved 0.20, now ip_cloud_metadata 0.75)",
+    notes: "S2 provider table — Alibaba Cloud endpoint; most-specific-wins over the 100.64/10 CGNAT reserved range (was ip_reserved 0.20, then ip_cloud_metadata 0.75; weight 0 since LINK-bwqhvjcs)",
   },
   {
     input: "http://168.63.129.16/machine?comp=goalstate",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["ip_link_local", "ip_private", "ip_reserved", "ip_obfuscation", "ssrf_cloud_metadata"],
     notes: "LINK-vniqhcln — Azure WireServer. The one endpoint in PUBLIC address space, so no range rule reaches it: this scored info 0.00 with ZERO reasons before the table row landed (every other row at least had a range bucket to be promoted from)",
   },
   {
     input: "http://169.254.170.2/v2/credentials/",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["ip_link_local", "ip_obfuscation", "ssrf_cloud_metadata"],
-    notes: "LINK-vniqhcln — AWS ECS task credentials endpoint; vends task IAM role credentials, so an IMDS-only blocklist misses it (was ip_link_local 0.20, now ip_cloud_metadata 0.75)",
+    notes: "LINK-vniqhcln — AWS ECS task credentials endpoint; vends task IAM role credentials, so an IMDS-only blocklist misses it (was ip_link_local 0.20, then ip_cloud_metadata 0.75; weight 0 since LINK-bwqhvjcs)",
   },
   {
     input: "http://169.254.170.23/v1/credentials",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["ip_link_local", "ip_obfuscation", "ssrf_cloud_metadata"],
     notes: "LINK-vniqhcln — AWS EKS Pod Identity Agent (IPv4 half); was ip_link_local 0.20",
   },
   {
     input: "https://[fd00:ec2::23]/v1/credentials",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["ip_private", "ip_obfuscation", "ssrf_cloud_metadata"],
     notes: "LINK-vniqhcln — AWS EKS Pod Identity Agent (IPv6 half, ULA); the agent listens on BOTH families by default, so a v4-only table is half-blind (was ip_private 0.20, NOT ip_link_local)",
   },
   {
     input: "http://169.254.0.23/latest/meta-data/cam/security-credentials/",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["ip_link_local", "ip_obfuscation", "ssrf_cloud_metadata"],
     notes: "LINK-vniqhcln — Tencent Cloud CVM; the CAM security-credentials path is the credential-theft target (was ip_link_local 0.20)",
@@ -1157,32 +1181,36 @@ export const CORPUS: CorpusRow[] = [
   // Reserved / special-use — v4 (0/8, CGNAT, multicast) and v6 (unspecified, multicast).
   {
     input: "http://0.0.0.10/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_reserved"],
     forbidReasons: ["ip_obfuscation"],
     notes: "V1b reserved bucket — 0/8 special-use",
   },
   {
     input: "http://100.64.1.1/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_reserved"],
     forbidReasons: ["ip_obfuscation"],
     notes: "V1b reserved bucket — 100.64/10 CGNAT",
   },
   {
     input: "http://239.0.0.1/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_reserved"],
     forbidReasons: ["ip_obfuscation"],
     notes: "V1b reserved bucket — 224/4 multicast",
   },
   {
     input: "https://[ff02::1]/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_reserved"],
     forbidReasons: ["ip_obfuscation"],
     notes: "V1b reserved bucket (IPv6) — ff00::/8 multicast",
@@ -1191,11 +1219,12 @@ export const CORPUS: CorpusRow[] = [
   // v4-in-v6 embeddings — classified by the EMBEDDED IPv4 (SSRF masquerade).
   {
     input: "https://[::ffff:169.254.169.254]/",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["ip_obfuscation"],
-    notes: "V1b v4-in-v6 — embedded metadata endpoint classifies as ip_cloud_metadata (0.75 → high on its own). LINK-ibwialex removed the ip_obfuscation stack: the mixed spelling is RFC 5952 §5-recommended here, and the dangerous property is the destination, which the bucket already carries",
+    notes: "V1b v4-in-v6 — embedded metadata endpoint classifies as ip_cloud_metadata (reported at weight 0 since LINK-bwqhvjcs; was 0.75, high on its own). LINK-ibwialex removed the ip_obfuscation stack: the mixed spelling is RFC 5952 §5-recommended here, and the dangerous property is the destination, which the bucket already carries",
   },
 
   // S1 — the wrapper forms in their HEX spelling. Same 128 bits as the dotted
@@ -1205,56 +1234,63 @@ export const CORPUS: CorpusRow[] = [
   // RFC 5952 canonical spelling — the wrapper redirects, it does not disguise.
   {
     input: "https://[::ffff:a9fe:a9fe]/",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["ip_obfuscation"],
     notes: "S1 IPv4-mapped ::ffff:0:0/96, hex spelling of ::ffff:169.254.169.254 — metadata endpoint",
   },
   {
     input: "https://[64:ff9b::a9fe:a9fe]/",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["ip_obfuscation"],
     notes: "S1 NAT64 well-known 64:ff9b::/96 (RFC 6052) — metadata endpoint behind a transition prefix",
   },
   {
     input: "https://[::a9fe:a9fe]/",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["ip_obfuscation"],
     notes: "S1 IPv4-compatible ::/96 (deprecated by RFC 4291, still parsed) — metadata endpoint",
   },
   {
     input: "https://[::ffff:7f00:1]/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_loopback"],
     forbidReasons: ["ip_obfuscation"],
     notes: "S1 IPv4-mapped loopback in hex — same bucket as [::ffff:127.0.0.1]",
   },
   {
     input: "https://[64:ff9b::7f00:1]/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_loopback"],
     forbidReasons: ["ip_obfuscation"],
     notes: "S1 NAT64-wrapped loopback in hex",
   },
   {
     input: "https://[::7f00:1]/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_loopback"],
     forbidReasons: ["ip_obfuscation"],
     notes: "S1 IPv4-compatible loopback in hex — the form that does NOT round-trip as ::127.0.0.1",
   },
   {
     input: "https://[64:ff9b::a00:1]/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_private"],
     forbidReasons: ["ip_obfuscation"],
     notes: "S1 NAT64-wrapped RFC 1918 10.0.0.1",
@@ -1294,8 +1330,9 @@ export const CORPUS: CorpusRow[] = [
   // the well-known prefix, so it now scores like one.
   {
     input: "https://[64:ff9b:1::a9fe:a9fe]/",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["ip_obfuscation"],
     notes: "LINK-evooubiz — RFC 8215 local-use NAT64 64:ff9b:1::/96 base, metadata endpoint",
@@ -1328,16 +1365,18 @@ export const CORPUS: CorpusRow[] = [
   // reading keeps the flag rather than dropping it.
   {
     input: "https://[64:ff9b::]/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_reserved"],
     forbidReasons: ["ip_obfuscation"],
     notes: "LINK-vwehpsdv — NAT64 well-known prefix base unwraps to 0.0.0.0 (RFC 1122 'this host on this network')",
   },
   {
     input: "https://[64:ff9b::1]/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_reserved"],
     forbidReasons: ["ip_obfuscation", "ip_loopback"],
     notes:
@@ -1345,8 +1384,9 @@ export const CORPUS: CorpusRow[] = [
   },
   {
     input: "https://[64:ff9b:1::]/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_reserved"],
     forbidReasons: ["ip_obfuscation"],
     notes: "LINK-vwehpsdv — RFC 8215 local-use base, same shape; both NAT64 rows stay consistent",
@@ -1586,7 +1626,7 @@ export const AGENT_CORPUS: CorpusRow[] = [
     minSeverity: "critical",
     options: AGENT,
     expectReasons: ["ip_cloud_metadata", "ssrf_cloud_metadata"],
-    notes: "agentMode: metadata endpoint stacks ip_cloud_metadata (0.75) + ssrf_cloud_metadata (1.0 blocker) → critical",
+    notes: "agentMode: ssrf_cloud_metadata (1.0 blocker) lands critical on its own; ip_cloud_metadata rides along at weight 0 (LINK-bwqhvjcs)",
   },
   {
     input: "https://[::ffff:169.254.169.254]/",
@@ -1716,49 +1756,55 @@ CORPUS.push(
   {
     input:
       "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["ssrf_cloud_metadata"],
-    notes: "LINK-hvawpgos — GCP's RECOMMENDED spelling of the metadata server, on the token path; matches the address form at 0.75/high. ssrf_cloud_metadata is agent-gated so it is absent from the default verdict",
+    notes: "LINK-hvawpgos — GCP's RECOMMENDED spelling of the metadata server, on the token path; matches the address form (both reported at weight 0 since LINK-bwqhvjcs, which scored 0.75 before). ssrf_cloud_metadata is agent-gated so it is absent from the default verdict",
     source: "https://docs.cloud.google.com/compute/docs/metadata/querying-metadata",
   },
   {
     input: "http://metadata.goog/computeMetadata/v1/",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     notes: "LINK-hvawpgos — Google's second documented name for the same server; shares no suffix with metadata.google.internal, so a check written against `*.google.internal` misses it",
     source: "https://docs.cloud.google.com/compute/docs/metadata/querying-metadata",
   },
   {
     input: "http://metadata.tencentyun.com/latest/meta-data/",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     notes: "LINK-hvawpgos — the ONLY endpoint Tencent's own metadata guide documents; the address row (169.254.0.23) had to be cited to a different page because this one never writes a number down",
     source: "https://www.tencentcloud.com/document/product/213/4934",
   },
   {
     input: "http://api.metadata.cloud.ibm.com/metadata/v1/instance/",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     notes: "LINK-hvawpgos — IBM Cloud VPC. IBM REQUIRES the hostname over HTTPS and does not accept the address there, so an address-only check is blind to the vendor's own secure mode. Lands 0.875 because embedded_domain_in_subdomain already fired on this host before the slice existed",
     source: "https://cloud.ibm.com/apidocs/vpc-metadata",
   },
   {
     input: "http://metadata.exoscale.com/latest/meta-data",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     notes: "LINK-hvawpgos — Exoscale; the vendor page introduces the service on 169.254.169.254 and then gives every access example through this name",
     source: "https://community.exoscale.com/product/compute/instances/how-to/cloud-init-user-data/",
   },
   {
     input: "http://metadata.google.internal./computeMetadata/v1/",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata", "fqdn_root_label"],
     notes: "LINK-hvawpgos — trailing root dot. Resolves identically and is the documented Smokescreen allow-list bypass, so the matcher drops one trailing dot before comparing; shipping the check without this would ship the bypass with it",
   },
@@ -1769,7 +1815,7 @@ CORPUS.push(
     minSeverity: "critical",
     options: AGENT,
     expectReasons: ["ip_cloud_metadata", "ssrf_cloud_metadata"],
-    notes: "LINK-hvawpgos — agentMode: the name now stacks 0.75 + 1.0 → critical, exactly as the address does. An agent that blocked 169.254.169.254 and fetched this one was not protected from anything",
+    notes: "LINK-hvawpgos — agentMode: the name reaches ssrf_cloud_metadata (1.0) → critical, exactly as the address does. An agent that blocked 169.254.169.254 and fetched this one was not protected from anything",
   },
   {
     input: "http://metadata.google.internal.evil.com/",
@@ -2138,11 +2184,12 @@ applyAcceptanceMetadata(DATA_MARKER_CORPUS);
 const GCP_IPV6_METADATA_CORPUS: CorpusRow[] = [
   {
     input: "http://[fd20:ce::254]/computeMetadata/v1/instance/service-accounts/default/token",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["ip_private", "ip_obfuscation", "ssrf_cloud_metadata"],
-    notes: "LINK-eyjfhbzu — GCP's IPv6-only metadata endpoint on the token path; most-specific-wins over fc00::/7 (was ip_private 0.20, now ip_cloud_metadata 0.75). ssrf_cloud_metadata is agent-gated, so it is absent from the default verdict",
+    notes: "LINK-eyjfhbzu — GCP's IPv6-only metadata endpoint on the token path; most-specific-wins over fc00::/7 (was ip_private 0.20, then ip_cloud_metadata 0.75; weight 0 since LINK-bwqhvjcs). ssrf_cloud_metadata is agent-gated, so it is absent from the default verdict",
     source: "https://docs.cloud.google.com/compute/docs/metadata/querying-metadata",
   },
   {
@@ -2151,29 +2198,33 @@ const GCP_IPV6_METADATA_CORPUS: CorpusRow[] = [
     minSeverity: "critical",
     options: AGENT,
     expectReasons: ["ip_cloud_metadata", "ssrf_cloud_metadata"],
-    notes: "LINK-eyjfhbzu — agentMode: the v6 spelling stacks 0.75 + 1.0 → critical, exactly as the v4 address and the hostname do. Before the row it could not reach the blocker at all, since the escalation reads the ip_cloud_metadata bucket",
+    notes: "LINK-eyjfhbzu — agentMode: the v6 spelling reaches ssrf_cloud_metadata (1.0) → critical, exactly as the v4 address and the hostname do. Before the row it could not reach the blocker at all, since the escalation reads the ip_cloud_metadata bucket",
   },
   {
     input: "https://[fd20:00ce::254]/computeMetadata/v1/",
     label: "deceptive",
-    minSeverity: "high",
+    // LINK-bwqhvjcs: was deceptive/high. The destination code now reports at weight 0
+    // (architecture §6.1.10); ip_obfuscation (0.40, the non-canonical spelling) carries it to medium.
+    minSeverity: "medium",
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["ip_private", "ssrf_cloud_metadata"],
     notes: "LINK-eyjfhbzu — canonical (not textual) matching: fd20:00ce::254 is the SAME 128 bits as fd20:ce::254, which a string prefix test on `fd20:ce` would miss (ip_obfuscation also fires: the spelling is non-canonical)",
   },
   {
     input: "http://[fd20:ce::255]/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     options: AGENT,
     expectReasons: ["ip_private"],
     forbidReasons: ["ip_cloud_metadata", "ssrf_cloud_metadata"],
-    notes: "LINK-eyjfhbzu CONTROL — the neighbour one bit away in the low hextet. Still the generic ULA bucket at 0.20 under agentMode: the row is a /128 overlay, so it promotes one address and not its /64",
+    notes: "LINK-eyjfhbzu CONTROL — the neighbour one bit away in the low hextet. Still the generic ULA bucket (weight 0 since LINK-bwqhvjcs) under agentMode: the row is a /128 overlay, so it promotes one address and not its /64",
   },
   {
     input: "http://[fc00::1]/",
-    label: "deceptive",
-    minSeverity: "low",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/low. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     options: AGENT,
     expectReasons: ["ip_private"],
     forbidReasons: ["ip_cloud_metadata", "ssrf_cloud_metadata"],
@@ -2326,7 +2377,7 @@ const SPECIAL_USE_NAME_CORPUS: CorpusRow[] = [
     input: "https://svc.internal/",
     label: "info",
     expectReasons: ["special_use_name"],
-    notes: "LINK-nreghohx — the sharpened case. 192.168.1.1 scores 0.20 for addressing a private network while this name, reserved for exactly that purpose, said nothing at all. Still 0.00; no longer silent. The LINK-hvawpgos independence claim was about the SCORE and it holds unchanged",
+    notes: "LINK-nreghohx — the sharpened case. 192.168.1.1 scored 0.20 for addressing a private network (weight 0 since LINK-bwqhvjcs) while this name, reserved for exactly that purpose, said nothing at all. Still 0.00; no longer silent. The LINK-hvawpgos independence claim was about the SCORE and it holds unchanged",
   },
   {
     input: "https://api.svc.internal/v1/health",
@@ -2440,16 +2491,18 @@ const SPECIAL_USE_NAME_CORPUS: CorpusRow[] = [
   // ── benign/deceptive: the cloud-metadata collision must not double-report ─
   {
     input: "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["special_use_name"],
     notes: "LINK-nreghohx — the ONE host in the class already carrying a verdict. Suppressed for two reasons: the fourth rule's trigger is a 0.00 with NO reasons, so nothing is owed; and the predicate would be FALSE here, since this host's whole hazard is that it DOES resolve, to a credential-vending endpoint",
   },
   {
     input: "http://metadata.google.internal./",
-    label: "deceptive",
-    minSeverity: "high",
+    label: "info",
+    // LINK-bwqhvjcs: was deceptive/high. Destination membership reports at weight 0
+    // (architecture §6.1.10) and nothing about the address's form fires, so the row is info.
     expectReasons: ["ip_cloud_metadata"],
     forbidReasons: ["special_use_name"],
     notes: "LINK-nreghohx — the trailing-dot spelling. Both matchers drop one root dot, so the suppression cannot be walked around the way the Smokescreen allow-list was",

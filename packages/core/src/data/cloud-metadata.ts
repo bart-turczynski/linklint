@@ -164,8 +164,10 @@ export interface CloudMetadataEndpoint {
 
 /**
  * The endpoints linklint recognizes as `ip_cloud_metadata`. Deliberately small
- * and vendor-documented: a false positive here costs a `high` verdict on an
- * ordinary address, so speculative entries are kept out.
+ * and vendor-documented: a false positive here costs a wrong finding on an
+ * ordinary address and an agent-mode block (a `high` verdict by default, too,
+ * until LINK-bwqhvjcs put `ip_cloud_metadata` at weight 0), so speculative
+ * entries are kept out.
  */
 export const CLOUD_METADATA_ENDPOINTS: readonly CloudMetadataEndpoint[] = [
   {
@@ -334,8 +336,8 @@ export interface CloudMetadataHostname {
  * checked against the vendor's own current documentation and carries the page it
  * was read from, exactly as the address rows do. Names that circulate widely in
  * SSRF cheat-sheets but that no vendor page writes down are NOT here: an
- * over-broad row is a `high` verdict on somebody's legitimate internal
- * hostname, and there is no such thing as a harmless one.
+ * over-broad row is a wrong finding and an agent-mode block on somebody's
+ * legitimate internal hostname, and there is no such thing as a harmless one.
  *
  * The rows deliberately stop at the endpoint's own names. They do not extend to
  * the private namespaces those names live in — `*.internal`, `*.ec2.internal`,
@@ -446,7 +448,7 @@ export const CLOUD_METADATA_HOSTNAMES: readonly CloudMetadataHostname[] = [
  *   samples (`http://metadata/computeMetadata/v1/…`) and is absent from the
  *   Compute Engine Root URLs table that lists the other four GCP forms. It is
  *   also the highest false-positive risk any row could carry: whole-host
- *   equality on a SINGLE LABEL puts a `high` verdict — and an agent-mode block —
+ *   equality on a SINGLE LABEL puts a metadata finding — and an agent-mode block —
  *   on any organization that happens to run a host called `metadata`. A legacy
  *   sample on a legacy runtime does not buy that. Reopen if Google lists it in
  *   the Compute Engine endpoint table.

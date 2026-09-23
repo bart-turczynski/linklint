@@ -160,31 +160,34 @@ export const REASON_CODES = {
   ip_loopback: {
     layer: "lexical",
     family: "address_literal",
-    scoring: true,
-    weight: 0.2,
-    summary: "Host is a literal loopback IP (127.0.0.0/8, ::1).",
+    scoring: false,
+    weight: 0,
+    summary:
+      "Host is a literal loopback IP (127.0.0.0/8, ::1). Informational (weight 0): destination-range membership, not a claim-(a) finding — reported under architecture §1.1's fourth rule, never scored (§6.1.10, LINK-bwqhvjcs).",
   },
   ip_private: {
     layer: "lexical",
     family: "address_literal",
-    scoring: true,
-    weight: 0.2,
-    summary: "Host is a literal private/internal IP (RFC 1918, fc00::/7).",
+    scoring: false,
+    weight: 0,
+    summary:
+      "Host is a literal private/internal IP (RFC 1918, fc00::/7). Informational (weight 0): destination-range membership, not a claim-(a) finding — reported under architecture §1.1's fourth rule, never scored (§6.1.10, LINK-bwqhvjcs).",
   },
   ip_link_local: {
     layer: "lexical",
     family: "address_literal",
-    scoring: true,
-    weight: 0.2,
-    summary: "Host is a literal link-local IP (169.254.0.0/16, fe80::/10).",
+    scoring: false,
+    weight: 0,
+    summary:
+      "Host is a literal link-local IP (169.254.0.0/16, fe80::/10). Informational (weight 0): destination-range membership, not a claim-(a) finding — reported under architecture §1.1's fourth rule, never scored (§6.1.10, LINK-bwqhvjcs).",
   },
   ip_cloud_metadata: {
     layer: "lexical",
     family: "address_literal",
-    scoring: true,
-    weight: 0.75,
+    scoring: false,
+    weight: 0,
     summary:
-      "Host is a cloud instance-metadata or provider-internal infrastructure endpoint (169.254.169.254, fd00:ec2::254, 168.63.129.16).",
+      "Host is a cloud instance-metadata or provider-internal infrastructure endpoint (169.254.169.254, fd00:ec2::254, 168.63.129.16). Informational (weight 0): destination-range membership, not a claim-(a) finding — reported under architecture §1.1's fourth rule, never scored (§6.1.10, LINK-bwqhvjcs).",
   },
   ssrf_cloud_metadata: {
     layer: "lexical",
@@ -197,9 +200,10 @@ export const REASON_CODES = {
   ip_reserved: {
     layer: "lexical",
     family: "address_literal",
-    scoring: true,
-    weight: 0.2,
-    summary: "Host is a literal reserved/special-use IP (0/8, CGNAT, multicast, 240/4).",
+    scoring: false,
+    weight: 0,
+    summary:
+      "Host is a literal reserved/special-use IP (0/8, CGNAT, multicast, 240/4). Informational (weight 0): destination-range membership, not a claim-(a) finding — reported under architecture §1.1's fourth rule, never scored (§6.1.10, LINK-bwqhvjcs).",
   },
   ambiguous_numeric_host: {
     layer: "lexical",

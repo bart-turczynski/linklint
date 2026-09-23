@@ -174,20 +174,23 @@ class FixedEnricher implements Enricher {
 }
 
 describe("suppressReasons — enricher-emitted reasons are equally suppressible", () => {
+  // A 0.20 scoring code, so suppression has a weight to zero. `ip_private` served
+  // here until LINK-bwqhvjcs put it at weight 0 (architecture §6.1.10); the code
+  // itself is incidental to the mechanism under test.
   const enricher = new FixedEnricher("dns", "resolution", [
-    { code: "ip_private", detail: "resolved host maps to a private/internal IP" },
+    { code: "ascii_homoglyph", detail: "fixture finding with a 0.20 registry weight" },
   ]);
 
   it("suppresses an enricher reason by the same mechanism", async () => {
     const base = await inspectAsync("https://www.example.com/", { enrichers: [enricher] });
-    expect(reason(base, "ip_private")?.weight).toBeCloseTo(0.2, 5);
+    expect(reason(base, "ascii_homoglyph")?.weight).toBeCloseTo(0.2, 5);
     expect(base.score).toBeCloseTo(0.2, 5);
 
     const r = await inspectAsync("https://www.example.com/", {
       enrichers: [enricher],
-      suppressReasons: [{ code: "ip_private" }],
+      suppressReasons: [{ code: "ascii_homoglyph" }],
     });
-    const ip = reason(r, "ip_private");
+    const ip = reason(r, "ascii_homoglyph");
     expect(ip?.suppressed).toBe(true);
     expect(ip?.weight).toBe(0);
     expect(r.score).toBe(0);
@@ -201,13 +204,13 @@ describe("suppressReasons — enricher-emitted reasons are equally suppressible"
   it("host-scoped rule targets an enricher reason on the matching domain only", async () => {
     const opts: InspectAsyncOptions = {
       enrichers: [enricher],
-      suppressReasons: [{ code: "ip_private", host: "example.com" }],
+      suppressReasons: [{ code: "ascii_homoglyph", host: "example.com" }],
     };
     const match = await inspectAsync("https://www.example.com/", opts);
-    expect(reason(match, "ip_private")?.suppressed).toBe(true);
+    expect(reason(match, "ascii_homoglyph")?.suppressed).toBe(true);
 
     const other = await inspectAsync("https://www.example.org/", opts);
-    expect(reason(other, "ip_private")?.suppressed).toBeUndefined();
+    expect(reason(other, "ascii_homoglyph")?.suppressed).toBeUndefined();
     expect(other.score).toBeCloseTo(0.2, 5);
   });
 });
