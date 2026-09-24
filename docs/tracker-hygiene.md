@@ -66,7 +66,6 @@ SHA was *named*. Sweep for survivors with `git branch --no-merged main`.
 |---|---|---|
 | `[SCRATCHED]` | Abandoned — the code never merged and nothing replaces it | `done` |
 | `[SUPERSEDED]` | Replaced by another issue; name it, e.g. `(by LINK-tqlqshlt)` | `done` |
-| `[PARKED]` | Not started and not scheduled | stays `todo` |
 | `[DECLINED]` | Considered and rejected under a recorded decision — not merely dropped, and not to be revisited under the current architecture | `done` |
 | `[ALREADY-SATISFIED]` | The ask was found to hold on `main` before any work started, so there was nothing to build | `done` |
 
@@ -87,6 +86,50 @@ Already implemented on main:` convention (`LINK-yotoonba`, `LINK-zkybktdk`,
 `LINK-xpdvmjdw`), which put the outcome where no listing renders it — the exact
 failure this rule exists to prevent. Keep the probe in the comment; move the
 outcome into the title.
+
+## Open issues carry their gate and track
+
+fp 0.25 shows labels only in `fp issue show`: `fp issue list`, `fp tree` and
+`fp search` leave them out (reported upstream as
+[fiberplane/fp#3](https://github.com/fiberplane/fp/issues/3)). So labels stay the
+source of truth, and every open issue mirrors them in a **title prefix**, where
+`fp issue list --status todo` shows it (`LINK-mdhjempb`):
+
+| Slot | Prefix | Label | Meaning |
+|---|---|---|---|
+| gate | `[PARKED]` | `parked` | Not started and not scheduled; see *Parked work* below |
+| gate | `[YOU]` | `maintainer-gated` | Waits on a maintainer action or decision, not on code |
+| track | `[INT]` | `track:integration` | Integrates a third party: providers, feeds, hosted services, browser platforms, live page content |
+| track | *(none)* | `track:core` | Code and decisions in this repo |
+
+Every open issue has exactly one `track:*` label. The gate slot comes first
+(`[PARKED][INT] …`); when both gates apply, `[PARKED]` wins. The outcome
+prefixes above appear only on `done` issues, so the todo view shows only the gate and
+track prefixes. Titles carry no sequence codes (`Epic`, `N1`, `O2`, `M3a`); the tree
+shows structure, and [*Online roadmap*](online-roadmap.md) keeps the codes.
+
+**A parent means composition: the parent is done when its children are.** An
+issue that shares only a trait with others gets a label, not a parent, and an
+ordering constraint is a dependency. No epic exists only to group, and there is
+no single root. An optional item that would keep an epic open forever — an
+adapter, an R&D follow-up — is a top-level issue that depends on what it extends.
+
+### Parked work
+
+Do not start a `[PARKED]` issue, or any of its descendants, without an explicit
+instruction naming it. When asked what can be worked on, do not enumerate
+parked issues or propose them as candidates: say that parked work exists and is
+parked until further notice.
+
+### What the unattended /loop may pick
+
+An issue is loop-eligible when it is `todo`, a leaf (no open children),
+`track:core`, carries no `parked` or `maintainer-gated` label, and has no open
+dependency. A decision issue becomes eligible only after the maintainer records
+the decision and it is re-filed or relabeled as an implementation task.
+
+Treat `done` issues as claims to verify, not facts: `LINK-tbqeqqvv` was marked
+done without being implemented (`LINK-nlfybbsf`).
 
 ## Decision records
 

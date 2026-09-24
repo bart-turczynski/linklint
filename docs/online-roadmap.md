@@ -6,9 +6,9 @@
 
 > **Status.** The coordinator's implementable scope is complete: Epics K, L, and
 > M all landed through their acceptance gates. Its two remaining branches, Epic N
-> (`LINK-ioctupur`, monitoring service) and Epic P (`LINK-mklsgmyn`, licensed
-> third-party providers), were moved out to the parked umbrella `LINK-illixeqw`
-> and are no longer coordinator scope. Neither is available work: do not propose
+> (`LINK-ioctupur`, monitoring service) and Epic P (licensed third-party
+> providers), are parked (`[PARKED]` title prefix, `parked` label) and are no
+> longer coordinator scope. Neither is available work: do not propose
 > or start either without an explicit instruction to begin. The architecture and
 > constraints below remain durable reference for whenever they are unparked.
 
@@ -197,26 +197,35 @@ LT + L1 + L2 + L3 + L4 + L5 ───────────► L6 LINK-pzuppjn
 
 ## Parked streams (no longer coordinator scope)
 
-Both branches below moved out to the parked umbrella `LINK-illixeqw` on
-2026-07-25. They are **not available work**. When asked what can be worked on,
-report only that this work is parked until further notice; do not enumerate the
-individual issues or propose them as candidates. Surface detail only on an
-explicit instruction naming the epic or one of its descendants.
+Both branches below were parked on 2026-07-25. They are **not available work**;
+the rules for `[PARKED]` issues in
+[*Tracker hygiene*](tracker-hygiene.md#parked-work) apply. The umbrella epics that
+used to group them (`LINK-illixeqw`, `LINK-mklsgmyn`) were dissolved on
+2026-09-24 (`LINK-mdhjempb`): every issue now carries its own `[PARKED][INT]`
+prefix. The letter-number codes below (N0, M3…) no longer appear in titles;
+each retitled issue has a comment recording its old title.
 
 - Epic N (`LINK-ioctupur`) is a separate service, not an `inspectAsync()` loop.
   Its foundation starts at `LINK-pjyhavkg` (N0 durable runtime, state, and
   tenancy). N consumes specific contracts and does not depend on all of M.
   Parked because committing to it is a product-direction decision — it makes
   linklint a library *plus* a running service.
-- Epic P (`LINK-mklsgmyn`, low) collects the third-party commercial/licensed
-  reputation integrations — Google Safe Browsing M3 (`LINK-ygnmxxxv`), VirusTotal
-  M6 (`LINK-yeyefxak`), and licensed hosting ASN/geo M9b (`LINK-brnpohdw`). Each
-  is blocked on a product/terms/licensing decision, not on any code, so they were
-  split out of Epic M and stay parked until an explicit decision unparks them.
-  None gates M10 or the offline core; when one ships it extends the M10 gate.
+  Its adapters that only consume N's output (Slack `LINK-mfntumje`, Discord
+  `LINK-gnwumlru`, email `LINK-dfefsvyd`, hosts `LINK-vrcdzrze`, AdBlock
+  `LINK-pmhnwhre`, NextDNS `LINK-wtylnnqt`) and N2b temporal DNS churn
+  (`LINK-ijszfiwf`) are top-level issues that depend on the N issue they
+  extend, so N can finish without them.
+- Epic P was the three third-party commercial/licensed reputation integrations,
+  now three independent top-level issues — Google Safe Browsing M3
+  (`LINK-ygnmxxxv`), VirusTotal M6 (`LINK-yeyefxak`), and licensed hosting ASN/geo
+  M9b (`LINK-brnpohdw`). Each is blocked on its own product/terms/licensing
+  decision, not on any code, so they were split out of Epic M and stay parked
+  until an explicit decision unparks them. None gates M10 or the offline core;
+  when one ships it extends the M10 gate.
 
 Former Epic O (`LINK-aertgfpq`) is a separately parked product-discovery branch
-and was never part of this implementation roadmap.
+and was never part of this implementation roadmap. Its rendered-similarity R&D
+(O4, `LINK-mcwntfyb`) is a separate top-level parked issue.
 
 With K, L, and M delivered and N and P parked, the coordinator has no remaining
 priority order — it is done. Any future online work resumes by unparking a
@@ -267,8 +276,8 @@ section applies only when a parked stream is **explicitly unparked**:
 1. Confirm the instruction is explicit. Parked work is never selected by an agent
    choosing "what is next" — see *Parked streams* above.
 2. Run `fp guide implement` and `fp context` on the unparked epic
-   (`LINK-ioctupur` for N, `LINK-mklsgmyn` for P), plus `fp issue show` for the
-   proposed child; do not trust this document for status if FP has moved on.
+   (`LINK-ioctupur` for N; for P, the provider issue itself), plus
+   `fp issue show` for the proposed child; do not trust this document for status if FP has moved on.
 3. For Epic N, start at `LINK-pjyhavkg` (N0 durable runtime, state, tenancy) —
    nothing else in N should begin before that design lands. For Epic P, the
    terms/licensing decision is the gate, not code.
