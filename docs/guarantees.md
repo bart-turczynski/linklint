@@ -21,8 +21,8 @@ The rule, stated once:
 > unconditional word with neither is a defect, not a stylistic choice.
 
 This is the same doctrine as the decision-record trailer rule in
-[`AGENTS.md`](../AGENTS.md): present-tense prose is a claim about what the code
-does, and it must not outrun the code.
+[*Tracker hygiene*](tracker-hygiene.md#decision-records): present-tense prose is
+a claim about what the code does, and it must not outrun the code.
 
 ## The ratchet
 
