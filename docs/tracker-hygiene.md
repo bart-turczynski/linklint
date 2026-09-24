@@ -115,7 +115,9 @@ disagree with these labels. It learns this project's tracks from a gitignored
 ```toml
 [extensions.gate-prefix]
 tracks = "track:core, track:integration=INT"
-``` Titles carry no sequence codes (`Epic`, `N1`, `O2`, `M3a`); the tree
+```
+
+Titles carry no sequence codes (`Epic`, `N1`, `O2`, `M3a`); the tree
 shows structure, and [*Online roadmap*](online-roadmap.md) keeps the codes.
 
 **A parent means composition: the parent is done when its children are.** An
