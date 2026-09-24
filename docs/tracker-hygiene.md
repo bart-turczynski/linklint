@@ -98,14 +98,24 @@ source of truth, and every open issue mirrors them in a **title prefix**, where
 | Slot | Prefix | Label | Meaning |
 |---|---|---|---|
 | gate | `[PARKED]` | `parked` | Not started and not scheduled; see *Parked work* below |
-| gate | `[YOU]` | `maintainer-gated` | Waits on a maintainer action or decision, not on code |
+| gate | `[USER]` | `maintainer-gated` | Waits on a maintainer action or decision, not on code |
 | track | `[INT]` | `track:integration` | Integrates a third party: providers, feeds, hosted services, browser platforms, live page content |
 | track | *(none)* | `track:core` | Code and decisions in this repo |
 
 Every open issue has exactly one `track:*` label. The gate slot comes first
 (`[PARKED][INT] …`); when both gates apply, `[PARKED]` wins. The outcome
 prefixes above appear only on `done` issues, so the todo view shows only the gate and
-track prefixes. Titles carry no sequence codes (`Epic`, `N1`, `O2`, `M3a`); the tree
+track prefixes.
+
+The global `gate-prefix` fp extension (agent-skills `fp-extensions/`, linked into
+`~/.fiberplane/extensions/`) refuses a create or an edit whose title prefixes
+disagree with these labels. It learns this project's tracks from a gitignored
+`.fp/config.local.toml`, so set it once per clone:
+
+```toml
+[extensions.gate-prefix]
+tracks = "track:core, track:integration=INT"
+``` Titles carry no sequence codes (`Epic`, `N1`, `O2`, `M3a`); the tree
 shows structure, and [*Online roadmap*](online-roadmap.md) keeps the codes.
 
 **A parent means composition: the parent is done when its children are.** An
