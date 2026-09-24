@@ -107,7 +107,7 @@ export function describeShaFinding(sha: string, reachability: Reachability, trun
  * difference was discoverable ONLY by reading a comment — which is what made the
  * tbqeqqvv failure invisible. A prefixed title says it in `fp tree` and
  * `fp issue list`, where labels do not render, so it needs no closing comment of
- * its own. Mirrors the `[PARKED]` prefix already used under LINK-illixeqw.
+ * its own. Mirrors the `[PARKED]` prefix (see docs/tracker-hygiene.md).
  */
 const TOMBSTONE_TITLE = /^\s*\[(?:SCRATCHED|SUPERSEDED)\]/;
 
