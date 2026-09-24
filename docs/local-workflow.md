@@ -30,6 +30,16 @@ pass on one major as a pass on the matrix.
 Install the tracker guards in the same pass; see
 [*Tracker hygiene*](tracker-hygiene.md).
 
+**A hook that rewrites a file aborts the commit, so commit on its own line.**
+`end-of-file-fixer` and `trailing-whitespace` fix the file and exit non-zero,
+and the commit does not happen. Chain `git commit && git checkout main && git
+merge --ff-only <branch> && git branch -d <branch>` and it goes wrong without
+an error. On 2026-08-07 the commit aborted, the merge of a branch still
+level with `main` succeeded as a no-op, and `git branch -d` deleted the branch.
+The work survived only as uncommitted changes. Make the commit its own call.
+Confirm with `git show --stat HEAD` that the intended files landed, and if a
+hook rewrote anything, re-stage and commit again before you merge.
+
 ### Secret scanning
 
 The pre-commit stage runs [gitleaks](https://github.com/gitleaks/gitleaks)

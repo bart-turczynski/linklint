@@ -2315,6 +2315,43 @@ Order-independent and saturating toward 1. Severity bands:
 
 Weights are hand-tuned, version-pinned, and transparent. The full table is in `docs/scoring.md` and `packages/core/src/scoring/weights.ts`.
 
+### Evidence for a weight or a matcher
+
+The decision records in §6.1 keep applying the same method. It is written down
+here once so that a new proposal starts from it.
+
+- **Two classes, always.** A claim about a detector is a likelihood ratio,
+  `P(fire | phishing) / P(fire | benign)`, measured on real hostname corpora, and
+  both base rates are reported. A rate on one class answers nothing by itself: a
+  benign corpus measures false positives only. `LINK-kbsvooet` first leaned on
+  "0 of 36,200 GitHub logins", which says nothing about attackers, and logins
+  are not even hostnames. It was re-measured on 391,605 Phishing.Database
+  ACTIVE hosts against 1,000,000 Majestic Million hosts (LR 314). §6.1.6 uses
+  CrUX and Umbrella on the benign side.
+- **Measure where the attacker chose.** On bulk free hosting
+  (`000webhostapp.com`, `weeblysite.com`) the host picked the registrable domain,
+  and the attacker picked only the subdomain. Split a phishing list by
+  registrable-domain frequency before you attribute a label to an attacker.
+  Condition on the population a rule can actually fire on (§6.1.6).
+- **The ticket's own examples are not evidence.** A hand-picked false-positive
+  list, like a hand-curated benign set, confirms itself. `LINK-aqdajqfi`
+  predicted near-zero benign interior-digit hits from four examples. The measured
+  figure was 66.4% of firing benign labels, with an LR of 2.51 against 2.21 for
+  trailing digits, and it was declined on that.
+- **A widening and a weight change are different questions.** Widening a matcher
+  changes *what fires*, so it has to clear §6.1.1's bar: enumerate the firing
+  surface, probe an unseen corpus, run a control group. Changing a weight leaves
+  the firing surface as it was and asks only whether the loudness is right on
+  inputs that already fire. That still takes two classes, but asking for
+  enumerate-plus-probe on a weight change is a category error.
+- **Probe the current score before accepting that it is too low.** Run the
+  input through the built CLI (`node packages/cli/dist/cli.js check --json
+  '<url>'`) first. `LINK-gstzjwcw` asked for a harder weight on overlong UTF-8
+  that already scored `encoding_obfuscation` at 0.35.
+
+Measurement corpora are working data. None of them enters shipped data
+(§6.1.3).
+
 ## 8. Policy layer
 
 The policy layer answers "does this URL satisfy my org's allow/deny rules?" — a separate question from "is this URL deceptive?"
