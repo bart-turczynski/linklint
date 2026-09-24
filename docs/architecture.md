@@ -2320,7 +2320,7 @@ Weights are hand-tuned, version-pinned, and transparent. The full table is in `d
 The decision records in §6.1 keep applying the same method. It is written down
 here once so that a new proposal starts from it.
 
-- **Two classes, always.** A claim about a detector is a likelihood ratio,
+- **Two classes, every time.** A claim about a detector is a likelihood ratio,
   `P(fire | phishing) / P(fire | benign)`, measured on real hostname corpora, and
   both base rates are reported. A rate on one class answers nothing by itself: a
   benign corpus measures false positives only. `LINK-kbsvooet` first leaned on
