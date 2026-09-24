@@ -682,7 +682,7 @@ describe("the scope-of-claim boundary is stated in one canonical place", () => {
       // LINK-brsntven. The table used to be a statement of what was owed, with
       // three of the four shipping above weight 0. It now describes the code, so
       // present tense is finally a true claim about what the code does
-      // (AGENTS.md). The assertion is inverted rather than dropped: the failure
+      // (docs/tracker-hygiene.md). The assertion is inverted rather than dropped: the failure
       // it guards against has flipped from "claims work that has not landed" to
       // "still reads as owed after it landed".
       expect(flat).not.toContain("Disposition column is what is owed");
