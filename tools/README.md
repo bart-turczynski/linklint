@@ -231,7 +231,9 @@ the advisory list instead of only setting a threshold, so the below-threshold
 findings survive as an aggregate count and nothing more; and exit `1` means both
 "found something" and "could not reach the registry" — the failure arrives as
 `{"error":{"code":"pnpm","message":"fetch failed"}}` on stdout, with an empty
-stderr, so only the shape of stdout distinguishes it. `--ignore-registry-errors`
+stderr, so only the shape of stdout distinguishes it (pnpm 12.14.0 still exits
+`1`, but with an empty stdout and the error on stderr, which the tool reports as
+exit `2`). `--ignore-registry-errors`
 exists and turns a failed scan into exit `0`, which is the fail-open this check
 is built to refuse. The tool therefore reads the full report and decides itself,
 and rejects a report that arrives already filtered.

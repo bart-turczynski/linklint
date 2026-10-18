@@ -263,9 +263,9 @@ verify:
 #
 # WHY `npm publish` AND NOT `pnpm publish`. pnpm is the workspace tool here, but
 # it is not the publisher: OIDC support is an open request against pnpm
-# (pnpm/pnpm#9812), and pnpm 11 — the major pinned in `packageManager` — is
-# reported to fail OIDC publishes that worked on pnpm 10 (pnpm/pnpm#11513). The
-# npm CLI owns the token exchange, so npm does the publishing.
+# (pnpm/pnpm#9812), and pnpm 11 was reported to fail OIDC publishes that worked
+# on pnpm 10 (pnpm/pnpm#11513); pnpm 12, now pinned in `packageManager`, has not
+# been tried. The npm CLI owns the token exchange, so npm does the publishing.
 #
 # That leaves one thing only pnpm can do: `workspace:*`. npm would publish that
 # literal string and break every install. So pnpm PACKS — which rewrites each

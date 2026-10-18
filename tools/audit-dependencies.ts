@@ -45,6 +45,12 @@
  *      opposite of what is wanted here: it turns a failed scan into exit 0,
  *      which is precisely the fail-open this check is built to refuse.
  *
+ *      pnpm 12.14.0 (re-measured 2026-10-19) moved the failure off stdout: the
+ *      same command exits 1 with an EMPTY stdout and ERR_PNPM_AUDIT_BAD_RESPONSE
+ *      on stderr. Exit 1 is still ambiguous; the empty-stdout branch in
+ *      `audit()` turns it into exit 2. Property 1 was not re-measured on 12 —
+ *      it needs live advisories, and the tree had none that day.
+ *
  * So the wrapper runs `pnpm audit --json` with NO `--audit-level`, applies the
  * severity policy itself over the complete advisory list, and reads stdout to
  * tell a scan that ran from one that did not.

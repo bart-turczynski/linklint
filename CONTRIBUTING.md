@@ -134,7 +134,9 @@ Two measured properties of pnpm 11.8.0, both recorded at the top of
    `{"error":{"code":"pnpm","message":"fetch failed"}}` on stdout. Only the shape
    of stdout separates a failed scan from a real finding, so something has to
    read stdout. `--ignore-registry-errors` exists and does the opposite of what
-   is wanted: it turns a failed scan into exit `0`.
+   is wanted: it turns a failed scan into exit `0`. On pnpm 12.14.0, now pinned,
+   the same failure is still exit `1` but arrives with an empty stdout and the
+   error on stderr; the wrapper reports that as exit `2` too.
 
 So the wrapper runs `pnpm audit --json` with no `--audit-level` and applies the
 severity policy itself. It also **refuses a report that was filtered before it
@@ -361,9 +363,10 @@ alone (`LINK-kaiehaha`).
 ### Why `npm publish` and not `pnpm publish`
 
 pnpm is the workspace tool here but not the publisher. OIDC support is an open
-request against pnpm (`pnpm/pnpm#9812`), and pnpm 11 — the major pinned in
-`packageManager` — is reported to fail OIDC publishes that worked on pnpm 10
-(`pnpm/pnpm#11513`). The npm CLI owns the token exchange, so npm publishes.
+request against pnpm (`pnpm/pnpm#9812`), and pnpm 11 was reported to fail OIDC
+publishes that worked on pnpm 10 (`pnpm/pnpm#11513`); pnpm 12, the major now
+pinned in `packageManager`, has not been tried. The npm CLI owns the token
+exchange, so npm publishes.
 
 That leaves exactly one thing only pnpm can do: rewrite `workspace:*`. npm would
 publish the literal string and break every install. So the job has pnpm **pack**
