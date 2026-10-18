@@ -118,15 +118,20 @@ verify:
   # if one is ever needed, put an unconditional `$CI_COMMIT_TAG` arm first.
   #
   # Node majors, kept in sync with MATRIX in tools/verify.sh. 24 is the floor
-  # declared by `engines.node` in every package and pinned in `.node-version`;
-  # 26 is the current release line, and `engines` has no upper bound, so users
-  # install on it. Nothing is known to differ between them (LINK-wpaieeen
-  # measured the gate byte-identical on both) — the matrix exists to keep it
-  # that way, not to chase a known break.
+  # declared by `engines.node` in every package; 26 is the current release
+  # line, pinned in `.node-version` as the development runtime, and `engines`
+  # has no upper bound, so users install on it. Nothing is known to differ
+  # between them (LINK-wpaieeen measured the gate byte-identical on both) — the
+  # matrix exists to keep it that way, not to chase a known break.
+  #
+  # `-trixie` on both legs: the bare `node:24` tag is still Debian bookworm
+  # while `node:26` is trixie, so an unsuffixed tag made the Debian suite a
+  # second variable across the matrix. The bookworm figures in the jq and mksh
+  # notes below were measured before this pin.
   parallel:
     matrix:
       - NODE_MAJOR: ["24", "26"]
-  image: node:${NODE_MAJOR}
+  image: node:${NODE_MAJOR}-trixie
   interruptible: true
   # A green run is ~2 minutes; anything past 15 is hung, and a hung job on a
   # metered runner bills until it is killed.
@@ -258,9 +263,9 @@ verify:
 #
 # WHY `npm publish` AND NOT `pnpm publish`. pnpm is the workspace tool here, but
 # it is not the publisher: OIDC support is an open request against pnpm
-# (pnpm/pnpm#9812), and pnpm 11 — the major pinned in `packageManager` — is
-# reported to fail OIDC publishes that worked on pnpm 10 (pnpm/pnpm#11513). The
-# npm CLI owns the token exchange, so npm does the publishing.
+# (pnpm/pnpm#9812), and pnpm 11 was reported to fail OIDC publishes that worked
+# on pnpm 10 (pnpm/pnpm#11513); pnpm 12, now pinned in `packageManager`, has not
+# been tried. The npm CLI owns the token exchange, so npm does the publishing.
 #
 # That leaves one thing only pnpm can do: `workspace:*`. npm would publish that
 # literal string and break every install. So pnpm PACKS — which rewrites each
@@ -282,7 +287,7 @@ publish:
   stage: publish
   rules:
     - if: $CI_COMMIT_TAG
-  image: node:24
+  image: node:26-trixie
   interruptible: false
   timeout: 15m
   id_tokens:
@@ -298,9 +303,10 @@ publish:
   variables:
     RELEASE_DIR: "$CI_PROJECT_DIR/.release"
   before_script:
-    # The node:24 image ships an npm older than trusted publishing needs (11.5.1
-    # or later). Pin the major rather than `@latest`, so a future npm major
-    # cannot change publish behavior underneath a release.
+    # Trusted publishing needs npm 11.5.1 or later. The node:24 image shipped an
+    # older npm; node:26-trixie ships 11.20.0 (measured 2026-10-19), so this now
+    # only moves within 11. Pin the major rather than `@latest`, so a future npm
+    # major cannot change publish behavior underneath a release.
     - npm install -g npm@11
     - npm install -g "pnpm@$(node -p "require('./package.json').packageManager.split('@')[1]")"
     - pnpm config set store-dir "$PNPM_STORE"

@@ -25,9 +25,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # The matrix, as major versions. 24 is the floor declared by `engines.node` in
-# every package and pinned in `.node-version`; 26 is the current release line,
-# and `engines` has no upper bound, so users install on it. Keep in sync with
-# the `NODE_MAJOR` matrix in .gitlab-ci.yml.
+# every package; 26 is the current release line, pinned in `.node-version` as
+# the development runtime, and `engines` has no upper bound, so users install
+# on it. Keep in sync with the `NODE_MAJOR` matrix in .gitlab-ci.yml.
 MATRIX=(24 26)
 
 run_install=1
