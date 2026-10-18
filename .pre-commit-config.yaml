@@ -15,7 +15,10 @@ repos:
       - id: trailing-whitespace
         exclude: '^(packages/core/test|tools)/data/'
       - id: check-merge-conflict
+      # pnpm 12 writes pnpm-lock.yaml as two YAML documents (pnpm itself, then
+      # the workspace), which the default single-document check rejects.
       - id: check-yaml
+        args: ['--allow-multiple-documents']
       - id: check-toml
       - id: mixed-line-ending
       - id: check-case-conflict
